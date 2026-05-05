@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: breathaway-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: breathaway_dev
+      POSTGRES_USER: breathaway_user
+      POSTGRES_PASSWORD: breathaway_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - breathaway-network
+
+volumes:
+  postgres_data:
+
+networks:
+  breathaway-network:
+    driver: bridge
