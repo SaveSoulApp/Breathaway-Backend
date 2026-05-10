@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuthCredentialType } from '@prisma/client';
+import { AuthCredentialType, IdentityType } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
@@ -49,7 +49,14 @@ export class AuthService extends BaseService {
     // Check global uniqueness via AuthCredential
     const existingCred = await this.prisma.authCredential.findUnique({
       where: { valueHash },
-      include: { identity: true },
+      select: {
+        userId: true,
+        identity: {
+          select: {
+            isVerified: true,
+          },
+        },
+      },
     });
 
     if (existingCred) {
@@ -70,9 +77,10 @@ export class AuthService extends BaseService {
     });
 
     // Encrypt public value
-    const encPublic = await this.encryptionService.encryptPublicValue(
+    const encPublic = await this.encryptionService.encryptPublicValue(value);
+    const valueMasked = this.encryptionService.maskPublicValue(
       value,
-      authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+      authMethod.method === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
     );
 
     // Create Identity
@@ -85,7 +93,7 @@ export class AuthService extends BaseService {
         publicValueTag: encPublic.tagBase64,
         publicValueWrappedKey: encPublic.wrappedKeyBase64,
         publicValueKeyId: encPublic.keyId,
-        publicValueMasked: encPublic.masked,
+        publicValueMasked: valueMasked,
         userId: user.id,
         isVerified: false,
         verifiedAt: null,
@@ -98,7 +106,7 @@ export class AuthService extends BaseService {
         userId: user.id,
         type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
         valueHash,
-        valueMasked: encPublic.masked,
+        valueMasked: valueMasked,
         isPrimary: true,
         identityId: identity.id,
       },
@@ -125,7 +133,14 @@ export class AuthService extends BaseService {
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
-      include: { identity: true },
+      select: {
+        userId: true,
+        identity: {
+          select: {
+            isVerified: true,
+          },
+        },
+      },
     });
 
     if (!credential) {
@@ -161,16 +176,24 @@ export class AuthService extends BaseService {
 
     let credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
-      include: { identity: true },
+      select: {
+        userId: true,
+        identity: {
+          select: {
+            isVerified: true,
+          },
+        },
+      },
     });
 
     if (!credential) {
       // New user – create account
       const user = await this.prisma.user.create({ data: {} });
 
-      const encPublic = await this.encryptionService.encryptPublicValue(
+      const encPublic = await this.encryptionService.encryptPublicValue(value);
+      const valueMasked = this.encryptionService.maskPublicValue(
         value,
-        authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+        authMethod.method === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
       );
 
       const identity = await this.prisma.identity.create({
@@ -182,7 +205,7 @@ export class AuthService extends BaseService {
           publicValueTag: encPublic.tagBase64,
           publicValueWrappedKey: encPublic.wrappedKeyBase64,
           publicValueKeyId: encPublic.keyId,
-          publicValueMasked: encPublic.masked,
+          publicValueMasked: valueMasked,
           userId: user.id,
           isVerified: false,
         },
@@ -193,7 +216,7 @@ export class AuthService extends BaseService {
           userId: user.id,
           type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
           valueHash,
-          valueMasked: encPublic.masked,
+          valueMasked: valueMasked,
           isPrimary: true,
           identityId: identity.id,
         },
@@ -246,10 +269,8 @@ export class AuthService extends BaseService {
     const user = await this.prisma.user.create({ data: {} });
 
     // Encrypt handle (public value) and platformUserId (platformId)
-    const encHandle = await this.encryptionService.encryptPublicValue(
-      handle,
-      type,
-    );
+    const encHandle = await this.encryptionService.encryptPublicValue(handle);
+    const handleMasked = this.encryptionService.maskPublicValue(handle, type as IdentityType);
     const encPlatformId =
       await this.encryptionService.encryptPlatformId(platformUserId);
 
@@ -262,7 +283,7 @@ export class AuthService extends BaseService {
         publicValueTag: encHandle.tagBase64,
         publicValueWrappedKey: encHandle.wrappedKeyBase64,
         publicValueKeyId: encHandle.keyId,
-        publicValueMasked: encHandle.masked,
+        publicValueMasked: handleMasked,
 
         platformIdHash,
         platformIdCiphertext: encPlatformId.ciphertextBase64,
@@ -326,9 +347,10 @@ export class AuthService extends BaseService {
 
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
-    const encPublic = await this.encryptionService.encryptPublicValue(
+    const encPublic = await this.encryptionService.encryptPublicValue(value);
+    const valueMasked = this.encryptionService.maskPublicValue(
       value,
-      authType === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
     );
 
     const identity = await this.prisma.identity.create({
@@ -340,7 +362,7 @@ export class AuthService extends BaseService {
         publicValueTag: encPublic.tagBase64,
         publicValueWrappedKey: encPublic.wrappedKeyBase64,
         publicValueKeyId: encPublic.keyId,
-        publicValueMasked: encPublic.masked,
+        publicValueMasked: valueMasked,
         userId: user.id,
         isVerified: false, // will need verification
       },
@@ -357,7 +379,7 @@ export class AuthService extends BaseService {
         userId: user.id,
         type: authType === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
         valueHash,
-        valueMasked: encPublic.masked,
+        valueMasked: valueMasked,
         isPrimary,
         identityId: identity.id,
       },

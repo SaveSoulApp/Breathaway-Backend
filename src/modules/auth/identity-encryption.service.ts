@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuthCredentialType, IdentityType } from '@prisma/client';
+import { IdentityType } from '@prisma/client';
 import {
   decryptAesGcm,
   encryptAesGcm,
@@ -13,7 +13,6 @@ export interface EncryptedValue {
   tagBase64: string;
   wrappedKeyBase64: string;
   keyId: string;
-  masked: string;
 }
 
 @Injectable()
@@ -28,13 +27,10 @@ export class IdentityEncryptionService {
    */
   async encryptPublicValue(
     value: string,
-    type: IdentityType,
   ): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
     const { ciphertext, iv, tag } = encryptAesGcm(value, dataKey);
-
-    const masked = this.maskPublicValue(value, type);
 
     return {
       ciphertextBase64: ciphertext.toString('base64'),
@@ -42,7 +38,6 @@ export class IdentityEncryptionService {
       tagBase64: tag.toString('base64'),
       wrappedKeyBase64: wrappedKey.toString('base64'),
       keyId,
-      masked,
     };
   }
 
@@ -50,7 +45,7 @@ export class IdentityEncryptionService {
    * Encrypt a platform ID (e.g., numeric Instagram user ID).
    * No masking is needed for platform IDs.
    */
-  async encryptPlatformId(platformId: string): Promise<Omit<EncryptedValue, 'masked'>> {
+  async encryptPlatformId(platformId: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
     const { ciphertext, iv, tag } = encryptAesGcm(platformId, dataKey);
@@ -108,7 +103,7 @@ export class IdentityEncryptionService {
     return this.keyManager.computeHash(input);
   }
 
-  private maskPublicValue(value: string, type: IdentityType): string {
+  maskPublicValue(value: string, type: IdentityType): string {
     if (type === IdentityType.PHONE) {
       return this.maskPhone(value);
     }
