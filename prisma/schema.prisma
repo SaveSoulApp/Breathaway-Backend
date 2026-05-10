@@ -3,17 +3,273 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
+}
+
+enum IdentityType {
+  PHONE
+  EMAIL
+  INSTAGRAM
+  LINKEDIN
+  TWITTER
+  OTHER
+}
+
+enum AuthCredentialType {
+  PHONE
+  EMAIL
+}
+
+enum IntentType {
+  RELATIONSHIP
+  CASUAL
+  OPEN
+}
+
+enum LikeStatus {
+  PENDING
+  MATCHED
+  VOIDED
+  DELETED
+}
+
+enum MatchStatus {
+  ACTIVE
+  UNMATCHED
+  BLOCKED
+}
+
+enum CreditSource {
+  PURCHASE
+  BONUS
+  REFERRAL
+  LIKE_USAGE
+  ADMIN
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  NONBINARY
+  OTHER
 }
 
 model User {
-  user_id        Int      @id @default(autoincrement())
-  uid            String?  @unique
-  email          String?  @unique
-  email_verified Boolean  @default(false)
-  phone          String?  @unique
-  phone_verified Boolean  @default(false)
+  id               String           @id @default(ulid())
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  profile          UserProfile?
+
+  identities       Identity[]
+  authCredentials  AuthCredential[]
+
+  sentLikes        Like[]           @relation("SentLikes")
+  receivedLikes    Like[]           @relation("ReceivedLikes")
+
+  matchesAsUserOne Match[]          @relation("MatchUserOne")
+  matchesAsUserTwo Match[]          @relation("MatchUserTwo")
+
+  blocking         Block[]          @relation("Blocker")
+  blockedBy        Block[]          @relation("Blocked")
+
+  devices          Device[]
+  creditLedger     CreditLedger[]
+
+  createdAt        DateTime         @default(now())
+  deletedAt        DateTime?
+
+  @@index([createdAt])
+}
+
+model UserProfile {
+  id           String     @id @default(ulid())
+
+  userId       String     @unique
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName    String
+  lastName     String?
+
+  dateOfBirth  DateTime?
+  gender       GenderType?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model AuthCredential {
+  id          String             @id @default(ulid())
+
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        AuthCredentialType
+
+  valueHash   String             @unique @db.Char(64)
+  valueMasked String?
+
+  isPrimary   Boolean            @default(false)
+
+  identityId  String             @unique
+  identity    Identity           @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime           @default(now())
+  deletedAt   DateTime?
+
+  @@unique([userId, type])
+  @@index([userId])
+}
+
+model Identity {
+  id                    String          @id @default(ulid())
+
+  type                  IdentityType
+
+  publicValueHash       String          @db.Char(64)
+  publicValueCiphertext String
+  publicValueIv         String          @db.Char(24)
+  publicValueTag        String          @db.Char(24)
+  publicValueWrappedKey String
+  publicValueKeyId      String
+  publicValueMasked     String?
+
+  platformIdHash        String?         @db.Char(64)
+  platformIdCiphertext  String?
+  platformIdIv          String?         @db.Char(24)
+  platformIdTag         String?         @db.Char(24)
+  platformIdWrappedKey  String?
+  platformIdKeyId       String?
+
+  userId                String?
+  user                  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  isVerified            Boolean         @default(false)
+  verifiedAt            DateTime?
+
+  authCredential        AuthCredential?
+
+  likes                 Like[]
+
+  createdAt             DateTime        @default(now())
+  deletedAt             DateTime?
+
+  @@unique([type, publicValueHash])
+  @@unique([type, platformIdHash])
+  @@index([userId])
+  @@index([platformIdHash])
+}
+
+model Like {
+  id               String      @id @default(ulid())
+
+  senderUserId     String
+  senderUser       User        @relation("SentLikes", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  targetIdentityId String
+  targetIdentity   Identity    @relation(fields: [targetIdentityId], references: [id], onDelete: Cascade)
+
+  targetUserId     String?
+  targetUser       User?       @relation("ReceivedLikes", fields: [targetUserId], references: [id])
+
+  intent           IntentType
+  status           LikeStatus  @default(PENDING)
+
+  matchAsLikeOne   Match?      @relation("MatchLikeOne")
+  matchAsLikeTwo   Match?      @relation("MatchLikeTwo")
+
+  createdAt        DateTime    @default(now())
+  expiresAt        DateTime?
+  deletedAt        DateTime?
+
+  @@unique([senderUserId, targetIdentityId])
+  @@index([senderUserId])
+  @@index([targetIdentityId])
+  @@index([targetUserId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Match {
+  id        String      @id @default(ulid())
+
+  userOneId String
+  userOne   User        @relation("MatchUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+
+  userTwoId String
+  userTwo   User        @relation("MatchUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+
+  likeOneId String      @unique
+  likeOne   Like        @relation("MatchLikeOne", fields: [likeOneId], references: [id])
+
+  likeTwoId String      @unique
+  likeTwo   Like        @relation("MatchLikeTwo", fields: [likeTwoId], references: [id])
+
+  intentOne IntentType
+  intentTwo IntentType
+
+  status    MatchStatus @default(ACTIVE)
+
+  matchedAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userOneId, userTwoId])
+  @@index([userOneId])
+  @@index([userTwoId])
+}
+
+model Block {
+  id            String   @id @default(ulid())
+
+  blockerUserId String
+  blocker       User     @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+
+  blockedUserId String
+  blocked       User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  @@unique([blockerUserId, blockedUserId])
+}
+
+model Device {
+  id         String         @id @default(ulid())
+
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token      String         @unique
+  platform   DevicePlatform
+  deviceId   String?
+  appVersion String?
+
+  isActive   Boolean        @default(true)
+
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model CreditLedger {
+  id          String       @id @default(ulid())
+
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount      Int
+  source      CreditSource
+  referenceId String?
+
+  expiresAt   DateTime?
+
+  createdAt   DateTime     @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

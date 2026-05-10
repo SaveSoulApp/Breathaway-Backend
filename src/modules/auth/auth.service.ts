@@ -2,322 +2,417 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { FirebaseService } from 'src/modules/firebase/firebase.service';
-import { AuthVerificationService } from './auth-verification.service';
 import {
   AddSecondaryAuthDto,
   AuthSigninDto,
   AuthSignupDto,
   DevLoginDto,
+  SocialAuthDto,
 } from './dto';
-import { AuthMethod, AuthMethodInfo } from './utils/auth-method.utils';
+import { IdentityEncryptionService } from './identity-encryption.service';
+import { AuthMethod } from './utils/auth-method.utils';
 
 @Injectable()
 export class AuthService extends BaseService {
   constructor(
-    loggerService: LoggerService,
+    logger: LoggerService,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-    private readonly prismaService: PrismaService,
     private readonly firebaseAdmin: FirebaseService,
     private readonly jwtService: JwtService,
-    private readonly authVerificationService: AuthVerificationService,
+    private readonly encryptionService: IdentityEncryptionService,
   ) {
-    super(loggerService);
+    super(logger);
   }
 
+  // ---------- Phone / Email Signup ----------
   async signup(dto: AuthSignupDto) {
-    const { authMethod, firebaseUser } = await this.fetchUserDetails(dto);
-    this.logger.log('Auth method:', authMethod);
+    const { authMethod } = await this.validateFirebaseToken(
+      dto.uid,
+      dto.uidToken,
+    );
+    this.ensurePhoneOrEmail(authMethod.method);
 
-    const userData = this.buildUserDataFromAuthMethod(authMethod);
-    const user = await this.prismaService.user.create({ data: userData });
+    const value = authMethod.identifier; // raw phone or email
+    const valueHash = await this.encryptionService.computeHash(value);
 
-    return this.generateAuthResponse(user);
+    // Check global uniqueness via AuthCredential
+    const existingCred = await this.prisma.authCredential.findUnique({
+      where: { valueHash },
+      include: { identity: true },
+    });
+
+    if (existingCred) {
+      if (existingCred.identity.isVerified) {
+        throw new ConflictException(
+          `An account with this ${authMethod.method.toLowerCase()} already exists`,
+        );
+      }
+      // Unverified – resend OTP (handled by the controller / frontend)
+      throw new ConflictException(
+        'Verification pending. Please verify your account.',
+      );
+    }
+
+    // Create User
+    const user = await this.prisma.user.create({
+      data: {},
+    });
+
+    // Encrypt public value
+    const encPublic = await this.encryptionService.encryptPublicValue(
+      value,
+      authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+    );
+
+    // Create Identity
+    const identity = await this.prisma.identity.create({
+      data: {
+        type: authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+        publicValueHash: valueHash,
+        publicValueCiphertext: encPublic.ciphertextBase64,
+        publicValueIv: encPublic.ivBase64,
+        publicValueTag: encPublic.tagBase64,
+        publicValueWrappedKey: encPublic.wrappedKeyBase64,
+        publicValueKeyId: encPublic.keyId,
+        publicValueMasked: encPublic.masked,
+        userId: user.id,
+        isVerified: false,
+        verifiedAt: null,
+      },
+    });
+
+    // Create AuthCredential (thin index)
+    await this.prisma.authCredential.create({
+      data: {
+        userId: user.id,
+        type: authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+        valueHash,
+        valueMasked: encPublic.masked,
+        isPrimary: true,
+        identityId: identity.id,
+      },
+    });
+
+    // TODO: Send OTP / magic link to the value
+    this.logger.log(
+      `Created user ${user.id} with ${authMethod.method} – OTP pending.`,
+    );
+
+    return { userId: user.id, status: 'pending_verification' };
   }
 
+  // ---------- Phone / Email Signin ----------
   async signin(dto: AuthSigninDto) {
-    const { authMethod } = await this.firebaseAdmin.validateFirebaseToken(
+    const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
     );
+    this.ensurePhoneOrEmail(authMethod.method);
 
-    this.logger.log('Auth method on signin:', authMethod);
+    const value = authMethod.identifier;
+    const valueHash = await this.encryptionService.computeHash(value);
 
-    const user = await this.findUserByAuthMethod(dto.uid, authMethod);
+    const credential = await this.prisma.authCredential.findUnique({
+      where: { valueHash },
+      include: { identity: true },
+    });
 
-    if (!user) {
-      throw this.buildUserNotFoundException(authMethod, dto.uid);
+    if (!credential) {
+      throw new NotFoundException('No account found with this credential');
     }
 
-    await this.updateUserVerificationStatus(user, authMethod);
+    if (!credential.identity.isVerified) {
+      // Resend OTP / magic link – frontend should show verification screen
+      throw new UnauthorizedException(
+        'Account not verified. Verification code resent.',
+      );
+    }
+
+    // At this point the user exists and is verified. Proceed to send OTP/link.
+    // For simplicity, we issue a JWT directly (in real app you'd send OTP and then confirm).
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: credential.userId },
+    });
 
     return this.generateAuthResponse(user);
   }
 
+  // ---------- Sign‑in or Sign‑up (phone/email) ----------
   async signInOrSignUp(dto: AuthSigninDto) {
-    const { authMethod } = await this.firebaseAdmin.validateFirebaseToken(
+    const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
     );
+    this.ensurePhoneOrEmail(authMethod.method);
 
-    this.logger.log('Auth method on signin:', authMethod);
+    const value = authMethod.identifier;
+    const valueHash = await this.encryptionService.computeHash(value);
 
-    let user = await this.findUserByAuthMethod(dto.uid, authMethod);
+    let credential = await this.prisma.authCredential.findUnique({
+      where: { valueHash },
+      include: { identity: true },
+    });
 
-    if (!user) {
-      const userData = this.buildUserDataFromAuthMethod(authMethod);
-      user = await this.prismaService.user.create({ data: userData });
-    } else {
-      await this.updateUserVerificationStatus(user, authMethod);
+    if (!credential) {
+      // New user – create account
+      const user = await this.prisma.user.create({ data: {} });
+
+      const encPublic = await this.encryptionService.encryptPublicValue(
+        value,
+        authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+      );
+
+      const identity = await this.prisma.identity.create({
+        data: {
+          type: authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+          publicValueHash: valueHash,
+          publicValueCiphertext: encPublic.ciphertextBase64,
+          publicValueIv: encPublic.ivBase64,
+          publicValueTag: encPublic.tagBase64,
+          publicValueWrappedKey: encPublic.wrappedKeyBase64,
+          publicValueKeyId: encPublic.keyId,
+          publicValueMasked: encPublic.masked,
+          userId: user.id,
+          isVerified: false,
+        },
+      });
+
+      await this.prisma.authCredential.create({
+        data: {
+          userId: user.id,
+          type: authMethod.method === AuthMethod.PHONE ? 'PHONE' : 'EMAIL',
+          valueHash,
+          valueMasked: encPublic.masked,
+          isPrimary: true,
+          identityId: identity.id,
+        },
+      });
+
+      this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
+      return { userId: user.id, status: 'pending_verification' };
     }
 
+    // Existing credential
+    if (!credential.identity.isVerified) {
+      throw new UnauthorizedException(
+        'Account not verified. Verification code resent.',
+      );
+    }
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: credential.userId },
+    });
     return this.generateAuthResponse(user);
   }
 
+  // ---------- Social Sign‑up / Sign‑in ----------
+  async socialAuth(dto: SocialAuthDto) {
+    const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
+
+    // platformUserId hash
+    const platformIdHash =
+      await this.encryptionService.computeHash(platformUserId);
+
+    let identity = await this.prisma.identity.findFirst({
+      where: { type, platformIdHash },
+      select: { id: true, userId: true, isVerified: true },
+    });
+
+    if (identity) {
+      if (identity.userId === null) {
+        throw new ConflictException(
+          'This account has been deleted. Please re‑verify to recover it.',
+        );
+      }
+      // User exists and is verified – log them in
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: { id: identity.userId },
+      });
+      return this.generateAuthResponse(user);
+    }
+
+    // New social identity
+    const user = await this.prisma.user.create({ data: {} });
+
+    // Encrypt handle (public value) and platformUserId (platformId)
+    const encHandle = await this.encryptionService.encryptPublicValue(
+      handle,
+      type,
+    );
+    const encPlatformId =
+      await this.encryptionService.encryptPlatformId(platformUserId);
+
+    await this.prisma.identity.create({
+      data: {
+        type,
+        publicValueHash: await this.encryptionService.computeHash(handle),
+        publicValueCiphertext: encHandle.ciphertextBase64,
+        publicValueIv: encHandle.ivBase64,
+        publicValueTag: encHandle.tagBase64,
+        publicValueWrappedKey: encHandle.wrappedKeyBase64,
+        publicValueKeyId: encHandle.keyId,
+        publicValueMasked: encHandle.masked,
+
+        platformIdHash,
+        platformIdCiphertext: encPlatformId.ciphertextBase64,
+        platformIdIv: encPlatformId.ivBase64,
+        platformIdTag: encPlatformId.tagBase64,
+        platformIdWrappedKey: encPlatformId.wrappedKeyBase64,
+        platformIdKeyId: encPlatformId.keyId,
+
+        userId: user.id,
+        isVerified: true, // social accounts are pre‑verified
+        verifiedAt: new Date(),
+      },
+    });
+
+    // No AuthCredential for social types.
+
+    this.logger.log(`New social sign‑up (${type}) for user ${user.id}`);
+    return this.generateAuthResponse(user);
+  }
+
+  // ---------- Add Secondary Phone / Email ----------
   async addSecondaryAuth(
-    currentUser: number,
+    userId: string,
     dto: AddSecondaryAuthDto,
     authType: 'phone' | 'email',
   ) {
-    const { authMethod } = await this.firebaseAdmin.validateFirebaseToken(
+    // 1. Validate Firebase token and get identifier
+    const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
     );
+    this.ensurePhoneOrEmail(authMethod.method);
 
-    this.authVerificationService.validateAuthMethodType(authMethod, authType);
-
-    const user = await this.getUserById(currentUser);
-
-    this.authVerificationService.validateUserHasNoExistingAuthMethod(
-      user,
-      authType,
-    );
-
-    await this.authVerificationService.validateAuthIdentifierNotUsedByOthers(
-      authMethod.identifier,
-      authType,
-      user.user_id,
-    );
-
-    const updatedUser = await this.updateUserWithAuthMethod(
-      user.user_id,
-      authMethod,
-      authType,
-    );
-
-    return this.generateAuthResponse(updatedUser);
-  }
-
-  async devLogin(dto: DevLoginDto) {
-    const isEmail = dto.identifier.includes('@');
-    let user: User | null = null;
-
-    if (isEmail) {
-      user = await this.prismaService.user.findUnique({
-        where: { email: dto.identifier },
-      });
-    } else {
-      user = await this.prismaService.user.findUnique({
-        where: { phone: dto.identifier },
-      });
+    if (
+      (authType === 'phone' && authMethod.method !== AuthMethod.PHONE) ||
+      (authType === 'email' && authMethod.method !== AuthMethod.GOOGLE)
+    ) {
+      throw new ConflictException(
+        `Token does not match the expected ${authType} method`,
+      );
     }
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    const value = authMethod.identifier;
+    const valueHash = await this.encryptionService.computeHash(value);
+
+    // 2. Check global uniqueness
+    const existingCred = await this.prisma.authCredential.findUnique({
+      where: { valueHash },
+    });
+    if (existingCred) {
+      throw new ConflictException(
+        `This ${authType} is already associated with an account`,
+      );
     }
 
+    // 3. Verify user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId.toString() },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
+    // 5. Encrypt and create Identity + AuthCredential
+    const encPublic = await this.encryptionService.encryptPublicValue(
+      value,
+      authType === 'phone' ? 'PHONE' : 'EMAIL',
+    );
+
+    const identity = await this.prisma.identity.create({
+      data: {
+        type: authType === 'phone' ? 'PHONE' : 'EMAIL',
+        publicValueHash: valueHash,
+        publicValueCiphertext: encPublic.ciphertextBase64,
+        publicValueIv: encPublic.ivBase64,
+        publicValueTag: encPublic.tagBase64,
+        publicValueWrappedKey: encPublic.wrappedKeyBase64,
+        publicValueKeyId: encPublic.keyId,
+        publicValueMasked: encPublic.masked,
+        userId: user.id,
+        isVerified: false, // will need verification
+      },
+    });
+
+    // Determine if this should be primary (if user has no primary credential yet, set true)
+    const primaryCount = await this.prisma.authCredential.count({
+      where: { userId: user.id, isPrimary: true },
+    });
+    const isPrimary = primaryCount === 0;
+
+    await this.prisma.authCredential.create({
+      data: {
+        userId: user.id,
+        type: authType === 'phone' ? 'PHONE' : 'EMAIL',
+        valueHash,
+        valueMasked: encPublic.masked,
+        isPrimary,
+        identityId: identity.id,
+      },
+    });
+
+    // TODO: Send verification code to the new value
     return this.generateAuthResponse(user);
   }
 
-  private async findUserByAuthMethod(
-    uid: string,
-    authMethod: AuthMethodInfo,
-  ): Promise<User | null> {
-    const whereClause = this.buildUserWhereClause(uid, authMethod);
-    return this.prismaService.user.findFirst({ where: whereClause });
-  }
+  // ---------- Dev Login ----------
+  async devLogin(dto: DevLoginDto) {
+    const value = dto.identifier;
+    const valueHash = await this.encryptionService.computeHash(value);
 
-  private buildUserWhereClause(uid: string, authMethod: AuthMethodInfo): any {
-    if (authMethod.method === AuthMethod.GOOGLE) {
-      return { email: authMethod.identifier };
-    } else if (authMethod.method === AuthMethod.PHONE) {
-      return { phone: authMethod.identifier };
-    }
-    return { uid };
-  }
-
-  private buildUserDataFromAuthMethod(authMethod: AuthMethodInfo): any {
-    const userData: any = {};
-
-    if (authMethod.method === AuthMethod.GOOGLE) {
-      userData.email = authMethod.identifier;
-      userData.email_verified = authMethod.isVerified;
-      userData.phone = null;
-      userData.phone_verified = false;
-    } else if (authMethod.method === AuthMethod.PHONE) {
-      userData.phone = authMethod.identifier;
-      userData.phone_verified = authMethod.isVerified;
-      userData.email = null;
-      userData.email_verified = false;
-    } else {
-      // For other methods, prefer email if available
-      if (authMethod.identifier.includes('@')) {
-        userData.email = authMethod.identifier;
-        userData.email_verified = authMethod.isVerified;
-        userData.phone = null;
-        userData.phone_verified = false;
-      } else {
-        // Fallback to phone if it looks like a phone number
-        userData.phone = authMethod.identifier;
-        userData.phone_verified = authMethod.isVerified;
-        userData.email = null;
-        userData.email_verified = false;
-      }
-    }
-
-    return userData;
-  }
-
-  private async updateUserVerificationStatus(
-    user: User,
-    authMethod: AuthMethodInfo,
-  ): Promise<void> {
-    if (
-      authMethod.method === AuthMethod.GOOGLE &&
-      user.email &&
-      !user.email_verified
-    ) {
-      await this.prismaService.user.update({
-        where: { user_id: user.user_id },
-        data: { email_verified: authMethod.isVerified },
-      });
-    } else if (
-      authMethod.method === AuthMethod.PHONE &&
-      user.phone &&
-      !user.phone_verified
-    ) {
-      await this.prismaService.user.update({
-        where: { user_id: user.user_id },
-        data: { phone_verified: authMethod.isVerified },
-      });
-    }
-  }
-
-  private buildUserNotFoundException(
-    authMethod: AuthMethodInfo,
-    uid: string,
-  ): NotFoundException {
-    if (authMethod.method === AuthMethod.GOOGLE) {
-      return new NotFoundException(
-        `User with email ${authMethod.identifier} not found. Please sign up first.`,
-      );
-    } else if (authMethod.method === AuthMethod.PHONE) {
-      return new NotFoundException(
-        `User with phone ${authMethod.identifier} not found. Please sign up first.`,
-      );
-    } else {
-      return new NotFoundException(
-        `User with UID ${uid} not found. Please sign up first.`,
-      );
-    }
-  }
-
-  private async getUserById(currentUser: number): Promise<User> {
-    const user = await this.prismaService.user.findUnique({
-      where: { user_id: currentUser },
+    const credential = await this.prisma.authCredential.findFirst({
+      where: { valueHash },
+      include: { user: true },
     });
 
-    if (!user) {
+    if (!credential) {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    return this.generateAuthResponse(credential.user);
   }
 
-  private async updateUserWithAuthMethod(
-    userId: number,
-    authMethod: AuthMethodInfo,
-    authType: 'phone' | 'email',
-  ): Promise<User> {
-    const updateData: any = {};
-
-    if (authType === 'phone') {
-      updateData.phone = authMethod.identifier;
-      updateData.phone_verified = authMethod.isVerified;
-    } else {
-      updateData.email = authMethod.identifier;
-      updateData.email_verified = authMethod.isVerified;
-    }
-
-    return this.prismaService.user.update({
-      where: { user_id: userId },
-      data: updateData,
-    });
-  }
-
-  private generateAuthResponse(user: User) {
-    return {
-      access_token: this.jwtService.sign(this.generateJwtPayload(user)),
-      ...user,
-    };
-  }
-
-  async signout() {
-    //To be Implemented
-    return { message: 'Hello World' };
-  }
-
-  private async fetchUserDetails(
-    dto: AuthSignupDto,
-  ): Promise<{ authMethod: AuthMethodInfo; firebaseUser: any }> {
-    // Verify the Firebase ID token
+  // ---------- Common Helpers ----------
+  private async validateFirebaseToken(uid: string, uidToken: string) {
     const { authMethod, decodedToken } =
-      await this.firebaseAdmin.validateFirebaseToken(dto.uid, dto.uidToken);
-
-    // Get additional user info from Firebase
-    const firebaseUser = await this.firebaseAdmin.getUser(dto.uid);
-
-    // Check if user already exists with the same identifier
-    let existingUserByIdentifier: User | null = null;
-    if (authMethod.method === AuthMethod.GOOGLE) {
-      existingUserByIdentifier = await this.prismaService.user.findUnique({
-        where: { email: authMethod.identifier },
-      });
-    } else if (authMethod.method === AuthMethod.PHONE) {
-      existingUserByIdentifier = await this.prismaService.user.findUnique({
-        where: { phone: authMethod.identifier },
-      });
-    }
-
-    if (existingUserByIdentifier) {
-      if (authMethod.method === AuthMethod.GOOGLE) {
-        throw new ConflictException('User already exists with this email');
-      } else if (authMethod.method === AuthMethod.PHONE) {
-        throw new ConflictException(
-          'User already exists with this phone number',
-        );
-      }
-    }
-
-    return { authMethod, firebaseUser };
+      await this.firebaseAdmin.validateFirebaseToken(uid, uidToken);
+    return { authMethod, decodedToken };
   }
 
-  private generateJwtPayload(user: User) {
-    const payload: any = {
-      sub: user.user_id,
+  private ensurePhoneOrEmail(method: AuthMethod) {
+    if (method !== AuthMethod.PHONE && method !== AuthMethod.EMAIL) {
+      throw new ConflictException(
+        'Only phone or email authentication is allowed for this endpoint',
+      );
+    }
+  }
+
+  private generateAuthResponse(user: any) {
+    const payload = {
+      sub: user.id,
       iss: this.configService.get('APP_NAME'),
       aud: this.configService.get('JWT_AUDIENCE'),
       jti: nanoid(24),
     };
+    return {
+      access_token: this.jwtService.sign(payload),
+      user,
+    };
+  }
 
-    return payload;
+  signout() {
+    // Token revocation can be implemented later
+    return { message: 'Signout successful' };
   }
 }

@@ -1,62 +1,45 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
-import { User } from '@prisma/client';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
-import { AuthMethod, AuthMethodInfo } from './utils/auth-method.utils';
+import { IdentityEncryptionService } from './identity-encryption.service';
 
 @Injectable()
 export class AuthVerificationService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly encryptionService: IdentityEncryptionService,
+  ) {}
 
-  validateAuthMethodType(
-    authMethod: AuthMethodInfo,
-    expectedType: 'phone' | 'email',
-  ) {
-    if (expectedType === 'phone' && authMethod.method !== AuthMethod.PHONE) {
-      throw new BadRequestException('Expected phone authentication method');
-    }
-
-    if (expectedType === 'email' && authMethod.method !== AuthMethod.GOOGLE) {
-      throw new BadRequestException('Expected Google authentication method');
-    }
-  }
-
-  validateUserHasNoExistingAuthMethod(user: User, authType: 'phone' | 'email') {
-    if (authType === 'phone' && user.phone) {
-      throw new ConflictException('Phone number already exists for this user');
-    }
-
-    if (authType === 'email' && user.email) {
-      throw new ConflictException('Email already exists for this user');
+  async assertIdentifierUnique(value: string) {
+    const hash = await this.encryptionService.computeHash(value);
+    const existing = await this.prisma.authCredential.findUnique({
+      where: { valueHash: hash },
+    });
+    if (existing) {
+      throw new ConflictException('This identifier is already in use');
     }
   }
 
-  async validateAuthIdentifierNotUsedByOthers(
-    identifier: string,
-    authType: 'phone' | 'email',
-    currentUserId: number,
-  ) {
-    let existingUser: User | null = null;
-
-    if (authType === 'phone') {
-      existingUser = await this.prismaService.user.findUnique({
-        where: { phone: identifier },
-      });
-    } else {
-      existingUser = await this.prismaService.user.findUnique({
-        where: { email: identifier },
-      });
-    }
-
-    if (existingUser && existingUser.user_id !== currentUserId) {
+  async assertUserDoesNotHaveAuthType(userId: string, type: 'PHONE' | 'EMAIL') {
+    const count = await this.prisma.authCredential.count({
+      where: { userId, type },
+    });
+    if (count > 0) {
       throw new ConflictException(
-        authType === 'phone'
-          ? 'Phone number already used by another user'
-          : 'Email already used by another user',
+        `User already has a ${type.toLowerCase()} credential`,
       );
+    }
+  }
+
+  async assertSocialIdentityNotUsed(
+    type: 'INSTAGRAM' | 'LINKEDIN' | 'TWITTER' | 'OTHER',
+    platformUserId: string,
+  ) {
+    const hash = await this.encryptionService.computeHash(platformUserId);
+    const existing = await this.prisma.identity.findFirst({
+      where: { type, platformIdHash: hash },
+    });
+    if (existing && existing.userId) {
+      throw new ConflictException('This social account is already linked');
     }
   }
 }

@@ -14,10 +14,11 @@ import { AuthService } from './auth.service';
 import {
   AddSecondaryAuthDto,
   AuthSignupDto,
+  AuthSigninDto,
   DevLoginDto,
   UserAuthDto,
+  SocialAuthDto,
 } from './dto';
-import { AuthSigninDto } from './dto/request/auth-signin.dto';
 
 @Controller({
   path: 'auth',
@@ -47,6 +48,13 @@ export class AuthController {
     return this.authService.signInOrSignUp(dto);
   }
 
+  @Post('social')
+  @SerializeExpose(UserAuthDto)
+  @HttpCode(HttpStatus.OK)
+  socialAuth(@Body() dto: SocialAuthDto) {
+    return this.authService.socialAuth(dto);
+  }
+
   @Post('dev-login')
   @UseGuards(BasicAuthGuard)
   @SerializeExpose(UserAuthDto)
@@ -59,7 +67,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
-  addPhone(@UserId() userId: number, @Body() dto: AddSecondaryAuthDto) {
+  addPhone(@UserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
     return this.authService.addSecondaryAuth(userId, dto, 'phone');
   }
 
@@ -67,7 +75,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
-  addEmail(@UserId() userId: number, @Body() dto: AddSecondaryAuthDto) {
+  addEmail(@UserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
     return this.authService.addSecondaryAuth(userId, dto, 'email');
   }
 
