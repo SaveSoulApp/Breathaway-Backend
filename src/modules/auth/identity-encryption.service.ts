@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { AuthCredentialType, IdentityType } from '@prisma/client';
 import {
   decryptAesGcm,
   encryptAesGcm,
@@ -27,7 +28,7 @@ export class IdentityEncryptionService {
    */
   async encryptPublicValue(
     value: string,
-    type: 'PHONE' | 'EMAIL' | 'INSTAGRAM' | 'LINKEDIN' | 'TWITTER' | 'OTHER',
+    type: IdentityType,
   ): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
@@ -107,11 +108,11 @@ export class IdentityEncryptionService {
     return this.keyManager.computeHash(input);
   }
 
-  private maskPublicValue(value: string, type: string): string {
-    if (type === 'PHONE') {
+  private maskPublicValue(value: string, type: IdentityType): string {
+    if (type === IdentityType.PHONE) {
       return this.maskPhone(value);
     }
-    if (type === 'EMAIL') {
+    if (type === IdentityType.EMAIL) {
       return this.maskEmail(value);
     }
     // For social handles, just mask all but first character (or return a fixed mask)

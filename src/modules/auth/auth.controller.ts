@@ -7,25 +7,33 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { BaseController } from 'src/base/controller/base.controller';
 import { UserId } from 'src/common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from 'src/common/guards';
 import { SerializeExpose } from 'src/common/interceptors';
+import { LoggerService } from 'src/core/logger/logger.service';
 import { AuthService } from './auth.service';
 import {
   AddSecondaryAuthDto,
-  AuthSignupDto,
   AuthSigninDto,
+  AuthSignupDto,
   DevLoginDto,
-  UserAuthDto,
   SocialAuthDto,
+  UserAuthDto,
 } from './dto';
+import { AuthMethod } from './utils/auth-method.utils';
 
 @Controller({
   path: 'auth',
   version: ['1'],
 })
-export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+export class AuthController extends BaseController {
+  constructor(
+    logger: LoggerService,
+    private readonly authService: AuthService,
+  ) {
+    super(logger);
+  }
 
   @Post('signup')
   @SerializeExpose(UserAuthDto)
@@ -68,7 +76,7 @@ export class AuthController {
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   addPhone(@UserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
-    return this.authService.addSecondaryAuth(userId, dto, 'phone');
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE);
   }
 
   @Patch('add-email')
@@ -76,7 +84,7 @@ export class AuthController {
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   addEmail(@UserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
-    return this.authService.addSecondaryAuth(userId, dto, 'email');
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL);
   }
 
   @Post('signout')
