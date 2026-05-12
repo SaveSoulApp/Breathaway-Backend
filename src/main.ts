@@ -1,5 +1,6 @@
 import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ExceptionLoggingFilter } from './core/logger/exception-logging.filter';
@@ -31,6 +32,16 @@ async function bootstrap() {
     defaultVersion: '1', // Default if no version specified
     prefix: 'api/v', // Custom prefix: /api/v1/users
   });
+
+  const config = new DocumentBuilder()
+    .setTitle('Identity API')
+    .setDescription('Auth + User Profile APIs')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
 
   logger.log(`Application starting on port ${process.env.PORT ?? 3000}`);
 
