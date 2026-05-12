@@ -2,7 +2,7 @@ import { Expose } from 'class-transformer';
 
 export class UserAuthDto {
   @Expose()
-  user_id: number;
+  user_id: string;
 
   @Expose()
   email: string;
@@ -11,5 +11,5 @@ export class UserAuthDto {
   phone: string;
 
   @Expose()
-  access_token: String
+  access_token: string;
 }

@@ -10,8 +10,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get('JWT_SECRET') || 'fallback-secret',
-
-      // Validation options
       audience: configService.get('JWT_AUDIENCE'),
       issuer: configService.get('JWT_ISSUER'),
     });
@@ -19,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     return {
-      userId: parseInt(payload.sub),
+      userId: payload.sub,
       email: payload.email,
     };
   }
