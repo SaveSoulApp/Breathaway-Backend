@@ -29,6 +29,7 @@ import { InstagramModule } from './modules/instagram/instagram.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { SocialidentityModule } from './modules/socialidentity/socialidentity.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { ProfileModule } from './modules/profile/profile.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     WebhooksModule,
     OtpModule,
     InstagramModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [
