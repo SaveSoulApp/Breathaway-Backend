@@ -1,7 +1,7 @@
 import {
-    ConflictException,
-    Injectable,
-    NotFoundException
+  ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { UserProfile } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
@@ -33,9 +33,7 @@ export class ProfileService extends BaseService {
     });
 
     if (existingProfile) {
-      throw new ConflictException(
-        `Profile already exists for user: ${userId}`,
-      );
+      throw new ConflictException(`Profile already exists for user: ${userId}`);
     }
 
     try {
@@ -49,9 +47,7 @@ export class ProfileService extends BaseService {
         },
       });
 
-      this.logger.log(
-        `Profile created successfully for user: ${userId}`
-      );
+      this.logger.log(`Profile created successfully for user: ${userId}`);
       return profile;
     } catch (error) {
       this.logger.error(
@@ -66,18 +62,14 @@ export class ProfileService extends BaseService {
    * Get profile by user ID
    */
   async getProfileByUserId(userId: string): Promise<UserProfile> {
-    this.logger.log(
-      `Fetching profile for user: ${userId}`
-    );
+    this.logger.log(`Fetching profile for user: ${userId}`);
 
     const profile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!profile) {
-      throw new NotFoundException(
-        `Profile not found for user: ${userId}`,
-      );
+      throw new NotFoundException(`Profile not found for user: ${userId}`);
     }
 
     return profile;
@@ -94,9 +86,7 @@ export class ProfileService extends BaseService {
     });
 
     if (!profile) {
-      throw new NotFoundException(
-        `Profile not found with ID: ${id}`,
-      );
+      throw new NotFoundException(`Profile not found with ID: ${id}`);
     }
 
     return profile;
@@ -116,9 +106,7 @@ export class ProfileService extends BaseService {
     });
 
     if (!existingProfile) {
-      throw new NotFoundException(
-        `Profile not found for user: ${userId}`,
-      );
+      throw new NotFoundException(`Profile not found for user: ${userId}`);
     }
 
     try {
@@ -132,14 +120,12 @@ export class ProfileService extends BaseService {
         },
       });
 
-      this.logger.log(
-        `Profile updated successfully for user: ${userId}`
-      );
+      this.logger.log(`Profile updated successfully for user: ${userId}`);
       return updatedProfile;
     } catch (error) {
       this.logger.error(
         `Failed to update profile for user ${userId}`,
-        error.stack
+        error.stack,
       );
       throw error;
     }
@@ -159,9 +145,7 @@ export class ProfileService extends BaseService {
     });
 
     if (!existingProfile) {
-      throw new NotFoundException(
-        `Profile not found for user: ${userId}`,
-      );
+      throw new NotFoundException(`Profile not found for user: ${userId}`);
     }
 
     // Handle special case for dateOfBirth transformation
@@ -176,9 +160,7 @@ export class ProfileService extends BaseService {
         data,
       });
 
-      this.logger.log(
-        `Profile patched successfully for user: ${userId}`
-      );
+      this.logger.log(`Profile patched successfully for user: ${userId}`);
       return patchedProfile;
     } catch (error) {
       this.logger.error(
@@ -200,9 +182,7 @@ export class ProfileService extends BaseService {
     });
 
     if (!existingProfile) {
-      throw new NotFoundException(
-        `Profile not found for user: ${userId}`,
-      );
+      throw new NotFoundException(`Profile not found for user: ${userId}`);
     }
 
     try {
@@ -210,9 +190,7 @@ export class ProfileService extends BaseService {
         where: { userId },
       });
 
-      this.logger.log(
-        `Profile deleted successfully for user: ${userId}`,
-      );
+      this.logger.log(`Profile deleted successfully for user: ${userId}`);
     } catch (error) {
       this.logger.error(
         `Failed to delete profile for user ${userId}`,
@@ -226,9 +204,10 @@ export class ProfileService extends BaseService {
    * Check if profile exists
    */
   async profileExists(userId: string): Promise<boolean> {
-    const count = await this.prisma.userProfile.count({
+    const profile = await this.prisma.userProfile.findUnique({
       where: { userId },
+      select: { userId: true },
     });
-    return count > 0;
+    return !!profile;
   }
 }
