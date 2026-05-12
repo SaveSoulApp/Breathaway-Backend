@@ -220,7 +220,8 @@ export class AuthService extends BaseService {
           publicValueKeyId: encPublic.keyId,
           publicValueMasked: valueMasked,
           userId: user.id,
-          isVerified: false,
+          isVerified: true,
+          verifiedAt: new Date(),
         },
       });
 
