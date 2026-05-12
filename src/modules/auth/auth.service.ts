@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuthCredentialType, IdentityType } from '@prisma/client';
+import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
@@ -80,13 +80,18 @@ export class AuthService extends BaseService {
     const encPublic = await this.encryptionService.encryptPublicValue(value);
     const valueMasked = this.encryptionService.maskPublicValue(
       value,
-      authMethod.method === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL,
     );
 
     // Create Identity
     const identity = await this.prisma.identity.create({
       data: {
-        type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+        type:
+          authMethod.method === AuthMethod.PHONE
+            ? AuthCredentialType.PHONE
+            : AuthCredentialType.EMAIL,
         publicValueHash: valueHash,
         publicValueCiphertext: encPublic.ciphertextBase64,
         publicValueIv: encPublic.ivBase64,
@@ -104,7 +109,10 @@ export class AuthService extends BaseService {
     await this.prisma.authCredential.create({
       data: {
         userId: user.id,
-        type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+        type:
+          authMethod.method === AuthMethod.PHONE
+            ? AuthCredentialType.PHONE
+            : AuthCredentialType.EMAIL,
         valueHash,
         valueMasked: valueMasked,
         isPrimary: true,
@@ -193,12 +201,17 @@ export class AuthService extends BaseService {
       const encPublic = await this.encryptionService.encryptPublicValue(value);
       const valueMasked = this.encryptionService.maskPublicValue(
         value,
-        authMethod.method === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
+        authMethod.method === AuthMethod.PHONE
+          ? IdentityType.PHONE
+          : IdentityType.EMAIL,
       );
 
       const identity = await this.prisma.identity.create({
         data: {
-          type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+          type:
+            authMethod.method === AuthMethod.PHONE
+              ? AuthCredentialType.PHONE
+              : AuthCredentialType.EMAIL,
           publicValueHash: valueHash,
           publicValueCiphertext: encPublic.ciphertextBase64,
           publicValueIv: encPublic.ivBase64,
@@ -214,7 +227,10 @@ export class AuthService extends BaseService {
       await this.prisma.authCredential.create({
         data: {
           userId: user.id,
-          type: authMethod.method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+          type:
+            authMethod.method === AuthMethod.PHONE
+              ? AuthCredentialType.PHONE
+              : AuthCredentialType.EMAIL,
           valueHash,
           valueMasked: valueMasked,
           isPrimary: true,
@@ -270,7 +286,10 @@ export class AuthService extends BaseService {
 
     // Encrypt handle (public value) and platformUserId (platformId)
     const encHandle = await this.encryptionService.encryptPublicValue(handle);
-    const handleMasked = this.encryptionService.maskPublicValue(handle, type as IdentityType);
+    const handleMasked = this.encryptionService.maskPublicValue(
+      handle,
+      type as IdentityType,
+    );
     const encPlatformId =
       await this.encryptionService.encryptPlatformId(platformUserId);
 
@@ -318,7 +337,8 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     if (
-      (authType === AuthMethod.PHONE && authMethod.method !== AuthMethod.PHONE) ||
+      (authType === AuthMethod.PHONE &&
+        authMethod.method !== AuthMethod.PHONE) ||
       (authType === AuthMethod.EMAIL && authMethod.method !== AuthMethod.EMAIL)
     ) {
       throw new ConflictException(
@@ -355,7 +375,10 @@ export class AuthService extends BaseService {
 
     const identity = await this.prisma.identity.create({
       data: {
-        type: authType === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+        type:
+          authType === AuthMethod.PHONE
+            ? AuthCredentialType.PHONE
+            : AuthCredentialType.EMAIL,
         publicValueHash: valueHash,
         publicValueCiphertext: encPublic.ciphertextBase64,
         publicValueIv: encPublic.ivBase64,
@@ -377,7 +400,10 @@ export class AuthService extends BaseService {
     await this.prisma.authCredential.create({
       data: {
         userId: user.id,
-        type: authType === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL,
+        type:
+          authType === AuthMethod.PHONE
+            ? AuthCredentialType.PHONE
+            : AuthCredentialType.EMAIL,
         valueHash,
         valueMasked: valueMasked,
         isPrimary,
@@ -421,16 +447,18 @@ export class AuthService extends BaseService {
     }
   }
 
-  private generateAuthResponse(user: any) {
+  private generateAuthResponse(user: User) {
     const payload = {
       sub: user.id,
       iss: this.configService.get('APP_NAME'),
       aud: this.configService.get('JWT_AUDIENCE'),
       jti: nanoid(24),
     };
+
+    const accessToken = this.jwtService.sign(payload);
     return {
-      access_token: this.jwtService.sign(payload),
-      user,
+      access_token: accessToken,
+      user_id: user.id,
     };
   }
 
