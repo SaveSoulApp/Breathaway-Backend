@@ -2,7 +2,7 @@ import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { BaseController } from 'src/base/controller/base.controller';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { UserId } from '../../common/decorators/user.decorator';
+import { CurrentUserId } from '../../common/decorators/current-user-id.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OtpResponseDto, VerifyOtpDto } from './dto';
 import { OtpService } from './otp.service';
@@ -22,7 +22,7 @@ export class OtpController extends BaseController {
   @Post('generate')
   @UseGuards(JwtAuthGuard)
   @SerializeExpose(OtpResponseDto)
-  async generateOtp(@UserId() userId: string): Promise<OtpResponseDto> {
+  async generateOtp(@CurrentUserId() userId: string): Promise<OtpResponseDto> {
     const { otp, expiresIn } =
       await this.otpService.generateAndStoreOtp(userId);
 
