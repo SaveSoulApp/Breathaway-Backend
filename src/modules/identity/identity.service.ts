@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Identity, IdentityType } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
+import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
@@ -238,22 +239,8 @@ export class IdentityService extends BaseService {
     return identity;
   }
 
-  private normalize(value: string, type: IdentityType): string {
-    switch (type) {
-      case IdentityType.EMAIL:
-        return value.trim().toLowerCase();
-      case IdentityType.PHONE:
-        return value.replace(/\D/g, '');
-      case IdentityType.INSTAGRAM:
-      case IdentityType.LINKEDIN:
-        return value.replace(/^@/, '').trim().toLowerCase();
-      default:
-        return value.trim();
-    }
-  }
-
   private async processPublicValue(value: string, type: IdentityType) {
-    const normalized = this.normalize(value, type);
+    const normalized = normalizeIdentityValue(value, type);
     const hash = await this.encryption.computeHash(normalized);
     const encryptedPublicValue =
       await this.encryption.encryptPublicValue(normalized);

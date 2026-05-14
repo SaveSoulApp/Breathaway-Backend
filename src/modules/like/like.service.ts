@@ -9,6 +9,7 @@ import { IdentityType, LikeStatus } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
+import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { IdentityEncryptionService } from '../identity/identity-encryption.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
@@ -31,7 +32,7 @@ export class LikeService extends BaseService {
 
     if (!targetIdentityId && dto.targetIdentity) {
       const { type, publicValue, platformId } = dto.targetIdentity;
-      const normalized = this.normalize(publicValue, type);
+      const normalized = normalizeIdentityValue(publicValue, type);
       const publicValueHash = await this.encryption.computeHash(normalized);
 
       // Check if identity exists
@@ -232,17 +233,5 @@ export class LikeService extends BaseService {
     return { success: true };
   }
 
-  private normalize(value: string, type: IdentityType): string {
-    switch (type) {
-      case IdentityType.EMAIL:
-        return value.trim().toLowerCase();
-      case IdentityType.PHONE:
-        return value.replace(/\D/g, '');
-      case IdentityType.INSTAGRAM:
-      case IdentityType.LINKEDIN:
-        return value.replace(/^@/, '').trim().toLowerCase();
-      default:
-        return value.trim();
-    }
-  }
+
 }
