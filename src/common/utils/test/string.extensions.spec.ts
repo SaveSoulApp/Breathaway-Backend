@@ -1,4 +1,7 @@
-import { toSmartTitleCase, normalizeDocumentNumber } from '../string.extensions';
+import {
+  toSmartTitleCase,
+  normalizeDocumentNumber,
+} from '../string.extensions';
 
 describe('String Extensions', () => {
   describe('toSmartTitleCase', () => {
@@ -7,7 +10,9 @@ describe('String Extensions', () => {
     });
 
     it('should keep small words in the middle lowercase', () => {
-      expect(toSmartTitleCase('the lord of the rings')).toBe('The Lord of the Rings');
+      expect(toSmartTitleCase('the lord of the rings')).toBe(
+        'The Lord of the Rings',
+      );
       expect(toSmartTitleCase('war and peace')).toBe('War and Peace');
     });
 
@@ -17,7 +22,9 @@ describe('String Extensions', () => {
     });
 
     it('should handle extra spacing and trim the string', () => {
-      expect(toSmartTitleCase('  leading and trailing spaces  ')).toBe('Leading and Trailing Spaces');
+      expect(toSmartTitleCase('  leading and trailing spaces  ')).toBe(
+        'Leading and Trailing Spaces',
+      );
       expect(toSmartTitleCase('multiple   spaces')).toBe('Multiple Spaces');
     });
 
@@ -26,11 +33,13 @@ describe('String Extensions', () => {
     });
 
     it('should handle a single-word string', () => {
-        expect(toSmartTitleCase('superman')).toBe('Superman');
+      expect(toSmartTitleCase('superman')).toBe('Superman');
     });
 
     it('should not change a string that is already in title case', () => {
-        expect(toSmartTitleCase('The Quick Brown Fox')).toBe('The Quick Brown Fox');
+      expect(toSmartTitleCase('The Quick Brown Fox')).toBe(
+        'The Quick Brown Fox',
+      );
     });
   });
 
@@ -56,11 +65,11 @@ describe('String Extensions', () => {
     });
 
     it('should not alter a string that is already normalized', () => {
-        expect(normalizeDocumentNumber('ABC123XYZ')).toBe('ABC123XYZ');
+      expect(normalizeDocumentNumber('ABC123XYZ')).toBe('ABC123XYZ');
     });
 
     it('should preserve hyphens and other special characters', () => {
-        expect(normalizeDocumentNumber('inv-2024-001')).toBe('INV-2024-001');
+      expect(normalizeDocumentNumber('inv-2024-001')).toBe('INV-2024-001');
     });
   });
 });

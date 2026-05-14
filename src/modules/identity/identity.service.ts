@@ -9,20 +9,20 @@ import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
-import { IdentityEncryptionService } from './identity-encryption.service';
+import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 
 @Injectable()
 export class IdentityService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly encryption: IdentityEncryptionService,
+    private readonly encryption: IdentityCryptoService,
   ) {
     super(logger);
   }
 
   async create(userId: string, dto: CreateIdentityDto) {
-    const publicValueData = await this.processPublicValue(
+    const publicValueData = await this.encryption.processPublicValue(
       dto.publicValue,
       dto.type,
     );
@@ -32,7 +32,7 @@ export class IdentityService extends BaseService {
     ];
 
     if (dto.platformId) {
-      platformIdData = await this.processPlatformId(dto.platformId);
+      platformIdData = await this.encryption.processPlatformId(dto.platformId);
       orConditions.push({
         platformIdHash: (platformIdData as any).platformIdHash,
       });
@@ -166,7 +166,7 @@ export class IdentityService extends BaseService {
     let updateData: any = {};
 
     if (dto.publicValue) {
-      const publicValueData = await this.processPublicValue(
+      const publicValueData = await this.encryption.processPublicValue(
         dto.publicValue,
         identity.type,
       );
@@ -175,7 +175,9 @@ export class IdentityService extends BaseService {
     }
 
     if (dto.platformId) {
-      const platformIdData = await this.processPlatformId(dto.platformId);
+      const platformIdData = await this.encryption.processPlatformId(
+        dto.platformId,
+      );
       orConditions.push({ platformIdHash: platformIdData.platformIdHash });
       updateData = { ...updateData, ...platformIdData };
     }
@@ -237,39 +239,6 @@ export class IdentityService extends BaseService {
       throw new NotFoundException(`Identity ${id} not found`);
     }
     return identity;
-  }
-
-  private async processPublicValue(value: string, type: IdentityType) {
-    const normalized = normalizeIdentityValue(value, type);
-    const hash = await this.encryption.computeHash(normalized);
-    const encryptedPublicValue =
-      await this.encryption.encryptPublicValue(normalized);
-    const masked = this.encryption.maskPublicValue(normalized, type);
-
-    return {
-      publicValueHash: hash,
-      publicValueCiphertext: encryptedPublicValue.ciphertextBase64,
-      publicValueIv: encryptedPublicValue.ivBase64,
-      publicValueTag: encryptedPublicValue.tagBase64,
-      publicValueWrappedKey: encryptedPublicValue.wrappedKeyBase64,
-      publicValueKeyId: encryptedPublicValue.keyId,
-      publicValueMasked: masked,
-    };
-  }
-
-  private async processPlatformId(platformId: string) {
-    const hash = await this.encryption.computeHash(platformId);
-    const encryptedPlatformId =
-      await this.encryption.encryptPlatformId(platformId);
-
-    return {
-      platformIdHash: hash,
-      platformIdCiphertext: encryptedPlatformId.ciphertextBase64,
-      platformIdIv: encryptedPlatformId.ivBase64,
-      platformIdTag: encryptedPlatformId.tagBase64,
-      platformIdWrappedKey: encryptedPlatformId.wrappedKeyBase64,
-      platformIdKeyId: encryptedPlatformId.keyId,
-    };
   }
 
   private toMaskedResponse(identity: Identity) {

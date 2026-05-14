@@ -132,9 +132,7 @@ describe('ApiKeyMiddleware', () => {
           mockResponse as Response,
           mockNext,
         ),
-      ).toThrow(
-        new UnauthorizedException('X-API-Key header must be a string'),
-      );
+      ).toThrow(new UnauthorizedException('X-API-Key header must be a string'));
       expect(mockNext).not.toHaveBeenCalled();
     });
 

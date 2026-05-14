@@ -31,8 +31,10 @@ export class BasicAuthGuard implements CanActivate {
     );
     const [username, password] = credentials.split(':');
 
-    const expectedUsername = this.configService.get<string>('DEV_LOGIN_USERNAME');
-    const expectedPassword = this.configService.get<string>('DEV_LOGIN_PASSWORD');
+    const expectedUsername =
+      this.configService.get<string>('DEV_LOGIN_USERNAME');
+    const expectedPassword =
+      this.configService.get<string>('DEV_LOGIN_PASSWORD');
 
     if (
       !expectedUsername ||

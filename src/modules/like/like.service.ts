@@ -7,10 +7,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
-import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
-import { IdentityEncryptionService } from '../identity/identity-encryption.service';
+import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
 @Injectable()
@@ -21,7 +20,7 @@ export class LikeService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-    private readonly encryption: IdentityEncryptionService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -32,15 +31,15 @@ export class LikeService extends BaseService {
 
     if (!targetIdentityId && dto.targetIdentity) {
       const { type, publicValue, platformId } = dto.targetIdentity;
-      const normalized = normalizeIdentityValue(publicValue, type);
-      const publicValueHash = await this.encryption.computeHash(normalized);
+      const publicValueData =
+        await this.identityCryptoService.processPublicValue(publicValue, type);
 
       // Check if identity exists
       const existing = await this.prisma.identity.findUnique({
         where: {
           type_publicValueHash: {
             type,
-            publicValueHash,
+            publicValueHash: publicValueData.publicValueHash,
           },
         },
       });
@@ -49,38 +48,18 @@ export class LikeService extends BaseService {
         targetIdentityId = existing.id;
       } else {
         // Create new unresolved identity
-        const encryptedValue =
-          await this.encryption.encryptPublicValue(normalized);
-        const masked = this.encryption.maskPublicValue(normalized, type);
-
-        // Handle platform ID if provided
         let platformIdData = {};
         if (platformId) {
-          const platformHash = await this.encryption.computeHash(platformId);
-          const encryptedPlatform =
-            await this.encryption.encryptPlatformId(platformId);
-          platformIdData = {
-            platformIdHash: platformHash,
-            platformIdCiphertext: encryptedPlatform.ciphertextBase64,
-            platformIdIv: encryptedPlatform.ivBase64,
-            platformIdTag: encryptedPlatform.tagBase64,
-            platformIdWrappedKey: encryptedPlatform.wrappedKeyBase64,
-            platformIdKeyId: encryptedPlatform.keyId,
-          };
+          platformIdData =
+            await this.identityCryptoService.processPlatformId(platformId);
         }
 
         const newIdentity = await this.prisma.identity.create({
           data: {
             type,
-            publicValueHash,
-            publicValueCiphertext: encryptedValue.ciphertextBase64,
-            publicValueIv: encryptedValue.ivBase64,
-            publicValueTag: encryptedValue.tagBase64,
-            publicValueWrappedKey: encryptedValue.wrappedKeyBase64,
-            publicValueKeyId: encryptedValue.keyId,
-            publicValueMasked: masked,
             isVerified: false,
             userId: null,
+            ...publicValueData,
             ...platformIdData,
           },
         });

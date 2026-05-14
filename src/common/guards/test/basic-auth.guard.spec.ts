@@ -39,7 +39,8 @@ describe('BasicAuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => ({
           headers: {
-            authorization: 'Basic ' + Buffer.from('admin:password').toString('base64'),
+            authorization:
+              'Basic ' + Buffer.from('admin:password').toString('base64'),
           },
         }),
       }),
@@ -83,7 +84,8 @@ describe('BasicAuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => ({
           headers: {
-            authorization: 'Basic ' + Buffer.from('admin:wrong').toString('base64'),
+            authorization:
+              'Basic ' + Buffer.from('admin:wrong').toString('base64'),
           },
         }),
       }),
@@ -100,7 +102,8 @@ describe('BasicAuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => ({
           headers: {
-            authorization: 'Basic ' + Buffer.from('admin:password').toString('base64'),
+            authorization:
+              'Basic ' + Buffer.from('admin:password').toString('base64'),
           },
         }),
       }),

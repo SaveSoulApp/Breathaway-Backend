@@ -6,6 +6,7 @@ import {
   generateDataKey,
 } from 'src/core/crypto/crypto-utils';
 import type { IKeyManager } from 'src/core/kms/key-manager.interface';
+import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 
 export interface EncryptedValue {
   ciphertextBase64: string;
@@ -16,15 +17,42 @@ export interface EncryptedValue {
 }
 
 @Injectable()
-export class IdentityEncryptionService {
+export class IdentityCryptoService {
   constructor(
     @Inject('KEY_MANAGER') private readonly keyManager: IKeyManager,
   ) {}
 
-  /**
-   * Encrypt a public value (phone number, email, social handle).
-   * Returns the encrypted fields plus a masked version for display.
-   */
+  public async processPublicValue(value: string, type: IdentityType) {
+    const normalized = normalizeIdentityValue(value, type);
+    const hash = await this.computeHash(normalized);
+    const encryptedPublicValue = await this.encryptPublicValue(normalized);
+    const masked = this.maskPublicValue(normalized, type);
+
+    return {
+      publicValueHash: hash,
+      publicValueCiphertext: encryptedPublicValue.ciphertextBase64,
+      publicValueIv: encryptedPublicValue.ivBase64,
+      publicValueTag: encryptedPublicValue.tagBase64,
+      publicValueWrappedKey: encryptedPublicValue.wrappedKeyBase64,
+      publicValueKeyId: encryptedPublicValue.keyId,
+      publicValueMasked: masked,
+    };
+  }
+
+  public async processPlatformId(platformId: string) {
+    const hash = await this.computeHash(platformId);
+    const encryptedPlatformId = await this.encryptPlatformId(platformId);
+
+    return {
+      platformIdHash: hash,
+      platformIdCiphertext: encryptedPlatformId.ciphertextBase64,
+      platformIdIv: encryptedPlatformId.ivBase64,
+      platformIdTag: encryptedPlatformId.tagBase64,
+      platformIdWrappedKey: encryptedPlatformId.wrappedKeyBase64,
+      platformIdKeyId: encryptedPlatformId.keyId,
+    };
+  }
+
   async encryptPublicValue(value: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
@@ -39,10 +67,6 @@ export class IdentityEncryptionService {
     };
   }
 
-  /**
-   * Encrypt a platform ID (e.g., numeric Instagram user ID).
-   * No masking is needed for platform IDs.
-   */
   async encryptPlatformId(platformId: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
@@ -106,9 +130,6 @@ export class IdentityEncryptionService {
     );
   }
 
-  /**
-   * Compute HMAC-SHA256 hash for deterministic lookups.
-   */
   async computeHash(input: string): Promise<string> {
     return this.keyManager.computeHash(input);
   }
@@ -120,12 +141,10 @@ export class IdentityEncryptionService {
     if (type === IdentityType.EMAIL) {
       return this.maskEmail(value);
     }
-    // For social handles, just mask all but first character (or return a fixed mask)
     return value.charAt(0) + '••••' + value.slice(-2);
   }
 
   private maskPhone(phone: string): string {
-    // Show country code and last 4 digits, mask rest
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length <= 4) return '••••';
     return (

@@ -17,7 +17,7 @@ export class InstagramScheduler {
   @Cron('0 0 */50 * *', { name: 'instagram-token-refresh' })
   async handleTokenRefresh() {
     //Currently disbaled
-    return
+    return;
     this.logger.log('Scheduled Instagram token refresh triggered');
     try {
       const result = await this.instagramService.refreshSystemAccessToken();

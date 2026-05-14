@@ -19,7 +19,7 @@ import {
   DevLoginDto,
   SocialAuthDto,
 } from './dto';
-import { IdentityEncryptionService } from '../identity/identity-encryption.service';
+import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 import { AuthMethod } from './utils/auth-method.utils';
 
 @Injectable()
@@ -30,7 +30,7 @@ export class AuthService extends BaseService {
     private readonly configService: ConfigService,
     private readonly firebaseAdmin: FirebaseService,
     private readonly jwtService: JwtService,
-    private readonly encryptionService: IdentityEncryptionService,
+    private readonly encryptionService: IdentityCryptoService,
   ) {
     super(logger);
   }

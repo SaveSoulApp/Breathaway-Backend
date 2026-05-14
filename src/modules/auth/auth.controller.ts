@@ -7,7 +7,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { BaseController } from 'src/base/controller/base.controller';
 import { CurrentUserId } from 'src/common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from 'src/common/guards';
@@ -39,7 +44,11 @@ export class AuthController extends BaseController {
 
   @Post('signup')
   @ApiOperation({ summary: 'Sign up a new user' })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'User successfully signed up', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'User successfully signed up',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.CREATED)
   signup(@Body() dto: AuthSignupDto) {
@@ -48,7 +57,11 @@ export class AuthController extends BaseController {
 
   @Post('signin')
   @ApiOperation({ summary: 'Sign in an existing user' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'User successfully signed in', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User successfully signed in',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   signin(@Body() dto: AuthSigninDto) {
@@ -57,7 +70,11 @@ export class AuthController extends BaseController {
 
   @Post('signin-or-signup')
   @ApiOperation({ summary: 'Sign in or sign up depending on user existence' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'User successfully authenticated', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User successfully authenticated',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   signinOrSignup(@Body() dto: AuthSigninDto) {
@@ -66,7 +83,11 @@ export class AuthController extends BaseController {
 
   @Post('social')
   @ApiOperation({ summary: 'Authenticate user using a social platform' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'User successfully authenticated via social provider', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User successfully authenticated via social provider',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   socialAuth(@Body() dto: SocialAuthDto) {
@@ -76,7 +97,11 @@ export class AuthController extends BaseController {
   @Post('dev-login')
   @UseGuards(BasicAuthGuard)
   @ApiOperation({ summary: 'Developer login for testing purposes' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Dev user successfully authenticated', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Dev user successfully authenticated',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   devLogin(@Body() dto: DevLoginDto) {
@@ -87,7 +112,11 @@ export class AuthController extends BaseController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Add a phone number as secondary authentication' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Phone number added successfully', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Phone number added successfully',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   addPhone(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
@@ -98,7 +127,11 @@ export class AuthController extends BaseController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Add an email as secondary authentication' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Email added successfully', type: UserAuthDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Email added successfully',
+    type: UserAuthDto,
+  })
   @SerializeExpose(UserAuthDto)
   @HttpCode(HttpStatus.OK)
   addEmail(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
@@ -109,7 +142,10 @@ export class AuthController extends BaseController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Sign out the current user' })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'User successfully signed out' })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'User successfully signed out',
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   signout() {
     return this.authService.signout();

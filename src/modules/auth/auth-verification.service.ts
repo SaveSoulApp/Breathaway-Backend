@@ -1,12 +1,12 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
-import { IdentityEncryptionService } from '../identity/identity-encryption.service';
+import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 
 @Injectable()
 export class AuthVerificationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly encryptionService: IdentityEncryptionService,
+    private readonly encryptionService: IdentityCryptoService,
   ) {}
 
   async assertIdentifierUnique(value: string) {

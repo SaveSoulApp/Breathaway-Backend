@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
-import { KmsModule } from 'src/core/kms/kms.module';
-import { IdentityEncryptionService } from './identity-encryption.service';
+import { IdentityCryptoModule } from 'src/core/identity-crypto/identity-crypto.module';
 import { IdentityController } from './identity.controller';
 import { IdentityService } from './identity.service';
 
 @Module({
-  imports: [KmsModule],
+  imports: [IdentityCryptoModule],
   controllers: [IdentityController],
-  providers: [IdentityService, IdentityEncryptionService],
-  exports: [IdentityService, IdentityEncryptionService],
+  providers: [IdentityService],
+  exports: [IdentityService],
 })
 export class IdentityModule {}

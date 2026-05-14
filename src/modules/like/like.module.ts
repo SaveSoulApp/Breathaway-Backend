@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { IdentityModule } from '../identity/identity.module';
+import { IdentityCryptoModule } from 'src/core/identity-crypto/identity-crypto.module';
 import { LikeController } from './like.controller';
 import { LikeService } from './like.service';
 
 @Module({
-  imports: [IdentityModule],
+  imports: [IdentityCryptoModule],
   controllers: [LikeController],
   providers: [LikeService],
 })
