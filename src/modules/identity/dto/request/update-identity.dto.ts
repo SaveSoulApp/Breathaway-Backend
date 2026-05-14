@@ -4,4 +4,8 @@ export class UpdateIdentityDto {
   @IsOptional()
   @IsString()
   publicValue?: string;
+
+  @IsOptional()
+  @IsString()
+  platformId?: string;
 }

@@ -9,9 +9,6 @@ export class IdentityResponseDto {
   type: IdentityType;
 
   @Expose()
-  publicValueMasked: string | null;
-
-  @Expose()
   isVerified: boolean;
 
   @Expose()
@@ -25,4 +22,7 @@ export class IdentityResponseDto {
 
   @Expose()
   userId: string | null;
+
+  @Expose()
+  publicValueMasked: string | null;
 }

@@ -52,6 +52,12 @@ export class IdentityController extends BaseController {
     return this.identityService.findAllByUser(userId);
   }
 
+  @Get('complete')
+  @SerializeExpose(IdentityCompleteResponseDto)
+  async findAllComplete(@CurrentUserId() userId: string) {
+    return this.identityService.findAllCompleteByUser(userId);
+  }
+
   @Get(':id')
   @SerializeExpose(IdentityResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {

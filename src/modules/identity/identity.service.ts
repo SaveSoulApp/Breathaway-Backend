@@ -22,38 +22,36 @@ export class IdentityService extends BaseService {
   }
 
   async create(userId: string, dto: CreateIdentityDto) {
-    const normalized = this.normalize(dto.publicValue, dto.type);
-    const hash = await this.encryption.computeHash(normalized);
+    const publicValueData = await this.processPublicValue(dto.publicValue, dto.type);
+    let platformIdData = {};
+    const orConditions: any[] = [{ publicValueHash: publicValueData.publicValueHash }];
+
+    if (dto.platformId) {
+      platformIdData = await this.processPlatformId(dto.platformId);
+      orConditions.push({ platformIdHash: (platformIdData as any).platformIdHash });
+    }
 
     // Check for existing active identity of same type & hash
     const existing = await this.prisma.identity.findFirst({
       where: {
         type: dto.type,
-        publicValueHash: hash,
+        OR: orConditions,
         deletedAt: null,
       },
     });
     if (existing) {
       throw new ConflictException(
-        `An identity of type ${dto.type} with this value already exists`,
+        `An identity of type ${dto.type} with this value or platform ID already exists`,
       );
     }
-
-    const enc = await this.encryption.encryptPublicValue(normalized);
-    const masked = this.encryption.maskPublicValue(normalized, dto.type);
 
     const identity = await this.prisma.identity.create({
       data: {
         type: dto.type,
-        publicValueHash: hash,
-        publicValueCiphertext: enc.ciphertextBase64,
-        publicValueIv: enc.ivBase64,
-        publicValueTag: enc.tagBase64,
-        publicValueWrappedKey: enc.wrappedKeyBase64,
-        publicValueKeyId: enc.keyId,
-        publicValueMasked: masked,
         userId,
         isVerified: false,
+        ...publicValueData,
+        ...platformIdData,
       },
     });
 
@@ -66,6 +64,48 @@ export class IdentityService extends BaseService {
       orderBy: { createdAt: 'desc' },
     });
     return identities.map((id) => this.toMaskedResponse(id));
+  }
+
+  async findAllCompleteByUser(userId: string) {
+    const identities = await this.prisma.identity.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    return Promise.all(
+      identities.map(async (identity) => {
+        const publicValue = await this.encryption.decryptPublicValue(
+          identity.publicValueCiphertext,
+          identity.publicValueIv,
+          identity.publicValueTag,
+          identity.publicValueWrappedKey,
+          identity.publicValueKeyId,
+        );
+
+        let platformId: string | null = null;
+        if (
+          identity.platformIdCiphertext &&
+          identity.platformIdIv &&
+          identity.platformIdTag &&
+          identity.platformIdWrappedKey &&
+          identity.platformIdKeyId
+        ) {
+          platformId = await this.encryption.decryptPlatformId(
+            identity.platformIdCiphertext,
+            identity.platformIdIv,
+            identity.platformIdTag,
+            identity.platformIdWrappedKey,
+            identity.platformIdKeyId,
+          );
+        }
+
+        return {
+          ...this.toMaskedResponse(identity),
+          publicValue,
+          platformId,
+        };
+      })
+    );
   }
 
   async findOne(id: string, userId: string) {
@@ -110,41 +150,45 @@ export class IdentityService extends BaseService {
 
   async update(id: string, userId: string, dto: UpdateIdentityDto) {
     const identity = await this.findOwnedOrFail(id, userId);
-    if (!dto.publicValue) {
+    
+    if (!dto.publicValue && !dto.platformId) {
       return this.toMaskedResponse(identity);
     }
 
-    const normalized = this.normalize(dto.publicValue, identity.type);
-    const hash = await this.encryption.computeHash(normalized);
+    const orConditions: any[] = [];
+    let updateData: any = {};
 
-    const duplicate = await this.prisma.identity.findFirst({
-      where: {
-        type: identity.type,
-        publicValueHash: hash,
-        deletedAt: null,
-        id: { not: id },
-      },
-    });
-    if (duplicate) {
-      throw new ConflictException(
-        `Another identity of type ${identity.type} with this value already exists`,
-      );
+    if (dto.publicValue) {
+      const publicValueData = await this.processPublicValue(dto.publicValue, identity.type);
+      orConditions.push({ publicValueHash: publicValueData.publicValueHash });
+      updateData = { ...updateData, ...publicValueData };
     }
 
-    const enc = await this.encryption.encryptPublicValue(normalized);
-    const masked = this.encryption.maskPublicValue(normalized, identity.type);
+    if (dto.platformId) {
+      const platformIdData = await this.processPlatformId(dto.platformId);
+      orConditions.push({ platformIdHash: platformIdData.platformIdHash });
+      updateData = { ...updateData, ...platformIdData };
+    }
+
+    if (orConditions.length > 0) {
+      const duplicate = await this.prisma.identity.findFirst({
+        where: {
+          type: identity.type,
+          deletedAt: null,
+          id: { not: id },
+          OR: orConditions,
+        },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          `Another identity of type ${identity.type} with this value or platform ID already exists`,
+        );
+      }
+    }
 
     const updated = await this.prisma.identity.update({
       where: { id },
-      data: {
-        publicValueHash: hash,
-        publicValueCiphertext: enc.ciphertextBase64,
-        publicValueIv: enc.ivBase64,
-        publicValueTag: enc.tagBase64,
-        publicValueWrappedKey: enc.wrappedKeyBase64,
-        publicValueKeyId: enc.keyId,
-        publicValueMasked: masked,
-      },
+      data: updateData,
     });
 
     return this.toMaskedResponse(updated);
@@ -197,6 +241,37 @@ export class IdentityService extends BaseService {
       default:
         return value.trim();
     }
+  }
+
+  private async processPublicValue(value: string, type: IdentityType) {
+    const normalized = this.normalize(value, type);
+    const hash = await this.encryption.computeHash(normalized);
+    const encryptedPublicValue = await this.encryption.encryptPublicValue(normalized);
+    const masked = this.encryption.maskPublicValue(normalized, type);
+
+    return {
+      publicValueHash: hash,
+      publicValueCiphertext: encryptedPublicValue.ciphertextBase64,
+      publicValueIv: encryptedPublicValue.ivBase64,
+      publicValueTag: encryptedPublicValue.tagBase64,
+      publicValueWrappedKey: encryptedPublicValue.wrappedKeyBase64,
+      publicValueKeyId: encryptedPublicValue.keyId,
+      publicValueMasked: masked,
+    };
+  }
+
+  private async processPlatformId(platformId: string) {
+    const hash = await this.encryption.computeHash(platformId);
+    const encryptedPlatformId = await this.encryption.encryptPlatformId(platformId);
+
+    return {
+      platformIdHash: hash,
+      platformIdCiphertext: encryptedPlatformId.ciphertextBase64,
+      platformIdIv: encryptedPlatformId.ivBase64,
+      platformIdTag: encryptedPlatformId.tagBase64,
+      platformIdWrappedKey: encryptedPlatformId.wrappedKeyBase64,
+      platformIdKeyId: encryptedPlatformId.keyId,
+    };
   }
 
   private toMaskedResponse(identity: Identity) {
