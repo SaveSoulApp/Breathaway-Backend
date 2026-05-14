@@ -5,11 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { IdentityType, LikeStatus } from '@prisma/client';
+import { LikeStatus } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
+import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
-import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { IdentityEncryptionService } from '../identity/identity-encryption.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
@@ -49,14 +49,16 @@ export class LikeService extends BaseService {
         targetIdentityId = existing.id;
       } else {
         // Create new unresolved identity
-        const encryptedValue = await this.encryption.encryptPublicValue(normalized);
+        const encryptedValue =
+          await this.encryption.encryptPublicValue(normalized);
         const masked = this.encryption.maskPublicValue(normalized, type);
 
         // Handle platform ID if provided
         let platformIdData = {};
         if (platformId) {
           const platformHash = await this.encryption.computeHash(platformId);
-          const encryptedPlatform = await this.encryption.encryptPlatformId(platformId);
+          const encryptedPlatform =
+            await this.encryption.encryptPlatformId(platformId);
           platformIdData = {
             platformIdHash: platformHash,
             platformIdCiphertext: encryptedPlatform.ciphertextBase64,
@@ -87,7 +89,9 @@ export class LikeService extends BaseService {
     }
 
     if (!targetIdentityId) {
-      throw new BadRequestException('Either targetIdentityId or targetIdentity must be provided');
+      throw new BadRequestException(
+        'Either targetIdentityId or targetIdentity must be provided',
+      );
     }
 
     const targetIdentity = await this.prisma.identity.findUnique({
@@ -232,6 +236,4 @@ export class LikeService extends BaseService {
 
     return { success: true };
   }
-
-
 }
