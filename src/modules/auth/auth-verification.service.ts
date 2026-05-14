@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
-import { IdentityEncryptionService } from './identity-encryption.service';
+import { IdentityEncryptionService } from '../identity/identity-encryption.service';
 
 @Injectable()
 export class AuthVerificationService {

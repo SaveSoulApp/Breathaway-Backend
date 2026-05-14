@@ -31,6 +31,7 @@ import { SocialidentityModule } from './modules/socialidentity/socialidentity.mo
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { DeviceModule } from './modules/device/device.module';
+import { IdentityModule } from './modules/identity/identity.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { DeviceModule } from './modules/device/device.module';
     InstagramModule,
     ProfileModule,
     DeviceModule,
+    IdentityModule,
   ],
   controllers: [AppController],
   providers: [

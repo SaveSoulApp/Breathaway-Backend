@@ -19,7 +19,7 @@ import {
   DevLoginDto,
   SocialAuthDto,
 } from './dto';
-import { IdentityEncryptionService } from './identity-encryption.service';
+import { IdentityEncryptionService } from '../identity/identity-encryption.service';
 import { AuthMethod } from './utils/auth-method.utils';
 
 @Injectable()
