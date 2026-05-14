@@ -7,12 +7,16 @@ export class CreateIdentityDto {
   @IsEnum(IdentityType)
   type: IdentityType;
 
-  @ApiProperty({ description: 'Public value (e.g., phone number, email, social handle)' })
+  @ApiProperty({
+    description: 'Public value (e.g., phone number, email, social handle)',
+  })
   @IsString()
   @IsNotEmpty()
   publicValue: string;
 
-  @ApiPropertyOptional({ description: 'Constant numeric platform ID (e.g., Instagram numerical ID)' })
+  @ApiPropertyOptional({
+    description: 'Constant numeric platform ID (e.g., Instagram numerical ID)',
+  })
   @IsString()
   @IsOptional()
   platformId?: string;
