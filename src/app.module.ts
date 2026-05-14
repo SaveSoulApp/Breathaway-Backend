@@ -32,6 +32,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { DeviceModule } from './modules/device/device.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { LikeModule } from './modules/like/like.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { IdentityModule } from './modules/identity/identity.module';
     ProfileModule,
     DeviceModule,
     IdentityModule,
+    LikeModule,
   ],
   controllers: [AppController],
   providers: [

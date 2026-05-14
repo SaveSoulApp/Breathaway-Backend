@@ -8,8 +8,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get('JWT_SECRET'),
-        signOptions: { 
-          expiresIn: configService.get('JWT_EXPIRES_IN', '30d') 
+        signOptions: {
+          expiresIn: configService.get('JWT_EXPIRES_IN', '30d'),
         },
       }),
       inject: [ConfigService],

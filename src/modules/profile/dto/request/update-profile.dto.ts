@@ -1,12 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { GenderType } from '@prisma/client';
 import {
-    IsDateString,
-    IsEnum,
-    IsOptional,
-    IsString,
-    MaxLength,
-    MinLength,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class UpdateProfileDto {

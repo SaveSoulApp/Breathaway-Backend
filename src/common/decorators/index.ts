@@ -7,4 +7,3 @@ export * from './device-platform.decorator';
 export * from './request-id.decorator';
 export * from './timezone.decorator';
 export * from './user-agent.decorator';
-

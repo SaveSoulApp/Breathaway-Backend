@@ -1,32 +1,32 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    HttpCode,
-    HttpStatus,
-    Param,
-    Patch,
-    Post,
-    Put,
-    UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  UseGuards,
 } from '@nestjs/common';
 import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiParam,
-    ApiResponse,
-    ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { BaseController } from 'src/base/controller/base.controller';
 import { CurrentUserId } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards';
 import { LoggerService } from 'src/core/logger/logger.service';
 import {
-    CreateProfileDto,
-    PatchProfileDto,
-    ProfileResponseDto,
-    UpdateProfileDto,
+  CreateProfileDto,
+  PatchProfileDto,
+  ProfileResponseDto,
+  UpdateProfileDto,
 } from './dto';
 import { ProfileService } from './profile.service';
 
@@ -84,7 +84,7 @@ export class ProfileController extends BaseController {
   })
   async getMyProfile(@CurrentUserId() userId: string) {
     const profile = await this.profileService.getProfileByUserId(userId);
-    return profile
+    return profile;
   }
 
   @Get(':id')
@@ -101,7 +101,7 @@ export class ProfileController extends BaseController {
   })
   async getProfileById(@Param('id') id: string) {
     const profile = await this.profileService.getProfileById(id);
-    return profile
+    return profile;
   }
 
   @Put()
@@ -123,7 +123,7 @@ export class ProfileController extends BaseController {
       userId,
       updateProfileDto,
     );
-    return profile
+    return profile;
   }
 
   @Patch()
@@ -145,7 +145,7 @@ export class ProfileController extends BaseController {
       userId,
       patchProfileDto,
     );
-    return profile
+    return profile;
   }
 
   @Delete()

@@ -52,13 +52,13 @@ describe('FirebaseService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     // Mock console.error to suppress expected error logs in tests
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     // Reset mockApps
     mockApps.length = 0;
-    
+
     // Setup mocks
     (admin.auth as jest.Mock).mockReturnValue(mockAuth);
     (admin.messaging as jest.Mock).mockReturnValue(mockMessaging);
@@ -94,7 +94,7 @@ describe('FirebaseService', () => {
   describe('onModuleInit', () => {
     it('should initialize Firebase when no apps exist', () => {
       mockApps.length = 0;
-      
+
       service.onModuleInit();
 
       expect(admin.initializeApp).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('FirebaseService', () => {
 
     it('should not reinitialize Firebase when app already exists', () => {
       mockApps.push({ name: 'test-app' });
-      
+
       service.onModuleInit();
 
       expect(admin.initializeApp).not.toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('FirebaseService', () => {
   describe('initializeFirebase', () => {
     it('should initialize Firebase with correct credentials', () => {
       mockApps.length = 0;
-      
+
       service['initializeFirebase']();
 
       expect(admin.credential.cert).toHaveBeenCalledWith({
@@ -146,7 +146,7 @@ describe('FirebaseService', () => {
 
     it('should replace escaped newlines in private key', () => {
       mockApps.length = 0;
-      
+
       service['initializeFirebase']();
 
       expect(admin.credential.cert).toHaveBeenCalledWith(
@@ -255,9 +255,7 @@ describe('FirebaseService', () => {
 
       await expect(
         service.validateFirebaseToken('test-uid', 'valid-token'),
-      ).rejects.toThrow(
-        new UnauthorizedException('UID does not match token'),
-      );
+      ).rejects.toThrow(new UnauthorizedException('UID does not match token'));
     });
 
     it('should throw UnauthorizedException for UID mismatch with context', async () => {
@@ -316,9 +314,7 @@ describe('FirebaseService', () => {
 
       await expect(
         service.validateFirebaseToken('test-uid', 'invalid-token'),
-      ).rejects.toThrow(
-        new UnauthorizedException('Invalid Firebase ID token'),
-      );
+      ).rejects.toThrow(new UnauthorizedException('Invalid Firebase ID token'));
     });
 
     it('should handle unknown Firebase error codes', async () => {

@@ -125,7 +125,12 @@ describe('EnumValidationPipe', () => {
     });
 
     it('should list all invalid values in error message', () => {
-      const input = [TestStatus.ACTIVE, 'invalid1', 'invalid2', TestStatus.PENDING];
+      const input = [
+        TestStatus.ACTIVE,
+        'invalid1',
+        'invalid2',
+        TestStatus.PENDING,
+      ];
       expect(() => pipe.transform(input)).toThrow(
         new BadRequestException(
           'Invalid status: [invalid1, invalid2]. Must be one of: active, inactive, pending',

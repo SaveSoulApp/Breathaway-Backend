@@ -29,11 +29,11 @@ describe('Date Utils', () => {
     });
 
     it('should handle different date string formats as input', () => {
-        expect(formatDate('Jan 1, 2022')).toBe('January 1, 2022');
+      expect(formatDate('Jan 1, 2022')).toBe('January 1, 2022');
     });
 
     it('should return "Invalid Date" for an invalid date input', () => {
-        expect(formatDate('not a real date')).toBe('Invalid Date');
+      expect(formatDate('not a real date')).toBe('Invalid Date');
     });
   });
 });
