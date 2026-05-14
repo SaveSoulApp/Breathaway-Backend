@@ -33,6 +33,7 @@ import { ProfileModule } from './modules/profile/profile.module';
 import { DeviceModule } from './modules/device/device.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { LikeModule } from './modules/like/like.module';
+import { BlockModule } from './modules/block/block.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { LikeModule } from './modules/like/like.module';
     DeviceModule,
     IdentityModule,
     LikeModule,
+    BlockModule,
   ],
   controllers: [AppController],
   providers: [
