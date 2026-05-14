@@ -53,7 +53,12 @@ export class OtpService extends BaseService {
     await this.redisClient.set(redisKey, userId, 'EX', this.otpTtl);
 
     // Set rate limit key for user
-    await this.redisClient.set(rateLimitKey, userId, 'EX', this.otpRateLimitTtl);
+    await this.redisClient.set(
+      rateLimitKey,
+      userId,
+      'EX',
+      this.otpRateLimitTtl,
+    );
 
     this.logger.debug(
       `Generated and stored OTP for user_id: ${userId} with TTL: ${this.otpTtl}s. Rate limit: ${this.otpRateLimitTtl}s`,
