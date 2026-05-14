@@ -1,12 +1,11 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { BaseController } from 'src/base/controller/base.controller';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { SocialIdentityResponseDto } from './dto/social-identity-response.dto';
-import { VerifyInstagramRequestDto } from './dto/verify-instagram.dto';
+import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentityService } from './socialidentity.service';
 
 @Controller({
-  path: 'socialidentity',
+  path: 'social-identity',
   version: ['1'],
 })
 export class SocialidentityController extends BaseController {

@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { SocialIdentityResponseDto } from './dto/social-identity-response.dto';
+import { SocialIdentityResponseDto } from './dto';
 
 @Injectable()
 export class SocialidentityService extends BaseService {
