@@ -29,11 +29,11 @@ import {
 } from './dto';
 import { IdentityService } from './identity.service';
 
-@ApiTags('Identity')
+@ApiTags('Identities')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller({
-  path: 'identity',
+  path: 'identities',
   version: ['1'],
 })
 export class IdentityController extends BaseController {

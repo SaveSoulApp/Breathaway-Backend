@@ -36,11 +36,11 @@ import {
   UpdateDeviceDto,
 } from './dto';
 
-@ApiTags('Device')
+@ApiTags('Devices')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller({
-  path: 'device',
+  path: 'devices',
   version: ['1'],
 })
 export class DeviceController extends BaseController {
