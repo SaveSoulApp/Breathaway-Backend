@@ -4,4 +4,4 @@ export {
   MetaMessagingEventDto,
   MetaMessageDto,
   MetaParticipantDto,
-} from './request/meta-webhook.dto';
+} from './request/meta-webhook.request.dto';
