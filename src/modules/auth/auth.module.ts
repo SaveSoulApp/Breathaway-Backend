@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { IdentityCryptoModule } from 'src/core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from 'src/modules/firebase/firebase.module';
-import { AuthVerificationService } from './auth-verification.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthModule } from './jwt.module';
@@ -16,6 +15,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     IdentityCryptoModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthVerificationService, JwtStrategy],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}
