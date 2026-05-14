@@ -1,12 +1,14 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, HttpStatus, Post } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { BaseController } from 'src/base/controller/base.controller';
+import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { SocialIdentityResponseDto } from './dto/social-identity-response.dto';
-import { VerifyInstagramRequestDto } from './dto/verify-instagram.dto';
+import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentityService } from './socialidentity.service';
 
+@ApiTags('Social Identity')
 @Controller({
-  path: 'socialidentity',
+  path: 'social-identity',
   version: ['1'],
 })
 export class SocialidentityController extends BaseController {
@@ -18,12 +20,24 @@ export class SocialidentityController extends BaseController {
   }
 
   @Post('verify/instagram')
+  @ApiOperation({ summary: 'Verify an Instagram user identity' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Instagram identity verified successfully',
+    type: SocialIdentityResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data or API error',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_GATEWAY,
+    description: 'Error connecting to Instagram validation service',
+  })
+  @SerializeExpose(SocialIdentityResponseDto)
   async verifyInstagram(
     @Body() verifyInstagramDto: VerifyInstagramRequestDto,
   ): Promise<SocialIdentityResponseDto> {
-    this.logger.log(
-      `Received request to verify instagram ID: ${verifyInstagramDto.instagramId}`,
-    );
     return this.socialidentityService.verifyInstagramIdentity(
       verifyInstagramDto.instagramId,
     );

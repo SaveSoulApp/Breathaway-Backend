@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from 'src/base/services/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { SocialIdentityResponseDto } from './dto/social-identity-response.dto';
+import { SocialIdentityResponseDto } from './dto';
 
 @Injectable()
 export class SocialidentityService extends BaseService {
@@ -52,7 +52,7 @@ export class SocialidentityService extends BaseService {
       }
 
       // Map to standard response format
-      return new SocialIdentityResponseDto({
+      return {
         id: data.id,
         name: data.name,
         username: data.username,
@@ -62,7 +62,7 @@ export class SocialidentityService extends BaseService {
         isUserFollowBusiness: data.is_user_follow_business,
         isBusinessFollowUser: data.is_business_follow_user,
         platform: 'instagram',
-      });
+      } as SocialIdentityResponseDto;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;

@@ -1,15 +1,30 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
 
 export class UserAuthDto {
+  @ApiPropertyOptional({ description: 'The unique user ID (used in login)' })
   @Expose()
-  user_id: string;
+  user_id?: string;
 
+  @ApiPropertyOptional({ description: 'The unique user ID (used in signup)' })
   @Expose()
-  email: string;
+  userId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Status of the authentication (e.g. pending_verification)',
+  })
   @Expose()
-  phone: string;
+  status?: string;
 
+  @ApiPropertyOptional({ description: 'User email address' })
   @Expose()
-  access_token: string;
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'User phone number' })
+  @Expose()
+  phone?: string;
+
+  @ApiPropertyOptional({ description: 'JWT Access token for authentication' })
+  @Expose()
+  access_token?: string;
 }
