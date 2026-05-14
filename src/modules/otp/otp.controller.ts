@@ -51,6 +51,8 @@ export class OtpController extends BaseController {
   }
 
   @Post('verify')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Verify an OTP' })
   @ApiResponse({
     status: HttpStatus.CREATED,
