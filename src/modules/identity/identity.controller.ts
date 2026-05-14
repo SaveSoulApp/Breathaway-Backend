@@ -10,7 +10,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { BaseController } from 'src/base/controller/base.controller';
 import { CurrentUserId } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards';
@@ -60,7 +65,10 @@ export class IdentityController extends BaseController {
   }
 
   @Get('complete')
-  @ApiOperation({ summary: 'Get all complete identities for the current user (includes unmasked values)' })
+  @ApiOperation({
+    summary:
+      'Get all complete identities for the current user (includes unmasked values)',
+  })
   @ApiResponse({ status: HttpStatus.OK, type: [IdentityCompleteResponseDto] })
   @SerializeExpose(IdentityCompleteResponseDto)
   async findAllComplete(@CurrentUserId() userId: string) {
@@ -76,7 +84,10 @@ export class IdentityController extends BaseController {
   }
 
   @Get(':id/complete')
-  @ApiOperation({ summary: 'Get a specific complete identity by ID (includes unmasked values)' })
+  @ApiOperation({
+    summary:
+      'Get a specific complete identity by ID (includes unmasked values)',
+  })
   @ApiResponse({ status: HttpStatus.OK, type: IdentityCompleteResponseDto })
   @SerializeExpose(IdentityCompleteResponseDto)
   async findOneComplete(

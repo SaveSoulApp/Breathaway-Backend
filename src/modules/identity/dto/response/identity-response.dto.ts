@@ -1,5 +1,5 @@
-import { IdentityType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IdentityType } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
 export class IdentityResponseDto {

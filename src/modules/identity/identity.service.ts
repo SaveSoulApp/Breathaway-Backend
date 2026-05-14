@@ -1,7 +1,7 @@
 import {
-    ConflictException,
-    Injectable,
-    NotFoundException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { Identity, IdentityType } from '@prisma/client';
 import { BaseService } from 'src/base/services/base.service';
@@ -10,7 +10,6 @@ import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
 import { IdentityEncryptionService } from './identity-encryption.service';
 
-
 @Injectable()
 export class IdentityService extends BaseService {
   constructor(
@@ -18,17 +17,24 @@ export class IdentityService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityEncryptionService,
   ) {
-    super(logger)
+    super(logger);
   }
 
   async create(userId: string, dto: CreateIdentityDto) {
-    const publicValueData = await this.processPublicValue(dto.publicValue, dto.type);
+    const publicValueData = await this.processPublicValue(
+      dto.publicValue,
+      dto.type,
+    );
     let platformIdData = {};
-    const orConditions: any[] = [{ publicValueHash: publicValueData.publicValueHash }];
+    const orConditions: any[] = [
+      { publicValueHash: publicValueData.publicValueHash },
+    ];
 
     if (dto.platformId) {
       platformIdData = await this.processPlatformId(dto.platformId);
-      orConditions.push({ platformIdHash: (platformIdData as any).platformIdHash });
+      orConditions.push({
+        platformIdHash: (platformIdData as any).platformIdHash,
+      });
     }
 
     // Check for existing active identity of same type & hash
@@ -71,7 +77,7 @@ export class IdentityService extends BaseService {
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
-    
+
     return Promise.all(
       identities.map(async (identity) => {
         const publicValue = await this.encryption.decryptPublicValue(
@@ -104,7 +110,7 @@ export class IdentityService extends BaseService {
           publicValue,
           platformId,
         };
-      })
+      }),
     );
   }
 
@@ -150,7 +156,7 @@ export class IdentityService extends BaseService {
 
   async update(id: string, userId: string, dto: UpdateIdentityDto) {
     const identity = await this.findOwnedOrFail(id, userId);
-    
+
     if (!dto.publicValue && !dto.platformId) {
       return this.toMaskedResponse(identity);
     }
@@ -159,7 +165,10 @@ export class IdentityService extends BaseService {
     let updateData: any = {};
 
     if (dto.publicValue) {
-      const publicValueData = await this.processPublicValue(dto.publicValue, identity.type);
+      const publicValueData = await this.processPublicValue(
+        dto.publicValue,
+        identity.type,
+      );
       orConditions.push({ publicValueHash: publicValueData.publicValueHash });
       updateData = { ...updateData, ...publicValueData };
     }
@@ -246,7 +255,8 @@ export class IdentityService extends BaseService {
   private async processPublicValue(value: string, type: IdentityType) {
     const normalized = this.normalize(value, type);
     const hash = await this.encryption.computeHash(normalized);
-    const encryptedPublicValue = await this.encryption.encryptPublicValue(normalized);
+    const encryptedPublicValue =
+      await this.encryption.encryptPublicValue(normalized);
     const masked = this.encryption.maskPublicValue(normalized, type);
 
     return {
@@ -262,7 +272,8 @@ export class IdentityService extends BaseService {
 
   private async processPlatformId(platformId: string) {
     const hash = await this.encryption.computeHash(platformId);
-    const encryptedPlatformId = await this.encryption.encryptPlatformId(platformId);
+    const encryptedPlatformId =
+      await this.encryption.encryptPlatformId(platformId);
 
     return {
       platformIdHash: hash,

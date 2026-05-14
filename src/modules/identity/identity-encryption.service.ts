@@ -25,9 +25,7 @@ export class IdentityEncryptionService {
    * Encrypt a public value (phone number, email, social handle).
    * Returns the encrypted fields plus a masked version for display.
    */
-  async encryptPublicValue(
-    value: string,
-  ): Promise<EncryptedValue> {
+  async encryptPublicValue(value: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
     const { wrappedKey, keyId } = await this.keyManager.wrapDataKey(dataKey);
     const { ciphertext, iv, tag } = encryptAesGcm(value, dataKey);
@@ -83,7 +81,13 @@ export class IdentityEncryptionService {
     wrappedKeyBase64: string,
     keyId: string,
   ): Promise<string> {
-    return this.decryptValue(ciphertextBase64, ivBase64, tagBase64, wrappedKeyBase64, keyId);
+    return this.decryptValue(
+      ciphertextBase64,
+      ivBase64,
+      tagBase64,
+      wrappedKeyBase64,
+      keyId,
+    );
   }
 
   async decryptPlatformId(
@@ -93,7 +97,13 @@ export class IdentityEncryptionService {
     wrappedKeyBase64: string,
     keyId: string,
   ): Promise<string> {
-    return this.decryptValue(ciphertextBase64, ivBase64, tagBase64, wrappedKeyBase64, keyId);
+    return this.decryptValue(
+      ciphertextBase64,
+      ivBase64,
+      tagBase64,
+      wrappedKeyBase64,
+      keyId,
+    );
   }
 
   /**
@@ -118,7 +128,11 @@ export class IdentityEncryptionService {
     // Show country code and last 4 digits, mask rest
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length <= 4) return '••••';
-    return '+' + cleaned.slice(0, cleaned.length - 4).replace(/\d/g, '•') + cleaned.slice(-4);
+    return (
+      '+' +
+      cleaned.slice(0, cleaned.length - 4).replace(/\d/g, '•') +
+      cleaned.slice(-4)
+    );
   }
 
   private maskEmail(email: string): string {
