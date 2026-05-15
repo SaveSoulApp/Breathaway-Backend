@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import type { UserAgentData } from 'src/common/interfaces';
+import type { UserAgentData } from '@common/interfaces';
 
 export const UserAgent = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): UserAgentData => {

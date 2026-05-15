@@ -8,10 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { nanoid } from 'nanoid';
-import { BaseService } from 'src/base/services/base.service';
-import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/core/prisma/prisma.service';
-import { FirebaseService } from 'src/modules/firebase/firebase.service';
+import { BaseService } from '@core/base/base.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { FirebaseService } from '@modules/firebase/firebase.service';
 import {
   AddSecondaryAuthDto,
   AuthSigninDto,
@@ -19,7 +19,7 @@ import {
   DevLoginDto,
   SocialAuthDto,
 } from './dto';
-import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { AuthMethod } from './utils/auth-method.utils';
 
 @Injectable()

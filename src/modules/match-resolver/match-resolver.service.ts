@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Like, LikeStatus, MatchStatus } from '@prisma/client';
-import { BaseService } from 'src/base/services/base.service';
-import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/core/prisma/prisma.service';
-import { BlockService } from 'src/modules/block/block.service';
-import { MatchService } from 'src/modules/match/match.service';
+import { BaseService } from '@core/base/base.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { BlockService } from '@modules/blocks/blocks.service';
+import { MatchService } from '@modules/matches/matches.service';
 
 @Injectable()
 export class MatchResolverService extends BaseService {

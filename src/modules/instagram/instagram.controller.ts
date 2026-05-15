@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { BaseController } from 'src/base/controller/base.controller';
-import { BasicAuthGuard } from 'src/common/guards/basic-auth.guard';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseController } from '@core/base/base.controller';
+import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
+import { LoggerService } from '@core/logger/logger.service';
 import { InstagramService } from './instagram.service';
 
 @Controller({

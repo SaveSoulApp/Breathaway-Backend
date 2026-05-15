@@ -5,12 +5,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
-import { BaseService } from 'src/base/services/base.service';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseService } from '@core/base/base.service';
+import { LoggerService } from '@core/logger/logger.service';
 import {
   AuthMethodInfo,
   getAuthMethodFromDecodedToken,
-} from 'src/modules/auth/utils/auth-method.utils';
+} from '@modules/auth/utils/auth-method.utils';
 
 export interface FirebaseValidationResult {
   decodedToken: admin.auth.DecodedIdToken;

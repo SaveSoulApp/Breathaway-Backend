@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
-import { IdentityCryptoModule } from 'src/core/identity-crypto/identity-crypto.module';
-import { FirebaseModule } from 'src/modules/firebase/firebase.module';
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
+import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthModule } from './jwt.module';

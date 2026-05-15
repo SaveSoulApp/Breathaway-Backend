@@ -1,6 +1,6 @@
+import { BlockModule } from '@modules/blocks/blocks.module';
+import { MatchModule } from '@modules/matches/matches.module';
 import { Module } from '@nestjs/common';
-import { BlockModule } from '../block/block.module';
-import { MatchModule } from '../match/match.module';
 import { MatchResolverService } from './match-resolver.service';
 
 @Module({

@@ -19,22 +19,22 @@ import {
   RequestIdMiddleware,
   TimezoneMiddleware,
   UserAgentMiddleware,
-} from './common/middleware';
+} from './common/middlewares';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { LoggerModule } from './core/logger/logger.module';
-import { PrismaModule } from './core/prisma/prisma.module';
+import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { BlockModule } from './modules/block/block.module';
-import { DeviceModule } from './modules/device/device.module';
+import { BlockModule } from './modules/blocks/blocks.module';
+import { DeviceModule } from './modules/devices/devices.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
-import { IdentityModule } from './modules/identity/identity.module';
+import { IdentityModule } from './modules/identities/identities.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
-import { LikeModule } from './modules/like/like.module';
+import { LikeModule } from './modules/likes/likes.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
-import { MatchModule } from './modules/match/match.module';
-import { OtpModule } from './modules/otp/otp.module';
-import { ProfileModule } from './modules/profile/profile.module';
-import { SocialidentityModule } from './modules/socialidentity/socialidentity.module';
+import { MatchModule } from './modules/matches/matches.module';
+import { OtpModule } from './modules/one-time-passwords/one-time-passwords.module';
+import { ProfileModule } from './modules/profiles/profiles.module';
+import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
@@ -96,7 +96,11 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
+        forbidNonWhitelisted: true, // Strict payload injection protection
         transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
       }),
     },
     {

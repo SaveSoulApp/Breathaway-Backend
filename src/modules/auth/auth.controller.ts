@@ -13,11 +13,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from 'src/base/controller/base.controller';
-import { CurrentUserId } from 'src/common/decorators';
-import { BasicAuthGuard, JwtAuthGuard } from 'src/common/guards';
-import { SerializeExpose } from 'src/common/interceptors';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseController } from '@core/base/base.controller';
+import { CurrentUserId } from '@common/decorators';
+import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { LoggerService } from '@core/logger/logger.service';
 import { AuthService } from './auth.service';
 import {
   AddSecondaryAuthDto,
