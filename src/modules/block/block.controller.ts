@@ -21,7 +21,7 @@ import { JwtAuthGuard } from 'src/common/guards';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { BlockService } from './block.service';
-import { BlockListResponseDto, BlockResponseDto, CreateBlockDto } from './dto';
+import { BlockResponseDto, CreateBlockDto } from './dto';
 
 @ApiTags('Blocks')
 @ApiBearerAuth()
@@ -49,8 +49,8 @@ export class BlockController extends BaseController {
 
   @Get()
   @ApiOperation({ summary: 'Get authenticated user active blocked users list' })
-  @ApiResponse({ status: HttpStatus.OK, type: BlockListResponseDto })
-  @SerializeExpose(BlockListResponseDto)
+  @ApiResponse({ status: HttpStatus.OK, type: [BlockResponseDto] })
+  @SerializeExpose(BlockResponseDto)
   async findAll(@CurrentUserId() userId: string) {
     return this.blockService.findAllForUser(userId);
   }

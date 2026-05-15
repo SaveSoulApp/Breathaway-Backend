@@ -123,9 +123,7 @@ export class BlockService {
       },
     });
 
-    return {
-      data: blocks.map((block) => this.mapToResponseDto(block)),
-    };
+    return blocks.map((block) => this.mapToResponseDto(block));
   }
 
   async findOneForUser(blockId: string, userId: string) {
