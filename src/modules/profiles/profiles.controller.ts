@@ -18,7 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from 'src/base/controller/base.controller';
+import { BaseController } from 'src/core/base/base.controller';
 import { CurrentUserId } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards';
 import { LoggerService } from 'src/core/logger/logger.service';

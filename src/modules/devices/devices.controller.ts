@@ -18,7 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from 'src/base/controller/base.controller';
+import { BaseController } from 'src/core/base/base.controller';
 import {
   AppVersion,
   CurrentUserId,

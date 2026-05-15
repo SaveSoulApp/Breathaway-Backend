@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntentType, MatchStatus } from '@prisma/client';
-import { BaseService } from 'src/base/services/base.service';
+import { BaseService } from 'src/core/base/base.service';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/core/prisma/prisma.service';
+import { PrismaService } from 'src/infrastructure/database/prisma.service';
 
 @Injectable()
 export class MatchService extends BaseService {

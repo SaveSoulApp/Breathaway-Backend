@@ -4,10 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Identity, IdentityType } from '@prisma/client';
-import { BaseService } from 'src/base/services/base.service';
+import { BaseService } from 'src/core/base/base.service';
 import { normalizeIdentityValue } from 'src/common/utils/identity.utils';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/core/prisma/prisma.service';
+import { PrismaService } from 'src/infrastructure/database/prisma.service';
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
 import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 
