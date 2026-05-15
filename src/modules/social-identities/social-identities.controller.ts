@@ -4,7 +4,7 @@ import { BaseController } from 'src/base/controller/base.controller';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
-import { SocialidentityService } from './socialidentity.service';
+import { SocialidentityService } from './social-identities.service';
 
 @ApiTags('Social Identity')
 @Controller({

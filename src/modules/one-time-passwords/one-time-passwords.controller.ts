@@ -11,7 +11,7 @@ import { LoggerService } from 'src/core/logger/logger.service';
 import { CurrentUserId } from '../../common/decorators/current-user-id.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
-import { OtpService } from './otp.service';
+import { OtpService } from './one-time-passwords.service';
 
 @ApiTags('OTP')
 @Controller({

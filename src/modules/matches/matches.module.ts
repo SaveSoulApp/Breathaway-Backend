@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { BlockModule } from '../blocks/block.module';
-import { MatchController } from './match.controller';
-import { MatchService } from './match.service';
+import { BlockModule } from '../blocks/blocks.module';
+import { MatchController } from './matches.controller';
+import { MatchService } from './matches.service';
 
 @Module({
   imports: [BlockModule],

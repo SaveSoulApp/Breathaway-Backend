@@ -27,7 +27,7 @@ import {
   IdentityResponseDto,
   UpdateIdentityDto,
 } from './dto';
-import { IdentityService } from './identity.service';
+import { IdentityService } from './identities.service';
 
 @ApiTags('Identities')
 @ApiBearerAuth()

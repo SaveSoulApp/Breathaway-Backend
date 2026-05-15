@@ -19,7 +19,7 @@ import { JwtAuthGuard } from 'src/common/guards';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { MatchResponseDto } from './dto';
-import { MatchService } from './match.service';
+import { MatchService } from './matches.service';
 
 @ApiTags('Matches')
 @ApiBearerAuth()

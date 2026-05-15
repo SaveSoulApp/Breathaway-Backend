@@ -28,7 +28,7 @@ import {
 import { JwtAuthGuard } from 'src/common/guards';
 import { Platform } from 'src/common/interfaces';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { DeviceService } from './device.service';
+import { DeviceService } from './devices.service';
 import {
   CreateDeviceDto,
   DeviceResponseDto,

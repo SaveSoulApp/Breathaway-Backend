@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { OtpController } from './otp.controller';
-import { OtpService } from './otp.service';
+import { OtpController } from './one-time-passwords.controller';
+import { OtpService } from './one-time-passwords.service';
 
 @Module({
   controllers: [OtpController],

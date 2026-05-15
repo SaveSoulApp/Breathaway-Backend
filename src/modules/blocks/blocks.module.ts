@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { BlockController } from './block.controller';
-import { BlockService } from './block.service';
+import { BlockController } from './blocks.controller';
+import { BlockService } from './blocks.service';
 
 @Module({
   controllers: [BlockController],

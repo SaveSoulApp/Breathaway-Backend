@@ -28,7 +28,7 @@ import {
   ProfileResponseDto,
   UpdateProfileDto,
 } from './dto';
-import { ProfileService } from './profile.service';
+import { ProfileService } from './profiles.service';
 
 @ApiTags('Profile')
 @ApiBearerAuth()

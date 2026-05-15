@@ -25,7 +25,7 @@ import {
   LikeListResponseDto,
   LikeResponseDto,
 } from './dto';
-import { LikeService } from './like.service';
+import { LikeService } from './likes.service';
 
 @ApiTags('Likes')
 @ApiBearerAuth()

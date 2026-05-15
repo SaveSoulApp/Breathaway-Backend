@@ -20,7 +20,7 @@ import { CurrentUserId } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { BlockService } from './block.service';
+import { BlockService } from './blocks.service';
 import { BlockResponseDto, CreateBlockDto } from './dto';
 
 @ApiTags('Blocks')
