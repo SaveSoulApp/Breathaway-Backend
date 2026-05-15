@@ -1,7 +1,7 @@
 export interface UserAgentData {
   appName: string;
   version: string;
-  platform: string;
+  platform: Platform;
   osVersion: string;
   deviceModel: string;
 }
@@ -11,4 +11,9 @@ export interface ClientIdentityData {
   clientId: string;
   deviceId: string;
   userAgent: UserAgentData;
+}
+
+export enum Platform {
+  ANDROID = 'android',
+  IOS = 'ios',
 }

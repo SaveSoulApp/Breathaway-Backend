@@ -1,1 +1,1 @@
-export * from './user-agent.interface';
+export * from './client-identity.interface';

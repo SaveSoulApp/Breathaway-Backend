@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { UserAgentData } from '../interfaces/client-identity.interface';
+import { Platform, UserAgentData } from '../interfaces/client-identity.interface';
 
 export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
@@ -123,7 +123,7 @@ export class ClientIdentityGuard implements CanActivate {
     return {
       appName: parsedAppName,
       version,
-      platform,
+      platform: platform.toLowerCase() as Platform,
       osVersion,
       deviceModel,
     };
