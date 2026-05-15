@@ -7,5 +7,6 @@ import { MatchService } from './match.service';
   imports: [BlockModule],
   controllers: [MatchController],
   providers: [MatchService],
+  exports: [MatchService],
 })
 export class MatchModule {}

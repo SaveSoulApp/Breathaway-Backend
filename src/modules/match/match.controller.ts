@@ -1,17 +1,14 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
-  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -21,7 +18,7 @@ import { CurrentUserId } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards';
 import { SerializeExpose } from 'src/common/interceptors';
 import { LoggerService } from 'src/core/logger/logger.service';
-import { CreateMatchDto, MatchResponseDto } from './dto';
+import { MatchResponseDto } from './dto';
 import { MatchService } from './match.service';
 
 @ApiTags('Matches')
@@ -61,12 +58,5 @@ export class MatchController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK })
   async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
     return this.matchService.unmatch(id, userId);
-  }
-
-  @Post('internal/create')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiExcludeEndpoint()
-  async createInternal(@Body() dto: CreateMatchDto) {
-    return this.matchService.createFromLikes(dto);
   }
 }

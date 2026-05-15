@@ -10,6 +10,7 @@ import { BaseService } from 'src/base/services/base.service';
 import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
 import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
+import { MatchResolverService } from '../match-resolver/match-resolver.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class LikeService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly identityCryptoService: IdentityCryptoService,
+    private readonly matchResolverService: MatchResolverService,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -127,6 +129,14 @@ export class LikeService extends BaseService {
           },
         },
       },
+    });
+
+    // Trigger match resolution asynchronously in the background
+    this.matchResolverService.resolveFromLike(like as any).catch((err) => {
+      this.logger.error(
+        `Match resolution failed for Like ${like.id}`,
+        err.stack,
+      );
     });
 
     return like;
