@@ -1,31 +1,15 @@
-import {
-  Injectable,
-  NestMiddleware,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { NextFunction, Request, Response } from 'express';
 
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
-  constructor() {
-    this.initializeMiddleware();
-  }
-
-  private initializeMiddleware() {}
-
   use(req: Request, res: Response, next: NextFunction) {
-    const requestId = req.headers['x-request-id'];
+    const rawId = req.headers['x-request-id'];
 
-    if (!requestId) {
-      throw new UnauthorizedException('X-Request-ID header is required');
-    }
-
-    if (typeof requestId !== 'string') {
-      throw new UnauthorizedException('X-Request-ID header must be a string');
-    }
-
-    // Store the validated Request Id for use in controllers
-    req['requestId'] = requestId;
+    // Fail-safe: Use provided ID or generate a new one. Never throw.
+    req['requestId'] =
+      typeof rawId === 'string' && rawId.trim() !== '' ? rawId : randomUUID();
 
     next();
   }

@@ -1,3 +1,10 @@
+import { CurrentUserId } from '@common/decorators';
+import { ClientIdentity } from '@common/decorators/client-identity.decorator';
+import { ClientIdentityKey } from '@common/enums/client-identity-key.enum';
+import { JwtAuthGuard } from '@common/guards';
+import * as interfaces from '@common/interfaces';
+import { BaseController } from '@core/base/base.controller';
+import { LoggerService } from '@core/logger/logger.service';
 import {
   Body,
   Controller,
@@ -18,16 +25,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base/base.controller';
-import {
-  AppVersion,
-  CurrentUserId,
-  DeviceId,
-  DevicePlatform,
-} from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { Platform } from '@common/interfaces';
-import { LoggerService } from '@core/logger/logger.service';
 import { DeviceService } from './devices.service';
 import {
   CreateDeviceDto,
@@ -68,15 +65,17 @@ export class DeviceController extends BaseController {
   })
   async registerDevice(
     @CurrentUserId() userId: string,
-    @DeviceId() deviceId: string | undefined,
-    @AppVersion() appVersion: string | undefined,
-    @DevicePlatform() platform: string | undefined,
+    @ClientIdentity(ClientIdentityKey.DEVICE_ID) deviceId: string,
+    @ClientIdentity(ClientIdentityKey.USER_AGENT)
+    userAgentData: interfaces.UserAgentData,
     @Body() createDeviceDto: CreateDeviceDto,
   ) {
     // Override/app device metadata from headers if provided
     if (deviceId) createDeviceDto.deviceId = deviceId;
-    if (appVersion) createDeviceDto.appVersion = appVersion;
-    if (platform) createDeviceDto.platform = platform as Platform;
+    if (userAgentData.version)
+      createDeviceDto.appVersion = userAgentData.version;
+    if (userAgentData.platform)
+      createDeviceDto.platform = userAgentData.platform;
 
     return this.deviceService.createDevice(userId, createDeviceDto);
   }

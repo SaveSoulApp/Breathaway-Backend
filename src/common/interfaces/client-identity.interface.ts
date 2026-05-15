@@ -6,9 +6,14 @@ export interface UserAgentData {
   deviceModel: string;
 }
 
+export interface ClientIdentityData {
+  apiKey: string;
+  clientId: string;
+  deviceId: string;
+  userAgent: UserAgentData;
+}
+
 export enum Platform {
-  IOS = 'iOS',
-  ANDROID = 'Android',
-  WEB = 'Web',
-  POSTMAN = 'Postman',
+  ANDROID = 'android',
+  IOS = 'ios',
 }
