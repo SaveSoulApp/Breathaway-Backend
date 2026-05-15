@@ -5,16 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { IntentType, MatchStatus } from '@prisma/client';
+import { BaseService } from 'src/base/services/base.service';
+import { LoggerService } from 'src/core/logger/logger.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { BlockService } from 'src/modules/block/block.service';
 import { CreateMatchDto } from './dto';
 
 @Injectable()
-export class MatchService {
+export class MatchService extends BaseService {
   constructor(
+    logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly blockService: BlockService,
-  ) {}
+  ) {
+    super(logger);
+  }
 
   async findAllForUser(userId: string) {
     const matches = await this.prisma.match.findMany({
@@ -240,7 +245,7 @@ export class MatchService {
     return { success: true };
   }
 
-  isIntentCompatible(intentOne: IntentType, intentTwo: IntentType): boolean {
+  private isIntentCompatible(intentOne: IntentType, intentTwo: IntentType): boolean {
     if (intentOne === IntentType.OPEN || intentTwo === IntentType.OPEN) {
       return true;
     }
