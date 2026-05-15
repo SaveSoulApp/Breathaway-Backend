@@ -1,8 +1,8 @@
+import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
   MiddlewareConsumer,
   Module,
   NestModule,
-  RequestMethod,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -12,13 +12,9 @@ import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import {
-  ApiKeyMiddleware,
-  ClientIdMiddleware,
-  DeviceIdMiddleware,
   MiddlewareModule,
   RequestIdMiddleware,
   TimezoneMiddleware,
-  UserAgentMiddleware,
 } from './common/middlewares';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { LoggerModule } from './core/logger/logger.module';
@@ -107,27 +103,21 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    { provide: APP_GUARD, useClass: ClientIdentityGuard },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(
-        ClientIdMiddleware,
-        ApiKeyMiddleware,
-        UserAgentMiddleware,
-        RequestIdMiddleware,
-        DeviceIdMiddleware,
-        TimezoneMiddleware,
-      )
-      .exclude(
-        { path: 'api/v1/cron/*path', method: RequestMethod.ALL },
-        { path: 'v1/cron/*path', method: RequestMethod.ALL },
-        { path: 'api/v1/webhooks/meta', method: RequestMethod.GET },
-        { path: 'v1/webhooks/meta', method: RequestMethod.GET },
-        { path: 'api/v1/webhooks/meta', method: RequestMethod.POST },
-        { path: 'v1/webhooks/meta', method: RequestMethod.POST },
-      )
+      .apply(RequestIdMiddleware, TimezoneMiddleware)
+      // .exclude(
+      //   { path: 'api/v1/cron/*path', method: RequestMethod.ALL },
+      //   { path: 'v1/cron/*path', method: RequestMethod.ALL },
+      //   { path: 'api/v1/webhooks/meta', method: RequestMethod.GET },
+      //   { path: 'v1/webhooks/meta', method: RequestMethod.GET },
+      //   { path: 'api/v1/webhooks/meta', method: RequestMethod.POST },
+      //   { path: 'v1/webhooks/meta', method: RequestMethod.POST },
+      // )
       .forRoutes('*'); // Apply to all routes
   }
 }
