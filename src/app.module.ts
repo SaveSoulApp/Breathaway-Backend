@@ -108,16 +108,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RequestIdMiddleware, TimezoneMiddleware)
-      // .exclude(
-      //   { path: 'api/v1/cron/*path', method: RequestMethod.ALL },
-      //   { path: 'v1/cron/*path', method: RequestMethod.ALL },
-      //   { path: 'api/v1/webhooks/meta', method: RequestMethod.GET },
-      //   { path: 'v1/webhooks/meta', method: RequestMethod.GET },
-      //   { path: 'api/v1/webhooks/meta', method: RequestMethod.POST },
-      //   { path: 'v1/webhooks/meta', method: RequestMethod.POST },
-      // )
-      .forRoutes('*'); // Apply to all routes
+    consumer.apply(RequestIdMiddleware, TimezoneMiddleware).forRoutes('*'); // Apply to all routes
   }
 }
