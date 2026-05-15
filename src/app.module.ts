@@ -96,7 +96,11 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
+        forbidNonWhitelisted: true, // Strict payload injection protection
         transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
       }),
     },
     {
