@@ -34,6 +34,7 @@ import { DeviceModule } from './modules/device/device.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { LikeModule } from './modules/like/like.module';
 import { BlockModule } from './modules/block/block.module';
+import { MatchModule } from './modules/match/match.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { BlockModule } from './modules/block/block.module';
     IdentityModule,
     LikeModule,
     BlockModule,
+    MatchModule,
   ],
   controllers: [AppController],
   providers: [
