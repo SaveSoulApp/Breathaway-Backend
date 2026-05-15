@@ -5,9 +5,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from 'src/core/base/base.controller';
-import { SerializeExpose } from 'src/common/interceptors';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseController } from '@core/base/base.controller';
+import { SerializeExpose } from '@common/interceptors';
+import { LoggerService } from '@core/logger/logger.service';
 import { CurrentUserId } from '../../common/decorators/current-user-id.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';

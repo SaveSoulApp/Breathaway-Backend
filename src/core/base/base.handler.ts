@@ -1,5 +1,5 @@
-import { ContextualLogger } from 'src/core/logger/logger.interface';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { ContextualLogger } from '@core/logger/logger.interface';
+import { LoggerService } from '@core/logger/logger.service';
 
 export abstract class BaseHandler {
   protected readonly logger: ContextualLogger;

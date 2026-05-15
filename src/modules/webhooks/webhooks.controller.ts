@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { BaseController } from 'src/core/base/base.controller';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseController } from '@core/base/base.controller';
+import { LoggerService } from '@core/logger/logger.service';
 import { MetaWebhookDto } from './dto';
 import { WebhooksService } from './webhooks.service';
 

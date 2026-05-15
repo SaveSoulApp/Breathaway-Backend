@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { KmsModule } from 'src/core/kms/kms.module';
+import { KmsModule } from '@core/kms/kms.module';
 import { IdentityCryptoService } from './identity-crypto.service';
 
 @Module({

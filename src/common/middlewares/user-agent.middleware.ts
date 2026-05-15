@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
-import { Platform, UserAgentData } from 'src/common/interfaces';
+import { Platform, UserAgentData } from '@common/interfaces';
 
 @Injectable()
 export class UserAgentMiddleware implements NestMiddleware {

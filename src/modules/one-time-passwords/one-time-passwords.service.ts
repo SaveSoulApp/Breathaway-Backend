@@ -8,9 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
-import { BaseService } from 'src/core/base/base.service';
-import { hashString } from 'src/common/utils/crypto.utils';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseService } from '@core/base/base.service';
+import { hashString } from '@common/utils/crypto.utils';
+import { LoggerService } from '@core/logger/logger.service';
 
 @Injectable()
 export class OtpService extends BaseService {

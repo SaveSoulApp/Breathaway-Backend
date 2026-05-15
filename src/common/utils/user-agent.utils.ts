@@ -1,4 +1,4 @@
-import { Platform, UserAgentData } from 'src/common/interfaces';
+import { Platform, UserAgentData } from '@common/interfaces';
 
 export class UserAgentUtils {
   static isiOS(userAgentData: UserAgentData): boolean {

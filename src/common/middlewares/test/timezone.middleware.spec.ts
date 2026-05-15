@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NextFunction, Request, Response } from 'express';
-import { TimezoneUtil } from 'src/common/utils/timezone.utils';
+import { TimezoneUtil } from '@common/utils/timezone.utils';
 import { TimezoneMiddleware } from '../timezone.middleware';
 
 describe('TimezoneMiddleware', () => {

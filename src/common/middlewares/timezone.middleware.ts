@@ -4,7 +4,7 @@ import {
   NestMiddleware,
 } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
-import { TimezoneUtil } from 'src/common/utils/timezone.utils';
+import { TimezoneUtil } from '@common/utils/timezone.utils';
 
 @Injectable()
 export class TimezoneMiddleware implements NestMiddleware {

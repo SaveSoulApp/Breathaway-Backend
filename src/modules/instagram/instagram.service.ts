@@ -5,9 +5,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { BaseService } from 'src/core/base/base.service';
-import { GcpSecretManagerService } from 'src/core/gcp-secret-manager/gcp-secret-manager.service';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { BaseService } from '@core/base/base.service';
+import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
+import { LoggerService } from '@core/logger/logger.service';
 
 @Injectable()
 export class InstagramService extends BaseService {

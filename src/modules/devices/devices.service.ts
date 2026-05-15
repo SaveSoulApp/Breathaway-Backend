@@ -4,10 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Device, DevicePlatform } from '@prisma/client';
-import { BaseService } from 'src/core/base/base.service';
-import { Platform } from 'src/common/interfaces';
-import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/infrastructure/database/prisma.service';
+import { BaseService } from '@core/base/base.service';
+import { Platform } from '@common/interfaces';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from './dto';
 
 @Injectable()

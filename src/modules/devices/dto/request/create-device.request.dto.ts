@@ -7,7 +7,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
-import { Platform } from 'src/common/interfaces';
+import { Platform } from '@common/interfaces';
 
 export class CreateDeviceDto {
   @ApiProperty({

@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus } from '@prisma/client';
-import { BaseService } from 'src/core/base/base.service';
-import { IdentityCryptoService } from 'src/core/identity-crypto/identity-crypto.service';
-import { LoggerService } from 'src/core/logger/logger.service';
-import { PrismaService } from 'src/infrastructure/database/prisma.service';
+import { BaseService } from '@core/base/base.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import { MatchResolverService } from '../match-resolver/match-resolver.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 

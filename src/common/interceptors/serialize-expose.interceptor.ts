@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { map, Observable } from 'rxjs';
-// import { DecimalUtils } from 'src/common/utils/decimal.utils';
+// import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
   new (...args: any[]): {};

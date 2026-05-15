@@ -1,6 +1,6 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from 'src/core/logger/logger.service';
+import { LoggerService } from '@core/logger/logger.service';
 
 @Injectable()
 export class GcpSecretManagerService {

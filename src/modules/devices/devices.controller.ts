@@ -18,16 +18,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from 'src/core/base/base.controller';
+import { BaseController } from '@core/base/base.controller';
 import {
   AppVersion,
   CurrentUserId,
   DeviceId,
   DevicePlatform,
-} from 'src/common/decorators';
-import { JwtAuthGuard } from 'src/common/guards';
-import { Platform } from 'src/common/interfaces';
-import { LoggerService } from 'src/core/logger/logger.service';
+} from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { Platform } from '@common/interfaces';
+import { LoggerService } from '@core/logger/logger.service';
 import { DeviceService } from './devices.service';
 import {
   CreateDeviceDto,

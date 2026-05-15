@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { IdentityCryptoModule } from 'src/core/identity-crypto/identity-crypto.module';
-import { MatchResolverModule } from 'src/modules/match-resolver/match-resolver.module';
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
+import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
 import { LikeController } from './likes.controller';
 import { LikeService } from './likes.service';
 
