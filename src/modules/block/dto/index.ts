@@ -1,5 +1,3 @@
-// Export Request DTOs
-// export * from './request/create-block.request.dto';
-
-// Export Response DTOs
-// export * from './response/block.response.dto';
+export * from './request/create-block.request.dto';
+export * from './response/block.response.dto';
+export * from './response/block-list.response.dto';
