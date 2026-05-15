@@ -1,10 +1,10 @@
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { CreateBlockDto } from './dto';
 
 @Injectable()

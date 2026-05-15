@@ -1,5 +1,5 @@
+import { BlockModule } from '@modules/blocks/blocks.module';
 import { Module } from '@nestjs/common';
-import { BlockModule } from '../blocks/blocks.module';
 import { MatchController } from './matches.controller';
 import { MatchService } from './matches.service';
 

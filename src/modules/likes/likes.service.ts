@@ -1,3 +1,8 @@
+import { BaseService } from '@core/base/base.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import {
   BadRequestException,
   ConflictException,
@@ -6,11 +11,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus } from '@prisma/client';
-import { BaseService } from '@core/base/base.service';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger/logger.service';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { MatchResolverService } from '../match-resolver/match-resolver.service';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
 @Injectable()

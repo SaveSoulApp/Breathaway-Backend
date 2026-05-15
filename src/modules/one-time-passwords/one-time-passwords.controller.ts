@@ -1,3 +1,8 @@
+import { CurrentUserId } from '@common/decorators/current-user-id.decorator';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base/base.controller';
+import { LoggerService } from '@core/logger/logger.service';
 import { Body, Controller, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -5,11 +10,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base/base.controller';
-import { SerializeExpose } from '@common/interceptors';
-import { LoggerService } from '@core/logger/logger.service';
-import { CurrentUserId } from '../../common/decorators/current-user-id.decorator';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
 import { OtpService } from './one-time-passwords.service';
 
