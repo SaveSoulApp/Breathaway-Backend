@@ -24,17 +24,17 @@ import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-man
 import { LoggerModule } from './core/logger/logger.module';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { BlockModule } from './modules/block/block.module';
-import { DeviceModule } from './modules/device/device.module';
+import { BlockModule } from './modules/blocks/block.module';
+import { DeviceModule } from './modules/devices/device.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
-import { IdentityModule } from './modules/identity/identity.module';
+import { IdentityModule } from './modules/identities/identity.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
-import { LikeModule } from './modules/like/like.module';
+import { LikeModule } from './modules/likes/like.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
-import { MatchModule } from './modules/match/match.module';
-import { OtpModule } from './modules/otp/otp.module';
-import { ProfileModule } from './modules/profile/profile.module';
-import { SocialidentityModule } from './modules/socialidentity/socialidentity.module';
+import { MatchModule } from './modules/matches/match.module';
+import { OtpModule } from './modules/one-time-passwords/otp.module';
+import { ProfileModule } from './modules/profiles/profile.module';
+import { SocialidentityModule } from './modules/social-identities/socialidentity.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
