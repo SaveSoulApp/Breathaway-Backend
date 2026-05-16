@@ -17,7 +17,12 @@ export class MatchResolverService extends BaseService {
     super(logger);
   }
 
-  async resolveFromLike(newLike: Like) {
+  async resolveFromLike(
+    newLike: Pick<
+      Like,
+      'id' | 'senderUserId' | 'targetUserId' | 'intent' | 'status'
+    >,
+  ) {
     try {
       // 1. Only trigger if targetUserId is resolved
       if (!newLike.targetUserId) {

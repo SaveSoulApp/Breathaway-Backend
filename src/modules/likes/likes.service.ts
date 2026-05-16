@@ -115,6 +115,8 @@ export class LikeService extends BaseService {
       },
       select: {
         id: true,
+        senderUserId: true,
+        targetUserId: true,
         intent: true,
         status: true,
         createdAt: true,
@@ -132,7 +134,7 @@ export class LikeService extends BaseService {
     });
 
     // Trigger match resolution asynchronously in the background
-    this.matchResolverService.resolveFromLike(like as any).catch((err) => {
+    this.matchResolverService.resolveFromLike(like).catch((err) => {
       this.logger.error(
         `Match resolution failed for Like ${like.id}`,
         err.stack,

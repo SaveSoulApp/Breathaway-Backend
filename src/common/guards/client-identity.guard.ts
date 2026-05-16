@@ -1,15 +1,18 @@
 import {
-    BadRequestException,
-    CanActivate,
-    ExecutionContext,
-    Injectable,
-    Logger,
-    UnauthorizedException,
+  BadRequestException,
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { Platform, UserAgentData } from '../interfaces/client-identity.interface';
+import {
+  Platform,
+  UserAgentData,
+} from '../interfaces/client-identity.interface';
 
 export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
