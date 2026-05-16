@@ -71,11 +71,6 @@ export class AuthService extends BaseService {
       );
     }
 
-    // Create User
-    const user = await this.prisma.user.create({
-      data: {},
-    });
-
     // Encrypt public value
     const encPublic = await this.encryptionService.encryptPublicValue(value);
     const valueMasked = this.encryptionService.maskPublicValue(
@@ -85,33 +80,42 @@ export class AuthService extends BaseService {
         : IdentityType.EMAIL,
     );
 
-    // Create Identity
-    const identity = await this.prisma.identity.create({
-      data: {
-        type: this.toCredentialType(authMethod.method),
-        publicValueHash: valueHash,
-        publicValueCiphertext: encPublic.ciphertextBase64,
-        publicValueIv: encPublic.ivBase64,
-        publicValueTag: encPublic.tagBase64,
-        publicValueWrappedKey: encPublic.wrappedKeyBase64,
-        publicValueKeyId: encPublic.keyId,
-        publicValueMasked: valueMasked,
-        userId: user.id,
-        isVerified: false,
-        verifiedAt: null,
-      },
-    });
+    const user = await this.prisma.$transaction(async (tx) => {
+      // Create User
+      const newUser = await tx.user.create({
+        data: {},
+      });
 
-    // Create AuthCredential (thin index)
-    await this.prisma.authCredential.create({
-      data: {
-        userId: user.id,
-        type: this.toCredentialType(authMethod.method),
-        valueHash,
-        valueMasked: valueMasked,
-        isPrimary: true,
-        identityId: identity.id,
-      },
+      // Create Identity
+      const newIdentity = await tx.identity.create({
+        data: {
+          type: this.toCredentialType(authMethod.method),
+          publicValueHash: valueHash,
+          publicValueCiphertext: encPublic.ciphertextBase64,
+          publicValueIv: encPublic.ivBase64,
+          publicValueTag: encPublic.tagBase64,
+          publicValueWrappedKey: encPublic.wrappedKeyBase64,
+          publicValueKeyId: encPublic.keyId,
+          publicValueMasked: valueMasked,
+          userId: newUser.id,
+          isVerified: false,
+          verifiedAt: null,
+        },
+      });
+
+      // Create AuthCredential (thin index)
+      await tx.authCredential.create({
+        data: {
+          userId: newUser.id,
+          type: this.toCredentialType(authMethod.method),
+          valueHash,
+          valueMasked: valueMasked,
+          isPrimary: true,
+          identityId: newIdentity.id,
+        },
+      });
+
+      return newUser;
     });
 
     // TODO: Send OTP / magic link to the value
@@ -189,9 +193,6 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      // New user – create account
-      const user = await this.prisma.user.create({ data: {} });
-
       const encPublic = await this.encryptionService.encryptPublicValue(value);
       const valueMasked = this.encryptionService.maskPublicValue(
         value,
@@ -200,31 +201,38 @@ export class AuthService extends BaseService {
           : IdentityType.EMAIL,
       );
 
-      const identity = await this.prisma.identity.create({
-        data: {
-          type: this.toCredentialType(authMethod.method),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
-          userId: user.id,
-          isVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
+      const user = await this.prisma.$transaction(async (tx) => {
+        // New user – create account
+        const newUser = await tx.user.create({ data: {} });
 
-      await this.prisma.authCredential.create({
-        data: {
-          userId: user.id,
-          type: this.toCredentialType(authMethod.method),
-          valueHash,
-          valueMasked: valueMasked,
-          isPrimary: true,
-          identityId: identity.id,
-        },
+        const newIdentity = await tx.identity.create({
+          data: {
+            type: this.toCredentialType(authMethod.method),
+            publicValueHash: valueHash,
+            publicValueCiphertext: encPublic.ciphertextBase64,
+            publicValueIv: encPublic.ivBase64,
+            publicValueTag: encPublic.tagBase64,
+            publicValueWrappedKey: encPublic.wrappedKeyBase64,
+            publicValueKeyId: encPublic.keyId,
+            publicValueMasked: valueMasked,
+            userId: newUser.id,
+            isVerified: true,
+            verifiedAt: new Date(),
+          },
+        });
+
+        await tx.authCredential.create({
+          data: {
+            userId: newUser.id,
+            type: this.toCredentialType(authMethod.method),
+            valueHash,
+            valueMasked: valueMasked,
+            isPrimary: true,
+            identityId: newIdentity.id,
+          },
+        });
+
+        return newUser;
       });
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
@@ -270,9 +278,6 @@ export class AuthService extends BaseService {
       return this.generateAuthResponse(user);
     }
 
-    // New social identity
-    const user = await this.prisma.user.create({ data: {} });
-
     // Encrypt handle (public value) and platformUserId (platformId)
     const encHandle = await this.encryptionService.encryptPublicValue(handle);
     const handleMasked = this.encryptionService.maskPublicValue(
@@ -282,28 +287,37 @@ export class AuthService extends BaseService {
     const encPlatformId =
       await this.encryptionService.encryptPlatformId(platformUserId);
 
-    await this.prisma.identity.create({
-      data: {
-        type,
-        publicValueHash: await this.encryptionService.computeHash(handle),
-        publicValueCiphertext: encHandle.ciphertextBase64,
-        publicValueIv: encHandle.ivBase64,
-        publicValueTag: encHandle.tagBase64,
-        publicValueWrappedKey: encHandle.wrappedKeyBase64,
-        publicValueKeyId: encHandle.keyId,
-        publicValueMasked: handleMasked,
+    const publicValueHash = await this.encryptionService.computeHash(handle);
 
-        platformIdHash,
-        platformIdCiphertext: encPlatformId.ciphertextBase64,
-        platformIdIv: encPlatformId.ivBase64,
-        platformIdTag: encPlatformId.tagBase64,
-        platformIdWrappedKey: encPlatformId.wrappedKeyBase64,
-        platformIdKeyId: encPlatformId.keyId,
+    const user = await this.prisma.$transaction(async (tx) => {
+      // New social identity
+      const newUser = await tx.user.create({ data: {} });
 
-        userId: user.id,
-        isVerified: true, // social accounts are pre‑verified
-        verifiedAt: new Date(),
-      },
+      await tx.identity.create({
+        data: {
+          type,
+          publicValueHash,
+          publicValueCiphertext: encHandle.ciphertextBase64,
+          publicValueIv: encHandle.ivBase64,
+          publicValueTag: encHandle.tagBase64,
+          publicValueWrappedKey: encHandle.wrappedKeyBase64,
+          publicValueKeyId: encHandle.keyId,
+          publicValueMasked: handleMasked,
+
+          platformIdHash,
+          platformIdCiphertext: encPlatformId.ciphertextBase64,
+          platformIdIv: encPlatformId.ivBase64,
+          platformIdTag: encPlatformId.tagBase64,
+          platformIdWrappedKey: encPlatformId.wrappedKeyBase64,
+          platformIdKeyId: encPlatformId.keyId,
+
+          userId: newUser.id,
+          isVerified: true, // social accounts are pre‑verified
+          verifiedAt: new Date(),
+        },
+      });
+
+      return newUser;
     });
 
     // No AuthCredential for social types.
@@ -362,36 +376,38 @@ export class AuthService extends BaseService {
       authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
     );
 
-    const identity = await this.prisma.identity.create({
-      data: {
-        type: this.toCredentialType(authType),
-        publicValueHash: valueHash,
-        publicValueCiphertext: encPublic.ciphertextBase64,
-        publicValueIv: encPublic.ivBase64,
-        publicValueTag: encPublic.tagBase64,
-        publicValueWrappedKey: encPublic.wrappedKeyBase64,
-        publicValueKeyId: encPublic.keyId,
-        publicValueMasked: valueMasked,
-        userId: user.id,
-        isVerified: false, // will need verification
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const identity = await tx.identity.create({
+        data: {
+          type: this.toCredentialType(authType),
+          publicValueHash: valueHash,
+          publicValueCiphertext: encPublic.ciphertextBase64,
+          publicValueIv: encPublic.ivBase64,
+          publicValueTag: encPublic.tagBase64,
+          publicValueWrappedKey: encPublic.wrappedKeyBase64,
+          publicValueKeyId: encPublic.keyId,
+          publicValueMasked: valueMasked,
+          userId: user.id,
+          isVerified: false, // will need verification
+        },
+      });
 
-    // Determine if this should be primary (if user has no primary credential yet, set true)
-    const primaryCount = await this.prisma.authCredential.count({
-      where: { userId: user.id, isPrimary: true },
-    });
-    const isPrimary = primaryCount === 0;
+      // Determine if this should be primary (if user has no primary credential yet, set true)
+      const primaryCount = await tx.authCredential.count({
+        where: { userId: user.id, isPrimary: true },
+      });
+      const isPrimary = primaryCount === 0;
 
-    await this.prisma.authCredential.create({
-      data: {
-        userId: user.id,
-        type: this.toCredentialType(authType),
-        valueHash,
-        valueMasked: valueMasked,
-        isPrimary,
-        identityId: identity.id,
-      },
+      await tx.authCredential.create({
+        data: {
+          userId: user.id,
+          type: this.toCredentialType(authType),
+          valueHash,
+          valueMasked: valueMasked,
+          isPrimary,
+          identityId: identity.id,
+        },
+      });
     });
 
     // TODO: Send verification code to the new value
