@@ -71,52 +71,12 @@ export class AuthService extends BaseService {
       );
     }
 
-    // Encrypt public value
-    const encPublic = await this.encryptionService.encryptPublicValue(value);
-    const valueMasked = this.encryptionService.maskPublicValue(
+    const user = await this.createUserWithCredential(
       value,
-      authMethod.method === AuthMethod.PHONE
-        ? IdentityType.PHONE
-        : IdentityType.EMAIL,
+      valueHash,
+      authMethod.method,
+      false,
     );
-
-    const user = await this.prisma.$transaction(async (tx) => {
-      // Create User
-      const newUser = await tx.user.create({
-        data: {},
-      });
-
-      // Create Identity
-      const newIdentity = await tx.identity.create({
-        data: {
-          type: this.toCredentialType(authMethod.method),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
-          userId: newUser.id,
-          isVerified: false,
-          verifiedAt: null,
-        },
-      });
-
-      // Create AuthCredential (thin index)
-      await tx.authCredential.create({
-        data: {
-          userId: newUser.id,
-          type: this.toCredentialType(authMethod.method),
-          valueHash,
-          valueMasked: valueMasked,
-          isPrimary: true,
-          identityId: newIdentity.id,
-        },
-      });
-
-      return newUser;
-    });
 
     // TODO: Send OTP / magic link to the value
     this.logger.log(
@@ -193,47 +153,12 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      const encPublic = await this.encryptionService.encryptPublicValue(value);
-      const valueMasked = this.encryptionService.maskPublicValue(
+      const user = await this.createUserWithCredential(
         value,
-        authMethod.method === AuthMethod.PHONE
-          ? IdentityType.PHONE
-          : IdentityType.EMAIL,
+        valueHash,
+        authMethod.method,
+        true,
       );
-
-      const user = await this.prisma.$transaction(async (tx) => {
-        // New user – create account
-        const newUser = await tx.user.create({ data: {} });
-
-        const newIdentity = await tx.identity.create({
-          data: {
-            type: this.toCredentialType(authMethod.method),
-            publicValueHash: valueHash,
-            publicValueCiphertext: encPublic.ciphertextBase64,
-            publicValueIv: encPublic.ivBase64,
-            publicValueTag: encPublic.tagBase64,
-            publicValueWrappedKey: encPublic.wrappedKeyBase64,
-            publicValueKeyId: encPublic.keyId,
-            publicValueMasked: valueMasked,
-            userId: newUser.id,
-            isVerified: true,
-            verifiedAt: new Date(),
-          },
-        });
-
-        await tx.authCredential.create({
-          data: {
-            userId: newUser.id,
-            type: this.toCredentialType(authMethod.method),
-            valueHash,
-            valueMasked: valueMasked,
-            isPrimary: true,
-            identityId: newIdentity.id,
-          },
-        });
-
-        return newUser;
-      });
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
       return { userId: user.id, status: 'pending_verification' };
@@ -432,6 +357,52 @@ export class AuthService extends BaseService {
   }
 
   // ---------- Common Helpers ----------
+  private async createUserWithCredential(
+    value: string,
+    valueHash: string,
+    authMethod: AuthMethod,
+    isVerified = false,
+  ): Promise<User> {
+    const encPublic = await this.encryptionService.encryptPublicValue(value);
+    const valueMasked = this.encryptionService.maskPublicValue(
+      value,
+      authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({ data: {} });
+
+      const newIdentity = await tx.identity.create({
+        data: {
+          type: this.toCredentialType(authMethod),
+          publicValueHash: valueHash,
+          publicValueCiphertext: encPublic.ciphertextBase64,
+          publicValueIv: encPublic.ivBase64,
+          publicValueTag: encPublic.tagBase64,
+          publicValueWrappedKey: encPublic.wrappedKeyBase64,
+          publicValueKeyId: encPublic.keyId,
+          publicValueMasked: valueMasked,
+          userId: newUser.id,
+          isVerified,
+          verifiedAt: isVerified ? new Date() : null,
+        },
+      });
+
+      await tx.authCredential.create({
+        data: {
+          userId: newUser.id,
+          type: this.toCredentialType(authMethod),
+          valueHash,
+          valueMasked: valueMasked,
+          isPrimary: true,
+          identityId: newIdentity.id,
+        },
+      });
+
+      return newUser;
+    });
+  }
+
   private async validateFirebaseToken(uid: string, uidToken: string) {
     const { authMethod, decodedToken } =
       await this.firebaseAdmin.validateFirebaseToken(uid, uidToken);
