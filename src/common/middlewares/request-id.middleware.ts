@@ -8,7 +8,7 @@ export class RequestIdMiddleware implements NestMiddleware {
     const rawId = req.headers['x-request-id'];
 
     // Fail-safe: Use provided ID or generate a new one. Never throw.
-    req['requestId'] =
+    req.requestId =
       typeof rawId === 'string' && rawId.trim() !== '' ? rawId : randomUUID();
 
     next();

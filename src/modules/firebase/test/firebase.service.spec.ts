@@ -26,7 +26,7 @@ describe('FirebaseService', () => {
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      const config = {
+      const config: Record<string, string> = {
         FIREBASE_PROJECT_ID: 'test-project',
         FIREBASE_CLIENT_EMAIL: 'test@test.com',
         FIREBASE_PRIVATE_KEY: 'test-private-key\\nwith-newlines',

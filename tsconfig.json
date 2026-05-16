@@ -18,9 +18,10 @@
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
+    "typeRoots": ["src/types", "node_modules/@types"],
     "paths": {
       "@common/*": ["src/common/*"],
       "@core/*": ["src/core/*"],

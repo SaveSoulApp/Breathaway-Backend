@@ -86,7 +86,7 @@ export class ClientIdentityGuard implements CanActivate {
     const uaData = this.validateAndParseUserAgent(userAgent);
 
     // Attach validated data strictly typed to the interface
-    request['clientIdentity'] = {
+    request.clientIdentity = {
       apiKey,
       clientId,
       deviceId,
