@@ -1,17 +1,15 @@
+import { BaseService } from '@core/base/base.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { FirebaseService } from '@modules/firebase/firebase.service';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { AuthCredentialType, IdentityType, User } from '@prisma/client';
-import { nanoid } from 'nanoid';
-import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { FirebaseService } from '@modules/firebase/firebase.service';
+import { IdentityType } from '@prisma/client';
 import {
   AddSecondaryAuthDto,
   AuthSigninDto,
@@ -19,7 +17,8 @@ import {
   DevLoginDto,
   SocialAuthDto,
 } from './dto';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { AuthCredentialService } from './services/auth-credential.service';
+import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
 
 @Injectable()
@@ -27,10 +26,10 @@ export class AuthService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly firebaseAdmin: FirebaseService,
-    private readonly jwtService: JwtService,
     private readonly encryptionService: IdentityCryptoService,
+    private readonly authCredentialService: AuthCredentialService,
+    private readonly authTokenService: AuthTokenService,
   ) {
     super(logger);
   }
@@ -71,7 +70,7 @@ export class AuthService extends BaseService {
       );
     }
 
-    const user = await this.createUserWithCredential(
+    const user = await this.authCredentialService.createUserWithCredential(
       value,
       valueHash,
       authMethod.method,
@@ -126,7 +125,7 @@ export class AuthService extends BaseService {
       where: { id: credential.userId },
     });
 
-    return this.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user);
   }
 
   // ---------- Sign‑in or Sign‑up (phone/email) ----------
@@ -153,7 +152,7 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      const user = await this.createUserWithCredential(
+      const user = await this.authCredentialService.createUserWithCredential(
         value,
         valueHash,
         authMethod.method,
@@ -174,7 +173,7 @@ export class AuthService extends BaseService {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: credential.userId },
     });
-    return this.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user);
   }
 
   // ---------- Social Sign‑up / Sign‑in ----------
@@ -200,7 +199,7 @@ export class AuthService extends BaseService {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: identity.userId },
       });
-      return this.generateAuthResponse(user);
+      return this.authTokenService.generateAuthResponse(user);
     }
 
     // Encrypt handle (public value) and platformUserId (platformId)
@@ -248,7 +247,7 @@ export class AuthService extends BaseService {
     // No AuthCredential for social types.
 
     this.logger.log(`New social sign‑up (${type}) for user ${user.id}`);
-    return this.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user);
   }
 
   // ---------- Add Secondary Phone / Email ----------
@@ -304,7 +303,7 @@ export class AuthService extends BaseService {
     await this.prisma.$transaction(async (tx) => {
       const identity = await tx.identity.create({
         data: {
-          type: this.toCredentialType(authType),
+          type: this.authCredentialService.toCredentialType(authType),
           publicValueHash: valueHash,
           publicValueCiphertext: encPublic.ciphertextBase64,
           publicValueIv: encPublic.ivBase64,
@@ -326,7 +325,7 @@ export class AuthService extends BaseService {
       await tx.authCredential.create({
         data: {
           userId: user.id,
-          type: this.toCredentialType(authType),
+          type: this.authCredentialService.toCredentialType(authType),
           valueHash,
           valueMasked: valueMasked,
           isPrimary,
@@ -336,7 +335,7 @@ export class AuthService extends BaseService {
     });
 
     // TODO: Send verification code to the new value
-    return this.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user);
   }
 
   // ---------- Dev Login ----------
@@ -353,56 +352,10 @@ export class AuthService extends BaseService {
       throw new NotFoundException('User not found');
     }
 
-    return this.generateAuthResponse(credential.user);
+    return this.authTokenService.generateAuthResponse(credential.user);
   }
 
   // ---------- Common Helpers ----------
-  private async createUserWithCredential(
-    value: string,
-    valueHash: string,
-    authMethod: AuthMethod,
-    isVerified = false,
-  ): Promise<User> {
-    const encPublic = await this.encryptionService.encryptPublicValue(value);
-    const valueMasked = this.encryptionService.maskPublicValue(
-      value,
-      authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
-    );
-
-    return this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({ data: {} });
-
-      const newIdentity = await tx.identity.create({
-        data: {
-          type: this.toCredentialType(authMethod),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
-          userId: newUser.id,
-          isVerified,
-          verifiedAt: isVerified ? new Date() : null,
-        },
-      });
-
-      await tx.authCredential.create({
-        data: {
-          userId: newUser.id,
-          type: this.toCredentialType(authMethod),
-          valueHash,
-          valueMasked: valueMasked,
-          isPrimary: true,
-          identityId: newIdentity.id,
-        },
-      });
-
-      return newUser;
-    });
-  }
-
   private async validateFirebaseToken(uid: string, uidToken: string) {
     const { authMethod, decodedToken } =
       await this.firebaseAdmin.validateFirebaseToken(uid, uidToken);
@@ -417,29 +370,8 @@ export class AuthService extends BaseService {
     }
   }
 
-  private generateAuthResponse(user: User) {
-    const payload = {
-      sub: user.id,
-      iss: this.configService.get<string>('JWT_ISSUER'),
-      aud: this.configService.get<string>('JWT_AUDIENCE'),
-      jti: nanoid(24),
-    };
-
-    const accessToken = this.jwtService.sign(payload);
-    return {
-      access_token: accessToken,
-      user_id: user.id,
-    };
-  }
-
   signout() {
     // Token revocation can be implemented later
     return { message: 'Signout successful' };
-  }
-
-  private toCredentialType(method: AuthMethod): AuthCredentialType {
-    return method === AuthMethod.PHONE
-      ? AuthCredentialType.PHONE
-      : AuthCredentialType.EMAIL;
   }
 }
