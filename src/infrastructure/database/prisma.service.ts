@@ -9,29 +9,17 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  private static instance: PrismaClient | null = null;
-  private pool: Pool | null = null;
+  private readonly pool: Pool;
 
   constructor(configService: ConfigService) {
-    if (PrismaService.instance) {
-      return PrismaService.instance as PrismaService;
-    }
-
-    // Use DIRECT_URL for migrations, DATABASE_URL for application
     const databaseUrl =
       configService.get('OPERATION_MODE') === 'migration'
-        ? configService.get('DIRECT_URL')
-        : configService.get('DATABASE_URL');
+        ? configService.getOrThrow('DIRECT_URL')
+        : configService.getOrThrow('DATABASE_URL');
 
     const pool = new Pool({ connectionString: databaseUrl });
-    const adapter = new PrismaPg(pool);
-
-    super({
-      adapter,
-    });
-
+    super({ adapter: new PrismaPg(pool) });
     this.pool = pool;
-    PrismaService.instance = this;
   }
 
   async onModuleInit() {
@@ -40,9 +28,6 @@ export class PrismaService
 
   async onModuleDestroy() {
     await this.$disconnect();
-    if (this.pool) {
-      await this.pool.end();
-    }
-    PrismaService.instance = null;
+    await this.pool.end();
   }
 }
