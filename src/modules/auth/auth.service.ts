@@ -433,8 +433,8 @@ export class AuthService extends BaseService {
   private generateAuthResponse(user: User) {
     const payload = {
       sub: user.id,
-      iss: this.configService.get('APP_NAME'),
-      aud: this.configService.get('JWT_AUDIENCE'),
+      iss: this.configService.get<string>('JWT_ISSUER'),
+      aud: this.configService.get<string>('JWT_AUDIENCE'),
       jti: nanoid(24),
     };
 
@@ -451,6 +451,8 @@ export class AuthService extends BaseService {
   }
 
   private toCredentialType(method: AuthMethod): AuthCredentialType {
-    return method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL;
+    return method === AuthMethod.PHONE
+      ? AuthCredentialType.PHONE
+      : AuthCredentialType.EMAIL;
   }
 }
