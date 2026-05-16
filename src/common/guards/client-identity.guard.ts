@@ -1,9 +1,9 @@
+import { LoggerService } from '@core/logger/logger.service';
 import {
   BadRequestException,
   CanActivate,
   ExecutionContext,
   Injectable,
-  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,8 +18,6 @@ export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
 @Injectable()
 export class ClientIdentityGuard implements CanActivate {
-  private readonly logger = new Logger(ClientIdentityGuard.name);
-
   private readonly validApiKeys: Set<string>;
   private readonly validClientIds: Set<string>;
   private readonly requiredPlatforms: Set<string>;
@@ -27,6 +25,7 @@ export class ClientIdentityGuard implements CanActivate {
   private readonly appName: string;
 
   constructor(
+    private readonly logger: LoggerService,
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
   ) {
