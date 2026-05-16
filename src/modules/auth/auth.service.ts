@@ -88,10 +88,7 @@ export class AuthService extends BaseService {
     // Create Identity
     const identity = await this.prisma.identity.create({
       data: {
-        type:
-          authMethod.method === AuthMethod.PHONE
-            ? AuthCredentialType.PHONE
-            : AuthCredentialType.EMAIL,
+        type: this.toCredentialType(authMethod.method),
         publicValueHash: valueHash,
         publicValueCiphertext: encPublic.ciphertextBase64,
         publicValueIv: encPublic.ivBase64,
@@ -109,10 +106,7 @@ export class AuthService extends BaseService {
     await this.prisma.authCredential.create({
       data: {
         userId: user.id,
-        type:
-          authMethod.method === AuthMethod.PHONE
-            ? AuthCredentialType.PHONE
-            : AuthCredentialType.EMAIL,
+        type: this.toCredentialType(authMethod.method),
         valueHash,
         valueMasked: valueMasked,
         isPrimary: true,
@@ -208,10 +202,7 @@ export class AuthService extends BaseService {
 
       const identity = await this.prisma.identity.create({
         data: {
-          type:
-            authMethod.method === AuthMethod.PHONE
-              ? AuthCredentialType.PHONE
-              : AuthCredentialType.EMAIL,
+          type: this.toCredentialType(authMethod.method),
           publicValueHash: valueHash,
           publicValueCiphertext: encPublic.ciphertextBase64,
           publicValueIv: encPublic.ivBase64,
@@ -228,10 +219,7 @@ export class AuthService extends BaseService {
       await this.prisma.authCredential.create({
         data: {
           userId: user.id,
-          type:
-            authMethod.method === AuthMethod.PHONE
-              ? AuthCredentialType.PHONE
-              : AuthCredentialType.EMAIL,
+          type: this.toCredentialType(authMethod.method),
           valueHash,
           valueMasked: valueMasked,
           isPrimary: true,
@@ -362,7 +350,7 @@ export class AuthService extends BaseService {
 
     // 3. Verify user exists
     const user = await this.prisma.user.findUnique({
-      where: { id: userId.toString() },
+      where: { id: userId },
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -376,10 +364,7 @@ export class AuthService extends BaseService {
 
     const identity = await this.prisma.identity.create({
       data: {
-        type:
-          authType === AuthMethod.PHONE
-            ? AuthCredentialType.PHONE
-            : AuthCredentialType.EMAIL,
+        type: this.toCredentialType(authType),
         publicValueHash: valueHash,
         publicValueCiphertext: encPublic.ciphertextBase64,
         publicValueIv: encPublic.ivBase64,
@@ -401,10 +386,7 @@ export class AuthService extends BaseService {
     await this.prisma.authCredential.create({
       data: {
         userId: user.id,
-        type:
-          authType === AuthMethod.PHONE
-            ? AuthCredentialType.PHONE
-            : AuthCredentialType.EMAIL,
+        type: this.toCredentialType(authType),
         valueHash,
         valueMasked: valueMasked,
         isPrimary,
@@ -466,5 +448,9 @@ export class AuthService extends BaseService {
   signout() {
     // Token revocation can be implemented later
     return { message: 'Signout successful' };
+  }
+
+  private toCredentialType(method: AuthMethod): AuthCredentialType {
+    return method === AuthMethod.PHONE ? AuthCredentialType.PHONE : AuthCredentialType.EMAIL;
   }
 }

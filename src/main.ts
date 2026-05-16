@@ -1,4 +1,5 @@
 import { VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -44,8 +45,9 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   logger.log(`Application starting on port ${process.env.PORT ?? 3000}`);
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT', 3000);
 
-  const port = process.env.PORT || 3000;
   // Cloud Run requires 0.0.0.0
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 App running on port ${port}`);

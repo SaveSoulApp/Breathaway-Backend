@@ -20,7 +20,7 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false,
+    "noFallthroughCasesInSwitch": true,
     "typeRoots": ["src/types", "node_modules/@types"],
     "paths": {
       "@common/*": ["src/common/*"],
