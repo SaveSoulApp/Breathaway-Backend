@@ -38,6 +38,9 @@ export class LoggerService implements NestLoggerService {
         level: logLevel,
         transport,
         timestamp: pino.stdTimeFunctions.isoTime,
+        formatters: {
+          level: (label: string) => ({ level: label.toUpperCase() }),
+        },
       });
     }
 
@@ -50,12 +53,7 @@ export class LoggerService implements NestLoggerService {
    * Create a logger instance with context for services
    */
   forContext(context: string): ContextualLogger {
-    const childLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
+    const childLogger = this.baseLogger.child({ context });
 
     return {
       debug: (message: any, meta?: Record<string, any>) =>
@@ -80,8 +78,14 @@ export class LoggerService implements NestLoggerService {
     message: any,
     meta?: Record<string, any>,
   ) {
+    const hasMeta = meta && Object.keys(meta).length > 0;
+
     if (typeof message === 'string') {
-      logger[level](meta, message);
+      if (hasMeta) {
+        logger[level](meta, message);
+      } else {
+        logger[level](message);
+      }
     } else if (message instanceof Error) {
       logger[level](
         {
@@ -97,7 +101,11 @@ export class LoggerService implements NestLoggerService {
     } else if (typeof message === 'object') {
       logger[level]({ ...message, ...meta });
     } else {
-      logger[level](meta, String(message));
+      if (hasMeta) {
+        logger[level](meta, String(message));
+      } else {
+        logger[level](String(message));
+      }
     }
   }
 
@@ -105,72 +113,42 @@ export class LoggerService implements NestLoggerService {
    * NestJS LoggerService interface implementation
    */
   debug(message: any, contextOrMeta?: string | Record<string, any>) {
-    const context =
-      typeof contextOrMeta === 'string' ? contextOrMeta : undefined;
-    const meta = typeof contextOrMeta === 'object' ? contextOrMeta : {};
-
-    const tempLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
-    this.write(tempLogger, 'debug', message, meta);
+    const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
+    if (typeof contextOrMeta === 'string') {
+      meta.context = contextOrMeta;
+    }
+    this.write(this.baseLogger, 'debug', message, meta);
   }
 
   info(message: any, contextOrMeta?: string | Record<string, any>) {
-    const context =
-      typeof contextOrMeta === 'string' ? contextOrMeta : undefined;
-    const meta = typeof contextOrMeta === 'object' ? contextOrMeta : {};
-
-    const tempLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
-    this.write(tempLogger, 'info', message, meta);
+    const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
+    if (typeof contextOrMeta === 'string') {
+      meta.context = contextOrMeta;
+    }
+    this.write(this.baseLogger, 'info', message, meta);
   }
 
   warn(message: any, contextOrMeta?: string | Record<string, any>) {
-    const context =
-      typeof contextOrMeta === 'string' ? contextOrMeta : undefined;
-    const meta = typeof contextOrMeta === 'object' ? contextOrMeta : {};
-
-    const tempLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
-    this.write(tempLogger, 'warn', message, meta);
+    const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
+    if (typeof contextOrMeta === 'string') {
+      meta.context = contextOrMeta;
+    }
+    this.write(this.baseLogger, 'warn', message, meta);
   }
 
   error(message: any, contextOrMeta?: string | Record<string, any>) {
-    const context =
-      typeof contextOrMeta === 'string' ? contextOrMeta : undefined;
-    const meta = typeof contextOrMeta === 'object' ? contextOrMeta : {};
-
-    const tempLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
-    this.write(tempLogger, 'error', message, meta);
+    const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
+    if (typeof contextOrMeta === 'string') {
+      meta.context = contextOrMeta;
+    }
+    this.write(this.baseLogger, 'error', message, meta);
   }
 
   log(message: any, contextOrMeta?: string | Record<string, any>) {
-    const context =
-      typeof contextOrMeta === 'string' ? contextOrMeta : undefined;
-    const meta = typeof contextOrMeta === 'object' ? contextOrMeta : {};
-
-    const tempLogger = this.baseLogger.child({
-      context,
-      formatters: {
-        level: (label: string) => ({ level: label.toUpperCase() }),
-      },
-    });
-    this.write(tempLogger, 'info', message, meta);
+    const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
+    if (typeof contextOrMeta === 'string') {
+      meta.context = contextOrMeta;
+    }
+    this.write(this.baseLogger, 'info', message, meta);
   }
 }
