@@ -120,7 +120,9 @@ export class CreditsService extends BaseService {
     }
 
     if (expiresWithinDays) {
-      const expiresAtMax = new Date(now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000);
+      const expiresAtMax = new Date(
+        now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000,
+      );
       where.expiresAt = {
         gt: now,
         lte: expiresAtMax,

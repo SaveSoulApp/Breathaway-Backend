@@ -6,7 +6,7 @@ import {
 import { TimezoneUtil } from '../utils/timezone.utils';
 
 export function IsValidTimezone(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isValidTimezone',
       target: object.constructor,

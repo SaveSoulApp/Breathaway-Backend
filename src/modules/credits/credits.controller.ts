@@ -11,7 +11,7 @@ import {
   Param,
   Post,
   Query,
-  UseGuards
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
