@@ -1,5 +1,9 @@
 import { TimezoneUtil } from '@common/utils/timezone.utils';
-import { BadRequestException, Injectable, NestMiddleware } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NestMiddleware,
+} from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 
 @Injectable()
@@ -7,7 +11,7 @@ export class TimezoneMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const timezoneHeader = req.headers['x-timezone'];
 
-    let timezoneValue = timezoneHeader
+    const timezoneValue = timezoneHeader
       ? Array.isArray(timezoneHeader)
         ? timezoneHeader[0]
         : timezoneHeader

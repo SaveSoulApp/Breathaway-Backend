@@ -28,7 +28,7 @@ async function bootstrap(): Promise<void> {
 
   app.use(
     helmet({
-      contentSecurityPolicy: false, 
+      contentSecurityPolicy: false,
     }),
   );
 
