@@ -92,7 +92,13 @@ export class CreditsService extends BaseService {
         where.createdAt.gte = new Date(createdFrom);
       }
       if (createdTo) {
-        where.createdAt.lte = new Date(createdTo);
+        const to = new Date(createdTo);
+        // Date-only strings (no "T") are parsed as midnight UTC; shift to end-of-day
+        // so the filter is inclusive of all records on that calendar day.
+        if (!createdTo.includes('T')) {
+          to.setUTCHours(23, 59, 59, 999);
+        }
+        where.createdAt.lte = to;
       }
     }
 
