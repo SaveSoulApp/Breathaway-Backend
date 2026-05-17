@@ -57,7 +57,9 @@ export class CreditLedgerQueryDto {
     enum: CreditTransactionType,
   })
   @IsOptional()
-  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase() : value)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsEnum(CreditTransactionType)
   transactionType?: CreditTransactionType;
 
@@ -66,19 +68,22 @@ export class CreditLedgerQueryDto {
     enum: CreditStatusFilter,
   })
   @IsOptional()
-  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase() : value)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsEnum(CreditStatusFilter)
   creditStatus?: CreditStatusFilter;
 
   @ApiPropertyOptional({
-    description: 'Filter by credit source. Allows multiple values as an array or a single string.',
+    description:
+      'Filter by credit source. Allows multiple values as an array or a single string.',
     enum: CreditSource,
     isArray: true,
   })
   @IsOptional()
   @Transform(({ value }) => {
     const arr = Array.isArray(value) ? value : [value];
-    return arr.map(v => typeof v === 'string' ? v.toUpperCase() : v);
+    return arr.map((v) => (typeof v === 'string' ? v.toUpperCase() : v));
   })
   @IsEnum(CreditSource, { each: true })
   source?: CreditSource[];
@@ -98,7 +103,8 @@ export class CreditLedgerQueryDto {
   createdTo?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by credits expiring within X days (only includes non-expired)',
+    description:
+      'Filter by credits expiring within X days (only includes non-expired)',
   })
   @IsOptional()
   @IsInt()

@@ -178,7 +178,7 @@ export class CurrencyUtils {
     const [whole, decimal] = numberString.split('.');
 
     let lastThree = whole.slice(-3);
-    let otherNumbers = whole.slice(0, -3);
+    const otherNumbers = whole.slice(0, -3);
 
     if (otherNumbers !== '') {
       lastThree = ',' + lastThree;

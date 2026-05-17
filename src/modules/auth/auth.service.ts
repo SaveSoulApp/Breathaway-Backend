@@ -139,7 +139,7 @@ export class AuthService extends BaseService {
     const value = authMethod.identifier;
     const valueHash = await this.encryptionService.computeHash(value);
 
-    let credential = await this.prisma.authCredential.findUnique({
+    const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
       select: {
         userId: true,
@@ -184,7 +184,7 @@ export class AuthService extends BaseService {
     const platformIdHash =
       await this.encryptionService.computeHash(platformUserId);
 
-    let identity = await this.prisma.identity.findFirst({
+    const identity = await this.prisma.identity.findFirst({
       where: { type, platformIdHash },
       select: { id: true, userId: true, isVerified: true },
     });
