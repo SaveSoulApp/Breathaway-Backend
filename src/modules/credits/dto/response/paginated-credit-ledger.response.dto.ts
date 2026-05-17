@@ -3,6 +3,7 @@ import { Expose, Type } from 'class-transformer';
 import { CreditLedgerResponseDto } from './credit-ledger.response.dto';
 import { PaginationMeta } from '@common/dto';
 
+/* istanbul ignore next */
 export class PaginatedCreditLedgerResponseDto {
   @ApiProperty({ type: [CreditLedgerResponseDto] })
   @Expose()

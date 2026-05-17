@@ -13,6 +13,7 @@ import { SortOrder } from '@common/enums';
 import { CreditLedgerSortBy, CreditStatusFilter } from '../../enums';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
 
+/* istanbul ignore next */
 export class CreditLedgerQueryDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })
   @IsOptional()

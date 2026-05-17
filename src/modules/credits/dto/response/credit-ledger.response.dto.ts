@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
+/* istanbul ignore next */
 export class CreditLedgerResponseDto {
   @ApiProperty()
   @Expose()

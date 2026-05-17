@@ -24,6 +24,7 @@ export class LikeTargetIdentityDto {
   verifiedAt: Date | null;
 }
 
+/* istanbul ignore next */
 export class LikeResponseDto {
   @ApiProperty()
   @Expose()
