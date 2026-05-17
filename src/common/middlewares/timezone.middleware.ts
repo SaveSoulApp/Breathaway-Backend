@@ -1,5 +1,5 @@
 import { TimezoneUtil } from '@common/utils/timezone.utils';
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { BadRequestException, Injectable, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 
 @Injectable()
@@ -13,14 +13,16 @@ export class TimezoneMiddleware implements NestMiddleware {
         : timezoneHeader
       : 'UTC';
 
-    const normalizedTimezone = TimezoneUtil.normalizeTimezone(timezoneValue);
-
-    // Fail-safe: If invalid, fallback to UTC instead of throwing
     if (!TimezoneUtil.isValidTimezone(timezoneValue)) {
-      req.timezone = 'UTC';
-    } else {
-      req.timezone = normalizedTimezone;
+      throw new BadRequestException({
+        message: 'Invalid timezone in header',
+        details: `"${timezoneValue}" is not a valid IANA timezone`,
+        suggestion:
+          'Use format like "Asia/Kolkata", "America/New_York", or omit for UTC',
+      });
     }
+
+    req.timezone = TimezoneUtil.normalizeTimezone(timezoneValue);
 
     next();
   }
