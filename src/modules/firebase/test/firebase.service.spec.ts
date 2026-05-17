@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseService } from '../firebase.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import * as admin from 'firebase-admin';
 
 // Mock firebase-admin

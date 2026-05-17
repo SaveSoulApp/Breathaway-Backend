@@ -1,6 +1,6 @@
 import { BaseService } from '@core/base/base.service';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';

@@ -17,7 +17,7 @@ import { BaseController } from '@core/base/base.controller';
 import { CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { MatchResponseDto } from './dto';
 import { MatchService } from './matches.service';
 

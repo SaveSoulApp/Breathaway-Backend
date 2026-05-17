@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import {
   AuthMethodInfo,
   getAuthMethodFromDecodedToken,

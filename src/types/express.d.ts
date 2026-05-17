@@ -1,7 +1,4 @@
-import {
-  ClientIdentityData,
-  UserAgentData,
-} from '@common/interfaces';
+import { ClientIdentityData, UserAgentData } from '@common/interfaces';
 
 declare global {
   namespace Express {

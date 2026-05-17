@@ -2,7 +2,7 @@ import { CurrentUserId } from '@common/decorators/current-user-id.decorator';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base/base.controller';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { Body, Controller, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,

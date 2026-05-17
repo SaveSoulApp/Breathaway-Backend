@@ -6,7 +6,7 @@ import {
 import { Device, DevicePlatform } from '@prisma/client';
 import { BaseService } from '@core/base/base.service';
 import { Platform } from '@common/interfaces';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from './dto';
 

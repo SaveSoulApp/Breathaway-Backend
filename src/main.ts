@@ -4,9 +4,11 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { ExceptionLoggingFilter } from './core/logger/exception-logging.filter';
-import { LoggerService } from './core/logger/logger.service';
-import { LoggingInterceptor } from './core/logger/logging.interceptor';
+import {
+  ExceptionLoggingFilter,
+  LoggerService,
+  LoggingInterceptor,
+} from './core/logger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {

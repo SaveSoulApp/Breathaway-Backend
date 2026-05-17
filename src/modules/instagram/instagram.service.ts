@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { BaseService } from '@core/base/base.service';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 
 @Injectable()
 export class InstagramService extends BaseService {

@@ -4,7 +4,7 @@ import { ClientIdentityKey } from '@common/enums';
 import { JwtAuthGuard } from '@common/guards';
 import * as interfaces from '@common/interfaces';
 import { BaseController } from '@core/base/base.controller';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,

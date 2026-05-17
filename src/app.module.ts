@@ -17,7 +17,7 @@ import {
   TimezoneMiddleware,
 } from './common/middlewares';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
-import { LoggerModule } from './core/logger/logger.module';
+import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlockModule } from './modules/blocks/blocks.module';
