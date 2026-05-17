@@ -32,6 +32,7 @@ import { OtpModule } from './modules/one-time-passwords/one-time-passwords.modul
 import { ProfileModule } from './modules/profiles/profiles.module';
 import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { CreditsModule } from './modules/credits/credits.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     BlockModule,
     MatchModule,
     MatchResolverModule,
+    CreditsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -39,6 +39,11 @@ enum MatchStatus {
   BLOCKED
 }
 
+enum CreditTransactionType {
+  CREDIT
+  DEBIT
+}
+
 enum CreditSource {
   PURCHASE
   BONUS
@@ -262,8 +267,10 @@ model CreditLedger {
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  amount      Int
-  source      CreditSource
+  transactionType CreditTransactionType
+
+  amount          Int
+  source          CreditSource
   referenceId String?
 
   expiresAt   DateTime?
