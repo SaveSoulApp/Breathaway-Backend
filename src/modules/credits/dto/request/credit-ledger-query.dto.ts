@@ -57,6 +57,7 @@ export class CreditLedgerQueryDto {
     enum: CreditTransactionType,
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase() : value)
   @IsEnum(CreditTransactionType)
   transactionType?: CreditTransactionType;
 
@@ -65,6 +66,7 @@ export class CreditLedgerQueryDto {
     enum: CreditStatusFilter,
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase() : value)
   @IsEnum(CreditStatusFilter)
   creditStatus?: CreditStatusFilter;
 
@@ -74,7 +76,10 @@ export class CreditLedgerQueryDto {
     isArray: true,
   })
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  @Transform(({ value }) => {
+    const arr = Array.isArray(value) ? value : [value];
+    return arr.map(v => typeof v === 'string' ? v.toUpperCase() : v);
+  })
   @IsEnum(CreditSource, { each: true })
   source?: CreditSource[];
 
