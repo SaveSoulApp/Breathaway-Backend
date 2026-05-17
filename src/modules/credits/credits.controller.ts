@@ -8,11 +8,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Options,
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -62,6 +65,34 @@ export class CreditsController extends BaseController {
     @Query() query: CreditLedgerQueryDto,
   ): Promise<PaginatedCreditLedgerResponseDto> {
     return this.creditsService.getLedger(userId, query);
+  }
+
+  @Options('ledger')
+  @ApiOperation({ summary: 'Get ledger options and query parameters' })
+  getLedgerOptions(@Res() res: Response) {
+    res.setHeader('Allow', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    // We could parse class-validator decorators dynamically,
+    // but here we simply return a well-structured JSON representing the available parameters
+    res.status(HttpStatus.OK).json({
+      methods: ['GET', 'OPTIONS'],
+      queryParams: {
+        page: { type: 'number', default: 1, minimum: 1 },
+        limit: { type: 'number', default: 20, minimum: 1, maximum: 100 },
+        sortBy: { type: 'string', enum: ['createdAt'], default: 'createdAt' },
+        sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+        transactionType: { type: 'string', enum: ['CREDIT', 'DEBIT'] },
+        creditStatus: { type: 'string', enum: ['ACTIVE', 'EXPIRED'] },
+        source: {
+          type: 'array',
+          items: { type: 'string', enum: ['PURCHASE', 'BONUS', 'REFERRAL', 'LIKE_USAGE', 'ADMIN'] }
+        },
+        createdFrom: { type: 'string', format: 'date-time' },
+        createdTo: { type: 'string', format: 'date-time' },
+        expiresWithinDays: { type: 'number', minimum: 1 },
+        search: { type: 'string', description: 'Partial match on referenceId' }
+      }
+    });
   }
 
   @Get('ledger/:id')
