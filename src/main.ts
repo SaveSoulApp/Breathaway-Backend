@@ -1,61 +1,57 @@
-import { VersioningType } from '@nestjs/common';
+import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+
 import { AppModule } from './app.module';
+import { setupSwagger } from './config/swagger.config';
 import {
   ExceptionLoggingFilter,
   LoggerService,
   LoggingInterceptor,
 } from './core/logger';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+async function bootstrap(): Promise<void> {
+  const app: INestApplication = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    // logger: false, // Built in logger
   });
 
+  // 1. Core Services Setup
   const logger = app.get(LoggerService);
+  const configService = app.get(ConfigService);
+
   app.useLogger(logger);
 
-  const loggingInterceptor = app.get(LoggingInterceptor);
-  app.useGlobalInterceptors(loggingInterceptor);
-
+  // 2. Global Middleware & Interceptors
+  app.useGlobalInterceptors(app.get(LoggingInterceptor));
   app.useGlobalFilters(new ExceptionLoggingFilter(logger));
 
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: false, 
     }),
   );
 
+  // 3. API Versioning
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: '1', // Default if no version specified
-    prefix: 'api/v', // Custom prefix: /api/v1/users
+    defaultVersion: '1',
+    prefix: 'api/v',
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('Identity API')
-    .setDescription('Auth + User Profile APIs')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  setupSwagger(app);
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-
-  logger.log(`Application starting on port ${process.env.PORT ?? 3000}`);
-  const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
 
-  // Cloud Run requires 0.0.0.0
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 App running on port ${port}`);
 
   logger.log(
-    `Application started successfully on port ${process.env.PORT ?? 3000}`,
+    `🚀 Application successfully started on port ${port}`,
+    'Bootstrap',
   );
 }
-bootstrap();
+
+bootstrap().catch((err) => {
+  console.error('Failed to start application:', err);
+  process.exit(1);
+});
