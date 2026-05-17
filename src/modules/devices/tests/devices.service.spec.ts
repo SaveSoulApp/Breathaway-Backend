@@ -7,7 +7,10 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { DeviceService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
-import { createPrismaMock, MockPrismaService } from './mocks/prisma.mock';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('DeviceService', () => {
   let service: DeviceService;
