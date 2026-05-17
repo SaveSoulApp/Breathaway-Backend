@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { Like, LikeStatus, MatchStatus } from '@prisma/client';
-import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
+import { Injectable } from '@nestjs/common';
+import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
+
+export type LikeSummary = Pick<
+  Like,
+  'id' | 'senderUserId' | 'targetUserId' | 'intent' | 'status'
+>;
 
 @Injectable()
 export class MatchResolverService extends BaseService {
@@ -17,9 +22,8 @@ export class MatchResolverService extends BaseService {
     super(logger);
   }
 
-  async resolveFromLike(newLike: Like) {
+  async resolveFromLike(newLike: LikeSummary) {
     try {
-      // 1. Only trigger if targetUserId is resolved
       if (!newLike.targetUserId) {
         this.logger.debug(
           `Like ${newLike.id} target identity is unresolved. Skipping match resolution.`,
@@ -27,25 +31,14 @@ export class MatchResolverService extends BaseService {
         return;
       }
 
-      const userAId = newLike.senderUserId;
-      const userBId = newLike.targetUserId;
-
-      // 2. Search for a reverse Like
-      const reverseLike = await this.prisma.like.findFirst({
-        where: {
-          senderUserId: userBId,
-          targetUserId: userAId,
-          status: LikeStatus.PENDING,
-          deletedAt: null,
-          expiresAt: {
-            gt: new Date(),
-          },
-        },
-      });
+      const reverseLike = await this.findReverseLike(
+        newLike.senderUserId,
+        newLike.targetUserId,
+      );
 
       if (!reverseLike) {
         this.logger.debug(
-          `No reverse like found for users ${userAId} and ${userBId}.`,
+          `No reverse like found for users ${newLike.senderUserId} and ${newLike.targetUserId}.`,
         );
         return;
       }
@@ -54,103 +47,42 @@ export class MatchResolverService extends BaseService {
         `Reverse like found: ${reverseLike.id} for new like: ${newLike.id}.`,
       );
 
-      // 3. Verify intent compatibility
-      if (
-        !this.matchService.isIntentCompatible(
-          newLike.intent,
-          reverseLike.intent,
-        )
-      ) {
-        this.logger.log(
-          `Intents are incompatible between Like ${newLike.id} (${newLike.intent}) and Like ${reverseLike.id} (${reverseLike.intent}).`,
-        );
-        return;
-      }
+      const [userOneId, userTwoId] = [
+        newLike.senderUserId,
+        newLike.targetUserId,
+      ].sort();
 
-      // 4. Verify no block exists
-      const isBlocked = await this.blockService.isBlocked(userAId, userBId);
-      if (isBlocked) {
-        this.logger.log(
-          `Block exists between users ${userAId} and ${userBId}. Suppressing match.`,
-        );
-        return;
-      }
+      const canonicalLikeOne =
+        userOneId === newLike.senderUserId ? newLike : reverseLike;
+      const canonicalLikeTwo =
+        userTwoId === newLike.targetUserId ? reverseLike : newLike;
 
-      // 5. Canonical User Ordering
-      const [userOneId, userTwoId] = [userAId, userBId].sort();
+      const isEligible = await this.validateMatchEligibility(
+        newLike,
+        reverseLike,
+        userOneId,
+        userTwoId,
+      );
 
-      // Ensure we map the correct like ID to the canonically ordered users
-      const canonicalLikeOne = userOneId === userAId ? newLike : reverseLike;
-      const canonicalLikeTwo = userTwoId === userBId ? reverseLike : newLike;
+      if (!isEligible.valid) return;
 
-      // 6. Ensure match does not already exist
-      const existingMatch = await this.prisma.match.findUnique({
-        where: {
-          userOneId_userTwoId: {
-            userOneId,
-            userTwoId,
-          },
-        },
-      });
-
-      if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
-        this.logger.warn(
-          `Active match already exists between ${userOneId} and ${userTwoId}. Duplicate prevented.`,
-        );
-        return;
-      }
-
-      // 7. Atomic Transaction to create Match and update both Likes
-      await this.prisma.$transaction(async (tx) => {
-        if (existingMatch) {
-          // Reactivate the match if it was UNMATCHED previously
-          await tx.match.update({
-            where: { id: existingMatch.id },
-            data: {
-              likeOneId: canonicalLikeOne.id,
-              likeTwoId: canonicalLikeTwo.id,
-              intentOne: canonicalLikeOne.intent,
-              intentTwo: canonicalLikeTwo.intent,
-              status: MatchStatus.ACTIVE,
-              deletedAt: null,
-              matchedAt: new Date(),
-            },
-          });
-        } else {
-          await tx.match.create({
-            data: {
-              userOneId,
-              userTwoId,
-              likeOneId: canonicalLikeOne.id,
-              likeTwoId: canonicalLikeTwo.id,
-              intentOne: canonicalLikeOne.intent,
-              intentTwo: canonicalLikeTwo.intent,
-              status: MatchStatus.ACTIVE,
-            },
-          });
-        }
-
-        await tx.like.update({
-          where: { id: newLike.id },
-          data: { status: LikeStatus.MATCHED },
-        });
-
-        await tx.like.update({
-          where: { id: reverseLike.id },
-          data: { status: LikeStatus.MATCHED },
-        });
-      });
+      await this.executeMatchTransaction(
+        canonicalLikeOne,
+        canonicalLikeTwo,
+        userOneId,
+        userTwoId,
+        isEligible.existingMatch,
+      );
 
       this.logger.log(
         `Match created successfully between users ${userOneId} and ${userTwoId}.`,
       );
     } catch (error) {
       if (error?.code === 'P2002') {
-        // Unique constraint violation
         this.logger.warn(
           `Race condition caught: Unique constraint violation while creating Match for users ${newLike.senderUserId} and ${newLike.targetUserId}.`,
         );
-        return; // Absorb safely
+        return;
       }
 
       this.logger.error(
@@ -158,5 +90,108 @@ export class MatchResolverService extends BaseService {
         error.stack,
       );
     }
+  }
+
+  private async findReverseLike(
+    userAId: string,
+    userBId: string,
+  ): Promise<LikeSummary | null> {
+    return this.prisma.like.findFirst({
+      where: {
+        senderUserId: userBId,
+        targetUserId: userAId,
+        status: LikeStatus.PENDING,
+        deletedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+  }
+
+  private async validateMatchEligibility(
+    newLike: LikeSummary,
+    reverseLike: LikeSummary,
+    userOneId: string,
+    userTwoId: string,
+  ): Promise<{ valid: boolean; existingMatch: Match | null }> {
+    if (
+      !this.matchService.isIntentCompatible(newLike.intent, reverseLike.intent)
+    ) {
+      this.logger.log(
+        `Intents are incompatible between Like ${newLike.id} (${newLike.intent}) and Like ${reverseLike.id} (${reverseLike.intent}).`,
+      );
+      return { valid: false, existingMatch: null };
+    }
+
+    const isBlocked = await this.blockService.isBlocked(
+      newLike.senderUserId,
+      newLike.targetUserId!,
+    );
+
+    if (isBlocked) {
+      this.logger.log(
+        `Block exists between users ${newLike.senderUserId} and ${newLike.targetUserId}. Suppressing match.`,
+      );
+      return { valid: false, existingMatch: null };
+    }
+
+    const existingMatch = await this.prisma.match.findUnique({
+      where: { userOneId_userTwoId: { userOneId, userTwoId } },
+    });
+
+    if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
+      this.logger.warn(
+        `Active match already exists between ${userOneId} and ${userTwoId}. Duplicate prevented.`,
+      );
+      return { valid: false, existingMatch: null };
+    }
+
+    return { valid: true, existingMatch };
+  }
+
+  private async executeMatchTransaction(
+    likeOne: LikeSummary,
+    likeTwo: LikeSummary,
+    userOneId: string,
+    userTwoId: string,
+    existingMatch: Match | null,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      if (existingMatch) {
+        await tx.match.update({
+          where: { id: existingMatch.id },
+          data: {
+            likeOneId: likeOne.id,
+            likeTwoId: likeTwo.id,
+            intentOne: likeOne.intent,
+            intentTwo: likeTwo.intent,
+            status: MatchStatus.ACTIVE,
+            deletedAt: null,
+            matchedAt: new Date(),
+          },
+        });
+      } else {
+        await tx.match.create({
+          data: {
+            userOneId,
+            userTwoId,
+            likeOneId: likeOne.id,
+            likeTwoId: likeTwo.id,
+            intentOne: likeOne.intent,
+            intentTwo: likeTwo.intent,
+            status: MatchStatus.ACTIVE,
+          },
+        });
+      }
+
+      await tx.like.update({
+        where: { id: likeOne.id },
+        data: { status: LikeStatus.MATCHED },
+      });
+
+      await tx.like.update({
+        where: { id: likeTwo.id },
+        data: { status: LikeStatus.MATCHED },
+      });
+    });
   }
 }

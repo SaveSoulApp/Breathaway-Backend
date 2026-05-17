@@ -27,10 +27,17 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
+    const rawResponse =
       exception instanceof HttpException
         ? exception.getResponse()
         : 'Internal server error';
+
+    const message =
+      typeof rawResponse === 'string'
+        ? rawResponse
+        : Array.isArray((rawResponse as any).message)
+          ? (rawResponse as any).message
+          : ((rawResponse as any).message ?? rawResponse);
 
     // Log the error with correct status code
     this.logger.error(`Request failed: ${request.method} ${request.url}`, {
@@ -50,7 +57,7 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: typeof message === 'string' ? message : (message as any).message,
+      message: message,
     });
   }
 }

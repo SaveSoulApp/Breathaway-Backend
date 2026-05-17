@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';

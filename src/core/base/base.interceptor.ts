@@ -1,6 +1,6 @@
 import { ContextualLogger, LoggerService } from '@core/logger';
 
-export abstract class BaseService {
+export abstract class BaseInterceptor {
   protected readonly logger: ContextualLogger;
 
   constructor(loggerService: LoggerService) {

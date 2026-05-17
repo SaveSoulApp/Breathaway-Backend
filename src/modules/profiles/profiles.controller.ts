@@ -18,10 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base/base.controller';
+import { BaseController } from '@core/base';
 import { CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import {
   CreateProfileDto,
   PatchProfileDto,

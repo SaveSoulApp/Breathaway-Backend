@@ -1,6 +1,6 @@
-import { BaseService } from '@core/base/base.service';
+import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import {
@@ -115,6 +115,8 @@ export class LikeService extends BaseService {
       },
       select: {
         id: true,
+        senderUserId: true,
+        targetUserId: true,
         intent: true,
         status: true,
         createdAt: true,
@@ -132,7 +134,7 @@ export class LikeService extends BaseService {
     });
 
     // Trigger match resolution asynchronously in the background
-    this.matchResolverService.resolveFromLike(like as any).catch((err) => {
+    this.matchResolverService.resolveFromLike(like).catch((err) => {
       this.logger.error(
         `Match resolution failed for Like ${like.id}`,
         err.stack,

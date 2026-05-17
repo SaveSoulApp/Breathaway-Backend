@@ -2,7 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
 class BlockedUserDto {
-  @ApiProperty({ description: 'The unique identifier (ULID) of the blocked user' })
+  @ApiProperty({
+    description: 'The unique identifier (ULID) of the blocked user',
+  })
   @Expose()
   id: string;
 
@@ -10,13 +12,18 @@ class BlockedUserDto {
   @Expose()
   firstName: string;
 
-  @ApiProperty({ description: 'Last name of the blocked user, if available', required: false })
+  @ApiProperty({
+    description: 'Last name of the blocked user, if available',
+    required: false,
+  })
   @Expose()
   lastName?: string;
 }
 
 export class BlockResponseDto {
-  @ApiProperty({ description: 'The unique identifier (ULID) of the block record' })
+  @ApiProperty({
+    description: 'The unique identifier (ULID) of the block record',
+  })
   @Expose()
   id: string;
 
@@ -24,7 +31,10 @@ export class BlockResponseDto {
   @Expose()
   createdAt: Date;
 
-  @ApiProperty({ description: 'Basic profile information of the blocked user', type: () => BlockedUserDto })
+  @ApiProperty({
+    description: 'Basic profile information of the blocked user',
+    type: () => BlockedUserDto,
+  })
   @Expose()
   @Type(() => BlockedUserDto)
   blockedUser: BlockedUserDto;

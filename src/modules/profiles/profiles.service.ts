@@ -4,8 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserProfile } from '@prisma/client';
-import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 

@@ -17,9 +17,9 @@ export class TimezoneMiddleware implements NestMiddleware {
 
     // Fail-safe: If invalid, fallback to UTC instead of throwing
     if (!TimezoneUtil.isValidTimezone(timezoneValue)) {
-      req['timezone'] = 'UTC';
+      req.timezone = 'UTC';
     } else {
-      req['timezone'] = normalizedTimezone;
+      req.timezone = normalizedTimezone;
     }
 
     next();

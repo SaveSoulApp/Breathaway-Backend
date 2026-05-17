@@ -1,3 +1,5 @@
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   BadRequestException,
@@ -8,8 +10,13 @@ import {
 import { CreateBlockDto } from './dto';
 
 @Injectable()
-export class BlockService {
-  constructor(private readonly prisma: PrismaService) {}
+export class BlockService extends BaseService {
+  constructor(
+    logger: LoggerService,
+    private readonly prisma: PrismaService,
+  ) {
+    super(logger);
+  }
 
   async create(blockerUserId: string, createBlockDto: CreateBlockDto) {
     const { blockedUserId } = createBlockDto;

@@ -41,7 +41,9 @@ export class LoggerService implements NestLoggerService {
       });
     }
 
-    console.log(`📝 LoggerService initialized with level: ${logLevel}`);
+    this.baseLogger.info(
+      `📝 LoggerService initialized with level: ${logLevel}`,
+    );
   }
 
   /**

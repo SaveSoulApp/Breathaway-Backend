@@ -5,8 +5,8 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BaseService } from '@core/base/base.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { SocialIdentityResponseDto } from './dto';
 
 @Injectable()

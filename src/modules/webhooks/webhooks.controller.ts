@@ -1,6 +1,6 @@
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base/base.controller';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { MetaWebhookDto } from './dto';
 import { WebhooksService } from './webhooks.service';

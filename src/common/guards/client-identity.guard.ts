@@ -1,22 +1,23 @@
+import { LoggerService } from '@core/logger';
 import {
-    BadRequestException,
-    CanActivate,
-    ExecutionContext,
-    Injectable,
-    Logger,
-    UnauthorizedException,
+  BadRequestException,
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { Platform, UserAgentData } from '../interfaces/client-identity.interface';
+import {
+  Platform,
+  UserAgentData,
+} from '../interfaces/client-identity.interface';
 
 export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
 @Injectable()
 export class ClientIdentityGuard implements CanActivate {
-  private readonly logger = new Logger(ClientIdentityGuard.name);
-
   private readonly validApiKeys: Set<string>;
   private readonly validClientIds: Set<string>;
   private readonly requiredPlatforms: Set<string>;
@@ -24,20 +25,18 @@ export class ClientIdentityGuard implements CanActivate {
   private readonly appName: string;
 
   constructor(
+    private readonly logger: LoggerService,
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
   ) {
     this.validApiKeys = this.parseJsonConfig('API_KEYS', '[]');
     this.validClientIds = this.parseJsonConfig('CLIENT_IDS', '[]');
-    this.requiredPlatforms = this.parseJsonConfig(
-      'REQUIRED_PLATFORMS',
-      '["iOS","Android"]',
-    );
+    this.requiredPlatforms = this.parseJsonConfig('REQUIRED_PLATFORMS', '[]');
     this.minAppVersion = this.configService.get<string>(
       'MIN_APP_VERSION',
       '1.0.0',
     );
-    this.appName = this.configService.get<string>('APP_NAME', 'BreathAway');
+    this.appName = this.configService.get<string>('APP_NAME', '');
 
     if (this.validApiKeys.size === 0)
       this.logger.warn('No valid API keys configured.');
@@ -86,7 +85,7 @@ export class ClientIdentityGuard implements CanActivate {
     const uaData = this.validateAndParseUserAgent(userAgent);
 
     // Attach validated data strictly typed to the interface
-    request['clientIdentity'] = {
+    request.clientIdentity = {
       apiKey,
       clientId,
       deviceId,

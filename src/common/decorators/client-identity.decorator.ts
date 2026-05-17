@@ -1,5 +1,5 @@
-import { ClientIdentityKey } from '@common/enums/client-identity-key.enum';
-import { ClientIdentityData } from '@common/interfaces/client-identity.interface';
+import { ClientIdentityKey } from '@common/enums';
+import { ClientIdentityData } from '@common/interfaces';
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export const ClientIdentity = createParamDecorator(

@@ -1,10 +1,10 @@
 import { CurrentUserId } from '@common/decorators';
 import { ClientIdentity } from '@common/decorators/client-identity.decorator';
-import { ClientIdentityKey } from '@common/enums/client-identity-key.enum';
+import { ClientIdentityKey } from '@common/enums';
 import { JwtAuthGuard } from '@common/guards';
 import * as interfaces from '@common/interfaces';
-import { BaseController } from '@core/base/base.controller';
-import { LoggerService } from '@core/logger/logger.service';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,

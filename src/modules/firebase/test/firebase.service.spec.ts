@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseService } from '../firebase.service';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import * as admin from 'firebase-admin';
 
 // Mock firebase-admin
@@ -26,7 +26,7 @@ describe('FirebaseService', () => {
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      const config = {
+      const config: Record<string, string> = {
         FIREBASE_PROJECT_ID: 'test-project',
         FIREBASE_CLIENT_EMAIL: 'test@test.com',
         FIREBASE_PRIVATE_KEY: 'test-private-key\\nwith-newlines',

@@ -1,8 +1,8 @@
 import { Body, Controller, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { BaseController } from '@core/base/base.controller';
+import { BaseController } from '@core/base';
 import { SerializeExpose } from '@common/interceptors';
-import { LoggerService } from '@core/logger/logger.service';
+import { LoggerService } from '@core/logger';
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentityService } from './social-identities.service';
 
