@@ -1,15 +1,14 @@
+import { BaseService } from '@core/base/base.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger/logger.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Identity, IdentityType } from '@prisma/client';
-import { BaseService } from '@core/base/base.service';
-import { normalizeIdentityValue } from '@common/utils/identity.utils';
-import { LoggerService } from '@core/logger/logger.service';
-import { PrismaService } from '@infrastructure/database/prisma.service';
+import { Identity } from '@prisma/client';
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 
 @Injectable()
 export class IdentityService extends BaseService {

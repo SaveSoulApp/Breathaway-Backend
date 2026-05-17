@@ -31,15 +31,12 @@ export class ClientIdentityGuard implements CanActivate {
   ) {
     this.validApiKeys = this.parseJsonConfig('API_KEYS', '[]');
     this.validClientIds = this.parseJsonConfig('CLIENT_IDS', '[]');
-    this.requiredPlatforms = this.parseJsonConfig(
-      'REQUIRED_PLATFORMS',
-      '["iOS","Android"]',
-    );
+    this.requiredPlatforms = this.parseJsonConfig('REQUIRED_PLATFORMS', '[]');
     this.minAppVersion = this.configService.get<string>(
       'MIN_APP_VERSION',
       '1.0.0',
     );
-    this.appName = this.configService.get<string>('APP_NAME', 'BreathAway');
+    this.appName = this.configService.get<string>('APP_NAME', '');
 
     if (this.validApiKeys.size === 0)
       this.logger.warn('No valid API keys configured.');
