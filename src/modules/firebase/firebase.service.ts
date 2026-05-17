@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
-import { BaseService } from '@core/base/base.service';
+import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import {
   AuthMethodInfo,

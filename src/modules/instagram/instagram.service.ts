@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { BaseService } from '@core/base/base.service';
+import { BaseService } from '@core/base';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
 import { LoggerService } from '@core/logger';
 

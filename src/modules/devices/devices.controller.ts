@@ -3,7 +3,7 @@ import { ClientIdentity } from '@common/decorators/client-identity.decorator';
 import { ClientIdentityKey } from '@common/enums';
 import { JwtAuthGuard } from '@common/guards';
 import * as interfaces from '@common/interfaces';
-import { BaseController } from '@core/base/base.controller';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import {
   Body,

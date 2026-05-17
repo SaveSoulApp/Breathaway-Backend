@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
-import { BaseService } from '@core/base/base.service';
+import { BaseService } from '@core/base';
 import { hashString } from '@common/utils/crypto.utils';
 import { LoggerService } from '@core/logger';
 

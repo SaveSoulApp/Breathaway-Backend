@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Device, DevicePlatform } from '@prisma/client';
-import { BaseService } from '@core/base/base.service';
+import { BaseService } from '@core/base';
 import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
