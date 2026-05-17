@@ -7,7 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
-import { ConsumeCreditsRequestDto, GrantCreditsRequestDto } from './dto';
+import {
+  ConsumeCreditsRequestDto,
+  GrantCreditsRequestDto,
+  CreditLedgerQueryDto,
+  PaginatedCreditLedgerResponseDto,
+} from './dto';
+import { CreditStatusFilter } from './enums';
 
 @Injectable()
 export class CreditsService extends BaseService {
@@ -48,20 +54,115 @@ export class CreditsService extends BaseService {
     return balance;
   }
 
-  async getLedger(userId: string) {
-    return this.prisma.creditLedger.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        transactionType: true,
-        amount: true,
-        source: true,
-        referenceId: true,
-        expiresAt: true,
-        createdAt: true,
+  async getLedger(
+    userId: string,
+    query: CreditLedgerQueryDto,
+  ): Promise<PaginatedCreditLedgerResponseDto> {
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      transactionType,
+      creditStatus,
+      source,
+      createdFrom,
+      createdTo,
+      expiresWithinDays,
+      search,
+    } = query;
+
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CreditLedgerWhereInput = {
+      userId,
+    };
+
+    if (transactionType) {
+      where.transactionType = transactionType;
+    }
+
+    if (source && source.length > 0) {
+      where.source = { in: source };
+    }
+
+    if (createdFrom || createdTo) {
+      where.createdAt = {};
+      if (createdFrom) {
+        where.createdAt.gte = new Date(createdFrom);
+      }
+      if (createdTo) {
+        const to = new Date(createdTo);
+        // Date-only strings (no "T") are parsed as midnight UTC; shift to end-of-day
+        // so the filter is inclusive of all records on that calendar day.
+        if (!createdTo.includes('T')) {
+          to.setUTCHours(23, 59, 59, 999);
+        }
+        where.createdAt.lte = to;
+      }
+    }
+
+    if (search) {
+      where.referenceId = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    const now = new Date();
+
+    if (creditStatus) {
+      if (creditStatus === CreditStatusFilter.ACTIVE) {
+        where.expiresAt = { gt: now };
+      } else if (creditStatus === CreditStatusFilter.EXPIRED) {
+        where.expiresAt = { lte: now };
+      }
+    }
+
+    if (expiresWithinDays) {
+      const expiresAtMax = new Date(now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000);
+      where.expiresAt = {
+        gt: now,
+        lte: expiresAtMax,
+      };
+    }
+
+    const orderBy: Prisma.CreditLedgerOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
+
+    const [total, data] = await Promise.all([
+      this.prisma.creditLedger.count({ where }),
+      this.prisma.creditLedger.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          transactionType: true,
+          amount: true,
+          source: true,
+          referenceId: true,
+          expiresAt: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
-    });
+    };
   }
 
   async getLedgerEntry(userId: string, id: string) {
