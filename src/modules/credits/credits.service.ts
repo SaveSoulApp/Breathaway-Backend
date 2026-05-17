@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreditSource, Prisma } from '@prisma/client';
+import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 import { ConsumeCreditsRequestDto, GrantCreditsRequestDto } from './dto';
 
 @Injectable()
@@ -25,7 +25,8 @@ export class CreditsService extends BaseService {
     const now = new Date();
     const client = tx ?? this.prisma;
 
-    const result = await client.creditLedger.aggregate({
+    const groups = await client.creditLedger.groupBy({
+      by: ['transactionType'],
       _sum: {
         amount: true,
       },
@@ -35,7 +36,16 @@ export class CreditsService extends BaseService {
       },
     });
 
-    return result._sum.amount ?? 0;
+    let balance = 0;
+    for (const group of groups) {
+      if (group.transactionType === CreditTransactionType.CREDIT) {
+        balance += group._sum.amount ?? 0;
+      } else if (group.transactionType === CreditTransactionType.DEBIT) {
+        balance -= group._sum.amount ?? 0;
+      }
+    }
+
+    return balance;
   }
 
   async getLedger(userId: string) {
@@ -44,6 +54,7 @@ export class CreditsService extends BaseService {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        transactionType: true,
         amount: true,
         source: true,
         referenceId: true,
@@ -58,6 +69,7 @@ export class CreditsService extends BaseService {
       where: { id, userId },
       select: {
         id: true,
+        transactionType: true,
         amount: true,
         source: true,
         referenceId: true,
@@ -85,6 +97,7 @@ export class CreditsService extends BaseService {
     return client.creditLedger.create({
       data: {
         userId: dto.userId,
+        transactionType: CreditTransactionType.CREDIT,
         amount: Math.abs(dto.amount),
         source: dto.source,
         referenceId: dto.referenceId,
@@ -112,7 +125,8 @@ export class CreditsService extends BaseService {
     return client.creditLedger.create({
       data: {
         userId: dto.userId,
-        amount: -Math.abs(dto.amount),
+        transactionType: CreditTransactionType.DEBIT,
+        amount: Math.abs(dto.amount),
         source: CreditSource.LIKE_USAGE,
         referenceId: dto.referenceId,
       },
