@@ -10,6 +10,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -22,8 +23,10 @@ import { CreditsService } from './credits.service';
 import {
   ConsumeCreditsRequestDto,
   CreditBalanceResponseDto,
+  CreditLedgerQueryDto,
   CreditLedgerResponseDto,
   GrantCreditsRequestDto,
+  PaginatedCreditLedgerResponseDto,
 } from './dto';
 
 @ApiTags('Credits')
@@ -53,11 +56,12 @@ export class CreditsController extends BaseController {
 
   @Get('ledger')
   @ApiOperation({ summary: 'Get credit ledger history' })
-  @ApiResponse({ status: HttpStatus.OK, type: [CreditLedgerResponseDto] })
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedCreditLedgerResponseDto })
   async getLedger(
     @CurrentUserId() userId: string,
-  ): Promise<CreditLedgerResponseDto[]> {
-    return this.creditsService.getLedger(userId);
+    @Query() query: CreditLedgerQueryDto,
+  ): Promise<PaginatedCreditLedgerResponseDto> {
+    return this.creditsService.getLedger(userId, query);
   }
 
   @Get('ledger/:id')
