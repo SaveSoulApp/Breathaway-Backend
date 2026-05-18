@@ -23,6 +23,7 @@ describe('ProfileService', () => {
     userId,
     firstName: 'John',
     lastName: 'Doe',
+    gender: null,
     dateOfBirth: new Date('1990-01-01'),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -78,7 +79,7 @@ describe('ProfileService', () => {
         data: {
           userId,
           ...createDto,
-          dateOfBirth: new Date(createDto.dateOfBirth),
+          dateOfBirth: new Date(createDto.dateOfBirth!),
         },
       });
       expect(result).toEqual(mockUserProfile);
@@ -225,7 +226,7 @@ describe('ProfileService', () => {
         where: { userId },
         data: {
           ...updateDto,
-          dateOfBirth: new Date(updateDto.dateOfBirth),
+          dateOfBirth: new Date(updateDto.dateOfBirth!),
         },
       });
       expect(result).toEqual(updatedProfile);

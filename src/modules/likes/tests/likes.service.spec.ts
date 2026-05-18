@@ -359,7 +359,7 @@ describe('LikeService', () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue({
         ...mockLikeData,
-        status: LikeStatus.RESOLVED,
+        status: LikeStatus.MATCHED,
       });
 
       // Act & Assert

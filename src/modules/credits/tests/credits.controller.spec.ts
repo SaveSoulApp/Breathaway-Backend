@@ -21,7 +21,7 @@ describe('CreditsController', () => {
     id: entryId,
     transactionType: CreditTransactionType.CREDIT,
     amount: 10,
-    source: CreditSource.IAP_APPLE,
+    source: CreditSource.PURCHASE,
     referenceId: 'ref-123',
     expiresAt: null,
     createdAt: new Date(),
@@ -119,7 +119,7 @@ describe('CreditsController', () => {
       const dto: GrantCreditsRequestDto = {
         userId,
         amount: 10,
-        source: CreditSource.IAP_APPLE,
+        source: CreditSource.PURCHASE,
       };
       service.grantCredits.mockResolvedValue(mockLedgerEntry as any);
 
@@ -138,6 +138,7 @@ describe('CreditsController', () => {
       const dto: ConsumeCreditsRequestDto = {
         userId,
         amount: 10,
+        referenceId: 'like-ref-123',
       };
       service.consumeCredits.mockResolvedValue(mockLedgerEntry as any);
 

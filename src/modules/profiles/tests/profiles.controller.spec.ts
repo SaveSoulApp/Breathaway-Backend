@@ -18,6 +18,7 @@ describe('ProfileController', () => {
     userId,
     firstName: 'John',
     lastName: 'Doe',
+    gender: null,
     dateOfBirth: new Date('1990-01-01'),
     createdAt: new Date(),
     updatedAt: new Date(),
