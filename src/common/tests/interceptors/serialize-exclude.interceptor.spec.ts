@@ -1,14 +1,13 @@
+import { Exclude, Expose } from 'class-transformer';
+import { lastValueFrom, Observable } from 'rxjs';
 import {
-  SerializeExcluderInterceptor,
   SerializeExclude,
+  SerializeExcluderInterceptor,
 } from '../../interceptors/serialize-exclude.interceptor';
 import {
-  createMockExecutionContext,
   createMockCallHandler,
+  createMockExecutionContext,
 } from '../mocks/execution-context.mock';
-import { lastValueFrom } from 'rxjs';
-import { Exclude, Expose } from 'class-transformer';
-import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 
 class TestDto {
   @Expose()
@@ -35,7 +34,10 @@ describe('SerializeExcluderInterceptor', () => {
       unmarkedProp: 'unmarked',
     });
 
-    const resultObservable = interceptor.intercept(context, callHandler) as any;
+    const resultObservable = interceptor.intercept(
+      context,
+      callHandler,
+    ) as Observable<TestDto>;
     const result = await lastValueFrom(resultObservable);
 
     expect(result).toBeInstanceOf(TestDto);

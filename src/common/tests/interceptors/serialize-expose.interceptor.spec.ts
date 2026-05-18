@@ -1,13 +1,13 @@
+import { Expose } from 'class-transformer';
+import { lastValueFrom, Observable } from 'rxjs';
 import {
-  SerializeExposerInterceptor,
   SerializeExpose,
+  SerializeExposerInterceptor,
 } from '../../interceptors/serialize-expose.interceptor';
 import {
-  createMockExecutionContext,
   createMockCallHandler,
+  createMockExecutionContext,
 } from '../mocks/execution-context.mock';
-import { lastValueFrom } from 'rxjs';
-import { Exclude, Expose } from 'class-transformer';
 
 class TestDto {
   @Expose()
@@ -30,7 +30,10 @@ describe('SerializeExposerInterceptor', () => {
       hiddenProp: 'hidden',
     });
 
-    const resultObservable = interceptor.intercept(context, callHandler) as any;
+    const resultObservable = interceptor.intercept(
+      context,
+      callHandler,
+    ) as Observable<TestDto>;
     const result = await lastValueFrom(resultObservable);
 
     expect(result).toBeInstanceOf(TestDto);
