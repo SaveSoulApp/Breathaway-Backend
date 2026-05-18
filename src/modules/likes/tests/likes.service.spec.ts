@@ -12,7 +12,7 @@ import { MatchResolverService } from '@modules/match-resolver/match-resolver.ser
 import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikeService } from '../likes.service';
-import { createPrismaMock, MockPrismaService } from './mocks/prisma.mock';
+import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('LikeService', () => {
   let service: LikeService;

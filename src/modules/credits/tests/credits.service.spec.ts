@@ -10,7 +10,7 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
-import { createPrismaMock, MockPrismaService } from './mocks/prisma.mock';
+import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('CreditsService', () => {
   let service: CreditsService;

@@ -5,7 +5,7 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { ProfileService } from '../profiles.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
-import { createPrismaMock, MockPrismaService } from './mocks/prisma.mock';
+import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('ProfileService', () => {
   let service: ProfileService;
