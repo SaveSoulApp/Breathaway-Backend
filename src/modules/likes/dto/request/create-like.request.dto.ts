@@ -34,8 +34,6 @@ export class TargetIdentityInputDto {
   platformId?: string;
 }
 
-/* istanbul ignore next */
-/* istanbul ignore next */
 export class CreateLikeRequestDto {
   @ApiPropertyOptional({
     description: 'Existing Identity ID, if already known',

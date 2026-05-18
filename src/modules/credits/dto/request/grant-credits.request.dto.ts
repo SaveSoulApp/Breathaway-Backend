@@ -9,7 +9,6 @@ import {
   IsString,
 } from 'class-validator';
 
-/* istanbul ignore next */
 export class GrantCreditsRequestDto {
   @ApiProperty({ description: 'The ULID of the user receiving the credits' })
   @IsString()

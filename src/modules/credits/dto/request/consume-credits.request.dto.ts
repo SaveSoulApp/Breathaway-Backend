@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsPositive, IsString } from 'class-validator';
 
-/* istanbul ignore next */
 export class ConsumeCreditsRequestDto {
   @ApiProperty({ description: 'The ULID of the user consuming credits' })
   @IsString()

@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
-/* istanbul ignore next */
 class BlockedUserDto {
   @ApiProperty({
     description: 'The unique identifier (ULID) of the blocked user',
@@ -21,7 +20,6 @@ class BlockedUserDto {
   lastName?: string;
 }
 
-/* istanbul ignore next */
 export class BlockResponseDto {
   @ApiProperty({
     description: 'The unique identifier (ULID) of the block record',
