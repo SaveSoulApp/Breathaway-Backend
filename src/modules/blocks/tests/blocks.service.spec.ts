@@ -8,7 +8,10 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BlockService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
-import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('BlockService', () => {
   let service: BlockService;

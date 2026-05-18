@@ -22,7 +22,7 @@ describe('ClientIdentityGuard', () => {
         if (key === 'MIN_APP_VERSION') return '1.0.0';
         if (key === 'APP_NAME') return 'TestApp';
         return defaultValue;
-      })
+      }),
     } as any;
 
     logger = {
@@ -44,32 +44,38 @@ describe('ClientIdentityGuard', () => {
   it('should throw UnauthorizedException if API Key is missing', async () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
-      headers: {}
+      headers: {},
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException('x-api-key header is required'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('x-api-key header is required'),
+    );
   });
 
   it('should throw UnauthorizedException if API Key is invalid', async () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
-        'x-api-key': 'invalid-key'
-      }
+        'x-api-key': 'invalid-key',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException('Invalid API Key'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Invalid API Key'),
+    );
   });
 
   it('should throw BadRequestException if Client ID is missing', async () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
-        'x-api-key': 'valid-api-key'
-      }
+        'x-api-key': 'valid-api-key',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new BadRequestException('x-client-id header is required'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new BadRequestException('x-client-id header is required'),
+    );
   });
 
   it('should throw UnauthorizedException if Client ID is invalid', async () => {
@@ -77,11 +83,13 @@ describe('ClientIdentityGuard', () => {
     const context = createMockExecutionContext({
       headers: {
         'x-api-key': 'valid-api-key',
-        'x-client-id': 'invalid-client-id'
-      }
+        'x-client-id': 'invalid-client-id',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException('Invalid Client ID'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Invalid Client ID'),
+    );
   });
 
   it('should throw BadRequestException if Device ID is missing', async () => {
@@ -89,11 +97,15 @@ describe('ClientIdentityGuard', () => {
     const context = createMockExecutionContext({
       headers: {
         'x-api-key': 'valid-api-key',
-        'x-client-id': 'valid-client-id'
-      }
+        'x-client-id': 'valid-client-id',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new BadRequestException('x-device-id header is required and must be a string'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new BadRequestException(
+        'x-device-id header is required and must be a string',
+      ),
+    );
   });
 
   it('should throw BadRequestException if Device ID is not a string', async () => {
@@ -102,11 +114,15 @@ describe('ClientIdentityGuard', () => {
       headers: {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
-        'x-device-id': ['array-device-id']
-      }
+        'x-device-id': ['array-device-id'],
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new BadRequestException('x-device-id header is required and must be a string'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new BadRequestException(
+        'x-device-id header is required and must be a string',
+      ),
+    );
   });
 
   it('should throw BadRequestException if User-Agent is missing', async () => {
@@ -115,11 +131,13 @@ describe('ClientIdentityGuard', () => {
       headers: {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
-        'x-device-id': 'valid-device-id'
-      }
+        'x-device-id': 'valid-device-id',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new BadRequestException('User-Agent header is required'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new BadRequestException('User-Agent header is required'),
+    );
   });
 
   it('should throw BadRequestException if User-Agent format is invalid', async () => {
@@ -129,11 +147,15 @@ describe('ClientIdentityGuard', () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'InvalidUserAgent'
-      }
+        'user-agent': 'InvalidUserAgent',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new BadRequestException('User-Agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new BadRequestException(
+        'User-Agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
+      ),
+    );
   });
 
   it('should throw UnauthorizedException if Platform is invalid', async () => {
@@ -143,11 +165,13 @@ describe('ClientIdentityGuard', () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/1.0.0 (Windows 10; PC)'
-      }
+        'user-agent': 'TestApp/1.0.0 (Windows 10; PC)',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException('Invalid platform. Supported: ios, android'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Invalid platform. Supported: ios, android'),
+    );
   });
 
   it('should throw UnauthorizedException if App Version is lower than minAppVersion', async () => {
@@ -157,11 +181,13 @@ describe('ClientIdentityGuard', () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/0.9.0 (ios 14.0; iPhone12)'
-      }
+        'user-agent': 'TestApp/0.9.0 (ios 14.0; iPhone12)',
+      },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(new UnauthorizedException('App version must be at least 1.0.0'));
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('App version must be at least 1.0.0'),
+    );
   });
 
   it('should succeed and attach clientIdentity to request if all headers are valid', async () => {
@@ -171,8 +197,8 @@ describe('ClientIdentityGuard', () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)'
-      }
+        'user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)',
+      },
     } as any;
     const context = createMockExecutionContext(mockRequest);
 
@@ -187,55 +213,55 @@ describe('ClientIdentityGuard', () => {
         version: '1.2.3',
         platform: 'ios',
         osVersion: '14.0',
-        deviceModel: 'iPhone12'
-      }
+        deviceModel: 'iPhone12',
+      },
     });
   });
 
   describe('isVersionValid edge cases', () => {
     it('should validate correctly for equal version', async () => {
-        reflector.getAllAndOverride.mockReturnValue(false);
-        const mockRequest = {
-          headers: {
-            'x-api-key': 'valid-api-key',
-            'x-client-id': 'valid-client-id',
-            'x-device-id': 'valid-device-id',
-            'user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)'
-          }
-        } as any;
-        const context = createMockExecutionContext(mockRequest);
-        const result = await guard.canActivate(context);
-        expect(result).toBe(true);
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)',
+        },
+      } as any;
+      const context = createMockExecutionContext(mockRequest);
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
     });
 
     it('should validate correctly for greater minor version', async () => {
-        reflector.getAllAndOverride.mockReturnValue(false);
-        const mockRequest = {
-          headers: {
-            'x-api-key': 'valid-api-key',
-            'x-client-id': 'valid-client-id',
-            'x-device-id': 'valid-device-id',
-            'user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)'
-          }
-        } as any;
-        const context = createMockExecutionContext(mockRequest);
-        const result = await guard.canActivate(context);
-        expect(result).toBe(true);
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)',
+        },
+      } as any;
+      const context = createMockExecutionContext(mockRequest);
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
     });
 
     it('should validate correctly for greater major version', async () => {
-        reflector.getAllAndOverride.mockReturnValue(false);
-        const mockRequest = {
-          headers: {
-            'x-api-key': 'valid-api-key',
-            'x-client-id': 'valid-client-id',
-            'x-device-id': 'valid-device-id',
-            'user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)'
-          }
-        } as any;
-        const context = createMockExecutionContext(mockRequest);
-        const result = await guard.canActivate(context);
-        expect(result).toBe(true);
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)',
+        },
+      } as any;
+      const context = createMockExecutionContext(mockRequest);
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
     });
   });
 
@@ -245,26 +271,39 @@ describe('ClientIdentityGuard', () => {
         get: jest.fn().mockImplementation((key, defaultValue) => {
           if (key === 'API_KEYS' || key === 'CLIENT_IDS') return 'invalid-json';
           return defaultValue;
-        })
+        }),
       } as any;
 
-      const newGuard = new ClientIdentityGuard(logger, reflector, badConfigService);
+      const newGuard = new ClientIdentityGuard(
+        logger,
+        reflector,
+        badConfigService,
+      );
 
-      expect(logger.error).toHaveBeenCalledWith('Failed to parse API_KEYS as JSON array. Check your environment variables.');
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to parse API_KEYS as JSON array. Check your environment variables.',
+      );
       expect(logger.warn).toHaveBeenCalledWith('No valid API keys configured.');
     });
 
     it('should handle non-array JSON and initialize empty sets', () => {
       const badConfigService = {
         get: jest.fn().mockImplementation((key, defaultValue) => {
-          if (key === 'API_KEYS' || key === 'CLIENT_IDS') return '{"not": "array"}';
+          if (key === 'API_KEYS' || key === 'CLIENT_IDS')
+            return '{"not": "array"}';
           return defaultValue;
-        })
+        }),
       } as any;
 
-      const newGuard = new ClientIdentityGuard(logger, reflector, badConfigService);
+      const newGuard = new ClientIdentityGuard(
+        logger,
+        reflector,
+        badConfigService,
+      );
 
-      expect(logger.error).toHaveBeenCalledWith('Failed to parse API_KEYS as JSON array. Check your environment variables.');
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to parse API_KEYS as JSON array. Check your environment variables.',
+      );
     });
   });
 });

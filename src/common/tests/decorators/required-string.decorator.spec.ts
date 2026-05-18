@@ -8,7 +8,11 @@ const getParamDecoratorFactory = (decorator: Function) => {
   class TestClass {
     testMethod(@decorator('testParam') param: any) {}
   }
-  const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestClass, 'testMethod');
+  const args = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    TestClass,
+    'testMethod',
+  );
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -16,7 +20,9 @@ describe('@RequiredStringQuery Decorator', () => {
   const factory = getParamDecoratorFactory(RequiredStringQuery);
 
   it('should extract and trim the parameter value from query string', () => {
-    const context = createMockExecutionContext({ query: { testParam: '  value  ' } });
+    const context = createMockExecutionContext({
+      query: { testParam: '  value  ' },
+    });
 
     const result = factory('testParam', context);
     expect(result).toEqual('value');
@@ -26,7 +32,7 @@ describe('@RequiredStringQuery Decorator', () => {
     const context = createMockExecutionContext({ query: {} });
 
     expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam is required')
+      new BadRequestException('testParam is required'),
     );
   });
 
@@ -34,7 +40,7 @@ describe('@RequiredStringQuery Decorator', () => {
     const context = createMockExecutionContext({ query: { testParam: null } });
 
     expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam is required')
+      new BadRequestException('testParam is required'),
     );
   });
 
@@ -42,7 +48,7 @@ describe('@RequiredStringQuery Decorator', () => {
     const context = createMockExecutionContext({ query: { testParam: 123 } });
 
     expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam must be a string')
+      new BadRequestException('testParam must be a string'),
     );
   });
 
@@ -50,7 +56,7 @@ describe('@RequiredStringQuery Decorator', () => {
     const context = createMockExecutionContext({ query: { testParam: '   ' } });
 
     expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam cannot be empty')
+      new BadRequestException('testParam cannot be empty'),
     );
   });
 });

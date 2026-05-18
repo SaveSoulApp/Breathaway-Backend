@@ -7,7 +7,11 @@ const getParamDecoratorFactory = (decorator: Function) => {
   class TestClass {
     testMethod(@decorator() param: any) {}
   }
-  const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestClass, 'testMethod');
+  const args = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    TestClass,
+    'testMethod',
+  );
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -15,7 +19,9 @@ describe('@Timezone Decorator', () => {
   const factory = getParamDecoratorFactory(Timezone);
 
   it('should extract timezone from request', () => {
-    const context = createMockExecutionContext({ timezone: 'America/New_York' });
+    const context = createMockExecutionContext({
+      timezone: 'America/New_York',
+    });
 
     const result = factory(null, context);
     expect(result).toEqual('America/New_York');

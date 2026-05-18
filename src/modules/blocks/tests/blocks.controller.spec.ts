@@ -45,7 +45,7 @@ describe('BlockController', () => {
     }).compile();
 
     controller = module.get<BlockController>(BlockController);
-    service = module.get(BlockService) as jest.Mocked<BlockService>;
+    service = module.get(BlockService);
   });
 
   afterEach(() => {

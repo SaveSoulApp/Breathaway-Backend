@@ -6,16 +6,17 @@ export const createMockExecutionContext = (
   resMock: any = {},
   handlerMock: any = jest.fn(),
   classMock: any = jest.fn(),
-): ExecutionContext => ({
-  switchToHttp: () => ({
-    getRequest: () => reqMock,
-    getResponse: () => resMock,
-    getNext: () => jest.fn(),
-  }),
-  getHandler: () => handlerMock,
-  getClass: () => classMock,
-  // Mock other RPC/GraphQL contexts if necessary, returning jest.fn()
-} as unknown as ExecutionContext);
+): ExecutionContext =>
+  ({
+    switchToHttp: () => ({
+      getRequest: () => reqMock,
+      getResponse: () => resMock,
+      getNext: () => jest.fn(),
+    }),
+    getHandler: () => handlerMock,
+    getClass: () => classMock,
+    // Mock other RPC/GraphQL contexts if necessary, returning jest.fn()
+  }) as unknown as ExecutionContext;
 
 export const createMockCallHandler = (returnValue: any = {}): CallHandler => ({
   handle: () => of(returnValue),

@@ -1,5 +1,11 @@
-import { SerializeExcluderInterceptor, SerializeExclude } from '../../interceptors/serialize-exclude.interceptor';
-import { createMockExecutionContext, createMockCallHandler } from '../mocks/execution-context.mock';
+import {
+  SerializeExcluderInterceptor,
+  SerializeExclude,
+} from '../../interceptors/serialize-exclude.interceptor';
+import {
+  createMockExecutionContext,
+  createMockCallHandler,
+} from '../mocks/execution-context.mock';
 import { lastValueFrom } from 'rxjs';
 import { Exclude, Expose } from 'class-transformer';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
@@ -26,7 +32,7 @@ describe('SerializeExcluderInterceptor', () => {
     const callHandler = createMockCallHandler({
       publicProp: 'public',
       hiddenProp: 'hidden',
-      unmarkedProp: 'unmarked'
+      unmarkedProp: 'unmarked',
     });
 
     const resultObservable = interceptor.intercept(context, callHandler) as any;
@@ -40,7 +46,7 @@ describe('SerializeExcluderInterceptor', () => {
 });
 
 describe('SerializeExclude Decorator', () => {
-    it('should be defined', () => {
-        expect(SerializeExclude(TestDto)).toBeDefined();
-    });
+  it('should be defined', () => {
+    expect(SerializeExclude(TestDto)).toBeDefined();
+  });
 });

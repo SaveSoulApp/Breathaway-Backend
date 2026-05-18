@@ -8,7 +8,11 @@ const getParamDecoratorFactory = (decorator: Function) => {
   class TestClass {
     testMethod(@decorator() param: any) {}
   }
-  const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestClass, 'testMethod');
+  const args = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    TestClass,
+    'testMethod',
+  );
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -16,16 +20,30 @@ describe('@ClientIdentity Decorator', () => {
   const factory = getParamDecoratorFactory(ClientIdentity);
 
   it('should extract full client identity from request', () => {
-    const mockIdentity = { apiKey: 'key', clientId: 'client', deviceId: 'device', userAgent: {} };
-    const context = createMockExecutionContext({ clientIdentity: mockIdentity });
+    const mockIdentity = {
+      apiKey: 'key',
+      clientId: 'client',
+      deviceId: 'device',
+      userAgent: {},
+    };
+    const context = createMockExecutionContext({
+      clientIdentity: mockIdentity,
+    });
 
     const result = factory(undefined, context);
     expect(result).toEqual(mockIdentity);
   });
 
   it('should extract specific property from client identity if data is provided', () => {
-    const mockIdentity = { apiKey: 'key', clientId: 'client', deviceId: 'device', userAgent: {} };
-    const context = createMockExecutionContext({ clientIdentity: mockIdentity });
+    const mockIdentity = {
+      apiKey: 'key',
+      clientId: 'client',
+      deviceId: 'device',
+      userAgent: {},
+    };
+    const context = createMockExecutionContext({
+      clientIdentity: mockIdentity,
+    });
 
     const result = factory(ClientIdentityKey.CLIENT_ID, context);
     expect(result).toEqual('client');
