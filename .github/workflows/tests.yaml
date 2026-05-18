@@ -61,7 +61,7 @@ jobs:
 
       # ── Tests & Coverage ──────────────────────────────────────────────────────
       - name: Run unit tests with coverage
-        run: pnpm test:cov -- --ci --passWithNoTests
+        run: pnpm exec jest --coverage --ci --passWithNoTests
 
       # ── Artifacts ─────────────────────────────────────────────────────────────
       - name: Upload coverage report
