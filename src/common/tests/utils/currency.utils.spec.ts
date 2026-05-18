@@ -3,7 +3,7 @@ import {
   CurrencyUtils,
   formatCurrency,
   formatINR,
-} from '../currency.utils';
+} from '../../utils/currency.utils';
 
 describe('CurrencyUtils', () => {
   describe('formatINR', () => {

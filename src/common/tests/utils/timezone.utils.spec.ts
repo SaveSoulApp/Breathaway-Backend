@@ -1,4 +1,4 @@
-import { TimezoneUtil } from '../timezone.utils';
+import { TimezoneUtil } from '../../utils/timezone.utils';
 import moment from 'moment-timezone';
 
 describe('TimezoneUtil', () => {

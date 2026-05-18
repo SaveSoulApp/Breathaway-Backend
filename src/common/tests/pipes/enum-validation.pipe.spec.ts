@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { EnumValidationPipe } from '../enum-validation.pipe';
+import { EnumValidationPipe } from '../../pipes/enum-validation.pipe';
 
 // Test enum
 enum TestStatus {
