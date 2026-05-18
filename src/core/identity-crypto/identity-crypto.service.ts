@@ -1,12 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { IdentityType } from '@prisma/client';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import {
   decryptAesGcm,
   encryptAesGcm,
   generateDataKey,
-} from '@core/crypto/crypto-utils';
+} from '@core/crypto/crypto.utils';
 import type { IKeyManager } from '@core/kms/key-manager.interface';
+import { Inject, Injectable } from '@nestjs/common';
+import { IdentityType } from '@prisma/client';
 
 export interface EncryptedValue {
   ciphertextBase64: string;
