@@ -37,20 +37,26 @@ describe('@IsValidTimezone Decorator', () => {
     dto.timezone = 123 as any;
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0].constraints?.isValidTimezone).toBe('Timezone must be a string');
+    expect(errors[0].constraints?.isValidTimezone).toBe(
+      'Timezone must be a string',
+    );
   });
 
   it('should fail validation for incorrect timezone with suggestion', async () => {
     dto.timezone = 'new_york';
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0].constraints?.isValidTimezone).toContain('is not a valid IANA timezone. Did you mean "America/New_York"?');
+    expect(errors[0].constraints?.isValidTimezone).toContain(
+      'is not a valid IANA timezone. Did you mean "America/New_York"?',
+    );
   });
 
   it('should fail validation for completely invalid timezone with examples', async () => {
     dto.timezone = 'Invalid/Timezone';
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0].constraints?.isValidTimezone).toContain('is not a valid IANA timezone. Examples: "Asia/Kolkata", "America/New_York", "Europe/London"');
+    expect(errors[0].constraints?.isValidTimezone).toContain(
+      'is not a valid IANA timezone. Examples: "Asia/Kolkata", "America/New_York", "Europe/London"',
+    );
   });
 });

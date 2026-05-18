@@ -7,7 +7,11 @@ const getParamDecoratorFactory = (decorator: Function) => {
   class TestClass {
     testMethod(@decorator() param: any) {}
   }
-  const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestClass, 'testMethod');
+  const args = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    TestClass,
+    'testMethod',
+  );
   return args[Object.keys(args)[0]].factory;
 };
 

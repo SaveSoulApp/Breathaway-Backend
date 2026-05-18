@@ -63,7 +63,7 @@ describe('CreditsController', () => {
     }).compile();
 
     controller = module.get<CreditsController>(CreditsController);
-    service = module.get(CreditsService) as jest.Mocked<CreditsService>;
+    service = module.get(CreditsService);
   });
 
   afterEach(() => {

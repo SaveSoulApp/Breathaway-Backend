@@ -32,7 +32,7 @@ describe('OtpController', () => {
     }).compile();
 
     controller = module.get<OtpController>(OtpController);
-    service = module.get(OtpService) as jest.Mocked<OtpService>;
+    service = module.get(OtpService);
   });
 
   afterEach(() => {

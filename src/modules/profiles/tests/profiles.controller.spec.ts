@@ -48,7 +48,7 @@ describe('ProfileController', () => {
     }).compile();
 
     controller = module.get<ProfileController>(ProfileController);
-    service = module.get(ProfileService) as jest.Mocked<ProfileService>;
+    service = module.get(ProfileService);
   });
 
   afterEach(() => {

@@ -52,7 +52,7 @@ describe('LikeController', () => {
     }).compile();
 
     controller = module.get<LikeController>(LikeController);
-    service = module.get(LikeService) as jest.Mocked<LikeService>;
+    service = module.get(LikeService);
   });
 
   afterEach(() => {

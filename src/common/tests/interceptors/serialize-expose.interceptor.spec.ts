@@ -1,5 +1,11 @@
-import { SerializeExposerInterceptor, SerializeExpose } from '../../interceptors/serialize-expose.interceptor';
-import { createMockExecutionContext, createMockCallHandler } from '../mocks/execution-context.mock';
+import {
+  SerializeExposerInterceptor,
+  SerializeExpose,
+} from '../../interceptors/serialize-expose.interceptor';
+import {
+  createMockExecutionContext,
+  createMockCallHandler,
+} from '../mocks/execution-context.mock';
 import { lastValueFrom } from 'rxjs';
 import { Exclude, Expose } from 'class-transformer';
 
@@ -34,7 +40,7 @@ describe('SerializeExposerInterceptor', () => {
 });
 
 describe('SerializeExpose Decorator', () => {
-    it('should be defined', () => {
-        expect(SerializeExpose(TestDto)).toBeDefined();
-    });
+  it('should be defined', () => {
+    expect(SerializeExpose(TestDto)).toBeDefined();
+  });
 });

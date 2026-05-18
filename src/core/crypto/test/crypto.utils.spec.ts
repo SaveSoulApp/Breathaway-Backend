@@ -163,9 +163,7 @@ describe('CryptoUtils', () => {
       const { ciphertext, iv, tag } = encryptAesGcm('secret', key);
       const tamperedCiphertext = Buffer.from(ciphertext);
       tamperedCiphertext[0] ^= 0xff;
-      expect(() =>
-        decryptAesGcm(tamperedCiphertext, iv, tag, key),
-      ).toThrow();
+      expect(() => decryptAesGcm(tamperedCiphertext, iv, tag, key)).toThrow();
     });
 
     it('should throw when the IV is tampered with', () => {
