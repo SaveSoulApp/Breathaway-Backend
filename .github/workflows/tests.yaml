@@ -1,54 +1,86 @@
-name: Run Tests
+name: CI — Lint, Type-check & Tests
 
 on:
   pull_request:
     branches:
       - main
-      - develop
       - master
+      - develop
   push:
     branches:
       - main
-      - develop
       - master
+      - develop
+
+# Cancel any in-flight run for the same branch/PR when a new commit is pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  ci:
+    name: Lint · Type-check · Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # ── Toolchain ─────────────────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.x'
+          cache: 'pnpm' # built-in pnpm cache via setup-node (replaces manual cache steps)
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
+      # ── Dependencies ──────────────────────────────────────────────────────────
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ── Code Generation ───────────────────────────────────────────────────────
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: pnpm exec prisma generate
 
-      - name: Run tests
-        run: pnpm test
+      # ── Quality Gates ─────────────────────────────────────────────────────────
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm exec tsc --noEmit
+
+      # ── Tests & Coverage ──────────────────────────────────────────────────────
+      - name: Run unit tests with coverage
+        run: pnpm test:cov -- --ci --passWithNoTests
+
+      # ── Artifacts ─────────────────────────────────────────────────────────────
+      - name: Upload coverage report
+        if: always() # upload even if tests fail so you can inspect the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+      # ── PR Job Summary ────────────────────────────────────────────────────────
+      - name: Write coverage summary to job
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "## 📊 Coverage Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Category | % Stmts | % Branch | % Funcs | % Lines |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|---------|----------|---------|---------|" >> $GITHUB_STEP_SUMMARY
+            node -e "
+              const s = require('./coverage/coverage-summary.json').total;
+              console.log(\`| **Total** | \${s.statements.pct}% | \${s.branches.pct}% | \${s.functions.pct}% | \${s.lines.pct}% |\`);
+            " >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No coverage report found." >> $GITHUB_STEP_SUMMARY
+          fi
