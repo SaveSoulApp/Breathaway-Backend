@@ -2,10 +2,10 @@ import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
-import { hashString } from '@common/utils/crypto.utils';
+import { hashString } from '@core/crypto/crypto.utils';
 import { OtpService } from '../one-time-passwords.service';
 
-jest.mock('@common/utils/crypto.utils', () => ({
+jest.mock('@core/crypto/crypto.utils', () => ({
   hashString: jest.fn(),
 }));
 
