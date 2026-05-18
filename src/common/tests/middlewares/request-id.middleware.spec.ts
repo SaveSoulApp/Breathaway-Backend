@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
-import { RequestIdMiddleware } from '../request-id.middleware';
+import { RequestIdMiddleware } from '../../middlewares/request-id.middleware';
 import { Request, Response, NextFunction } from 'express';
 
 describe('RequestIdMiddleware', () => {

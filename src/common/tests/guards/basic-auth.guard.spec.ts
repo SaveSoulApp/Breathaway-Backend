@@ -1,7 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BasicAuthGuard } from '../basic-auth.guard';
+import { BasicAuthGuard } from '../../guards/basic-auth.guard';
 
 describe('BasicAuthGuard', () => {
   let guard: BasicAuthGuard;

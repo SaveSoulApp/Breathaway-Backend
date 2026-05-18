@@ -1,7 +1,7 @@
 import {
   toSmartTitleCase,
   normalizeDocumentNumber,
-} from '../string.extensions';
+} from '../../utils/string.extensions';
 
 describe('String Extensions', () => {
   describe('toSmartTitleCase', () => {

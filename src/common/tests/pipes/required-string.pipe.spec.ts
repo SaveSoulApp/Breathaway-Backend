@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { RequiredStringPipe, RequiredString } from '../required-string.pipe';
+import { RequiredStringPipe, RequiredString } from '../../pipes/required-string.pipe';
 
 describe('RequiredStringPipe', () => {
   let pipe: RequiredStringPipe;
