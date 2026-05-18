@@ -28,7 +28,7 @@ describe('CreditsService', () => {
     userId,
     transactionType: CreditTransactionType.CREDIT,
     amount: 10,
-    source: CreditSource.IAP_APPLE,
+    source: CreditSource.PURCHASE,
     referenceId: 'ref-123',
     expiresAt: null,
     createdAt: new Date(),
@@ -153,7 +153,7 @@ describe('CreditsService', () => {
         page: 2,
         limit: 10,
         transactionType: CreditTransactionType.CREDIT,
-        source: [CreditSource.IAP_APPLE],
+        source: [CreditSource.PURCHASE],
         createdFrom: '2023-01-01',
         createdTo: '2023-12-31',
         search: 'ref',
@@ -174,7 +174,7 @@ describe('CreditsService', () => {
           where: expect.objectContaining({
             userId,
             transactionType: CreditTransactionType.CREDIT,
-            source: { in: [CreditSource.IAP_APPLE] },
+            source: { in: [CreditSource.PURCHASE] },
             referenceId: { contains: 'ref', mode: 'insensitive' },
           }),
         }),
@@ -255,7 +255,7 @@ describe('CreditsService', () => {
     const dto: GrantCreditsRequestDto = {
       userId,
       amount: 10,
-      source: CreditSource.IAP_APPLE,
+      source: CreditSource.PURCHASE,
       expiresAt: '2025-01-01',
     };
 
@@ -281,7 +281,7 @@ describe('CreditsService', () => {
           userId,
           transactionType: CreditTransactionType.CREDIT,
           amount: 10,
-          source: CreditSource.IAP_APPLE,
+          source: CreditSource.PURCHASE,
           referenceId: undefined,
           expiresAt: expect.any(Date),
         },
@@ -294,6 +294,7 @@ describe('CreditsService', () => {
     const dto: ConsumeCreditsRequestDto = {
       userId,
       amount: 10,
+      referenceId: 'like-ref-123',
     };
 
     it('should throw BadRequestException if insufficient credits', async () => {
