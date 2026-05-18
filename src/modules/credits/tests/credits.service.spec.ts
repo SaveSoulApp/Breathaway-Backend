@@ -322,7 +322,7 @@ describe('CreditsService', () => {
           transactionType: CreditTransactionType.DEBIT,
           amount: 10,
           source: CreditSource.LIKE_USAGE,
-          referenceId: undefined,
+          referenceId: 'like-ref-123',
         },
       });
       expect(result).toEqual(mockLedgerEntry);
