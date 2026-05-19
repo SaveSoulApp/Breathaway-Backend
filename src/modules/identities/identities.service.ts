@@ -26,14 +26,15 @@ export class IdentityService extends BaseService {
       dto.type,
     );
     let platformIdData = {};
-    const orConditions: any[] = [
+    const orConditions: Record<string, unknown>[] = [
       { publicValueHash: publicValueData.publicValueHash },
     ];
 
     if (dto.platformId) {
       platformIdData = await this.encryption.processPlatformId(dto.platformId);
       orConditions.push({
-        platformIdHash: (platformIdData as any).platformIdHash,
+        platformIdHash: (platformIdData as Record<string, unknown>)
+          .platformIdHash,
       });
     }
 
@@ -161,8 +162,8 @@ export class IdentityService extends BaseService {
       return this.toMaskedResponse(identity);
     }
 
-    const orConditions: any[] = [];
-    let updateData: any = {};
+    const orConditions: Record<string, unknown>[] = [];
+    let updateData: Record<string, unknown> = {};
 
     if (dto.publicValue) {
       const publicValueData = await this.encryption.processPublicValue(
@@ -231,13 +232,13 @@ export class IdentityService extends BaseService {
   // ----- Private helpers -----
 
   private async findOwnedOrFail(id: string, userId: string) {
-    const identity = await this.prisma.identity.findFirst({
+    const _identity = await this.prisma.identity.findFirst({
       where: { id, userId, deletedAt: null },
     });
-    if (!identity) {
+    if (!_identity) {
       throw new NotFoundException(`Identity ${id} not found`);
     }
-    return identity;
+    return _identity;
   }
 
   private toMaskedResponse(identity: Identity) {

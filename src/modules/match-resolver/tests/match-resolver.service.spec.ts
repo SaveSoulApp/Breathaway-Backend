@@ -5,7 +5,10 @@ import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
 import { MatchResolverService, LikeSummary } from '../match-resolver.service';
 import { LikeStatus, MatchStatus, IntentType } from '@prisma/client';
-import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('MatchResolverService', () => {
   let service: MatchResolverService;
@@ -80,7 +83,7 @@ describe('MatchResolverService', () => {
     }).compile();
 
     service = module.get<MatchResolverService>(MatchResolverService);
-    prisma = module.get(PrismaService) as MockPrismaService;
+    prisma = module.get(PrismaService);
 
     // By default, findFirst returns a mockReverseLike, mock no existing match
     prisma.like.findFirst.mockResolvedValue(mockReverseLike as any);
@@ -109,7 +112,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(likeMissingTarget);
 
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `Like like-1 target identity is unresolved. Skipping match resolution.`
+        `Like like-1 target identity is unresolved. Skipping match resolution.`,
       );
       expect(prisma.like.findFirst).not.toHaveBeenCalled();
     });
@@ -129,7 +132,7 @@ describe('MatchResolverService', () => {
         },
       });
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `No reverse like found for users user-1 and user-2.`
+        `No reverse like found for users user-1 and user-2.`,
       );
     });
 
@@ -140,10 +143,10 @@ describe('MatchResolverService', () => {
 
       expect(matchService.isIntentCompatible).toHaveBeenCalledWith(
         mockNewLike.intent,
-        mockReverseLike.intent
+        mockReverseLike.intent,
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Intents are incompatible between Like like-1')
+        expect.stringContaining('Intents are incompatible between Like like-1'),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -155,7 +158,9 @@ describe('MatchResolverService', () => {
 
       expect(blockService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Block exists between users user-1 and user-2. Suppressing match.')
+        expect.stringContaining(
+          'Block exists between users user-1 and user-2. Suppressing match.',
+        ),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -169,7 +174,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Active match already exists between user-1 and user-2. Duplicate prevented.`
+        `Active match already exists between user-1 and user-2. Duplicate prevented.`,
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -209,7 +214,7 @@ describe('MatchResolverService', () => {
         data: { status: LikeStatus.MATCHED },
       });
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        `Match created successfully between users user-1 and user-2.`
+        `Match created successfully between users user-1 and user-2.`,
       );
     });
 
@@ -252,7 +257,10 @@ describe('MatchResolverService', () => {
     });
 
     it('should execute match transaction updating an existing inactive match', async () => {
-      const existingMatch = { id: 'existing-match-1', status: MatchStatus.UNMATCHED };
+      const existingMatch = {
+        id: 'existing-match-1',
+        status: MatchStatus.UNMATCHED,
+      };
       prisma.match.findUnique.mockResolvedValue(existingMatch as any);
 
       let executedTx: any;
@@ -292,7 +300,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Race condition caught: Unique constraint violation while creating Match for users user-1 and user-2.`
+        `Race condition caught: Unique constraint violation while creating Match for users user-1 and user-2.`,
       );
       // Ensures it doesn't log it as an error
       expect(contextualLogger.error).not.toHaveBeenCalled();
@@ -307,7 +315,7 @@ describe('MatchResolverService', () => {
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         `Failed to resolve match for Like like-1`,
-        generalError.stack
+        generalError.stack,
       );
     });
   });
