@@ -56,10 +56,12 @@ describe('LikeService', () => {
 
   beforeEach(async () => {
     configServiceMock = {
-      get: jest.fn().mockImplementation((key: string, defaultValue: any) => {
-        if (key === 'LIKE_EXPIRY_DAYS') return 90;
-        return defaultValue;
-      }),
+      get: jest
+        .fn()
+        .mockImplementation((key: string, defaultValue: unknown): unknown => {
+          if (key === 'LIKE_EXPIRY_DAYS') return 90;
+          return defaultValue;
+        }),
     } as unknown as jest.Mocked<ConfigService>;
 
     identityCryptoServiceMock = {

@@ -18,12 +18,12 @@ export class InstagramController extends BaseController {
   }
 
   @Get('refresh-token')
-  async refresh(@Query('token') token: string) {
+  async refresh(@Query('token') token: string): Promise<unknown> {
     return this.instagramService.refreshAccessToken(token);
   }
 
   @Get('refresh-env-token')
-  async refreshEnvToken() {
+  async refreshEnvToken(): Promise<unknown> {
     return this.instagramService.refreshSystemAccessToken();
   }
 }

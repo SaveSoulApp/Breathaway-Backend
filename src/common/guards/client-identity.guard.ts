@@ -145,9 +145,9 @@ export class ClientIdentityGuard implements CanActivate {
   private parseJsonConfig(envKey: string, fallback: string): Set<string> {
     const value = this.configService.get<string>(envKey, fallback);
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(value) as unknown[];
       if (!Array.isArray(parsed)) throw new Error();
-      return new Set(parsed.map((item) => item.trim()).filter(Boolean));
+      return new Set(parsed.map((item) => String(item).trim()).filter(Boolean));
     } catch {
       this.logger.error(
         `Failed to parse ${envKey} as JSON array. Check your environment variables.`,

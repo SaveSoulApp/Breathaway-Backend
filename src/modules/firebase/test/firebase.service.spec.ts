@@ -6,7 +6,7 @@ import { LoggerService } from '@core/logger';
 import * as admin from 'firebase-admin';
 
 // Mock firebase-admin
-const mockApps: any[] = [];
+const mockApps: unknown[] = [];
 jest.mock('firebase-admin', () => ({
   get apps() {
     return mockApps;

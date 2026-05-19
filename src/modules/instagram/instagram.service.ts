@@ -21,7 +21,7 @@ export class InstagramService extends BaseService {
 
   private readonly baseUrl = 'https://graph.instagram.com';
 
-  async refreshAccessToken(currentToken: string) {
+  async refreshAccessToken(currentToken: string): Promise<unknown> {
     try {
       const response = await axios.get(`${this.baseUrl}/refresh_access_token`, {
         params: {
@@ -30,15 +30,16 @@ export class InstagramService extends BaseService {
         },
       });
 
-      const newToken = response.data?.access_token;
-      if (newToken) {
+      const data = response.data as Record<string, unknown>;
+      const newToken = data?.access_token;
+      if (typeof newToken === 'string') {
         await this.gcpSecretManager.upsertSecret(
           'access-token-instagram',
           newToken,
         );
       }
 
-      return response.data;
+      return data;
     } catch (error) {
       throw new HttpException(
         error.response?.data || 'Failed to refresh token',
@@ -47,7 +48,7 @@ export class InstagramService extends BaseService {
     }
   }
 
-  async refreshSystemAccessToken() {
+  async refreshSystemAccessToken(): Promise<unknown> {
     const accessToken = this.configService.get<string>(
       'INSTAGRAM_ACCESS_TOKEN',
     );

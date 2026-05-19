@@ -14,7 +14,7 @@ export class TargetIdentityInputDto {
     enum: IdentityType,
     description: 'Type of identity to resolve or create',
   })
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toUpperCase() : value,
   )
   @IsEnum(IdentityType)
@@ -53,7 +53,7 @@ export class CreateLikeRequestDto {
   targetIdentity?: TargetIdentityInputDto;
 
   @ApiProperty({ enum: IntentType })
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toUpperCase() : value,
   )
   @IsEnum(IntentType)

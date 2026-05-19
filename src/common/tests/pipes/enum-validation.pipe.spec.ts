@@ -32,7 +32,9 @@ describe('EnumValidationPipe', () => {
     });
 
     it('should throw BadRequestException for invalid enum value', () => {
-      expect(() => pipe.transform('invalid')).toThrow(
+      expect(() => {
+        pipe.transform('invalid');
+      }).toThrow(
         new BadRequestException(
           'Invalid status. Must be one of: active, inactive, pending',
         ),
@@ -40,15 +42,21 @@ describe('EnumValidationPipe', () => {
     });
 
     it('should throw BadRequestException for undefined', () => {
-      expect(() => pipe.transform(undefined)).toThrow(BadRequestException);
+      expect(() => {
+        pipe.transform(undefined);
+      }).toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException for null', () => {
-      expect(() => pipe.transform(null)).toThrow(BadRequestException);
+      expect(() => {
+        pipe.transform(null);
+      }).toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException for empty string', () => {
-      expect(() => pipe.transform('')).toThrow(BadRequestException);
+      expect(() => {
+        pipe.transform('');
+      }).toThrow(BadRequestException);
     });
   });
 
@@ -79,7 +87,9 @@ describe('EnumValidationPipe', () => {
     });
 
     it('should still throw for invalid non-empty values', () => {
-      expect(() => pipe.transform('invalid')).toThrow(
+      expect(() => {
+        pipe.transform('invalid');
+      }).toThrow(
         new BadRequestException(
           'Invalid status. Must be one of: active, inactive, pending',
         ),
@@ -108,7 +118,9 @@ describe('EnumValidationPipe', () => {
 
     it('should throw BadRequestException for array with invalid values', () => {
       const input = ['invalid1', 'invalid2'];
-      expect(() => pipe.transform(input)).toThrow(
+      expect(() => {
+        pipe.transform(input);
+      }).toThrow(
         new BadRequestException(
           'Invalid status: [invalid1, invalid2]. Must be one of: active, inactive, pending',
         ),
@@ -117,7 +129,9 @@ describe('EnumValidationPipe', () => {
 
     it('should throw BadRequestException for mixed valid and invalid values', () => {
       const input = [TestStatus.ACTIVE, 'invalid', TestStatus.PENDING];
-      expect(() => pipe.transform(input)).toThrow(
+      expect(() => {
+        pipe.transform(input);
+      }).toThrow(
         new BadRequestException(
           'Invalid status: [invalid]. Must be one of: active, inactive, pending',
         ),
@@ -131,7 +145,9 @@ describe('EnumValidationPipe', () => {
         'invalid2',
         TestStatus.PENDING,
       ];
-      expect(() => pipe.transform(input)).toThrow(
+      expect(() => {
+        pipe.transform(input);
+      }).toThrow(
         new BadRequestException(
           'Invalid status: [invalid1, invalid2]. Must be one of: active, inactive, pending',
         ),
@@ -152,7 +168,9 @@ describe('EnumValidationPipe', () => {
     });
 
     it('should throw BadRequestException for single invalid value', () => {
-      expect(() => pipe.transform('invalid')).toThrow(
+      expect(() => {
+        pipe.transform('invalid');
+      }).toThrow(
         new BadRequestException(
           'Invalid status. Must be one of: active, inactive, pending',
         ),
@@ -167,7 +185,9 @@ describe('EnumValidationPipe', () => {
 
     it('should throw for array with invalid values', () => {
       const input = [TestStatus.ACTIVE, 'invalid'];
-      expect(() => pipe.transform(input)).toThrow(
+      expect(() => {
+        pipe.transform(input);
+      }).toThrow(
         new BadRequestException(
           'Invalid status: [invalid]. Must be one of: active, inactive, pending',
         ),
@@ -209,7 +229,9 @@ describe('EnumValidationPipe', () => {
     it('should work with different enum', () => {
       const pipe = new EnumValidationPipe(Priority, 'priority');
       expect(pipe.transform(Priority.HIGH)).toBe(Priority.HIGH);
-      expect(() => pipe.transform('invalid')).toThrow(
+      expect(() => {
+        pipe.transform('invalid');
+      }).toThrow(
         new BadRequestException(
           'Invalid priority. Must be one of: low, medium, high, critical',
         ),
@@ -226,7 +248,9 @@ describe('EnumValidationPipe', () => {
       const pipe = new EnumValidationPipe(NumericEnum, 'number');
       expect(pipe.transform(1)).toBe(1);
       expect(pipe.transform(2)).toBe(2);
-      expect(() => pipe.transform(99)).toThrow(BadRequestException);
+      expect(() => {
+        pipe.transform(99);
+      }).toThrow(BadRequestException);
     });
   });
 });

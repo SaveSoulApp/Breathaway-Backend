@@ -15,14 +15,16 @@ describe('ClientIdentityGuard', () => {
     reflector = { get: jest.fn(), getAllAndOverride: jest.fn() } as any;
 
     configService = {
-      get: jest.fn().mockImplementation((key, defaultValue) => {
-        if (key === 'API_KEYS') return '["valid-api-key"]';
-        if (key === 'CLIENT_IDS') return '["valid-client-id"]';
-        if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]';
-        if (key === 'MIN_APP_VERSION') return '1.0.0';
-        if (key === 'APP_NAME') return 'TestApp';
-        return defaultValue;
-      }),
+      get: jest
+        .fn()
+        .mockImplementation((key: string, defaultValue: unknown): unknown => {
+          if (key === 'API_KEYS') return '["valid-api-key"]';
+          if (key === 'CLIENT_IDS') return '["valid-client-id"]';
+          if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]';
+          if (key === 'MIN_APP_VERSION') return '1.0.0';
+          if (key === 'APP_NAME') return 'TestApp';
+          return defaultValue;
+        }),
     } as any;
 
     logger = {
@@ -268,10 +270,13 @@ describe('ClientIdentityGuard', () => {
   describe('Config Errors', () => {
     it('should handle unparseable JSON and initialize empty sets', () => {
       const badConfigService = {
-        get: jest.fn().mockImplementation((key, defaultValue) => {
-          if (key === 'API_KEYS' || key === 'CLIENT_IDS') return 'invalid-json';
-          return defaultValue;
-        }),
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS' || key === 'CLIENT_IDS')
+              return 'invalid-json';
+            return defaultValue;
+          }),
       } as any;
 
       new ClientIdentityGuard(logger, reflector, badConfigService);
@@ -284,11 +289,13 @@ describe('ClientIdentityGuard', () => {
 
     it('should handle non-array JSON and initialize empty sets', () => {
       const badConfigService = {
-        get: jest.fn().mockImplementation((key, defaultValue) => {
-          if (key === 'API_KEYS' || key === 'CLIENT_IDS')
-            return '{"not": "array"}';
-          return defaultValue;
-        }),
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS' || key === 'CLIENT_IDS')
+              return '{"not": "array"}';
+            return defaultValue;
+          }),
       } as any;
 
       new ClientIdentityGuard(logger, reflector, badConfigService);

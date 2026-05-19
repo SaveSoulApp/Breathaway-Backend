@@ -4,9 +4,9 @@ import { createMockExecutionContext } from '../mocks/execution-context.mock';
 import { BadRequestException } from '@nestjs/common';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: (...args: any[]) => any) => {
+const getParamDecoratorFactory = (decorator: (...args: unknown[]) => any) => {
   class TestClass {
-    testMethod(@decorator('testParam') _param: any) {
+    testMethod(@decorator('testParam') _param: unknown) {
       return _param;
     }
   }
@@ -14,7 +14,7 @@ const getParamDecoratorFactory = (decorator: (...args: any[]) => any) => {
     ROUTE_ARGS_METADATA,
     TestClass,
     'testMethod',
-  );
+  ) as Record<string, { factory: (...args: unknown[]) => unknown }>;
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -33,32 +33,32 @@ describe('@RequiredStringQuery Decorator', () => {
   it('should throw BadRequestException if value is undefined', () => {
     const context = createMockExecutionContext({ query: {} });
 
-    expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam is required'),
-    );
+    expect(() => {
+      factory('testParam', context);
+    }).toThrow(new BadRequestException('testParam is required'));
   });
 
   it('should throw BadRequestException if value is null', () => {
     const context = createMockExecutionContext({ query: { testParam: null } });
 
-    expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam is required'),
-    );
+    expect(() => {
+      factory('testParam', context);
+    }).toThrow(new BadRequestException('testParam is required'));
   });
 
   it('should throw BadRequestException if value is not a string', () => {
     const context = createMockExecutionContext({ query: { testParam: 123 } });
 
-    expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam must be a string'),
-    );
+    expect(() => {
+      factory('testParam', context);
+    }).toThrow(new BadRequestException('testParam must be a string'));
   });
 
   it('should throw BadRequestException if value is an empty string after trimming', () => {
     const context = createMockExecutionContext({ query: { testParam: '   ' } });
 
-    expect(() => factory('testParam', context)).toThrow(
-      new BadRequestException('testParam cannot be empty'),
-    );
+    expect(() => {
+      factory('testParam', context);
+    }).toThrow(new BadRequestException('testParam cannot be empty'));
   });
 });

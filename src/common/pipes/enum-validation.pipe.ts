@@ -3,13 +3,13 @@ import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 @Injectable()
 export class EnumValidationPipe implements PipeTransform {
   constructor(
-    private readonly enumType: any,
+    private readonly enumType: Record<string, unknown>,
     private readonly enumName: string,
     private readonly optional: boolean = false,
     private readonly isArray: boolean = false,
   ) {}
 
-  transform(value: any) {
+  transform(value: unknown): unknown {
     if (
       this.optional &&
       (value === undefined || value === null || value === '')
