@@ -17,14 +17,14 @@ interface MatchWithUsers {
     id: string;
     profile: {
       firstName: string;
-      lastName: string;
+      lastName: string | null;
     } | null;
   };
   userTwo: {
     id: string;
     profile: {
       firstName: string;
-      lastName: string;
+      lastName: string | null;
     } | null;
   };
 }

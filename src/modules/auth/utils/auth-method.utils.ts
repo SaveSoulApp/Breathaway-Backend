@@ -40,34 +40,40 @@ export function getAuthMethodFromDecodedToken(
   let isVerified: boolean = false;
 
   switch (signInProvider) {
-    case 'phone':
+    case 'phone': {
       method = AuthMethod.PHONE;
-      identifier = decodedToken.phone_number;
-      if (!identifier) {
+      const phoneNumber = decodedToken.phone_number;
+      if (!phoneNumber) {
         throw new Error(
           'Phone number missing from token for phone authentication',
         );
       }
+      identifier = phoneNumber;
       isVerified = true;
       break;
+    }
 
-    case 'password':
+    case 'password': {
       method = AuthMethod.EMAIL;
-      identifier = decodedToken.email;
-      if (!identifier) {
+      const email = decodedToken.email;
+      if (!email) {
         throw new Error('Email missing from token for email authentication');
       }
+      identifier = email;
       isVerified = decodedToken.email_verified || false;
       break;
+    }
 
-    case 'google.com':
+    case 'google.com': {
       method = AuthMethod.GOOGLE;
-      identifier = decodedToken.email;
-      if (!identifier) {
+      const email = decodedToken.email;
+      if (!email) {
         throw new Error('Email missing from token for Google authentication');
       }
+      identifier = email;
       isVerified = decodedToken.email_verified || false;
       break;
+    }
 
     default:
       throw new Error(`Unsupported authentication provider: ${signInProvider}`);
