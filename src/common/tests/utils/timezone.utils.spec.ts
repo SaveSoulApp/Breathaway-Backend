@@ -27,9 +27,15 @@ describe('TimezoneUtil', () => {
 
     it('should return false for empty or non-string inputs', () => {
       expect(TimezoneUtil.isValidTimezone('')).toBe(false);
-      expect(TimezoneUtil.isValidTimezone(null as any)).toBe(false);
-      expect(TimezoneUtil.isValidTimezone(undefined as any)).toBe(false);
-      expect(TimezoneUtil.isValidTimezone(123 as any)).toBe(false);
+      expect(TimezoneUtil.isValidTimezone(null as unknown as string)).toBe(
+        false,
+      );
+      expect(TimezoneUtil.isValidTimezone(undefined as unknown as string)).toBe(
+        false,
+      );
+      expect(TimezoneUtil.isValidTimezone(123 as unknown as string)).toBe(
+        false,
+      );
     });
   });
 
@@ -42,7 +48,9 @@ describe('TimezoneUtil', () => {
 
     it('should default to UTC for undefined, null, or empty strings', () => {
       expect(TimezoneUtil.normalizeTimezone(undefined)).toBe('UTC');
-      expect(TimezoneUtil.normalizeTimezone(null as any)).toBe('UTC');
+      expect(TimezoneUtil.normalizeTimezone(null as unknown as string)).toBe(
+        'UTC',
+      );
       expect(TimezoneUtil.normalizeTimezone('')).toBe('UTC');
       expect(TimezoneUtil.normalizeTimezone('  ')).toBe('UTC');
     });

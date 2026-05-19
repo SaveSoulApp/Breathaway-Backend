@@ -13,7 +13,7 @@ export function IsValidTimezone(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any): boolean {
+        validate(value: unknown): boolean {
           // Allow optional (undefined/null/empty)
           if (value === undefined || value === null || value === '') {
             return true;

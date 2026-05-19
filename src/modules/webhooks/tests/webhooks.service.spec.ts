@@ -1,15 +1,25 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
+
 import { LoggerService } from '@core/logger';
-import { WebhooksService } from '../webhooks.service';
-import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+
 import { MetaWebhookDto } from '../dto';
+import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+import { WebhooksService } from '../webhooks.service';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let configService: jest.Mocked<ConfigService>;
-  let contextualLogger: any;
-  let logger: any;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
+  let logger: {
+    forContext: jest.Mock;
+  };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -26,13 +36,16 @@ describe('WebhooksService', () => {
 
     configService = {
       get: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<ConfigService>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhooksService,
         { provide: ConfigService, useValue: configService },
-        { provide: LoggerService, useValue: logger },
+        {
+          provide: LoggerService,
+          useValue: logger as unknown as LoggerService,
+        },
       ],
     }).compile();
 

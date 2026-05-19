@@ -1,4 +1,5 @@
 import { validate } from 'class-validator';
+
 import { IsValidTimezone } from '../../decorators/is-valid-timezone.decorator';
 
 class TestDto {
@@ -14,11 +15,11 @@ describe('@IsValidTimezone Decorator', () => {
   });
 
   it('should validate successfully for empty/undefined values', async () => {
-    dto.timezone = undefined as any;
+    dto.timezone = undefined as unknown as string;
     let errors = await validate(dto);
     expect(errors.length).toBe(0);
 
-    dto.timezone = null as any;
+    dto.timezone = null as unknown as string;
     errors = await validate(dto);
     expect(errors.length).toBe(0);
 
@@ -34,7 +35,7 @@ describe('@IsValidTimezone Decorator', () => {
   });
 
   it('should fail validation if timezone is not a string', async () => {
-    dto.timezone = 123 as any;
+    dto.timezone = 123 as unknown as string;
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].constraints?.isValidTimezone).toBe(

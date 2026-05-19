@@ -1,10 +1,13 @@
+import { BadRequestException } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+
 import { RequiredStringQuery } from '../../decorators/required-string.decorator';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
-import { BadRequestException } from '@nestjs/common';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: (...args: unknown[]) => any) => {
+const getParamDecoratorFactory = (
+  decorator: (...args: unknown[]) => ParameterDecorator,
+) => {
   class TestClass {
     testMethod(@decorator('testParam') _param: unknown) {
       return _param;

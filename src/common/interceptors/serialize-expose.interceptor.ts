@@ -1,15 +1,15 @@
+import { plainToInstance } from 'class-transformer';
+import { map, Observable } from 'rxjs';
+
 import {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
-import { map, Observable } from 'rxjs';
-// import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
-  new (...args: any[]): object;
+  new (...args: unknown[]): object;
 }
 
 //This annotation will expose only the fields annotated with @Expose()
@@ -18,16 +18,16 @@ export function SerializeExpose(dto: ClassConstructor) {
 }
 
 export class SerializeExposerInterceptor implements NestInterceptor {
-  constructor(private dto: any) {}
+  constructor(private dto: ClassConstructor) {}
 
   intercept(
     context: ExecutionContext,
-    next: CallHandler<any>,
-  ): Observable<any> | Promise<Observable<any>> {
+    next: CallHandler<unknown>,
+  ): Observable<unknown> | Promise<Observable<unknown>> {
     //Run something before a request is handled by the request handler
 
     return next.handle().pipe(
-      map((data: any) => {
+      map((data: unknown) => {
         // Convert Decimals to numbers BEFORE plainToInstance
         // const converted = DecimalUtils.convertDecimals(data);
 

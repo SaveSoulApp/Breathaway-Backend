@@ -4,12 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { User } from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+
 import { BlockService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
 
@@ -21,16 +24,16 @@ describe('BlockService', () => {
   const blockedUserId = 'blocked-user-id';
   const blockId = 'block-id-123';
 
-  const mockUser: any = {
+  const mockUser = {
     id: blockedUserId,
-  };
+  } as unknown as User;
 
-  const mockBlockData: any = {
+  const mockBlockData = {
     id: blockId,
     blockerUserId: userId,
     blockedUserId,
     createdAt: new Date(),
-    deletedAt: null,
+    deletedAt: null as Date | null,
     blocked: {
       id: blockedUserId,
       profile: {
@@ -318,7 +321,9 @@ describe('BlockService', () => {
   describe('isBlocked', () => {
     it('should return true if a block exists between userA and userB', async () => {
       // Arrange
-      prisma.block.findFirst.mockResolvedValue({ id: blockId } as any);
+      prisma.block.findFirst.mockResolvedValue({
+        id: blockId,
+      } as unknown as Awaited<ReturnType<typeof prisma.block.findFirst>>);
 
       // Act
       const result = await service.isBlocked(userId, blockedUserId);

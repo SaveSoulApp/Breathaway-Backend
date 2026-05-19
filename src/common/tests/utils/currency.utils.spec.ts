@@ -156,8 +156,10 @@ describe('CurrencyUtils', () => {
     it('should return NaN for invalid inputs', () => {
       expect(CurrencyUtils.parseCurrency('invalid')).toBeNaN();
       expect(CurrencyUtils.parseCurrency('')).toBeNaN();
-      expect(CurrencyUtils.parseCurrency(null as any)).toBeNaN();
-      expect(CurrencyUtils.parseCurrency(undefined as any)).toBeNaN();
+      expect(CurrencyUtils.parseCurrency(null as unknown as string)).toBeNaN();
+      expect(
+        CurrencyUtils.parseCurrency(undefined as unknown as string),
+      ).toBeNaN();
     });
   });
 
@@ -174,8 +176,12 @@ describe('CurrencyUtils', () => {
       expect(CurrencyUtils.isValidCurrency('abc')).toBe(false);
       expect(CurrencyUtils.isValidCurrency('12.34.56')).toBe(false);
       expect(CurrencyUtils.isValidCurrency('')).toBe(false);
-      expect(CurrencyUtils.isValidCurrency(null as any)).toBe(false);
-      expect(CurrencyUtils.isValidCurrency(undefined as any)).toBe(false);
+      expect(CurrencyUtils.isValidCurrency(null as unknown as string)).toBe(
+        false,
+      );
+      expect(
+        CurrencyUtils.isValidCurrency(undefined as unknown as string),
+      ).toBe(false);
     });
   });
 

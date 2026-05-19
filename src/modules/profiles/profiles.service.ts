@@ -3,10 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserProfile } from '@prisma/client';
+import { Prisma, UserProfile } from '@prisma/client';
+
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 
 @Injectable()
@@ -149,7 +151,7 @@ export class ProfileService extends BaseService {
     }
 
     // Handle special case for dateOfBirth transformation
-    const data: any = { ...patchProfileDto };
+    const data: Prisma.UserProfileUpdateInput = { ...patchProfileDto };
     if (patchProfileDto.dateOfBirth) {
       data.dateOfBirth = new Date(patchProfileDto.dateOfBirth);
     }

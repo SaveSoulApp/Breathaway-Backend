@@ -1,3 +1,7 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Identity } from '@prisma/client';
+
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -5,8 +9,8 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+
+import { CreateIdentityDto, UpdateIdentityDto } from '../dto';
 import { IdentityService } from '../identities.service';
 import {
   mockCreateIdentityDto,
@@ -64,16 +68,16 @@ describe('IdentityService', () => {
     it('should successfully create an identity', async () => {
       // Arrange
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
       prisma.identity.findFirst.mockResolvedValue(null);
 
-      prisma.identity.create.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.create.mockResolvedValue(mockIdentityData as Identity);
 
       // Act
 
       const result = await service.create(
         mockUserId,
-        mockCreateIdentityDto as any,
+        mockCreateIdentityDto as CreateIdentityDto,
       );
 
       // Assert
@@ -109,19 +113,22 @@ describe('IdentityService', () => {
         platformId: '12345',
       };
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
 
-      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
       prisma.identity.findFirst.mockResolvedValue(null);
 
       prisma.identity.create.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
-      } as any);
+      } as Identity);
 
       // Act
 
-      const result = await service.create(mockUserId, dtoWithPlatform as any);
+      const result = await service.create(
+        mockUserId,
+        dtoWithPlatform as CreateIdentityDto,
+      );
 
       // Assert
 
@@ -155,13 +162,13 @@ describe('IdentityService', () => {
     it('should throw ConflictException if identity already exists', async () => {
       // Arrange
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
 
       // Act & Assert
       await expect(
-        service.create(mockUserId, mockCreateIdentityDto as any),
+        service.create(mockUserId, mockCreateIdentityDto as CreateIdentityDto),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -170,7 +177,9 @@ describe('IdentityService', () => {
     it('should return all active identities for a user', async () => {
       // Arrange
 
-      prisma.identity.findMany.mockResolvedValue([mockIdentityData] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        mockIdentityData as Identity,
+      ]);
 
       // Act
       const result = await service.findAllByUser(mockUserId);
@@ -200,7 +209,9 @@ describe('IdentityService', () => {
     it('should return all complete identities for a user without platformId', async () => {
       // Arrange
 
-      prisma.identity.findMany.mockResolvedValue([mockIdentityData] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        mockIdentityData as Identity,
+      ]);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
 
       // Act
@@ -236,7 +247,9 @@ describe('IdentityService', () => {
         ...mockPlatformIdData,
       };
 
-      prisma.identity.findMany.mockResolvedValue([identityWithPlatform] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        identityWithPlatform as Identity,
+      ]);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
       encryption.decryptPlatformId.mockResolvedValue('12345');
 
@@ -266,7 +279,7 @@ describe('IdentityService', () => {
     it('should return an identity if found and owned by user', async () => {
       // Arrange
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
 
       // Act
       const result = await service.findOne(mockIdentityId, mockUserId);
@@ -298,7 +311,9 @@ describe('IdentityService', () => {
         ...mockPlatformIdData,
       };
 
-      prisma.identity.findFirst.mockResolvedValue(identityWithPlatform as any);
+      prisma.identity.findFirst.mockResolvedValue(
+        identityWithPlatform as Identity,
+      );
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
       encryption.decryptPlatformId.mockResolvedValue('12345');
 
@@ -316,7 +331,7 @@ describe('IdentityService', () => {
     it('should return complete identity without platformId', async () => {
       // Arrange
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
 
       // Act
@@ -335,14 +350,14 @@ describe('IdentityService', () => {
     it('should return identity if neither publicValue nor platformId are provided', async () => {
       // Arrange
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
 
       // Act
 
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        {} as any,
+        {} as UpdateIdentityDto,
       );
 
       // Assert
@@ -355,19 +370,21 @@ describe('IdentityService', () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com' };
 
-      prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValueOnce(
+        mockIdentityData as Identity,
+      );
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
 
-      prisma.identity.update.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.update.mockResolvedValue(mockIdentityData as Identity);
 
       // Act
 
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as any,
+        dto as UpdateIdentityDto,
       );
 
       // Assert
@@ -388,22 +405,24 @@ describe('IdentityService', () => {
       // Arrange
       const dto = { platformId: '54321' };
 
-      prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValueOnce(
+        mockIdentityData as Identity,
+      );
 
-      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
 
       prisma.identity.update.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
-      } as any);
+      } as Identity);
 
       // Act
 
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as any,
+        dto as UpdateIdentityDto,
       );
 
       // Assert
@@ -421,24 +440,26 @@ describe('IdentityService', () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com', platformId: '54321' };
 
-      prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValueOnce(
+        mockIdentityData as Identity,
+      );
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
 
-      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
 
       prisma.identity.update.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
-      } as any);
+      } as Identity);
 
       // Act
 
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as any,
+        dto as UpdateIdentityDto,
       );
 
       // Assert
@@ -454,17 +475,20 @@ describe('IdentityService', () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com' };
 
-      prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValueOnce(
+        mockIdentityData as Identity,
+      );
 
-      encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
 
       prisma.identity.findFirst.mockResolvedValueOnce({
+        ...mockIdentityData,
         id: 'other-id',
-      } as any); // Duplicate found
+      } as Identity); // Duplicate found
 
       // Act & Assert
       await expect(
-        service.update(mockIdentityId, mockUserId, dto as any),
+        service.update(mockIdentityId, mockUserId, dto as UpdateIdentityDto),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -473,9 +497,9 @@ describe('IdentityService', () => {
     it('should soft delete an identity', async () => {
       // Arrange
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
 
-      prisma.identity.update.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.update.mockResolvedValue(mockIdentityData as Identity);
 
       // Act
       await service.delete(mockIdentityId, mockUserId);
@@ -501,9 +525,9 @@ describe('IdentityService', () => {
         verifiedAt: new Date(),
       };
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
 
-      prisma.identity.update.mockResolvedValue(updatedIdentity as any);
+      prisma.identity.update.mockResolvedValue(updatedIdentity as Identity);
 
       // Act
       const result = await service.verify(mockIdentityId, mockUserId);

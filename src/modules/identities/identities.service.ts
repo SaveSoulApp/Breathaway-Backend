@@ -1,13 +1,15 @@
-import { BaseService } from '@core/base';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Identity } from '@prisma/client';
+import { Identity, Prisma } from '@prisma/client';
+
+import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+
 import { CreateIdentityDto, UpdateIdentityDto } from './dto';
 
 @Injectable()
@@ -25,15 +27,18 @@ export class IdentityService extends BaseService {
       dto.publicValue,
       dto.type,
     );
-    let platformIdData = {};
-    const orConditions: any[] = [
+    let platformIdData: Partial<
+      Awaited<ReturnType<IdentityCryptoService['processPlatformId']>>
+    > = {};
+    const orConditions: Prisma.IdentityWhereInput[] = [
       { publicValueHash: publicValueData.publicValueHash },
     ];
 
     if (dto.platformId) {
-      platformIdData = await this.encryption.processPlatformId(dto.platformId);
+      const processed = await this.encryption.processPlatformId(dto.platformId);
+      platformIdData = processed;
       orConditions.push({
-        platformIdHash: (platformIdData as any).platformIdHash,
+        platformIdHash: processed.platformIdHash,
       });
     }
 
@@ -161,8 +166,8 @@ export class IdentityService extends BaseService {
       return this.toMaskedResponse(identity);
     }
 
-    const orConditions: any[] = [];
-    let updateData: any = {};
+    const orConditions: Prisma.IdentityWhereInput[] = [];
+    let updateData: Prisma.IdentityUpdateInput = {};
 
     if (dto.publicValue) {
       const publicValueData = await this.encryption.processPublicValue(

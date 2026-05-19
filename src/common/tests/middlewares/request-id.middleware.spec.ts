@@ -1,7 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { NextFunction, Request, Response } from 'express';
+
 import { RequestIdMiddleware } from '../../middlewares/request-id.middleware';
-import { Request, Response, NextFunction } from 'express';
 
 describe('RequestIdMiddleware', () => {
   let middleware: RequestIdMiddleware;
@@ -58,7 +59,7 @@ describe('RequestIdMiddleware', () => {
 
     it('should throw UnauthorizedException when X-Request-ID is not a string', () => {
       mockRequest.headers = {
-        'x-request-id': ['array-value'] as any,
+        'x-request-id': ['array-value'] as unknown as string,
       };
 
       expect(() =>

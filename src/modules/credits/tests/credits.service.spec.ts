@@ -1,12 +1,18 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  CreditLedger,
+  CreditSource,
+  CreditTransactionType,
+} from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { CreditSource, CreditTransactionType } from '@prisma/client';
+
 import { CreditsService } from '../credits.service';
 import {
   ConsumeCreditsRequestDto,
@@ -22,7 +28,7 @@ describe('CreditsService', () => {
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
 
-  const mockLedgerEntry: any = {
+  const mockLedgerEntry: CreditLedger = {
     id: entryId,
     userId,
     transactionType: CreditTransactionType.CREDIT,
@@ -63,12 +69,12 @@ describe('CreditsService', () => {
         {
           transactionType: CreditTransactionType.CREDIT,
           _sum: { amount: 50 },
-        } as any,
+        },
         {
           transactionType: CreditTransactionType.DEBIT,
           _sum: { amount: 20 },
-        } as any,
-      ]);
+        },
+      ] as unknown as Awaited<ReturnType<typeof prisma.creditLedger.groupBy>>);
 
       // Act
       const result = await service.getBalance(userId);
@@ -102,8 +108,8 @@ describe('CreditsService', () => {
         {
           transactionType: CreditTransactionType.CREDIT,
           _sum: { amount: null },
-        } as any,
-      ]);
+        },
+      ] as unknown as Awaited<ReturnType<typeof prisma.creditLedger.groupBy>>);
 
       // Act
       const result = await service.getBalance(userId);
