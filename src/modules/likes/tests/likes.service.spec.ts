@@ -43,7 +43,11 @@ describe('LikeService', () => {
     userId: targetUserId,
     type: IdentityType.PHONE,
     publicValueHash: 'hash',
-    publicValueEncrypted: 'enc',
+    publicValueCiphertext: 'enc',
+    publicValueIv: 'iv-value-char-length-24--',
+    publicValueTag: 'tag-value-char-length-24',
+    publicValueWrappedKey: 'wrapped-key',
+    publicValueKeyId: 'key-id',
     publicValueMasked: '***',
     platformIdHash: null,
     platformIdCiphertext: null,
@@ -54,7 +58,6 @@ describe('LikeService', () => {
     isVerified: true,
     verifiedAt: new Date(),
     createdAt: new Date(),
-    updatedAt: new Date(),
     deletedAt: null,
   };
 

@@ -72,7 +72,9 @@ describe('LikeController', () => {
         targetIdentityId: 'target-identity-id',
         intent: IntentType.RELATIONSHIP,
       };
-      service.create.mockResolvedValue(mockLikeResponse as LikeResponseDto);
+      service.create.mockResolvedValue(
+        mockLikeResponse as Awaited<ReturnType<LikeService['create']>>,
+      );
 
       // Act
       const result = await controller.create(userId, dto);

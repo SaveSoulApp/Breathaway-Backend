@@ -197,7 +197,7 @@ describe('MatchResolverService', () => {
     });
 
     it('should execute match transaction creating a new match if no match exists', async () => {
-      let executedTx: {
+      let executedTx!: {
         match: { create: jest.Mock };
         like: { update: jest.Mock };
       };
@@ -259,7 +259,7 @@ describe('MatchResolverService', () => {
         reverseLikeUserA as unknown as Like,
       );
 
-      let executedTx: {
+      let executedTx!: {
         match: { create: jest.Mock };
         like: { update: jest.Mock };
       };
@@ -294,7 +294,7 @@ describe('MatchResolverService', () => {
         existingMatch as unknown as Match,
       );
 
-      let executedTx: {
+      let executedTx!: {
         match: { update: jest.Mock };
         like: { update: jest.Mock };
       };

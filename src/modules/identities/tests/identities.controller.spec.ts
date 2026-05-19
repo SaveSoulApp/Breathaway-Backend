@@ -4,7 +4,6 @@ import { LoggerService } from '@core/logger';
 
 import {
   CreateIdentityDto,
-  IdentityCompleteResponseDto,
   IdentityResponseDto,
   UpdateIdentityDto,
 } from '../dto';
@@ -109,7 +108,9 @@ describe('IdentityController', () => {
       // Arrange
 
       service.findAllCompleteByUser.mockResolvedValue([
-        mockIdentityCompleteResponse as IdentityCompleteResponseDto,
+        mockIdentityCompleteResponse as Awaited<
+          ReturnType<IdentityService['findAllCompleteByUser']>
+        >[number],
       ]);
 
       // Act
@@ -145,7 +146,9 @@ describe('IdentityController', () => {
       // Arrange
 
       service.findOneComplete.mockResolvedValue(
-        mockIdentityCompleteResponse as IdentityCompleteResponseDto,
+        mockIdentityCompleteResponse as Awaited<
+          ReturnType<IdentityService['findOneComplete']>
+        >,
       );
 
       // Act

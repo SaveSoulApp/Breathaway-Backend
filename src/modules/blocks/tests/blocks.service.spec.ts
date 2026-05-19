@@ -41,7 +41,7 @@ describe('BlockService', () => {
         lastName: 'Doe',
       },
     },
-  } as unknown as Awaited<ReturnType<typeof prisma.block.findFirst>>;
+  };
 
   const mockResponseData = {
     id: blockId,
