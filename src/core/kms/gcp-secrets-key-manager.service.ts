@@ -139,7 +139,7 @@ export class GcpSecretsKeyManager implements IKeyManager {
    * @returns Object containing wrapped key and key ID for later retrieval
    * @throws {Error} If active master key is not available
    */
-  async wrapDataKey(
+  wrapDataKey(
     plaintextKey: Buffer,
   ): Promise<{ wrappedKey: Buffer; keyId: string }> {
     const masterKey = this.masterKeys.get(this.activeKeyId)!;
@@ -154,10 +154,10 @@ export class GcpSecretsKeyManager implements IKeyManager {
     const tag = cipher.getAuthTag(); // 128-bit authentication tag
 
     // Concatenate IV, tag, and ciphertext for storage
-    return {
+    return Promise.resolve({
       wrappedKey: Buffer.concat([iv, tag, ciphertext]),
       keyId: this.activeKeyId,
-    };
+    });
   }
 
   /**
@@ -177,7 +177,7 @@ export class GcpSecretsKeyManager implements IKeyManager {
    * @returns Decrypted data key as Buffer
    * @throws {Error} If keyId not found or decryption fails (invalid auth tag)
    */
-  async unwrapDataKey(wrappedKey: Buffer, keyId: string): Promise<Buffer> {
+  unwrapDataKey(wrappedKey: Buffer, keyId: string): Promise<Buffer> {
     const masterKey = this.masterKeys.get(keyId);
     if (!masterKey) throw new Error(`Unknown keyId: ${keyId}`);
 
@@ -189,7 +189,9 @@ export class GcpSecretsKeyManager implements IKeyManager {
     const decipher = createDecipheriv('aes-256-gcm', masterKey, iv);
     decipher.setAuthTag(tag); // Set authentication tag for integrity verification
 
-    return Buffer.concat([decipher.update(ct), decipher.final()]);
+    return Promise.resolve(
+      Buffer.concat([decipher.update(ct), decipher.final()]),
+    );
   }
 
   /**
@@ -208,10 +210,10 @@ export class GcpSecretsKeyManager implements IKeyManager {
    * @param input - String data to hash (e.g., account numbers, IFSC codes)
    * @returns Hexadecimal string representation of the HMAC hash
    */
-  async computeHash(input: string): Promise<string> {
-    return createHmac('sha256', this.hmacKey)
-      .update(input, 'utf8')
-      .digest('hex');
+  computeHash(input: string): Promise<string> {
+    return Promise.resolve(
+      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest('hex'),
+    );
   }
 
   /**
@@ -222,7 +224,7 @@ export class GcpSecretsKeyManager implements IKeyManager {
    *
    * @returns Current active key identifier
    */
-  async getCurrentKeyId(): Promise<string> {
-    return this.activeKeyId;
+  getCurrentKeyId(): Promise<string> {
+    return Promise.resolve(this.activeKeyId);
   }
 }

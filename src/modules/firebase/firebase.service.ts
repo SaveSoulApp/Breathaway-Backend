@@ -58,7 +58,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
   async verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
     try {
       return await admin.auth().verifyIdToken(idToken);
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid Firebase ID token');
     }
   }
@@ -66,7 +66,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
   async getUser(uid: string): Promise<admin.auth.UserRecord> {
     try {
       return await admin.auth().getUser(uid);
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Firebase user not found');
     }
   }

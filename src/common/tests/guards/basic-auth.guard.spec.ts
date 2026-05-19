@@ -5,7 +5,6 @@ import { BasicAuthGuard } from '../../guards/basic-auth.guard';
 
 describe('BasicAuthGuard', () => {
   let guard: BasicAuthGuard;
-  let configService: ConfigService;
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
@@ -27,7 +26,6 @@ describe('BasicAuthGuard', () => {
     }).compile();
 
     guard = module.get<BasicAuthGuard>(BasicAuthGuard);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {

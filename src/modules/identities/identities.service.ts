@@ -217,7 +217,7 @@ export class IdentityService extends BaseService {
   }
 
   async verify(id: string, userId: string) {
-    const identity = await this.findOwnedOrFail(id, userId);
+    await this.findOwnedOrFail(id, userId);
     const updated = await this.prisma.identity.update({
       where: { id },
       data: {

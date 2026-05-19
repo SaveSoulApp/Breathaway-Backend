@@ -44,7 +44,7 @@ export class ClientIdentityGuard implements CanActivate {
       this.logger.warn('No valid Client IDs configured.');
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const isSkipped = this.reflector.getAllAndOverride<boolean>(
       SKIP_CLIENT_IDENTITY_META,
       [context.getHandler(), context.getClass()],
@@ -96,7 +96,7 @@ export class ClientIdentityGuard implements CanActivate {
   }
 
   private validateAndParseUserAgent(userAgent: string): UserAgentData {
-    const regex = /^([^\/]+)\/([^\s]+)\s+\(([^\s]+)\s+([^;]+);\s*([^)]+)\)$/;
+    const regex = /^([^/]+)\/([^\s]+)\s+\(([^\s]+)\s+([^;]+);\s*([^)]+)\)$/;
     const match = userAgent.match(regex);
 
     if (!match) {
@@ -105,7 +105,7 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const [_, parsedAppName, version, platform, osVersion, deviceModel] = match;
+    const [, parsedAppName, version, platform, osVersion, deviceModel] = match;
 
     if (!this.requiredPlatforms.has(platform)) {
       throw new UnauthorizedException(

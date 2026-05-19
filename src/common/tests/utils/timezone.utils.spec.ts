@@ -1,5 +1,4 @@
 import { TimezoneUtil } from '../../utils/timezone.utils';
-import moment from 'moment-timezone';
 
 describe('TimezoneUtil', () => {
   // Set a consistent timezone for the test environment to avoid flaky tests

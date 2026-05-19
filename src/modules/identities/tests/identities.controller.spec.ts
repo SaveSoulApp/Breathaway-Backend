@@ -56,7 +56,7 @@ describe('IdentityController', () => {
   describe('create', () => {
     it('should create a new identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.create.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
@@ -67,7 +67,7 @@ describe('IdentityController', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.create).toHaveBeenCalledWith(
         mockUserId,
         mockCreateIdentityDto,
@@ -79,14 +79,14 @@ describe('IdentityController', () => {
   describe('findAll', () => {
     it('should return all identities for a user', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.findAllByUser.mockResolvedValue([mockIdentityResponse] as any);
 
       // Act
       const result = await controller.findAll(mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.findAllByUser).toHaveBeenCalledWith(mockUserId);
       expect(result).toEqual([mockIdentityResponse]);
     });
@@ -95,7 +95,7 @@ describe('IdentityController', () => {
   describe('findAllComplete', () => {
     it('should return all complete identities for a user', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.findAllCompleteByUser.mockResolvedValue([
         mockIdentityCompleteResponse,
       ] as any);
@@ -104,7 +104,7 @@ describe('IdentityController', () => {
       const result = await controller.findAllComplete(mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.findAllCompleteByUser).toHaveBeenCalledWith(mockUserId);
       expect(result).toEqual([mockIdentityCompleteResponse]);
     });
@@ -113,14 +113,14 @@ describe('IdentityController', () => {
   describe('findOne', () => {
     it('should return a specific identity by id', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.findOne.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
       const result = await controller.findOne(mockUserId, mockIdentityId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.findOne).toHaveBeenCalledWith(mockIdentityId, mockUserId);
       expect(result).toEqual(mockIdentityResponse);
     });
@@ -141,7 +141,7 @@ describe('IdentityController', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.findOneComplete).toHaveBeenCalledWith(
         mockIdentityId,
         mockUserId,
@@ -153,7 +153,7 @@ describe('IdentityController', () => {
   describe('update', () => {
     it('should update a specific identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.update.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
@@ -165,7 +165,7 @@ describe('IdentityController', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.update).toHaveBeenCalledWith(
         mockIdentityId,
         mockUserId,
@@ -178,14 +178,14 @@ describe('IdentityController', () => {
   describe('remove', () => {
     it('should delete a specific identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.delete.mockResolvedValue(undefined as any);
 
       // Act
       await controller.remove(mockUserId, mockIdentityId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.delete).toHaveBeenCalledWith(mockIdentityId, mockUserId);
     });
   });
@@ -193,14 +193,14 @@ describe('IdentityController', () => {
   describe('verify', () => {
     it('should verify a specific identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       service.verify.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
       const result = await controller.verify(mockUserId, mockIdentityId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.verify).toHaveBeenCalledWith(mockIdentityId, mockUserId);
       expect(result).toEqual(mockIdentityResponse);
     });

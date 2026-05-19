@@ -1,7 +1,4 @@
-import {
-  determineIntent,
-  extractMessages,
-} from '../utils/meta-webhook.parser';
+import { determineIntent, extractMessages } from '../utils/meta-webhook.parser';
 import { MetaWebhookEntryDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 

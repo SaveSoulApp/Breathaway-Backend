@@ -165,7 +165,9 @@ describe('InstagramService', () => {
       configService.get.mockReturnValueOnce(undefined);
 
       await expect(service.refreshSystemAccessToken()).rejects.toThrow(
-        new InternalServerErrorException('Instagram access token not configured.'),
+        new InternalServerErrorException(
+          'Instagram access token not configured.',
+        ),
       );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(

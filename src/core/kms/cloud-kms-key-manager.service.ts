@@ -116,16 +116,16 @@ export class CloudKmsKeyManager implements IKeyManager {
    * Deterministic HMAC hash for stable lookups (e.g., account number, IFSC).
    * Uses dedicated stable key, independent of KMS master keys.
    */
-  async computeHash(input: string): Promise<string> {
-    return createHmac('sha256', this.hmacKey)
-      .update(input, 'utf8')
-      .digest('hex');
+  computeHash(input: string): Promise<string> {
+    return Promise.resolve(
+      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest('hex'),
+    );
   }
 
   /**
    * Returns the active keyId used for new encryptions.
    */
-  async getCurrentKeyId(): Promise<string> {
-    return this.activeKeyId;
+  getCurrentKeyId(): Promise<string> {
+    return Promise.resolve(this.activeKeyId);
   }
 }

@@ -21,8 +21,6 @@ jest.mock('firebase-admin', () => ({
 
 describe('FirebaseService', () => {
   let service: FirebaseService;
-  let configService: ConfigService;
-  let loggerService: LoggerService;
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
@@ -78,8 +76,6 @@ describe('FirebaseService', () => {
     }).compile();
 
     service = module.get<FirebaseService>(FirebaseService);
-    configService = module.get<ConfigService>(ConfigService);
-    loggerService = module.get<LoggerService>(LoggerService);
   });
 
   afterEach(() => {

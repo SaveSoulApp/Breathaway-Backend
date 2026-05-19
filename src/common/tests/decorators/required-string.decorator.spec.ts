@@ -4,9 +4,11 @@ import { createMockExecutionContext } from '../mocks/execution-context.mock';
 import { BadRequestException } from '@nestjs/common';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: Function) => {
+const getParamDecoratorFactory = (decorator: (...args: any[]) => any) => {
   class TestClass {
-    testMethod(@decorator('testParam') param: any) {}
+    testMethod(@decorator('testParam') _param: any) {
+      return _param;
+    }
   }
   const args = Reflect.getMetadata(
     ROUTE_ARGS_METADATA,

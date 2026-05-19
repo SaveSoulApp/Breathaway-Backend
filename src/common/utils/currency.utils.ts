@@ -69,7 +69,7 @@ export class CurrencyUtils {
 
     try {
       return new Intl.NumberFormat(locale, options).format(amount);
-    } catch (error) {
+    } catch {
       // Fallback formatting
       const symbol = this.currencySymbols[currency] || currency;
       const formattedAmount = this.formatInternationalNumber(
@@ -155,7 +155,7 @@ export class CurrencyUtils {
 
     // More flexible regex that handles Indian and international formats
     const currencyRegex =
-      /^-?(\d+|\d{1,3}(,\d{3})*|\d{1,2}(,\d{2})*(,\d{3})*)(\.\d+)?\/?\-?$/;
+      /^-?(\d+|\d{1,3}(,\d{3})*|\d{1,2}(,\d{2})*(,\d{3})*)(\.\d+)?\/?-?$/;
     const cleaned = value.replace(/[^\d.,-]/g, '');
 
     return currencyRegex.test(cleaned) && !isNaN(this.parseCurrency(value));
