@@ -8,19 +8,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikeService } from '../likes.service';
-import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('LikeService', () => {
-  let service: any;
-  let prisma: any;
-  let configServiceMock: any;
-  let identityCryptoServiceMock: any;
-  let matchResolverServiceMock: any;
-  let loggerServiceMock: any;
+  let service: LikeService;
+  let prisma: MockPrismaService;
+  let configServiceMock: jest.Mocked<ConfigService>;
+  let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
+  let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
+  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
   const targetIdentityId = 'target-identity-id';

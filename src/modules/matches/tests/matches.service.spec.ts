@@ -2,14 +2,16 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { MatchService } from '../matches.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { IntentType, MatchStatus } from '@prisma/client';
-import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { MatchService } from '../matches.service';
 
 describe('MatchService', () => {
-  let service: any;
-  let prisma: any;
-  let loggerServiceMock: any;
+  let service: MatchService;
+  let prisma: MockPrismaService;
 
   const currentUserId = 'user-id-123';
   const otherUserId = 'other-user-id';
@@ -86,11 +88,11 @@ describe('MatchService', () => {
   };
 
   beforeEach(async () => {
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

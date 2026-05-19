@@ -1,15 +1,21 @@
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
+import { LoggerService } from '@core/logger';
 import { ClientIdentityGuard } from '../../guards/client-identity.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('ClientIdentityGuard', () => {
   let guard: ClientIdentityGuard;
-  let reflector: any;
-  let configService: any;
-  let logger: any;
+  let reflector: jest.Mocked<Reflector>;
+  let configService: jest.Mocked<ConfigService>;
+  let logger: Record<string, jest.Mock>;
 
   beforeEach(() => {
-    reflector = { get: jest.fn(), getAllAndOverride: jest.fn() } as any;
+    reflector = {
+      get: jest.fn(),
+      getAllAndOverride: jest.fn(),
+    } as unknown as jest.Mocked<Reflector>;
 
     configService = {
       get: jest
@@ -22,14 +28,14 @@ describe('ClientIdentityGuard', () => {
           if (key === 'APP_NAME') return 'TestApp';
           return defaultValue;
         }),
-    } as any;
+    } as unknown as jest.Mocked<ConfigService>;
 
     logger = {
       warn: jest.fn(),
       error: jest.fn(),
-    } as any;
+    };
 
-    guard = new ClientIdentityGuard(logger, reflector, configService);
+    guard = new ClientIdentityGuard(logger as any, reflector, configService);
   });
 
   it('should allow bypass if SKIP_CLIENT_IDENTITY_META is true', () => {
@@ -276,7 +282,11 @@ describe('ClientIdentityGuard', () => {
           }),
       } as any;
 
-      new ClientIdentityGuard(logger, reflector, badConfigService);
+      new ClientIdentityGuard(
+        logger as unknown as LoggerService,
+        reflector,
+        badConfigService,
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to parse API_KEYS as JSON array. Check your environment variables.',
@@ -295,7 +305,11 @@ describe('ClientIdentityGuard', () => {
           }),
       } as any;
 
-      new ClientIdentityGuard(logger, reflector, badConfigService);
+      new ClientIdentityGuard(
+        logger as unknown as LoggerService,
+        reflector,
+        badConfigService,
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to parse API_KEYS as JSON array. Check your environment variables.',

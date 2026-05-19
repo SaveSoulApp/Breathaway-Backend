@@ -1,19 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
-import { MatchResolverService, LikeSummary } from '../match-resolver.service';
-import { LikeStatus, MatchStatus, IntentType } from '@prisma/client';
-import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { IntentType, LikeStatus, MatchStatus } from '@prisma/client';
+import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 
 describe('MatchResolverService', () => {
-  let service: any;
-  let prisma: any;
-  let matchService: any;
-  let blockService: any;
-  let logger: any;
-  let contextualLogger: any;
+  let service: MatchResolverService;
+  let prisma: MockPrismaService;
+  let matchService: jest.Mocked<MatchService>;
+  let blockService: jest.Mocked<BlockService>;
+  let logger: jest.Mocked<LoggerService>;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
 
   const mockNewLike: LikeSummary = {
     id: 'like-1',
@@ -85,18 +94,20 @@ describe('MatchResolverService', () => {
     // By default, findFirst returns a mockReverseLike, mock no existing match
     prisma.like.findFirst.mockResolvedValue(mockReverseLike as any);
     prisma.match.findUnique.mockResolvedValue(null);
-    prisma.$transaction.mockImplementation(async (cb: any) => {
-      const mockTx = {
-        match: {
-          create: jest.fn(),
-          update: jest.fn(),
-        },
-        like: {
-          update: jest.fn(),
-        },
-      };
-      await cb(mockTx);
-    });
+    prisma.$transaction.mockImplementation(
+      async (cb: (tx: any) => Promise<unknown>) => {
+        const mockTx = {
+          match: {
+            create: jest.fn(),
+            update: jest.fn(),
+          },
+          like: {
+            update: jest.fn(),
+          },
+        };
+        await cb(mockTx);
+      },
+    );
   });
 
   describe('resolveFromLike', () => {
@@ -178,13 +189,15 @@ describe('MatchResolverService', () => {
 
     it('should execute match transaction creating a new match if no match exists', async () => {
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { create: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { create: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(mockNewLike);
 
@@ -233,13 +246,15 @@ describe('MatchResolverService', () => {
       prisma.like.findFirst.mockResolvedValue(reverseLikeUserA as any);
 
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { create: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { create: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(newLikeUserB);
 
@@ -261,13 +276,15 @@ describe('MatchResolverService', () => {
       prisma.match.findUnique.mockResolvedValue(existingMatch as any);
 
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { update: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { update: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(mockNewLike);
 

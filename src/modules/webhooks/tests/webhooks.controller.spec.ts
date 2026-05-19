@@ -5,10 +5,15 @@ import { WebhooksService } from '../webhooks.service';
 import { MetaWebhookDto } from '../dto';
 
 describe('WebhooksController', () => {
-  let controller: any;
-  let service: any;
-  let contextualLogger: any;
-  let logger: any;
+  let controller: WebhooksController;
+  let service: jest.Mocked<WebhooksService>;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -19,7 +24,7 @@ describe('WebhooksController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

@@ -10,9 +10,8 @@ import {
 } from '../dto';
 
 describe('CreditsController', () => {
-  let controller: any;
-  let service: any;
-  let loggerServiceMock: any;
+  let controller: CreditsController;
+  let service: jest.Mocked<CreditsService>;
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
@@ -48,11 +47,11 @@ describe('CreditsController', () => {
       consumeCredits: jest.fn(),
     };
 
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CreditsController],

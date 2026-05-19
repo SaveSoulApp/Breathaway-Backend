@@ -7,13 +7,11 @@ import { Platform } from '@common/interfaces';
 import { DevicePlatform } from '@prisma/client';
 
 describe('DeviceController', () => {
-  let controller: any;
-  let service: any;
-  let contextualLogger: any;
-  let logger: any;
+  let controller: DeviceController;
+  let service: jest.Mocked<DeviceService>;
 
   beforeEach(async () => {
-    contextualLogger = {
+    const contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
@@ -21,7 +19,7 @@ describe('DeviceController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

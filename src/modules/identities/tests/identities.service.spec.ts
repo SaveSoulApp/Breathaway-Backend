@@ -1,7 +1,10 @@
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityService } from '../identities.service';
@@ -16,9 +19,9 @@ import {
 } from './mocks/identities.mock';
 
 describe('IdentityService', () => {
-  let service: any;
-  let prisma: any;
-  let encryption: any;
+  let service: IdentityService;
+  let prisma: MockPrismaService;
+  let encryption: jest.Mocked<IdentityCryptoService>;
 
   beforeEach(async () => {
     const mockEncryptionService = {

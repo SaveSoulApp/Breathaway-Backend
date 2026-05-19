@@ -2,6 +2,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
 import { CreditsService } from '../credits.service';
 import {
@@ -10,12 +14,10 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
-import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('CreditsService', () => {
-  let service: any;
-  let prisma: any;
-  let loggerServiceMock: any;
+  let service: CreditsService;
+  let prisma: MockPrismaService;
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
@@ -32,11 +34,11 @@ describe('CreditsService', () => {
   };
 
   beforeEach(async () => {
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

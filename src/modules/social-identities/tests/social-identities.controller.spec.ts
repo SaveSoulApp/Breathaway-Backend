@@ -5,13 +5,11 @@ import { SocialidentityService } from '../social-identities.service';
 import { VerifyInstagramRequestDto } from '../dto';
 
 describe('SocialidentityController', () => {
-  let controller: any;
-  let service: any;
-  let contextualLogger: any;
-  let logger: any;
+  let controller: SocialidentityController;
+  let service: jest.Mocked<SocialidentityService>;
 
   beforeEach(async () => {
-    contextualLogger = {
+    const contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
@@ -19,7 +17,7 @@ describe('SocialidentityController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

@@ -39,7 +39,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
 
   private initializeFirebase() {
     const privateKey = this.configService
-      .get('FIREBASE_PRIVATE_KEY')
+      .get<string>('FIREBASE_PRIVATE_KEY')
       ?.replace(/\\n/g, '\n');
 
     admin.initializeApp({

@@ -13,7 +13,7 @@ export class BasicAuthGuard implements CanActivate {
 
   public canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers['authorization'];
+    const authHeader = request.headers['authorization'] as string | undefined;
 
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization Header');
