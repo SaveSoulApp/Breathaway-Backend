@@ -12,8 +12,14 @@ describe('InstagramService', () => {
   let service: InstagramService;
   let configService: jest.Mocked<ConfigService>;
   let gcpSecretManager: jest.Mocked<GcpSecretManagerService>;
-  let contextualLogger: any;
-  let logger: any;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
+  let logger: Record<string, jest.Mock>;
   const mockedAxios = axios as jest.Mocked<typeof axios>;
 
   beforeEach(async () => {
@@ -165,7 +171,9 @@ describe('InstagramService', () => {
       configService.get.mockReturnValueOnce(undefined);
 
       await expect(service.refreshSystemAccessToken()).rejects.toThrow(
-        new InternalServerErrorException('Instagram access token not configured.'),
+        new InternalServerErrorException(
+          'Instagram access token not configured.',
+        ),
       );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(

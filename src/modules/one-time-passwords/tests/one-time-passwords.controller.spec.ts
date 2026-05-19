@@ -7,7 +7,6 @@ import { VerifyOtpDto } from '../dto';
 describe('OtpController', () => {
   let controller: OtpController;
   let service: jest.Mocked<OtpService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
 
@@ -17,11 +16,11 @@ describe('OtpController', () => {
       verifyAndConsumeOtp: jest.fn(),
     };
 
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OtpController],

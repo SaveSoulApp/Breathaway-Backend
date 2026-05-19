@@ -96,7 +96,14 @@ export function toSmartTitleCase(str: string): string {
  * normalizeDocumentNumber('inv-2024-001') // 'INV-2024-001' (note: hyphens preserved)
  * normalizeDocumentNumber('license num 456') // 'LICENSENUM456'
  */
-export const normalizeDocumentNumber = (value: any): string => {
-  if (typeof value !== 'string') return value;
-  return value.toUpperCase().trim().replace(/\s+/g, '');
-};
+export function normalizeDocumentNumber<T>(
+  value: T,
+): T extends string ? string : T {
+  if (typeof value !== 'string') {
+    return value as unknown as T extends string ? string : T;
+  }
+  return value
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, '') as unknown as T extends string ? string : T;
+}

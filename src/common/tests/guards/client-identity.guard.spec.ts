@@ -1,58 +1,63 @@
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { LoggerService } from '@core/logger';
 import { ClientIdentityGuard } from '../../guards/client-identity.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
-import { ConfigService } from '@nestjs/config';
-import { LoggerService } from '@core/logger';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('ClientIdentityGuard', () => {
   let guard: ClientIdentityGuard;
   let reflector: jest.Mocked<Reflector>;
   let configService: jest.Mocked<ConfigService>;
-  let logger: jest.Mocked<LoggerService>;
+  let logger: Record<string, jest.Mock>;
 
   beforeEach(() => {
-    reflector = { get: jest.fn(), getAllAndOverride: jest.fn() } as any;
+    reflector = {
+      get: jest.fn(),
+      getAllAndOverride: jest.fn(),
+    } as unknown as jest.Mocked<Reflector>;
 
     configService = {
-      get: jest.fn().mockImplementation((key, defaultValue) => {
-        if (key === 'API_KEYS') return '["valid-api-key"]';
-        if (key === 'CLIENT_IDS') return '["valid-client-id"]';
-        if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]';
-        if (key === 'MIN_APP_VERSION') return '1.0.0';
-        if (key === 'APP_NAME') return 'TestApp';
-        return defaultValue;
-      }),
-    } as any;
+      get: jest
+        .fn()
+        .mockImplementation((key: string, defaultValue: unknown): unknown => {
+          if (key === 'API_KEYS') return '["valid-api-key"]';
+          if (key === 'CLIENT_IDS') return '["valid-client-id"]';
+          if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]';
+          if (key === 'MIN_APP_VERSION') return '1.0.0';
+          if (key === 'APP_NAME') return 'TestApp';
+          return defaultValue;
+        }),
+    } as unknown as jest.Mocked<ConfigService>;
 
     logger = {
       warn: jest.fn(),
       error: jest.fn(),
-    } as any;
+    };
 
-    guard = new ClientIdentityGuard(logger, reflector, configService);
+    guard = new ClientIdentityGuard(logger as any, reflector, configService);
   });
 
-  it('should allow bypass if SKIP_CLIENT_IDENTITY_META is true', async () => {
+  it('should allow bypass if SKIP_CLIENT_IDENTITY_META is true', () => {
     reflector.getAllAndOverride.mockReturnValue(true);
     const context = createMockExecutionContext();
 
-    const result = await guard.canActivate(context);
+    const result = guard.canActivate(context);
     expect(result).toBe(true);
   });
 
-  it('should throw UnauthorizedException if API Key is missing', async () => {
+  it('should throw UnauthorizedException if API Key is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {},
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('x-api-key header is required'),
     );
   });
 
-  it('should throw UnauthorizedException if API Key is invalid', async () => {
+  it('should throw UnauthorizedException if API Key is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -60,12 +65,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid API Key'),
     );
   });
 
-  it('should throw BadRequestException if Client ID is missing', async () => {
+  it('should throw BadRequestException if Client ID is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -73,12 +78,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException('x-client-id header is required'),
     );
   });
 
-  it('should throw UnauthorizedException if Client ID is invalid', async () => {
+  it('should throw UnauthorizedException if Client ID is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -87,12 +92,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid Client ID'),
     );
   });
 
-  it('should throw BadRequestException if Device ID is missing', async () => {
+  it('should throw BadRequestException if Device ID is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -101,14 +106,14 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
         'x-device-id header is required and must be a string',
       ),
     );
   });
 
-  it('should throw BadRequestException if Device ID is not a string', async () => {
+  it('should throw BadRequestException if Device ID is not a string', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -118,14 +123,14 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
         'x-device-id header is required and must be a string',
       ),
     );
   });
 
-  it('should throw BadRequestException if User-Agent is missing', async () => {
+  it('should throw BadRequestException if User-Agent is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -135,12 +140,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException('User-Agent header is required'),
     );
   });
 
-  it('should throw BadRequestException if User-Agent format is invalid', async () => {
+  it('should throw BadRequestException if User-Agent format is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -151,14 +156,14 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
         'User-Agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
       ),
     );
   });
 
-  it('should throw UnauthorizedException if Platform is invalid', async () => {
+  it('should throw UnauthorizedException if Platform is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -169,12 +174,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid platform. Supported: ios, android'),
     );
   });
 
-  it('should throw UnauthorizedException if App Version is lower than minAppVersion', async () => {
+  it('should throw UnauthorizedException if App Version is lower than minAppVersion', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -185,12 +190,12 @@ describe('ClientIdentityGuard', () => {
       },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
+    expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('App version must be at least 1.0.0'),
     );
   });
 
-  it('should succeed and attach clientIdentity to request if all headers are valid', async () => {
+  it('should succeed and attach clientIdentity to request if all headers are valid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const mockRequest = {
       headers: {
@@ -202,7 +207,7 @@ describe('ClientIdentityGuard', () => {
     } as any;
     const context = createMockExecutionContext(mockRequest);
 
-    const result = await guard.canActivate(context);
+    const result = guard.canActivate(context);
     expect(result).toBe(true);
     expect(mockRequest.clientIdentity).toEqual({
       apiKey: 'valid-api-key',
@@ -219,7 +224,7 @@ describe('ClientIdentityGuard', () => {
   });
 
   describe('isVersionValid edge cases', () => {
-    it('should validate correctly for equal version', async () => {
+    it('should validate correctly for equal version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest = {
         headers: {
@@ -230,11 +235,11 @@ describe('ClientIdentityGuard', () => {
         },
       } as any;
       const context = createMockExecutionContext(mockRequest);
-      const result = await guard.canActivate(context);
+      const result = guard.canActivate(context);
       expect(result).toBe(true);
     });
 
-    it('should validate correctly for greater minor version', async () => {
+    it('should validate correctly for greater minor version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest = {
         headers: {
@@ -245,11 +250,11 @@ describe('ClientIdentityGuard', () => {
         },
       } as any;
       const context = createMockExecutionContext(mockRequest);
-      const result = await guard.canActivate(context);
+      const result = guard.canActivate(context);
       expect(result).toBe(true);
     });
 
-    it('should validate correctly for greater major version', async () => {
+    it('should validate correctly for greater major version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest = {
         headers: {
@@ -260,7 +265,7 @@ describe('ClientIdentityGuard', () => {
         },
       } as any;
       const context = createMockExecutionContext(mockRequest);
-      const result = await guard.canActivate(context);
+      const result = guard.canActivate(context);
       expect(result).toBe(true);
     });
   });
@@ -268,14 +273,17 @@ describe('ClientIdentityGuard', () => {
   describe('Config Errors', () => {
     it('should handle unparseable JSON and initialize empty sets', () => {
       const badConfigService = {
-        get: jest.fn().mockImplementation((key, defaultValue) => {
-          if (key === 'API_KEYS' || key === 'CLIENT_IDS') return 'invalid-json';
-          return defaultValue;
-        }),
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS' || key === 'CLIENT_IDS')
+              return 'invalid-json';
+            return defaultValue;
+          }),
       } as any;
 
-      const newGuard = new ClientIdentityGuard(
-        logger,
+      new ClientIdentityGuard(
+        logger as unknown as LoggerService,
         reflector,
         badConfigService,
       );
@@ -288,15 +296,17 @@ describe('ClientIdentityGuard', () => {
 
     it('should handle non-array JSON and initialize empty sets', () => {
       const badConfigService = {
-        get: jest.fn().mockImplementation((key, defaultValue) => {
-          if (key === 'API_KEYS' || key === 'CLIENT_IDS')
-            return '{"not": "array"}';
-          return defaultValue;
-        }),
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS' || key === 'CLIENT_IDS')
+              return '{"not": "array"}';
+            return defaultValue;
+          }),
       } as any;
 
-      const newGuard = new ClientIdentityGuard(
-        logger,
+      new ClientIdentityGuard(
+        logger as unknown as LoggerService,
         reflector,
         badConfigService,
       );

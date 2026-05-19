@@ -4,7 +4,6 @@ import { LoggerService } from '@core/logger';
 import { WebhooksService } from '../webhooks.service';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { MetaWebhookDto } from '../dto';
-import * as parserUtils from '../utils/meta-webhook.parser';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;

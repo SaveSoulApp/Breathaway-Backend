@@ -1,22 +1,27 @@
-/* eslint-disable */
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DevicePlatform } from '@prisma/client';
 import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { DeviceService } from '../devices.service';
-import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { DevicePlatform } from '@prisma/client';
+import { DeviceService } from '../devices.service';
+import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
 
 describe('DeviceService', () => {
   let service: DeviceService;
   let prisma: MockPrismaService;
   let logger: jest.Mocked<LoggerService>;
-  let contextualLogger: any;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -29,7 +34,7 @@ describe('DeviceService', () => {
 
     logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
-    } as any;
+    } as unknown as jest.Mocked<LoggerService>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

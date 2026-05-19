@@ -10,7 +10,7 @@ describe('@SkipClientIdentity Decorator', () => {
 
     const metadata = Reflect.getMetadata(
       SKIP_CLIENT_IDENTITY_META,
-      TestClass.prototype.testMethod,
+      (TestClass.prototype as any).testMethod,
     );
     expect(metadata).toBe(true);
   });

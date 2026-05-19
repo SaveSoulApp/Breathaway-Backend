@@ -63,10 +63,10 @@ describe('IdentityService', () => {
   describe('create', () => {
     it('should successfully create an identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
       prisma.identity.findFirst.mockResolvedValue(null);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.create.mockResolvedValue(mockIdentityData as any);
 
       // Act
@@ -77,12 +77,12 @@ describe('IdentityService', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.processPublicValue).toHaveBeenCalledWith(
         mockCreateIdentityDto.publicValue,
         mockCreateIdentityDto.type,
       );
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.findFirst).toHaveBeenCalledWith({
         where: {
           type: mockCreateIdentityDto.type,
@@ -90,7 +90,7 @@ describe('IdentityService', () => {
           deletedAt: null,
         },
       });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.create).toHaveBeenCalledWith({
         data: {
           type: mockCreateIdentityDto.type,
@@ -108,27 +108,27 @@ describe('IdentityService', () => {
         ...mockCreateIdentityDto,
         platformId: '12345',
       };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
       prisma.identity.findFirst.mockResolvedValue(null);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.create.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
       } as any);
 
       // Act
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       const result = await service.create(mockUserId, dtoWithPlatform as any);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.processPlatformId).toHaveBeenCalledWith(
         dtoWithPlatform.platformId,
       );
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.findFirst).toHaveBeenCalledWith({
         where: {
           type: dtoWithPlatform.type,
@@ -139,7 +139,7 @@ describe('IdentityService', () => {
           deletedAt: null,
         },
       });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.create).toHaveBeenCalledWith({
         data: {
           type: dtoWithPlatform.type,
@@ -154,14 +154,13 @@ describe('IdentityService', () => {
 
     it('should throw ConflictException if identity already exists', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
 
       // Act & Assert
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         service.create(mockUserId, mockCreateIdentityDto as any),
       ).rejects.toThrow(ConflictException);
     });
@@ -170,14 +169,14 @@ describe('IdentityService', () => {
   describe('findAllByUser', () => {
     it('should return all active identities for a user', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findMany.mockResolvedValue([mockIdentityData] as any);
 
       // Act
       const result = await service.findAllByUser(mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.findMany).toHaveBeenCalledWith({
         where: { userId: mockUserId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
@@ -200,7 +199,7 @@ describe('IdentityService', () => {
   describe('findAllCompleteByUser', () => {
     it('should return all complete identities for a user without platformId', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findMany.mockResolvedValue([mockIdentityData] as any);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
 
@@ -208,12 +207,12 @@ describe('IdentityService', () => {
       const result = await service.findAllCompleteByUser(mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.findMany).toHaveBeenCalledWith({
         where: { userId: mockUserId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
       });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.decryptPublicValue).toHaveBeenCalledWith(
         mockIdentityData.publicValueCiphertext,
         mockIdentityData.publicValueIv,
@@ -236,7 +235,7 @@ describe('IdentityService', () => {
         ...mockIdentityData,
         ...mockPlatformIdData,
       };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findMany.mockResolvedValue([identityWithPlatform] as any);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
       encryption.decryptPlatformId.mockResolvedValue('12345');
@@ -245,7 +244,7 @@ describe('IdentityService', () => {
       const result = await service.findAllCompleteByUser(mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.decryptPlatformId).toHaveBeenCalledWith(
         mockPlatformIdData.platformIdCiphertext,
         mockPlatformIdData.platformIdIv,
@@ -266,14 +265,14 @@ describe('IdentityService', () => {
   describe('findOne', () => {
     it('should return an identity if found and owned by user', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
 
       // Act
       const result = await service.findOne(mockIdentityId, mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.findFirst).toHaveBeenCalledWith({
         where: { id: mockIdentityId, userId: mockUserId, deletedAt: null },
       });
@@ -298,7 +297,7 @@ describe('IdentityService', () => {
         ...mockIdentityData,
         ...mockPlatformIdData,
       };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(identityWithPlatform as any);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
       encryption.decryptPlatformId.mockResolvedValue('12345');
@@ -316,7 +315,7 @@ describe('IdentityService', () => {
 
     it('should return complete identity without platformId', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
       encryption.decryptPublicValue.mockResolvedValue('test@example.com');
 
@@ -335,7 +334,7 @@ describe('IdentityService', () => {
   describe('update', () => {
     it('should return identity if neither publicValue nor platformId are provided', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
 
       // Act
@@ -348,19 +347,19 @@ describe('IdentityService', () => {
 
       // Assert
       expect(result).toEqual(mockIdentityResponse);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });
 
     it('should successfully update publicValue', async () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.update.mockResolvedValue(mockIdentityData as any);
 
       // Act
@@ -372,12 +371,12 @@ describe('IdentityService', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.processPublicValue).toHaveBeenCalledWith(
         dto.publicValue,
         mockIdentityData.type,
       );
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).toHaveBeenCalledWith({
         where: { id: mockIdentityId },
         data: { ...mockEncryptedData },
@@ -388,12 +387,12 @@ describe('IdentityService', () => {
     it('should successfully update platformId', async () => {
       // Arrange
       const dto = { platformId: '54321' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.update.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
@@ -408,9 +407,9 @@ describe('IdentityService', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(encryption.processPlatformId).toHaveBeenCalledWith(dto.platformId);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).toHaveBeenCalledWith({
         where: { id: mockIdentityId },
         data: { ...mockPlatformIdData },
@@ -421,14 +420,14 @@ describe('IdentityService', () => {
     it('should successfully update both publicValue and platformId', async () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com', platformId: '54321' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPlatformId.mockResolvedValue(mockPlatformIdData as any);
       prisma.identity.findFirst.mockResolvedValueOnce(null); // No duplicate
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.update.mockResolvedValue({
         ...mockIdentityData,
         ...mockPlatformIdData,
@@ -443,7 +442,7 @@ describe('IdentityService', () => {
       );
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).toHaveBeenCalledWith({
         where: { id: mockIdentityId },
         data: { ...mockEncryptedData, ...mockPlatformIdData },
@@ -454,18 +453,17 @@ describe('IdentityService', () => {
     it('should throw ConflictException if updated values duplicate an existing identity', async () => {
       // Arrange
       const dto = { publicValue: 'updated@example.com' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValueOnce(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValueOnce({
         id: 'other-id',
       } as any); // Duplicate found
 
       // Act & Assert
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         service.update(mockIdentityId, mockUserId, dto as any),
       ).rejects.toThrow(ConflictException);
     });
@@ -474,20 +472,19 @@ describe('IdentityService', () => {
   describe('delete', () => {
     it('should soft delete an identity', async () => {
       // Arrange
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.update.mockResolvedValue(mockIdentityData as any);
 
       // Act
       await service.delete(mockIdentityId, mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).toHaveBeenCalledWith({
         where: { id: mockIdentityId },
         data: {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           deletedAt: expect.any(Date),
           userId: null,
         },
@@ -503,21 +500,21 @@ describe('IdentityService', () => {
         isVerified: true,
         verifiedAt: new Date(),
       };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as any);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       prisma.identity.update.mockResolvedValue(updatedIdentity as any);
 
       // Act
       const result = await service.verify(mockIdentityId, mockUserId);
 
       // Assert
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(prisma.identity.update).toHaveBeenCalledWith({
         where: { id: mockIdentityId },
         data: {
           isVerified: true,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           verifiedAt: expect.any(Date),
         },
       });

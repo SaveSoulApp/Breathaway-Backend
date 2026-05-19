@@ -3,12 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { ProfileService } from '../profiles.service';
-import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
+import { ProfileService } from '../profiles.service';
 
 describe('ProfileService', () => {
   let service: ProfileService;

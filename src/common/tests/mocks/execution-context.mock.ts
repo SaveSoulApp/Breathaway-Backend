@@ -2,22 +2,24 @@ import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { of } from 'rxjs';
 
 export const createMockExecutionContext = (
-  reqMock: any = {},
-  resMock: any = {},
-  handlerMock: any = jest.fn(),
-  classMock: any = jest.fn(),
+  reqMock: unknown = {},
+  resMock: unknown = {},
+  handlerMock: unknown = jest.fn(),
+  classMock: unknown = jest.fn(),
 ): ExecutionContext =>
   ({
     switchToHttp: () => ({
-      getRequest: () => reqMock,
-      getResponse: () => resMock,
+      getRequest: (): unknown => reqMock,
+      getResponse: (): unknown => resMock,
       getNext: () => jest.fn(),
     }),
-    getHandler: () => handlerMock,
-    getClass: () => classMock,
+    getHandler: (): unknown => handlerMock,
+    getClass: (): unknown => classMock,
     // Mock other RPC/GraphQL contexts if necessary, returning jest.fn()
   }) as unknown as ExecutionContext;
 
-export const createMockCallHandler = (returnValue: any = {}): CallHandler => ({
+export const createMockCallHandler = (
+  returnValue: unknown = {},
+): CallHandler => ({
   handle: () => of(returnValue),
 });

@@ -6,17 +6,16 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { BlockService } from '../blocks.service';
-import { CreateBlockDto } from '../dto';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { BlockService } from '../blocks.service';
+import { CreateBlockDto } from '../dto';
 
 describe('BlockService', () => {
   let service: BlockService;
   let prisma: MockPrismaService;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
   const blockedUserId = 'blocked-user-id';
@@ -52,11 +51,11 @@ describe('BlockService', () => {
   };
 
   beforeEach(async () => {
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

@@ -16,7 +16,7 @@ export class WebhooksService extends BaseService {
     super(logger);
   }
 
-  async verifyMetaWebhook(
+  verifyMetaWebhook(
     mode: string,
     token: string,
     challenge: string,
@@ -25,11 +25,11 @@ export class WebhooksService extends BaseService {
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
       this.logger.log('Meta webhook verified successfully');
-      return challenge; // MUST return raw string
+      return Promise.resolve(challenge); // MUST return raw string
     }
 
     this.logger.warn('Meta webhook verification failed');
-    return 'Verification failed';
+    return Promise.resolve('Verification failed');
   }
 
   /**
@@ -91,7 +91,7 @@ export class WebhooksService extends BaseService {
    * Extend this method with your business logic (e.g., store in DB,
    * trigger auto-replies, forward to AI, etc.)
    */
-  private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
+  private handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
       this.logger.log('Instagram message received', {
         senderId: message.senderId,
@@ -104,5 +104,6 @@ export class WebhooksService extends BaseService {
       // TODO: Add your business logic here
       // e.g., save to database, send auto-reply, forward to AI, etc.
     }
+    return Promise.resolve();
   }
 }

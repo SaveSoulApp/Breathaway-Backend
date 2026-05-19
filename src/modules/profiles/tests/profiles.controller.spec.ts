@@ -8,7 +8,6 @@ import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 describe('ProfileController', () => {
   let controller: ProfileController;
   let service: jest.Mocked<ProfileService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
   const profileId = 'profile-id-123';
@@ -34,11 +33,11 @@ describe('ProfileController', () => {
       deleteProfile: jest.fn(),
     };
 
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProfileController],

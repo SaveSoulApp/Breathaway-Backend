@@ -7,11 +7,9 @@ import { InstagramService } from '../instagram.service';
 describe('InstagramController', () => {
   let controller: InstagramController;
   let service: jest.Mocked<InstagramService>;
-  let contextualLogger: any;
-  let logger: any;
 
   beforeEach(async () => {
-    contextualLogger = {
+    const contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
@@ -19,7 +17,7 @@ describe('InstagramController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

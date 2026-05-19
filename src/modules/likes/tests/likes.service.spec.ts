@@ -8,14 +8,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-import { LikeStatus } from '@prisma/client';
-import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
-import { LikeService } from '../likes.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
+import { LikeStatus } from '@prisma/client';
+import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
+import { LikeService } from '../likes.service';
 
 describe('LikeService', () => {
   let service: LikeService;
@@ -56,10 +56,12 @@ describe('LikeService', () => {
 
   beforeEach(async () => {
     configServiceMock = {
-      get: jest.fn().mockImplementation((key: string, defaultValue: any) => {
-        if (key === 'LIKE_EXPIRY_DAYS') return 90;
-        return defaultValue;
-      }),
+      get: jest
+        .fn()
+        .mockImplementation((key: string, defaultValue: unknown): unknown => {
+          if (key === 'LIKE_EXPIRY_DAYS') return 90;
+          return defaultValue;
+        }),
     } as unknown as jest.Mocked<ConfigService>;
 
     identityCryptoServiceMock = {
@@ -282,7 +284,7 @@ describe('LikeService', () => {
       await service.create(userId, dtoWithId);
 
       // Let event loop drain for promise rejection handling
-      await new Promise(process.nextTick);
+      await new Promise(process.nextTick.bind(process));
 
       // Assert
       expect(

@@ -9,7 +9,7 @@ import { map, Observable } from 'rxjs';
 // import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
-  new (...args: any[]): {};
+  new (...args: any[]): object;
 }
 
 //This annotation will expose only the fields annotated with @Expose()

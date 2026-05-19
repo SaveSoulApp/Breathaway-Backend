@@ -7,7 +7,6 @@ import { CreateLikeRequestDto } from '../dto';
 describe('LikeController', () => {
   let controller: LikeController;
   let service: jest.Mocked<LikeService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
   const likeId = 'like-id-123';
@@ -37,11 +36,11 @@ describe('LikeController', () => {
       delete: jest.fn(),
     };
 
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LikeController],

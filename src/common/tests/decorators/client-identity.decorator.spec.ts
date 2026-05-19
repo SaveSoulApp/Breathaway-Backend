@@ -4,15 +4,17 @@ import { createMockExecutionContext } from '../mocks/execution-context.mock';
 import { ClientIdentityKey } from '../../enums/client-identity-key.enum';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: Function) => {
+const getParamDecoratorFactory = (decorator: (...args: unknown[]) => any) => {
   class TestClass {
-    testMethod(@decorator() param: any) {}
+    testMethod(@decorator() _param: unknown) {
+      return _param;
+    }
   }
   const args = Reflect.getMetadata(
     ROUTE_ARGS_METADATA,
     TestClass,
     'testMethod',
-  );
+  ) as Record<string, { factory: (...args: unknown[]) => unknown }>;
   return args[Object.keys(args)[0]].factory;
 };
 

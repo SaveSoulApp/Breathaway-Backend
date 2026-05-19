@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { DeviceController } from '../devices.controller';
@@ -10,11 +9,9 @@ import { DevicePlatform } from '@prisma/client';
 describe('DeviceController', () => {
   let controller: DeviceController;
   let service: jest.Mocked<DeviceService>;
-  let contextualLogger: any;
-  let logger: any;
 
   beforeEach(async () => {
-    contextualLogger = {
+    const contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
@@ -22,7 +19,7 @@ describe('DeviceController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

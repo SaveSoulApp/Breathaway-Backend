@@ -73,7 +73,7 @@ export class LoggerService implements NestLoggerService {
    * Unified write method for all loggers
    */
   private write(
-    logger: any,
+    logger: pino.Logger,
     level: pino.Level,
     message: any,
     meta?: Record<string, any>,

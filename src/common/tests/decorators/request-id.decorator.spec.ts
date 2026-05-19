@@ -3,15 +3,17 @@ import { RequestId } from '../../decorators/request-id.decorator';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: Function) => {
+const getParamDecoratorFactory = (decorator: (...args: unknown[]) => any) => {
   class TestClass {
-    testMethod(@decorator() param: any) {}
+    testMethod(@decorator() _param: unknown) {
+      return _param;
+    }
   }
   const args = Reflect.getMetadata(
     ROUTE_ARGS_METADATA,
     TestClass,
     'testMethod',
-  );
+  ) as Record<string, { factory: (...args: unknown[]) => unknown }>;
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -25,10 +27,13 @@ describe('@RequestId Decorator', () => {
     expect(result).toEqual('req-123');
   });
 
-  it('should return undefined if requestId is not present', () => {
+  it('should throw InternalServerErrorException if requestId is not present', () => {
     const context = createMockExecutionContext({});
 
-    const result = factory(null, context);
-    expect(result).toBeUndefined();
+    expect(() => {
+      factory(null, context);
+    }).toThrow(
+      'Request ID is missing. Ensure the CorrelationIdMiddleware is registered.',
+    );
   });
 });

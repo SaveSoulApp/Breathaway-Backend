@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
-import { MatchResolverService, LikeSummary } from '../match-resolver.service';
-import { LikeStatus, MatchStatus, IntentType } from '@prisma/client';
-import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { IntentType, LikeStatus, MatchStatus } from '@prisma/client';
+import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 
 describe('MatchResolverService', () => {
   let service: MatchResolverService;
@@ -13,7 +16,13 @@ describe('MatchResolverService', () => {
   let matchService: jest.Mocked<MatchService>;
   let blockService: jest.Mocked<BlockService>;
   let logger: jest.Mocked<LoggerService>;
-  let contextualLogger: any;
+  let contextualLogger: {
+    log: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    verbose: jest.Mock;
+  };
 
   const mockNewLike: LikeSummary = {
     id: 'like-1',
@@ -80,23 +89,25 @@ describe('MatchResolverService', () => {
     }).compile();
 
     service = module.get<MatchResolverService>(MatchResolverService);
-    prisma = module.get(PrismaService) as MockPrismaService;
+    prisma = module.get(PrismaService);
 
     // By default, findFirst returns a mockReverseLike, mock no existing match
     prisma.like.findFirst.mockResolvedValue(mockReverseLike as any);
     prisma.match.findUnique.mockResolvedValue(null);
-    prisma.$transaction.mockImplementation(async (cb: any) => {
-      const mockTx = {
-        match: {
-          create: jest.fn(),
-          update: jest.fn(),
-        },
-        like: {
-          update: jest.fn(),
-        },
-      };
-      await cb(mockTx);
-    });
+    prisma.$transaction.mockImplementation(
+      async (cb: (tx: any) => Promise<unknown>) => {
+        const mockTx = {
+          match: {
+            create: jest.fn(),
+            update: jest.fn(),
+          },
+          like: {
+            update: jest.fn(),
+          },
+        };
+        await cb(mockTx);
+      },
+    );
   });
 
   describe('resolveFromLike', () => {
@@ -109,7 +120,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(likeMissingTarget);
 
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `Like like-1 target identity is unresolved. Skipping match resolution.`
+        `Like like-1 target identity is unresolved. Skipping match resolution.`,
       );
       expect(prisma.like.findFirst).not.toHaveBeenCalled();
     });
@@ -129,7 +140,7 @@ describe('MatchResolverService', () => {
         },
       });
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `No reverse like found for users user-1 and user-2.`
+        `No reverse like found for users user-1 and user-2.`,
       );
     });
 
@@ -140,10 +151,10 @@ describe('MatchResolverService', () => {
 
       expect(matchService.isIntentCompatible).toHaveBeenCalledWith(
         mockNewLike.intent,
-        mockReverseLike.intent
+        mockReverseLike.intent,
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Intents are incompatible between Like like-1')
+        expect.stringContaining('Intents are incompatible between Like like-1'),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -155,7 +166,9 @@ describe('MatchResolverService', () => {
 
       expect(blockService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Block exists between users user-1 and user-2. Suppressing match.')
+        expect.stringContaining(
+          'Block exists between users user-1 and user-2. Suppressing match.',
+        ),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -169,20 +182,22 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Active match already exists between user-1 and user-2. Duplicate prevented.`
+        `Active match already exists between user-1 and user-2. Duplicate prevented.`,
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('should execute match transaction creating a new match if no match exists', async () => {
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { create: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { create: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(mockNewLike);
 
@@ -209,7 +224,7 @@ describe('MatchResolverService', () => {
         data: { status: LikeStatus.MATCHED },
       });
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        `Match created successfully between users user-1 and user-2.`
+        `Match created successfully between users user-1 and user-2.`,
       );
     });
 
@@ -231,13 +246,15 @@ describe('MatchResolverService', () => {
       prisma.like.findFirst.mockResolvedValue(reverseLikeUserA as any);
 
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { create: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { create: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(newLikeUserB);
 
@@ -252,17 +269,22 @@ describe('MatchResolverService', () => {
     });
 
     it('should execute match transaction updating an existing inactive match', async () => {
-      const existingMatch = { id: 'existing-match-1', status: MatchStatus.UNMATCHED };
+      const existingMatch = {
+        id: 'existing-match-1',
+        status: MatchStatus.UNMATCHED,
+      };
       prisma.match.findUnique.mockResolvedValue(existingMatch as any);
 
       let executedTx: any;
-      prisma.$transaction.mockImplementation(async (cb: any) => {
-        executedTx = {
-          match: { update: jest.fn() },
-          like: { update: jest.fn() },
-        };
-        await cb(executedTx);
-      });
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => {
+          executedTx = {
+            match: { update: jest.fn() },
+            like: { update: jest.fn() },
+          };
+          await cb(executedTx);
+        },
+      );
 
       await service.resolveFromLike(mockNewLike);
 
@@ -292,7 +314,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Race condition caught: Unique constraint violation while creating Match for users user-1 and user-2.`
+        `Race condition caught: Unique constraint violation while creating Match for users user-1 and user-2.`,
       );
       // Ensures it doesn't log it as an error
       expect(contextualLogger.error).not.toHaveBeenCalled();
@@ -307,7 +329,7 @@ describe('MatchResolverService', () => {
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         `Failed to resolve match for Like like-1`,
-        generalError.stack
+        generalError.stack,
       );
     });
   });

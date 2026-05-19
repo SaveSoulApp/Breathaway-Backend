@@ -3,15 +3,17 @@ import { CurrentUserId } from '../../decorators/current-user-id.decorator';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
 
 // Extract the factory function from the decorator
-const getParamDecoratorFactory = (decorator: Function) => {
+const getParamDecoratorFactory = (decorator: (...args: unknown[]) => any) => {
   class TestClass {
-    testMethod(@decorator() param: any) {}
+    testMethod(@decorator() _param: unknown) {
+      return _param;
+    }
   }
   const args = Reflect.getMetadata(
     ROUTE_ARGS_METADATA,
     TestClass,
     'testMethod',
-  );
+  ) as Record<string, { factory: (...args: unknown[]) => unknown }>;
   return args[Object.keys(args)[0]].factory;
 };
 
@@ -29,8 +31,10 @@ describe('@CurrentUserId Decorator', () => {
   it('should throw an Error if request.user is not found', () => {
     const context = createMockExecutionContext({});
 
-    expect(() => factory(null, context)).toThrow(
-      'User not found in request - JWT guard might not be working',
+    expect(() => {
+      factory(null, context);
+    }).toThrow(
+      'User payload missing from request context. Ensure AuthGuard is applied.',
     );
   });
 });

@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { SocialidentityController } from '../social-identities.controller';
@@ -8,11 +7,9 @@ import { VerifyInstagramRequestDto } from '../dto';
 describe('SocialidentityController', () => {
   let controller: SocialidentityController;
   let service: jest.Mocked<SocialidentityService>;
-  let contextualLogger: any;
-  let logger: any;
 
   beforeEach(async () => {
-    contextualLogger = {
+    const contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
@@ -20,7 +17,7 @@ describe('SocialidentityController', () => {
       verbose: jest.fn(),
     };
 
-    logger = {
+    const logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 

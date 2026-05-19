@@ -7,7 +7,6 @@ import { CreateBlockDto } from '../dto';
 describe('BlockController', () => {
   let controller: BlockController;
   let service: jest.Mocked<BlockService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
   const blockId = 'block-id-123';
@@ -30,11 +29,11 @@ describe('BlockController', () => {
       delete: jest.fn(),
     };
 
-    loggerServiceMock = {
+    const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
       }),
-    } as unknown as jest.Mocked<LoggerService>;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BlockController],
