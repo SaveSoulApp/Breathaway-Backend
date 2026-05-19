@@ -5,8 +5,8 @@ import { InstagramController } from '../instagram.controller';
 import { InstagramService } from '../instagram.service';
 
 describe('InstagramController', () => {
-  let controller: InstagramController;
-  let service: jest.Mocked<InstagramService>;
+  let controller: any;
+  let service: any;
   let contextualLogger: any;
   let logger: any;
 

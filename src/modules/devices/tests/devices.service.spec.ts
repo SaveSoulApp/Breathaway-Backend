@@ -6,15 +6,12 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { DeviceService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('DeviceService', () => {
-  let service: DeviceService;
-  let prisma: MockPrismaService;
-  let logger: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let logger: any;
   let contextualLogger: any;
 
   beforeEach(async () => {

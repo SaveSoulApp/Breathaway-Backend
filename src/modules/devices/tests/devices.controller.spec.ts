@@ -7,8 +7,8 @@ import { Platform } from '@common/interfaces';
 import { DevicePlatform } from '@prisma/client';
 
 describe('DeviceController', () => {
-  let controller: DeviceController;
-  let service: jest.Mocked<DeviceService>;
+  let controller: any;
+  let service: any;
   let contextualLogger: any;
   let logger: any;
 

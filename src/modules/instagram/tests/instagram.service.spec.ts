@@ -9,12 +9,12 @@ import { InstagramService } from '../instagram.service';
 jest.mock('axios');
 
 describe('InstagramService', () => {
-  let service: InstagramService;
-  let configService: jest.Mocked<ConfigService>;
-  let gcpSecretManager: jest.Mocked<GcpSecretManagerService>;
+  let service: any;
+  let configService: any;
+  let gcpSecretManager: any;
   let contextualLogger: any;
   let logger: any;
-  const mockedAxios = axios as jest.Mocked<typeof axios>;
+  const mockedAxios: any = axios;
 
   beforeEach(async () => {
     contextualLogger = {

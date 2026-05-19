@@ -5,9 +5,9 @@ import { OtpService } from '../one-time-passwords.service';
 import { VerifyOtpDto } from '../dto';
 
 describe('OtpController', () => {
-  let controller: OtpController;
-  let service: jest.Mocked<OtpService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
 

@@ -8,15 +8,12 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BlockService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('BlockService', () => {
-  let service: BlockService;
-  let prisma: MockPrismaService;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const blockedUserId = 'blocked-user-id';

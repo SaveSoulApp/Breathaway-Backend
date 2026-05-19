@@ -5,8 +5,8 @@ import { WebhooksService } from '../webhooks.service';
 import { MetaWebhookDto } from '../dto';
 
 describe('WebhooksController', () => {
-  let controller: WebhooksController;
-  let service: jest.Mocked<WebhooksService>;
+  let controller: any;
+  let service: any;
   let contextualLogger: any;
   let logger: any;
 

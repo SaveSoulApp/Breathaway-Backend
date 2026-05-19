@@ -33,6 +33,8 @@ describe('@CurrentUserId Decorator', () => {
 
     expect(() => {
       factory(null, context);
-    }).toThrow('User not found in request - JWT guard might not be working');
+    }).toThrow(
+      'User payload missing from request context. Ensure AuthGuard is applied.',
+    );
   });
 });

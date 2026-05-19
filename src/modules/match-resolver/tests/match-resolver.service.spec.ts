@@ -5,17 +5,14 @@ import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
 import { MatchResolverService, LikeSummary } from '../match-resolver.service';
 import { LikeStatus, MatchStatus, IntentType } from '@prisma/client';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('MatchResolverService', () => {
-  let service: MatchResolverService;
-  let prisma: MockPrismaService;
-  let matchService: jest.Mocked<MatchService>;
-  let blockService: jest.Mocked<BlockService>;
-  let logger: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let matchService: any;
+  let blockService: any;
+  let logger: any;
   let contextualLogger: any;
 
   const mockNewLike: LikeSummary = {

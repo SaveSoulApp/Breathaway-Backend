@@ -5,15 +5,12 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { ProfileService } from '../profiles.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('ProfileService', () => {
-  let service: ProfileService;
-  let prisma: MockPrismaService;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const profileId = 'profile-id-123';

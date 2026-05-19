@@ -12,8 +12,8 @@ import {
 } from './mocks/identities.mock';
 
 describe('IdentityController', () => {
-  let controller: IdentityController;
-  let service: jest.Mocked<IdentityService>;
+  let controller: any;
+  let service: any;
 
   beforeEach(async () => {
     const mockService = {

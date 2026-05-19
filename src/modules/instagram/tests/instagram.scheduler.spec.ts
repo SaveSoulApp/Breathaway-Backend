@@ -5,7 +5,7 @@ import { InstagramService } from '../instagram.service';
 
 describe('InstagramScheduler', () => {
   let scheduler: InstagramScheduler;
-  let service: jest.Mocked<InstagramService>;
+  let service: any;
   let contextualLogger: any;
   let logger: any;
 

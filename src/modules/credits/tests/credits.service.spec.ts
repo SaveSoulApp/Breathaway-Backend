@@ -10,15 +10,12 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('CreditsService', () => {
-  let service: CreditsService;
-  let prisma: MockPrismaService;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';

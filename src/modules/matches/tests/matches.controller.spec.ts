@@ -5,9 +5,9 @@ import { MatchService } from '../matches.service';
 import { IntentType, MatchStatus } from '@prisma/client';
 
 describe('MatchController', () => {
-  let controller: MatchController;
-  let service: jest.Mocked<MatchService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const matchId = 'match-id-123';

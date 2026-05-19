@@ -4,15 +4,12 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { MatchService } from '../matches.service';
 import { IntentType, MatchStatus } from '@prisma/client';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('MatchService', () => {
-  let service: MatchService;
-  let prisma: MockPrismaService;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let loggerServiceMock: any;
 
   const currentUserId = 'user-id-123';
   const otherUserId = 'other-user-id';

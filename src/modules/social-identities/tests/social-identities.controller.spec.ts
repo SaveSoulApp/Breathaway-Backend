@@ -5,8 +5,8 @@ import { SocialidentityService } from '../social-identities.service';
 import { VerifyInstagramRequestDto } from '../dto';
 
 describe('SocialidentityController', () => {
-  let controller: SocialidentityController;
-  let service: jest.Mocked<SocialidentityService>;
+  let controller: any;
+  let service: any;
   let contextualLogger: any;
   let logger: any;
 

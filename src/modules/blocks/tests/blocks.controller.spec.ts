@@ -5,9 +5,9 @@ import { BlockService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
 
 describe('BlockController', () => {
-  let controller: BlockController;
-  let service: jest.Mocked<BlockService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const blockId = 'block-id-123';

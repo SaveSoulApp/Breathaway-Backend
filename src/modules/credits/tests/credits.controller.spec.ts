@@ -10,9 +10,9 @@ import {
 } from '../dto';
 
 describe('CreditsController', () => {
-  let controller: CreditsController;
-  let service: jest.Mocked<CreditsService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';

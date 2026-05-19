@@ -6,9 +6,9 @@ import { ProfileService } from '../profiles.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 
 describe('ProfileController', () => {
-  let controller: ProfileController;
-  let service: jest.Mocked<ProfileService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const profileId = 'profile-id-123';

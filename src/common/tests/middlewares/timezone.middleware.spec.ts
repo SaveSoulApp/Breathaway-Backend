@@ -101,7 +101,9 @@ describe('TimezoneMiddleware', () => {
 
       // Mocking normalizeTimezone to ensure it's called and returns a normalized value
       const normalized = 'Asia/Kolkata';
-      jest.spyOn(TimezoneUtil, 'normalizeTimezone').mockReturnValue(normalized);
+      const spy = jest
+        .spyOn(TimezoneUtil, 'normalizeTimezone')
+        .mockReturnValue(normalized);
 
       middleware.use(
         mockRequest as Request,
@@ -109,7 +111,7 @@ describe('TimezoneMiddleware', () => {
         mockNext,
       );
 
-      expect(TimezoneUtil.normalizeTimezone).toHaveBeenCalledWith(timezone);
+      expect(spy).toHaveBeenCalledWith(timezone);
       expect(mockRequest['timezone']).toBe(normalized);
       expect(mockNext).toHaveBeenCalled();
     });

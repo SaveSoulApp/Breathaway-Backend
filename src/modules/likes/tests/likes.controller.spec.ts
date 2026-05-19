@@ -5,9 +5,9 @@ import { LikeService } from '../likes.service';
 import { CreateLikeRequestDto } from '../dto';
 
 describe('LikeController', () => {
-  let controller: LikeController;
-  let service: jest.Mocked<LikeService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let controller: any;
+  let service: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const likeId = 'like-id-123';

@@ -12,18 +12,15 @@ import { MatchResolverService } from '@modules/match-resolver/match-resolver.ser
 import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikeService } from '../likes.service';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { createPrismaMock } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 describe('LikeService', () => {
-  let service: LikeService;
-  let prisma: MockPrismaService;
-  let configServiceMock: jest.Mocked<ConfigService>;
-  let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
-  let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
-  let loggerServiceMock: jest.Mocked<LoggerService>;
+  let service: any;
+  let prisma: any;
+  let configServiceMock: any;
+  let identityCryptoServiceMock: any;
+  let matchResolverServiceMock: any;
+  let loggerServiceMock: any;
 
   const userId = 'user-id-123';
   const targetIdentityId = 'target-identity-id';
@@ -284,7 +281,7 @@ describe('LikeService', () => {
       await service.create(userId, dtoWithId);
 
       // Let event loop drain for promise rejection handling
-      await new Promise(process.nextTick);
+      await new Promise(process.nextTick.bind(process));
 
       // Assert
       expect(

@@ -27,10 +27,13 @@ describe('@RequestId Decorator', () => {
     expect(result).toEqual('req-123');
   });
 
-  it('should return undefined if requestId is not present', () => {
+  it('should throw InternalServerErrorException if requestId is not present', () => {
     const context = createMockExecutionContext({});
 
-    const result = factory(null, context);
-    expect(result).toBeUndefined();
+    expect(() => {
+      factory(null, context);
+    }).toThrow(
+      'Request ID is missing. Ensure the CorrelationIdMiddleware is registered.',
+    );
   });
 });

@@ -1,15 +1,12 @@
-import { Reflector } from '@nestjs/core';
 import { ClientIdentityGuard } from '../../guards/client-identity.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
-import { ConfigService } from '@nestjs/config';
-import { LoggerService } from '@core/logger';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('ClientIdentityGuard', () => {
   let guard: ClientIdentityGuard;
-  let reflector: jest.Mocked<Reflector>;
-  let configService: jest.Mocked<ConfigService>;
-  let logger: jest.Mocked<LoggerService>;
+  let reflector: any;
+  let configService: any;
+  let logger: any;
 
   beforeEach(() => {
     reflector = { get: jest.fn(), getAllAndOverride: jest.fn() } as any;
