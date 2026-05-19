@@ -1,9 +1,16 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+
 import { LoggerService } from '@core/logger';
+
 import { ClientIdentityGuard } from '../../guards/client-identity.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
+
+interface MockRequest {
+  headers: Record<string, string | string[]>;
+  clientIdentity?: unknown;
+}
 
 describe('ClientIdentityGuard', () => {
   let guard: ClientIdentityGuard;
@@ -35,7 +42,11 @@ describe('ClientIdentityGuard', () => {
       error: jest.fn(),
     };
 
-    guard = new ClientIdentityGuard(logger as any, reflector, configService);
+    guard = new ClientIdentityGuard(
+      logger as unknown as LoggerService,
+      reflector,
+      configService,
+    );
   });
 
   it('should allow bypass if SKIP_CLIENT_IDENTITY_META is true', () => {
@@ -197,14 +208,14 @@ describe('ClientIdentityGuard', () => {
 
   it('should succeed and attach clientIdentity to request if all headers are valid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
-    const mockRequest = {
+    const mockRequest: MockRequest = {
       headers: {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
         'user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)',
       },
-    } as any;
+    };
     const context = createMockExecutionContext(mockRequest);
 
     const result = guard.canActivate(context);
@@ -226,14 +237,14 @@ describe('ClientIdentityGuard', () => {
   describe('isVersionValid edge cases', () => {
     it('should validate correctly for equal version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
-      const mockRequest = {
+      const mockRequest: MockRequest = {
         headers: {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
           'user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)',
         },
-      } as any;
+      };
       const context = createMockExecutionContext(mockRequest);
       const result = guard.canActivate(context);
       expect(result).toBe(true);
@@ -241,14 +252,14 @@ describe('ClientIdentityGuard', () => {
 
     it('should validate correctly for greater minor version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
-      const mockRequest = {
+      const mockRequest: MockRequest = {
         headers: {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
           'user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)',
         },
-      } as any;
+      };
       const context = createMockExecutionContext(mockRequest);
       const result = guard.canActivate(context);
       expect(result).toBe(true);
@@ -256,14 +267,14 @@ describe('ClientIdentityGuard', () => {
 
     it('should validate correctly for greater major version', () => {
       reflector.getAllAndOverride.mockReturnValue(false);
-      const mockRequest = {
+      const mockRequest: MockRequest = {
         headers: {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
           'user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)',
         },
-      } as any;
+      };
       const context = createMockExecutionContext(mockRequest);
       const result = guard.canActivate(context);
       expect(result).toBe(true);
@@ -280,7 +291,7 @@ describe('ClientIdentityGuard', () => {
               return 'invalid-json';
             return defaultValue;
           }),
-      } as any;
+      } as unknown as ConfigService;
 
       new ClientIdentityGuard(
         logger as unknown as LoggerService,
@@ -303,7 +314,7 @@ describe('ClientIdentityGuard', () => {
               return '{"not": "array"}';
             return defaultValue;
           }),
-      } as any;
+      } as unknown as ConfigService;
 
       new ClientIdentityGuard(
         logger as unknown as LoggerService,

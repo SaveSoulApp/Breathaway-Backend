@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+
 import { ContextualLogger } from './logger.interface';
 import { LoggerService } from './logger.service';
 
@@ -32,12 +33,19 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    const message =
-      typeof rawResponse === 'string'
-        ? rawResponse
-        : Array.isArray((rawResponse as any).message)
-          ? (rawResponse as any).message
-          : ((rawResponse as any).message ?? rawResponse);
+    let message: string | string[] = 'Internal server error';
+    if (typeof rawResponse === 'string') {
+      message = rawResponse;
+    } else if (rawResponse && typeof rawResponse === 'object') {
+      const resObj = rawResponse as Record<string, unknown>;
+      if (Array.isArray(resObj.message)) {
+        message = resObj.message as string[];
+      } else if (typeof resObj.message === 'string') {
+        message = resObj.message;
+      } else {
+        message = JSON.stringify(rawResponse);
+      }
+    }
 
     // Log the error with correct status code
     this.logger.error(`Request failed: ${request.method} ${request.url}`, {

@@ -1,5 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DevicePlatform } from '@prisma/client';
+
 import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -7,7 +9,7 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { DevicePlatform } from '@prisma/client';
+
 import { DeviceService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
 
@@ -119,7 +121,7 @@ describe('DeviceService', () => {
     it('should fallback to ANDROID if platform is unknown', async () => {
       const unknownDto: CreateDeviceDto = {
         ...createDto,
-        platform: 'UNKNOWN_PLATFORM' as any,
+        platform: 'UNKNOWN_PLATFORM' as Platform,
       };
       const androidMockDevice = {
         ...mockDevice,
@@ -144,7 +146,7 @@ describe('DeviceService', () => {
 
     it('should throw ConflictException on P2002 error', async () => {
       const error = new Error('Unique constraint failed');
-      (error as any).code = 'P2002';
+      (error as unknown as { code: string }).code = 'P2002';
       prisma.device.create.mockRejectedValue(error);
 
       await expect(service.createDevice('user-1', createDto)).rejects.toThrow(
@@ -279,7 +281,7 @@ describe('DeviceService', () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const unknownDto: UpdateDeviceDto = {
         ...updateDto,
-        platform: 'UNKNOWN' as any,
+        platform: 'UNKNOWN' as Platform,
       };
       const updatedMock = {
         ...mockDevice,
@@ -315,7 +317,7 @@ describe('DeviceService', () => {
     it('should throw ConflictException on P2002 error', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const error = new Error('Unique constraint failed');
-      (error as any).code = 'P2002';
+      (error as unknown as { code: string }).code = 'P2002';
       prisma.device.update.mockRejectedValue(error);
 
       await expect(
@@ -408,7 +410,7 @@ describe('DeviceService', () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const unknownDto: PatchDeviceDto = {
         ...patchDto,
-        platform: 'UNKNOWN' as any,
+        platform: 'UNKNOWN' as Platform,
       };
       const patchedMock = {
         ...mockDevice,
@@ -445,7 +447,7 @@ describe('DeviceService', () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const patchDtoWithToken: PatchDeviceDto = { token: 'new-token' };
       const error = new Error('Unique constraint failed');
-      (error as any).code = 'P2002';
+      (error as unknown as { code: string }).code = 'P2002';
       prisma.device.update.mockRejectedValue(error);
 
       await expect(

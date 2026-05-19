@@ -1,8 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { LoggerService } from '@core/logger';
+
+import { MetaWebhookDto } from '../dto';
+import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+import { MetaWebhookResult } from '../interfaces/meta-webhook-result.interface';
 import { WebhooksController } from '../webhooks.controller';
 import { WebhooksService } from '../webhooks.service';
-import { MetaWebhookDto } from '../dto';
 
 describe('WebhooksController', () => {
   let controller: WebhooksController;
@@ -89,7 +93,22 @@ describe('WebhooksController', () => {
         ],
       };
 
-      const parsedResults: any[] = [{ someResult: 'yes' }];
+      const parsedResults: MetaWebhookResult[] = [
+        {
+          intent: MetaWebhookIntent.MESSAGE,
+          platform: 'instagram',
+          entryId: '12345',
+          messages: [
+            {
+              senderId: 'sender-1',
+              recipientId: 'recipient-1',
+              messageId: 'mid-1',
+              text: 'hello',
+              timestamp: 1234567890,
+            },
+          ],
+        },
+      ];
 
       service.parseMetaWebhook.mockReturnValue(parsedResults);
       service.handleMetaWebhookEvents.mockResolvedValue(undefined);

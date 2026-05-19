@@ -5,6 +5,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  Identity,
+  IdentityType,
+  IntentType,
+  Like,
+  LikeStatus,
+} from '@prisma/client';
+
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -13,7 +21,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-import { LikeStatus } from '@prisma/client';
+
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikeService } from '../likes.service';
 
@@ -30,29 +38,39 @@ describe('LikeService', () => {
   const targetUserId = 'target-user-id';
   const likeId = 'like-id-123';
 
-  const mockTargetIdentity: any = {
+  const mockTargetIdentity: Identity = {
     id: targetIdentityId,
     userId: targetUserId,
-    type: 'PHONE',
+    type: IdentityType.PHONE,
+    publicValueHash: 'hash',
+    publicValueEncrypted: 'enc',
+    publicValueMasked: '***',
+    platformIdHash: null,
+    platformIdCiphertext: null,
+    platformIdIv: null,
+    platformIdTag: null,
+    platformIdWrappedKey: null,
+    platformIdKeyId: null,
+    isVerified: true,
+    verifiedAt: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
   };
 
-  const mockLikeData: any = {
+  const mockLikeData = {
     id: likeId,
     senderUserId: userId,
     targetIdentityId,
     targetUserId,
-    intent: 'FRIENDSHIP',
+    intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
     createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
     expiresAt: new Date(),
-    targetIdentity: {
-      id: targetIdentityId,
-      type: 'PHONE',
-      publicValueMasked: '***',
-      isVerified: true,
-      verifiedAt: new Date(),
-    },
-  };
+    targetIdentity: mockTargetIdentity,
+  } as unknown as Like & { targetIdentity: Identity };
 
   beforeEach(async () => {
     configServiceMock = {
@@ -102,13 +120,13 @@ describe('LikeService', () => {
   describe('create', () => {
     const dtoWithId: CreateLikeRequestDto = {
       targetIdentityId,
-      intent: 'FRIENDSHIP' as any,
+      intent: IntentType.RELATIONSHIP,
     };
 
     it('should throw BadRequestException if neither targetIdentityId nor targetIdentity is provided', async () => {
       // Act & Assert
       await expect(
-        service.create(userId, { intent: 'FRIENDSHIP' as any }),
+        service.create(userId, { intent: IntentType.RELATIONSHIP }),
       ).rejects.toThrow(
         new BadRequestException(
           'Either targetIdentityId or targetIdentity must be provided',
@@ -119,8 +137,8 @@ describe('LikeService', () => {
     it('should handle creating like via targetIdentity object (existing identity)', async () => {
       // Arrange
       const dtoWithObj: CreateLikeRequestDto = {
-        intent: 'FRIENDSHIP' as any,
-        targetIdentity: { type: 'PHONE' as any, publicValue: '1234567890' },
+        intent: IntentType.RELATIONSHIP,
+        targetIdentity: { type: IdentityType.PHONE, publicValue: '1234567890' },
       };
 
       const processValueData = {
@@ -129,7 +147,9 @@ describe('LikeService', () => {
         publicValueMasked: 'mask',
       };
       identityCryptoServiceMock.processPublicValue.mockResolvedValue(
-        processValueData as any,
+        processValueData as unknown as Awaited<
+          ReturnType<IdentityCryptoService['processPublicValue']>
+        >,
       );
       prisma.identity.findUnique
         .mockResolvedValueOnce(mockTargetIdentity) // Finding by type_publicValueHash
@@ -158,9 +178,9 @@ describe('LikeService', () => {
     it('should handle creating like via targetIdentity object (new identity)', async () => {
       // Arrange
       const dtoWithObj: CreateLikeRequestDto = {
-        intent: 'FRIENDSHIP' as any,
+        intent: IntentType.RELATIONSHIP,
         targetIdentity: {
-          type: 'PHONE' as any,
+          type: IdentityType.PHONE,
           publicValue: '1234567890',
           platformId: 'platform123',
         },
@@ -177,10 +197,14 @@ describe('LikeService', () => {
       };
 
       identityCryptoServiceMock.processPublicValue.mockResolvedValue(
-        processValueData as any,
+        processValueData as unknown as Awaited<
+          ReturnType<IdentityCryptoService['processPublicValue']>
+        >,
       );
       identityCryptoServiceMock.processPlatformId.mockResolvedValue(
-        processPlatformData as any,
+        processPlatformData as unknown as Awaited<
+          ReturnType<IdentityCryptoService['processPlatformId']>
+        >,
       );
 
       prisma.identity.findUnique
@@ -259,7 +283,7 @@ describe('LikeService', () => {
           senderUserId: userId,
           targetIdentityId,
           targetUserId,
-          intent: 'FRIENDSHIP',
+          intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: expect.any(Date),
         },

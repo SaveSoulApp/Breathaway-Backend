@@ -1,8 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
+
+import {
+  CreateLikeRequestDto,
+  LikeListResponseDto,
+  LikeResponseDto,
+} from '../dto';
 import { LikeController } from '../likes.controller';
 import { LikeService } from '../likes.service';
-import { CreateLikeRequestDto } from '../dto';
 
 describe('LikeController', () => {
   let controller: LikeController;
@@ -15,13 +22,13 @@ describe('LikeController', () => {
     id: likeId,
     senderUserId: userId,
     targetUserId: 'target-user',
-    intent: 'FRIENDSHIP' as any,
-    status: 'PENDING' as any,
+    intent: IntentType.RELATIONSHIP,
+    status: LikeStatus.PENDING,
     createdAt: new Date(),
     expiresAt: new Date(),
     targetIdentity: {
       id: 'target-identity-id',
-      type: 'PHONE' as any,
+      type: IdentityType.PHONE,
       publicValueMasked: '***-***-****',
       isVerified: true,
       verifiedAt: new Date(),
@@ -63,9 +70,9 @@ describe('LikeController', () => {
       // Arrange
       const dto: CreateLikeRequestDto = {
         targetIdentityId: 'target-identity-id',
-        intent: 'FRIENDSHIP' as any,
+        intent: IntentType.RELATIONSHIP,
       };
-      service.create.mockResolvedValue(mockLikeResponse);
+      service.create.mockResolvedValue(mockLikeResponse as LikeResponseDto);
 
       // Act
       const result = await controller.create(userId, dto);
@@ -80,8 +87,8 @@ describe('LikeController', () => {
     it('should return pending likes list', async () => {
       // Arrange
       service.findAllForUser.mockResolvedValue({
-        data: [mockLikeResponse],
-      } as any);
+        data: [mockLikeResponse as LikeResponseDto],
+      } as LikeListResponseDto);
 
       // Act
       const result = await controller.findAll(userId);
@@ -95,7 +102,9 @@ describe('LikeController', () => {
   describe('findOne', () => {
     it('should return specific like by ID', async () => {
       // Arrange
-      service.findOneForUser.mockResolvedValue(mockLikeResponse);
+      service.findOneForUser.mockResolvedValue(
+        mockLikeResponse as LikeResponseDto,
+      );
 
       // Act
       const result = await controller.findOne(userId, likeId);

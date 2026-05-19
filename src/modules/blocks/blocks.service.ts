@@ -1,13 +1,27 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+
 import { CreateBlockDto } from './dto';
+
+interface BlockWithProfile {
+  id: string;
+  createdAt: Date;
+  blocked: {
+    id: string;
+    profile: {
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
+  };
+}
 
 @Injectable()
 export class BlockService extends BaseService {
@@ -202,7 +216,7 @@ export class BlockService extends BaseService {
     return !!block;
   }
 
-  private mapToResponseDto(block: any) {
+  private mapToResponseDto(block: BlockWithProfile) {
     return {
       id: block.id,
       createdAt: block.createdAt,

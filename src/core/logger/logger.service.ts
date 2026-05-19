@@ -1,6 +1,7 @@
 import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as pino from 'pino';
+
 import { createGcpLoggerConfig } from './gcp-logger.config';
 import { ContextualLogger } from './logger.interface';
 
@@ -56,15 +57,15 @@ export class LoggerService implements NestLoggerService {
     const childLogger = this.baseLogger.child({ context });
 
     return {
-      debug: (message: any, meta?: Record<string, any>) =>
+      debug: (message: unknown, meta?: Record<string, unknown>) =>
         this.write(childLogger, 'debug', message, meta),
-      info: (message: any, meta?: Record<string, any>) =>
+      info: (message: unknown, meta?: Record<string, unknown>) =>
         this.write(childLogger, 'info', message, meta),
-      warn: (message: any, meta?: Record<string, any>) =>
+      warn: (message: unknown, meta?: Record<string, unknown>) =>
         this.write(childLogger, 'warn', message, meta),
-      error: (message: any, meta?: Record<string, any>) =>
+      error: (message: unknown, meta?: Record<string, unknown>) =>
         this.write(childLogger, 'error', message, meta),
-      log: (message: any, meta?: Record<string, any>) =>
+      log: (message: unknown, meta?: Record<string, unknown>) =>
         this.write(childLogger, 'info', message, meta),
     };
   }
@@ -75,8 +76,8 @@ export class LoggerService implements NestLoggerService {
   private write(
     logger: pino.Logger,
     level: pino.Level,
-    message: any,
-    meta?: Record<string, any>,
+    message: unknown,
+    meta?: Record<string, unknown>,
   ) {
     const hasMeta = meta && Object.keys(meta).length > 0;
 
@@ -98,7 +99,7 @@ export class LoggerService implements NestLoggerService {
         },
         message.message,
       );
-    } else if (typeof message === 'object') {
+    } else if (typeof message === 'object' && message !== null) {
       logger[level]({ ...message, ...meta });
     } else {
       if (hasMeta) {
@@ -112,7 +113,7 @@ export class LoggerService implements NestLoggerService {
   /**
    * NestJS LoggerService interface implementation
    */
-  debug(message: any, contextOrMeta?: string | Record<string, any>) {
+  debug(message: unknown, contextOrMeta?: string | Record<string, unknown>) {
     const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
     if (typeof contextOrMeta === 'string') {
       meta.context = contextOrMeta;
@@ -120,7 +121,7 @@ export class LoggerService implements NestLoggerService {
     this.write(this.baseLogger, 'debug', message, meta);
   }
 
-  info(message: any, contextOrMeta?: string | Record<string, any>) {
+  info(message: unknown, contextOrMeta?: string | Record<string, unknown>) {
     const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
     if (typeof contextOrMeta === 'string') {
       meta.context = contextOrMeta;
@@ -128,7 +129,7 @@ export class LoggerService implements NestLoggerService {
     this.write(this.baseLogger, 'info', message, meta);
   }
 
-  warn(message: any, contextOrMeta?: string | Record<string, any>) {
+  warn(message: unknown, contextOrMeta?: string | Record<string, unknown>) {
     const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
     if (typeof contextOrMeta === 'string') {
       meta.context = contextOrMeta;
@@ -136,7 +137,7 @@ export class LoggerService implements NestLoggerService {
     this.write(this.baseLogger, 'warn', message, meta);
   }
 
-  error(message: any, contextOrMeta?: string | Record<string, any>) {
+  error(message: unknown, contextOrMeta?: string | Record<string, unknown>) {
     const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
     if (typeof contextOrMeta === 'string') {
       meta.context = contextOrMeta;
@@ -144,7 +145,7 @@ export class LoggerService implements NestLoggerService {
     this.write(this.baseLogger, 'error', message, meta);
   }
 
-  log(message: any, contextOrMeta?: string | Record<string, any>) {
+  log(message: unknown, contextOrMeta?: string | Record<string, unknown>) {
     const meta = typeof contextOrMeta === 'object' ? { ...contextOrMeta } : {};
     if (typeof contextOrMeta === 'string') {
       meta.context = contextOrMeta;

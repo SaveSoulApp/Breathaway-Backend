@@ -1,3 +1,6 @@
+import { randomUUID } from 'crypto';
+import { Observable, tap } from 'rxjs';
+
 import {
   CallHandler,
   ExecutionContext,
@@ -5,8 +8,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
-import { Observable, tap } from 'rxjs';
+
 import { LoggerService } from './logger.service';
 
 @Injectable()
@@ -23,7 +25,7 @@ export class LoggingInterceptor implements NestInterceptor {
       this.configService.get('SHOULD_LOG_RESPONSE') === 'true';
   }
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
     const res = context.switchToHttp().getResponse();
 

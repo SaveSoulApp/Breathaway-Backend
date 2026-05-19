@@ -1,8 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntentType, MatchStatus } from '@prisma/client';
+
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+
+interface MatchWithUsers {
+  id: string;
+  status: MatchStatus;
+  matchedAt: Date | null;
+  intentOne: IntentType;
+  intentTwo: IntentType;
+  userOneId: string;
+  userTwoId: string;
+  userOne: {
+    id: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    } | null;
+  };
+  userTwo: {
+    id: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+    } | null;
+  };
+}
 
 @Injectable()
 export class MatchService extends BaseService {
@@ -150,7 +175,7 @@ export class MatchService extends BaseService {
     return false;
   }
 
-  private mapToResponseDto(match: any, currentUserId: string) {
+  private mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
     const isUserOne = match.userOneId === currentUserId;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
 

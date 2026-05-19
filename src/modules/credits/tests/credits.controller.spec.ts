@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { LoggerService } from '@core/logger';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
+
+import { LoggerService } from '@core/logger';
+
 import { CreditsController } from '../credits.controller';
 import { CreditsService } from '../credits.service';
 import {
@@ -120,7 +122,11 @@ describe('CreditsController', () => {
         amount: 10,
         source: CreditSource.PURCHASE,
       };
-      service.grantCredits.mockResolvedValue(mockLedgerEntry as any);
+      service.grantCredits.mockResolvedValue(
+        mockLedgerEntry as unknown as Awaited<
+          ReturnType<typeof service.grantCredits>
+        >,
+      );
 
       // Act
       const result = await controller.grantCredits(dto);
@@ -139,7 +145,11 @@ describe('CreditsController', () => {
         amount: 10,
         referenceId: 'like-ref-123',
       };
-      service.consumeCredits.mockResolvedValue(mockLedgerEntry as any);
+      service.consumeCredits.mockResolvedValue(
+        mockLedgerEntry as unknown as Awaited<
+          ReturnType<typeof service.consumeCredits>
+        >,
+      );
 
       // Act
       const result = await controller.consumeCredits(dto);

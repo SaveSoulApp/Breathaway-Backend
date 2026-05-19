@@ -1,5 +1,13 @@
-import { LoggerService } from '@core/logger';
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { LoggerService } from '@core/logger';
+
+import {
+  CreateIdentityDto,
+  IdentityCompleteResponseDto,
+  IdentityResponseDto,
+  UpdateIdentityDto,
+} from '../dto';
 import { IdentityController } from '../identities.controller';
 import { IdentityService } from '../identities.service';
 import {
@@ -57,13 +65,15 @@ describe('IdentityController', () => {
     it('should create a new identity', async () => {
       // Arrange
 
-      service.create.mockResolvedValue(mockIdentityResponse as any);
+      service.create.mockResolvedValue(
+        mockIdentityResponse as IdentityResponseDto,
+      );
 
       // Act
 
       const result = await controller.create(
         mockUserId,
-        mockCreateIdentityDto as any,
+        mockCreateIdentityDto as CreateIdentityDto,
       );
 
       // Assert
@@ -80,7 +90,9 @@ describe('IdentityController', () => {
     it('should return all identities for a user', async () => {
       // Arrange
 
-      service.findAllByUser.mockResolvedValue([mockIdentityResponse] as any);
+      service.findAllByUser.mockResolvedValue([
+        mockIdentityResponse as IdentityResponseDto,
+      ]);
 
       // Act
       const result = await controller.findAll(mockUserId);
@@ -97,8 +109,8 @@ describe('IdentityController', () => {
       // Arrange
 
       service.findAllCompleteByUser.mockResolvedValue([
-        mockIdentityCompleteResponse,
-      ] as any);
+        mockIdentityCompleteResponse as IdentityCompleteResponseDto,
+      ]);
 
       // Act
       const result = await controller.findAllComplete(mockUserId);
@@ -114,7 +126,9 @@ describe('IdentityController', () => {
     it('should return a specific identity by id', async () => {
       // Arrange
 
-      service.findOne.mockResolvedValue(mockIdentityResponse as any);
+      service.findOne.mockResolvedValue(
+        mockIdentityResponse as IdentityResponseDto,
+      );
 
       // Act
       const result = await controller.findOne(mockUserId, mockIdentityId);
@@ -131,7 +145,7 @@ describe('IdentityController', () => {
       // Arrange
 
       service.findOneComplete.mockResolvedValue(
-        mockIdentityCompleteResponse as any,
+        mockIdentityCompleteResponse as IdentityCompleteResponseDto,
       );
 
       // Act
@@ -154,14 +168,16 @@ describe('IdentityController', () => {
     it('should update a specific identity', async () => {
       // Arrange
 
-      service.update.mockResolvedValue(mockIdentityResponse as any);
+      service.update.mockResolvedValue(
+        mockIdentityResponse as IdentityResponseDto,
+      );
 
       // Act
 
       const result = await controller.update(
         mockUserId,
         mockIdentityId,
-        mockUpdateIdentityDto as any,
+        mockUpdateIdentityDto as UpdateIdentityDto,
       );
 
       // Assert
@@ -179,7 +195,7 @@ describe('IdentityController', () => {
     it('should delete a specific identity', async () => {
       // Arrange
 
-      service.delete.mockResolvedValue(undefined as any);
+      service.delete.mockResolvedValue(undefined);
 
       // Act
       await controller.remove(mockUserId, mockIdentityId);
@@ -194,7 +210,9 @@ describe('IdentityController', () => {
     it('should verify a specific identity', async () => {
       // Arrange
 
-      service.verify.mockResolvedValue(mockIdentityResponse as any);
+      service.verify.mockResolvedValue(
+        mockIdentityResponse as IdentityResponseDto,
+      );
 
       // Act
       const result = await controller.verify(mockUserId, mockIdentityId);

@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Device, DevicePlatform } from '@prisma/client';
+
+import { Platform, UserAgentData } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
+
 import { DeviceController } from '../devices.controller';
 import { DeviceService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
-import { Platform } from '@common/interfaces';
-import { DevicePlatform } from '@prisma/client';
 
 describe('DeviceController', () => {
   let controller: DeviceController;
@@ -79,7 +81,7 @@ describe('DeviceController', () => {
       const result = await controller.registerDevice(
         'user-1',
         'new-device-id',
-        userAgentData as any,
+        userAgentData as UserAgentData,
         createDto,
       );
 
@@ -109,7 +111,7 @@ describe('DeviceController', () => {
       const result = await controller.registerDevice(
         'user-1',
         'new-device-id',
-        userAgentData as any,
+        userAgentData as UserAgentData,
         createDto,
       );
 
@@ -136,8 +138,8 @@ describe('DeviceController', () => {
 
       const result = await controller.registerDevice(
         'user-1',
-        undefined as any,
-        userAgentData as any,
+        undefined as unknown as string,
+        userAgentData as UserAgentData,
         createDto,
       );
 
@@ -188,7 +190,7 @@ describe('DeviceController', () => {
       service.updateDevice.mockResolvedValue({
         ...mockDevice,
         ...updateDto,
-      } as any);
+      } as Device);
 
       const result = await controller.updateDevice(
         'user-1',
@@ -214,7 +216,7 @@ describe('DeviceController', () => {
       service.patchDevice.mockResolvedValue({
         ...mockDevice,
         ...patchDto,
-      } as any);
+      } as Device);
 
       const result = await controller.patchDevice(
         'user-1',

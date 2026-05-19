@@ -1,4 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  IntentType,
+  Like,
+  LikeStatus,
+  Match,
+  MatchStatus,
+  Prisma,
+} from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -7,7 +16,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlockService } from '@modules/blocks/blocks.service';
 import { MatchService } from '@modules/matches/matches.service';
-import { IntentType, LikeStatus, MatchStatus } from '@prisma/client';
+
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 
 describe('MatchResolverService', () => {
@@ -92,10 +101,10 @@ describe('MatchResolverService', () => {
     prisma = module.get(PrismaService);
 
     // By default, findFirst returns a mockReverseLike, mock no existing match
-    prisma.like.findFirst.mockResolvedValue(mockReverseLike as any);
+    prisma.like.findFirst.mockResolvedValue(mockReverseLike as unknown as Like);
     prisma.match.findUnique.mockResolvedValue(null);
     prisma.$transaction.mockImplementation(
-      async (cb: (tx: any) => Promise<unknown>) => {
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
         const mockTx = {
           match: {
             create: jest.fn(),
@@ -105,7 +114,7 @@ describe('MatchResolverService', () => {
             update: jest.fn(),
           },
         };
-        await cb(mockTx);
+        await cb(mockTx as unknown as Prisma.TransactionClient);
       },
     );
   });
@@ -114,7 +123,7 @@ describe('MatchResolverService', () => {
     it('should return early if targetUserId is missing', async () => {
       const likeMissingTarget: LikeSummary = {
         ...mockNewLike,
-        targetUserId: null as any,
+        targetUserId: null,
       };
 
       await service.resolveFromLike(likeMissingTarget);
@@ -177,7 +186,7 @@ describe('MatchResolverService', () => {
       prisma.match.findUnique.mockResolvedValue({
         id: 'match-1',
         status: MatchStatus.ACTIVE,
-      } as any);
+      } as unknown as Match);
 
       await service.resolveFromLike(mockNewLike);
 
@@ -188,14 +197,17 @@ describe('MatchResolverService', () => {
     });
 
     it('should execute match transaction creating a new match if no match exists', async () => {
-      let executedTx: any;
+      let executedTx: {
+        match: { create: jest.Mock };
+        like: { update: jest.Mock };
+      };
       prisma.$transaction.mockImplementation(
-        async (cb: (tx: any) => Promise<unknown>) => {
+        async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
             match: { create: jest.fn() },
             like: { update: jest.fn() },
           };
-          await cb(executedTx);
+          await cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -243,16 +255,21 @@ describe('MatchResolverService', () => {
         targetUserId: 'user-B',
       };
 
-      prisma.like.findFirst.mockResolvedValue(reverseLikeUserA as any);
+      prisma.like.findFirst.mockResolvedValue(
+        reverseLikeUserA as unknown as Like,
+      );
 
-      let executedTx: any;
+      let executedTx: {
+        match: { create: jest.Mock };
+        like: { update: jest.Mock };
+      };
       prisma.$transaction.mockImplementation(
-        async (cb: (tx: any) => Promise<unknown>) => {
+        async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
             match: { create: jest.fn() },
             like: { update: jest.fn() },
           };
-          await cb(executedTx);
+          await cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -273,16 +290,21 @@ describe('MatchResolverService', () => {
         id: 'existing-match-1',
         status: MatchStatus.UNMATCHED,
       };
-      prisma.match.findUnique.mockResolvedValue(existingMatch as any);
+      prisma.match.findUnique.mockResolvedValue(
+        existingMatch as unknown as Match,
+      );
 
-      let executedTx: any;
+      let executedTx: {
+        match: { update: jest.Mock };
+        like: { update: jest.Mock };
+      };
       prisma.$transaction.mockImplementation(
-        async (cb: (tx: any) => Promise<unknown>) => {
+        async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
             match: { update: jest.fn() },
             like: { update: jest.fn() },
           };
-          await cb(executedTx);
+          await cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -307,7 +329,7 @@ describe('MatchResolverService', () => {
 
     it('should catch P2002 error as a race condition warning', async () => {
       const p2002Error = new Error('Unique constraint violation');
-      (p2002Error as any).code = 'P2002';
+      (p2002Error as unknown as { code: string }).code = 'P2002';
 
       prisma.$transaction.mockRejectedValue(p2002Error);
 

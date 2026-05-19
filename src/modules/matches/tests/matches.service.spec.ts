@@ -1,12 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { IntentType, MatchStatus } from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { IntentType, MatchStatus } from '@prisma/client';
+
 import { MatchService } from '../matches.service';
 
 describe('MatchService', () => {
@@ -17,7 +19,7 @@ describe('MatchService', () => {
   const otherUserId = 'other-user-id';
   const matchId = 'match-id-123';
 
-  const mockMatchDataUserOne: any = {
+  const mockMatchDataUserOne = {
     id: matchId,
     status: MatchStatus.ACTIVE,
     matchedAt: new Date(),
@@ -41,7 +43,7 @@ describe('MatchService', () => {
     },
   };
 
-  const mockMatchDataUserTwo: any = {
+  const mockMatchDataUserTwo = {
     ...mockMatchDataUserOne,
     userOneId: otherUserId,
     userTwoId: currentUserId,
@@ -113,7 +115,9 @@ describe('MatchService', () => {
   describe('findAllForUser', () => {
     it('should return matched response dtos when user is userOne', async () => {
       // Arrange
-      prisma.match.findMany.mockResolvedValue([mockMatchDataUserOne]);
+      prisma.match.findMany.mockResolvedValue([
+        mockMatchDataUserOne,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
 
       // Act
       const result = await service.findAllForUser(currentUserId);
@@ -165,7 +169,9 @@ describe('MatchService', () => {
 
     it('should return matched response dtos when user is userTwo', async () => {
       // Arrange
-      prisma.match.findMany.mockResolvedValue([mockMatchDataUserTwo]);
+      prisma.match.findMany.mockResolvedValue([
+        mockMatchDataUserTwo,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
 
       // Act
       const result = await service.findAllForUser(currentUserId);
@@ -178,7 +184,11 @@ describe('MatchService', () => {
   describe('findOneForUser', () => {
     it('should return match when user is userOne', async () => {
       // Arrange
-      prisma.match.findFirst.mockResolvedValue(mockMatchDataUserOne);
+      prisma.match.findFirst.mockResolvedValue(
+        mockMatchDataUserOne as unknown as Awaited<
+          ReturnType<typeof prisma.match.findFirst>
+        >,
+      );
 
       // Act
       const result = await service.findOneForUser(matchId, currentUserId);
@@ -239,8 +249,14 @@ describe('MatchService', () => {
   describe('unmatch', () => {
     it('should update match status to UNMATCHED and set deletedAt', async () => {
       // Arrange
-      prisma.match.findFirst.mockResolvedValue(mockMatchDataUserOne);
-      prisma.match.update.mockResolvedValue({} as any);
+      prisma.match.findFirst.mockResolvedValue(
+        mockMatchDataUserOne as unknown as Awaited<
+          ReturnType<typeof prisma.match.findFirst>
+        >,
+      );
+      prisma.match.update.mockResolvedValue(
+        {} as unknown as Awaited<ReturnType<typeof prisma.match.update>>,
+      );
 
       // Act
       const result = await service.unmatch(matchId, currentUserId);

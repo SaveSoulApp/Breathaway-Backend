@@ -1,15 +1,15 @@
+import { plainToInstance } from 'class-transformer';
+import { map, Observable } from 'rxjs';
+
 import {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
-import { map, Observable } from 'rxjs';
-// import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
-  new (...args: any[]): object;
+  new (...args: unknown[]): object;
 }
 
 //This annotation will expose all fields except marked at @Exclude()
@@ -18,15 +18,15 @@ export function SerializeExclude(dto: ClassConstructor) {
 }
 
 export class SerializeExcluderInterceptor implements NestInterceptor {
-  constructor(private dto: any) {}
+  constructor(private dto: ClassConstructor) {}
   intercept(
     context: ExecutionContext,
-    next: CallHandler<any>,
-  ): Observable<any> | Promise<Observable<any>> {
+    next: CallHandler<unknown>,
+  ): Observable<unknown> | Promise<Observable<unknown>> {
     //Run something before a request is handled by the request handler
 
     return next.handle().pipe(
-      map((data: any) => {
+      map((data: unknown) => {
         //Runs before response is sent out
 
         // Convert Decimals to numbers BEFORE plainToInstance

@@ -1,10 +1,11 @@
+import { INestApplication } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlockModule } from '@modules/blocks/blocks.module';
 import { IdentityModule } from '@modules/identities/identities.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
-import { INestApplication } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export function setupSwagger(app: INestApplication): void {
   publicApiDocumentation(app);
@@ -12,7 +13,7 @@ export function setupSwagger(app: INestApplication): void {
   adminApiDocumentation(app);
 }
 
-function publicApiDocumentation(app: INestApplication<any>) {
+function publicApiDocumentation(app: INestApplication) {
   const publicModules = [AuthModule, IdentityModule, BlockModule];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')
@@ -37,7 +38,7 @@ function publicApiDocumentation(app: INestApplication<any>) {
   });
 }
 
-function adminApiDocumentation(app: INestApplication<any>) {
+function adminApiDocumentation(app: INestApplication) {
   const adminModules = [InstagramModule, WebhooksModule];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')

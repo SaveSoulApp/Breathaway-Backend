@@ -12,8 +12,19 @@ export interface AuthMethodInfo {
   isVerified: boolean;
 }
 
+export interface DecodedFirebaseToken {
+  firebase?: {
+    sign_in_provider?: string;
+    [key: string]: unknown;
+  };
+  phone_number?: string;
+  email?: string;
+  email_verified?: boolean;
+  [key: string]: unknown;
+}
+
 export function getAuthMethodFromDecodedToken(
-  decodedToken: any,
+  decodedToken: DecodedFirebaseToken,
 ): AuthMethodInfo {
   const firebaseData = decodedToken.firebase || {};
   const signInProvider = firebaseData.sign_in_provider;

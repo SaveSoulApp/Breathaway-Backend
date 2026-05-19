@@ -1,12 +1,14 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 import { ProfileService } from '../profiles.service';
 
@@ -410,7 +412,11 @@ describe('ProfileService', () => {
   describe('profileExists', () => {
     it('should return true if profile exists', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue({ userId } as any);
+      prisma.userProfile.findUnique.mockResolvedValue({
+        userId,
+      } as unknown as Awaited<
+        ReturnType<typeof prisma.userProfile.findUnique>
+      >);
 
       // Act
       const result = await service.profileExists(userId);

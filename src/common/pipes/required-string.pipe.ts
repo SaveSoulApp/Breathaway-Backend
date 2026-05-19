@@ -1,10 +1,10 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 
 @Injectable()
 export class RequiredStringPipe implements PipeTransform {
   constructor(private readonly paramName: string = 'parameter') {}
 
-  transform(value: any) {
+  transform(value: unknown) {
     if (value === undefined || value === null) {
       throw new BadRequestException(`${this.paramName} is required`);
     }
