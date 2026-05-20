@@ -6,12 +6,16 @@ import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
+import { OtpService } from '../one-time-passwords/one-time-passwords.service';
+import { SocialidentityService } from '../social-identities/social-identities.service';
 
 @Injectable()
 export class WebhooksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
+    private readonly otpService: OtpService,
+    private readonly socialidentityService: SocialidentityService,
   ) {
     super(logger);
   }
@@ -91,7 +95,7 @@ export class WebhooksService extends BaseService {
    * Extend this method with your business logic (e.g., store in DB,
    * trigger auto-replies, forward to AI, etc.)
    */
-  private handleMessageIntent(result: MetaWebhookResult): Promise<void> {
+  private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
       this.logger.log('Instagram message received', {
         senderId: message.senderId,
@@ -101,9 +105,45 @@ export class WebhooksService extends BaseService {
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
-      // TODO: Add your business logic here
-      // e.g., save to database, send auto-reply, forward to AI, etc.
+      // Check if message is a Verify OTP request
+      const verifyRegex = /^verify:\s*(\S+)/i;
+      const match = message.text.match(verifyRegex);
+
+      if (match && match[1]) {
+        const extractedOtp = match[1];
+
+        try {
+          this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
+          // Note: verifyAndConsumeOtp automatically handles hashing the OTP
+          const userId =
+            await this.otpService.verifyAndConsumeOtp(extractedOtp);
+
+          this.logger.log(
+            `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${message.senderId}`,
+          );
+          const identity =
+            await this.socialidentityService.verifyInstagramIdentity(
+              message.senderId,
+            );
+
+          const username = identity.username;
+
+          if (userId === username) {
+            this.logger.log(
+              `Match successful! userId (${userId}) matches Meta username (${username}).`,
+            );
+            // TODO: take the next steps
+          } else {
+            this.logger.warn(
+              `Match failed. userId (${userId}) does NOT match Meta username (${username}).`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `Error during OTP verification flow for sender ${message.senderId}: ${(error as Error).message}`,
+          );
+        }
+      }
     }
-    return Promise.resolve();
   }
 }
