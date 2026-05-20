@@ -18,14 +18,20 @@ export const createGcpLoggerConfig = (
   timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
   serializers: {
     error: pino.stdSerializers.err,
-    req: (req) => ({
+    req: (req: {
+      method?: string;
+      url?: string;
+      headers?: unknown;
+      remoteAddress?: string;
+      remotePort?: number;
+    }) => ({
       method: req.method,
       url: req.url,
       headers: req.headers,
       remoteAddress: req.remoteAddress,
       remotePort: req.remotePort,
     }),
-    res: (res) => ({
+    res: (res: { statusCode?: number; headers?: unknown }) => ({
       statusCode: res.statusCode,
       headers: res.headers,
     }),

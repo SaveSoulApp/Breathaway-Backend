@@ -28,7 +28,7 @@ export function IsValidTimezone(validationOptions?: ValidationOptions) {
           return TimezoneUtil.isValidTimezone(value);
         },
         defaultMessage(args: ValidationArguments): string {
-          const value = args.value;
+          const value = args.value as unknown;
 
           if (value === undefined || value === null || value === '') {
             return 'Timezone should not be empty';

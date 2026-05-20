@@ -39,7 +39,17 @@ export class SocialidentityService extends BaseService {
       this.logger.log(`Fetching identity for instagramId: ${instagramId}`);
       const response = await fetch(url);
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        id?: string;
+        name?: string;
+        username?: string;
+        profile_pic?: string;
+        is_verified_user?: boolean;
+        follower_count?: number;
+        is_user_follow_business?: boolean;
+        is_business_follow_user?: boolean;
+        error?: { message?: string };
+      };
 
       if (!response.ok) {
         this.logger.warn(
@@ -68,7 +78,7 @@ export class SocialidentityService extends BaseService {
         throw error;
       }
       this.logger.error(
-        `Network or unexpected error while calling Instagram API: ${error.message}`,
+        `Network or unexpected error while calling Instagram API: ${(error as Error).message}`,
       );
       throw new BadGatewayException(
         'Error connecting to Instagram validation service.',

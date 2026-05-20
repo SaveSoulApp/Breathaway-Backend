@@ -137,7 +137,7 @@ export class LikeService extends BaseService {
     this.matchResolverService.resolveFromLike(like).catch((err) => {
       this.logger.error(
         `Match resolution failed for Like ${like.id}`,
-        err.stack,
+        (err as { stack?: string }).stack,
       );
     });
 

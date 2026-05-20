@@ -41,9 +41,12 @@ export class InstagramService extends BaseService {
 
       return data;
     } catch (error) {
+      const err = error as {
+        response?: { data?: string | Record<string, unknown>; status?: number };
+      };
       throw new HttpException(
-        error.response?.data || 'Failed to refresh token',
-        error.response?.status || 500,
+        err.response?.data || 'Failed to refresh token',
+        err.response?.status || 500,
       );
     }
   }

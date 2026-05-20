@@ -33,7 +33,10 @@ export class FirebaseService extends BaseService implements OnModuleInit {
       }
       this.logger.log('Firebase Admin SDK initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to initialize Firebase Admin SDK:', error);
+      this.logger.error(
+        'Failed to initialize Firebase Admin SDK:',
+        error as Record<string, unknown>,
+      );
     }
   }
 
@@ -110,8 +113,9 @@ export class FirebaseService extends BaseService implements OnModuleInit {
       }
 
       // Handle Firebase Admin SDK errors
-      if (error?.errorInfo?.code) {
-        const errorCode = error.errorInfo.code;
+      const err = error as { errorInfo?: { code?: string } };
+      if (err?.errorInfo?.code) {
+        const errorCode = err.errorInfo.code;
         switch (errorCode) {
           case 'auth/id-token-expired':
             throw new UnauthorizedException(
