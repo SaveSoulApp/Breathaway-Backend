@@ -1,8 +1,9 @@
+import { LoggerService } from '@core/logger';
+import { IdentityService } from '@modules/identities/identities.service';
+import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-
-import { LoggerService } from '@core/logger';
-
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { WebhooksService } from '../webhooks.service';
@@ -10,6 +11,9 @@ import { WebhooksService } from '../webhooks.service';
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let configService: jest.Mocked<ConfigService>;
+  let otpService: { verifyAndConsumeOtp: jest.Mock };
+  let socialidentityService: { verifyInstagramIdentity: jest.Mock };
+  let identityService: { claimOrCreateIdentity: jest.Mock };
   let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
@@ -38,10 +42,25 @@ describe('WebhooksService', () => {
       get: jest.fn(),
     } as unknown as jest.Mocked<ConfigService>;
 
+    otpService = {
+      verifyAndConsumeOtp: jest.fn(),
+    };
+
+    socialidentityService = {
+      verifyInstagramIdentity: jest.fn(),
+    };
+
+    identityService = {
+      claimOrCreateIdentity: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhooksService,
         { provide: ConfigService, useValue: configService },
+        { provide: OtpService, useValue: otpService },
+        { provide: SocialidentityService, useValue: socialidentityService },
+        { provide: IdentityService, useValue: identityService },
         {
           provide: LoggerService,
           useValue: logger as unknown as LoggerService,
