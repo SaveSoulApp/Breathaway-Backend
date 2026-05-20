@@ -52,10 +52,9 @@ export class DeviceService extends BaseService {
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(
-        `Failed to register device for user ${userId}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to register device for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -132,7 +131,9 @@ export class DeviceService extends BaseService {
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(`Failed to update device ${deviceId}`, err.stack);
+      this.logger.error(`Failed to update device ${deviceId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -178,7 +179,9 @@ export class DeviceService extends BaseService {
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(`Failed to patch device ${deviceId}`, err.stack);
+      this.logger.error(`Failed to patch device ${deviceId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }

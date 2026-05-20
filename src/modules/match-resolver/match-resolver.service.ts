@@ -86,10 +86,9 @@ export class MatchResolverService extends BaseService {
         return;
       }
 
-      this.logger.error(
-        `Failed to resolve match for Like ${newLike.id}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to resolve match for Like ${newLike.id}`, {
+        stack: err.stack,
+      });
     }
   }
 

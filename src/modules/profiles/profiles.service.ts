@@ -53,10 +53,9 @@ export class ProfileService extends BaseService {
       return profile;
     } catch (error) {
       const err = error as { stack?: string };
-      this.logger.error(
-        `Failed to create profile for user ${userId}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to create profile for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -127,10 +126,9 @@ export class ProfileService extends BaseService {
       return updatedProfile;
     } catch (error) {
       const err = error as { stack?: string };
-      this.logger.error(
-        `Failed to update profile for user ${userId}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to update profile for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -168,10 +166,9 @@ export class ProfileService extends BaseService {
       return patchedProfile;
     } catch (error) {
       const err = error as { stack?: string };
-      this.logger.error(
-        `Failed to patch profile for user ${userId}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to patch profile for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -198,10 +195,9 @@ export class ProfileService extends BaseService {
       this.logger.log(`Profile deleted successfully for user: ${userId}`);
     } catch (error) {
       const err = error as { stack?: string };
-      this.logger.error(
-        `Failed to delete profile for user ${userId}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to delete profile for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }

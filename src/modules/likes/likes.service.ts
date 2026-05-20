@@ -135,10 +135,9 @@ export class LikeService extends BaseService {
 
     // Trigger match resolution asynchronously in the background
     this.matchResolverService.resolveFromLike(like).catch((err) => {
-      this.logger.error(
-        `Match resolution failed for Like ${like.id}`,
-        (err as { stack?: string }).stack,
-      );
+      this.logger.error(`Match resolution failed for Like ${like.id}`, {
+        stack: (err as { stack?: string }).stack,
+      });
     });
 
     return like;
