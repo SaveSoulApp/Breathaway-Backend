@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Identity, Prisma } from '@prisma/client';
+import { Identity, IdentityType, Prisma } from '@prisma/client';
 
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -231,6 +231,57 @@ export class IdentityService extends BaseService {
       },
     });
     return this.toMaskedResponse(updated);
+  }
+
+  async claimOrCreateIdentity(
+    type: IdentityType,
+    publicValue: string,
+    platformId: string,
+    userId: string,
+  ) {
+    const publicValueData = await this.encryption.processPublicValue(
+      publicValue,
+      type,
+    );
+    const platformIdData = await this.encryption.processPlatformId(platformId);
+
+    const existing = await this.prisma.identity.findFirst({
+      where: {
+        type,
+        publicValueHash: publicValueData.publicValueHash,
+        deletedAt: null,
+      },
+    });
+
+    if (existing) {
+      if (existing.userId && existing.userId !== userId) {
+        throw new ConflictException('Identity already claimed by another user');
+      }
+
+      const updated = await this.prisma.identity.update({
+        where: { id: existing.id },
+        data: {
+          userId,
+          isVerified: true,
+          verifiedAt: new Date(),
+          ...platformIdData,
+        },
+      });
+      return this.toMaskedResponse(updated);
+    }
+
+    const identity = await this.prisma.identity.create({
+      data: {
+        type,
+        userId,
+        isVerified: true,
+        verifiedAt: new Date(),
+        ...publicValueData,
+        ...platformIdData,
+      },
+    });
+
+    return this.toMaskedResponse(identity);
   }
 
   // ----- Private helpers -----

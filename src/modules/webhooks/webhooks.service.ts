@@ -8,6 +8,8 @@ import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
 import { OtpService } from '../one-time-passwords/one-time-passwords.service';
 import { SocialidentityService } from '../social-identities/social-identities.service';
+import { IdentityService } from '../identities/identities.service';
+import { IdentityType } from '@prisma/client';
 
 @Injectable()
 export class WebhooksService extends BaseService {
@@ -16,6 +18,7 @@ export class WebhooksService extends BaseService {
     private readonly configService: ConfigService,
     private readonly otpService: OtpService,
     private readonly socialidentityService: SocialidentityService,
+    private readonly identityService: IdentityService,
   ) {
     super(logger);
   }
@@ -128,14 +131,23 @@ export class WebhooksService extends BaseService {
 
           const username = identity.username;
 
-          if (userId === username) {
+          if (username) {
             this.logger.log(
-              `Match successful! userId (${userId}) matches Meta username (${username}).`,
+              `Found Instagram username: ${username}. Linking identity to user ${userId}...`,
+            );
+            await this.identityService.claimOrCreateIdentity(
+              IdentityType.INSTAGRAM,
+              username,
+              message.senderId,
+              userId,
+            );
+            this.logger.log(
+              `Successfully linked Instagram identity (${username}) to user (${userId}).`,
             );
             // TODO: take the next steps
           } else {
             this.logger.warn(
-              `Match failed. userId (${userId}) does NOT match Meta username (${username}).`,
+              `Could not extract a valid username from Instagram identity payload.`,
             );
           }
         } catch (error) {
