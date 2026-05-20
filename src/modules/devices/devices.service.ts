@@ -44,17 +44,17 @@ export class DeviceService extends BaseService {
       );
       return device;
     } catch (error) {
-      if (error.code === 'P2002') {
+      const err = error as { code?: string; stack?: string };
+      if (err.code === 'P2002') {
         // Unique constraint failed (likely token)
         this.logger.warn(
           `Device token already exists: ${createDeviceDto.token}`,
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(
-        `Failed to register device for user ${userId}`,
-        error.stack,
-      );
+      this.logger.error(`Failed to register device for user ${userId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -124,13 +124,16 @@ export class DeviceService extends BaseService {
       this.logger.log(`Device ${deviceId} updated successfully`);
       return updated;
     } catch (error) {
-      if (error.code === 'P2002') {
+      const err = error as { code?: string; stack?: string };
+      if (err.code === 'P2002') {
         this.logger.warn(
           `Device token conflict during update: ${updateDeviceDto.token}`,
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(`Failed to update device ${deviceId}`, error.stack);
+      this.logger.error(`Failed to update device ${deviceId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -169,13 +172,16 @@ export class DeviceService extends BaseService {
       this.logger.log(`Device ${deviceId} patched successfully`);
       return patched;
     } catch (error) {
-      if (error.code === 'P2002') {
+      const err = error as { code?: string; stack?: string };
+      if (err.code === 'P2002') {
         this.logger.warn(
           `Device token conflict during patch: ${patchDeviceDto.token}`,
         );
         throw new ConflictException('A device with this token already exists');
       }
-      this.logger.error(`Failed to patch device ${deviceId}`, error.stack);
+      this.logger.error(`Failed to patch device ${deviceId}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }

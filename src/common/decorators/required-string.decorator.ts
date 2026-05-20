@@ -1,12 +1,14 @@
 import {
+  BadRequestException,
   createParamDecorator,
   ExecutionContext,
-  BadRequestException,
 } from '@nestjs/common';
 
 export const RequiredStringQuery = createParamDecorator(
   (paramName: string, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
+    const request = ctx
+      .switchToHttp()
+      .getRequest<{ query: Record<string, unknown> }>();
     const value = request.query[paramName];
 
     if (value === undefined || value === null) {

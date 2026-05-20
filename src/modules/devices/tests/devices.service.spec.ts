@@ -166,7 +166,7 @@ describe('DeviceService', () => {
       );
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Failed to register device for user user-1',
-        error.stack,
+        { stack: error.stack },
       );
     });
   });
@@ -338,7 +338,7 @@ describe('DeviceService', () => {
       ).rejects.toThrow(error);
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Failed to update device device-id-123',
-        error.stack,
+        { stack: error.stack },
       );
     });
   });
@@ -468,7 +468,7 @@ describe('DeviceService', () => {
       ).rejects.toThrow(error);
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Failed to patch device device-id-123',
-        error.stack,
+        { stack: error.stack },
       );
     });
   });

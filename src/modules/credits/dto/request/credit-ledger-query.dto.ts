@@ -18,7 +18,7 @@ export class CreditLedgerQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }: { value: string }) => parseInt(value, 10))
   page?: number = 1;
 
   @ApiPropertyOptional({
@@ -31,7 +31,7 @@ export class CreditLedgerQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }: { value: string }) => parseInt(value, 10))
   limit?: number = 20;
 
   @ApiPropertyOptional({
@@ -111,7 +111,7 @@ export class CreditLedgerQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }: { value: string }) => parseInt(value, 10))
   expiresWithinDays?: number;
 
   @ApiPropertyOptional({

@@ -78,17 +78,17 @@ export class MatchResolverService extends BaseService {
         `Match created successfully between users ${userOneId} and ${userTwoId}.`,
       );
     } catch (error) {
-      if (error?.code === 'P2002') {
+      const err = error as { code?: string; stack?: string };
+      if (err?.code === 'P2002') {
         this.logger.warn(
           `Race condition caught: Unique constraint violation while creating Match for users ${newLike.senderUserId} and ${newLike.targetUserId}.`,
         );
         return;
       }
 
-      this.logger.error(
-        `Failed to resolve match for Like ${newLike.id}`,
-        error.stack,
-      );
+      this.logger.error(`Failed to resolve match for Like ${newLike.id}`, {
+        stack: err.stack,
+      });
     }
   }
 

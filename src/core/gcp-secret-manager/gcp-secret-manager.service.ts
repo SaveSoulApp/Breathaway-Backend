@@ -30,7 +30,7 @@ export class GcpSecretManagerService {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to update secret '${secretName}' in GCP Secret Manager: ${error.message}`,
+        `Failed to update secret '${secretName}' in GCP Secret Manager: ${(error as Error).message}`,
       );
       throw error;
     }

@@ -4,7 +4,9 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export const ClientIdentity = createParamDecorator(
   (data: ClientIdentityKey | undefined, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
+    const request = ctx
+      .switchToHttp()
+      .getRequest<{ clientIdentity: ClientIdentityData }>();
     const identity: ClientIdentityData = request.clientIdentity;
 
     // Return specific property if requested, otherwise return the whole object

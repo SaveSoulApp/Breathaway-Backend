@@ -10,11 +10,12 @@ export class LoggerService implements NestLoggerService {
   private baseLogger: pino.Logger;
 
   constructor(private readonly configService: ConfigService) {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
-    const logLevel = this.configService.get('LOG_LEVEL') || 'info';
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+    const logLevel = this.configService.get<string>('LOG_LEVEL') || 'info';
     const validLevels = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'];
 
-    const isGcp = this.configService.get('DEPLOYMENT_ENV') === 'gcp';
+    const isGcp = this.configService.get<string>('DEPLOYMENT_ENV') === 'gcp';
 
     if (!validLevels.includes(logLevel)) {
       throw new Error(`Invalid LOG_LEVEL: ${logLevel}`);
