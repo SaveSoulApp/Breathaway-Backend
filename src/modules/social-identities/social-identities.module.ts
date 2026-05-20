@@ -7,4 +7,4 @@ import { SocialidentityService } from './social-identities.service';
   providers: [SocialidentityService],
   exports: [SocialidentityService],
 })
-export class SocialidentityModule {}
+export class SocialidentityModule { }

@@ -1,15 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { IdentityService } from '@modules/identities/identities.service';
+import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { SocialidentityService } from '@modules/social-identities/social-identities.service';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { IdentityType } from '@prisma/client';
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
-import { OtpService } from '../one-time-passwords/one-time-passwords.service';
-import { SocialidentityService } from '../social-identities/social-identities.service';
-import { IdentityService } from '../identities/identities.service';
-import { IdentityType } from '@prisma/client';
 
 @Injectable()
 export class WebhooksService extends BaseService {
