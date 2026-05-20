@@ -84,13 +84,13 @@ export class IdentityService extends BaseService {
 
     return Promise.all(
       identities.map(async (identity) => {
-        const publicValue = await this.encryption.decryptPublicValue(
-          identity.publicValueCiphertext,
-          identity.publicValueIv,
-          identity.publicValueTag,
-          identity.publicValueWrappedKey,
-          identity.publicValueKeyId,
-        );
+        const publicValue = await this.encryption.decryptPublicValue({
+          publicValueCiphertext: identity.publicValueCiphertext,
+          publicValueIv: identity.publicValueIv,
+          publicValueTag: identity.publicValueTag,
+          publicValueWrappedKey: identity.publicValueWrappedKey,
+          publicValueKeyId: identity.publicValueKeyId,
+        });
 
         let platformId: string | null = null;
         if (
@@ -100,13 +100,13 @@ export class IdentityService extends BaseService {
           identity.platformIdWrappedKey &&
           identity.platformIdKeyId
         ) {
-          platformId = await this.encryption.decryptPlatformId(
-            identity.platformIdCiphertext,
-            identity.platformIdIv,
-            identity.platformIdTag,
-            identity.platformIdWrappedKey,
-            identity.platformIdKeyId,
-          );
+          platformId = await this.encryption.decryptPlatformId({
+            platformIdCiphertext: identity.platformIdCiphertext,
+            platformIdIv: identity.platformIdIv,
+            platformIdTag: identity.platformIdTag,
+            platformIdWrappedKey: identity.platformIdWrappedKey,
+            platformIdKeyId: identity.platformIdKeyId,
+          });
         }
 
         return {
@@ -126,13 +126,13 @@ export class IdentityService extends BaseService {
   async findOneComplete(id: string, userId: string) {
     const identity = await this.findOwnedOrFail(id, userId);
 
-    const publicValue = await this.encryption.decryptPublicValue(
-      identity.publicValueCiphertext,
-      identity.publicValueIv,
-      identity.publicValueTag,
-      identity.publicValueWrappedKey,
-      identity.publicValueKeyId,
-    );
+    const publicValue = await this.encryption.decryptPublicValue({
+      publicValueCiphertext: identity.publicValueCiphertext,
+      publicValueIv: identity.publicValueIv,
+      publicValueTag: identity.publicValueTag,
+      publicValueWrappedKey: identity.publicValueWrappedKey,
+      publicValueKeyId: identity.publicValueKeyId,
+    });
 
     let platformId: string | null = null;
     if (
@@ -142,13 +142,13 @@ export class IdentityService extends BaseService {
       identity.platformIdWrappedKey &&
       identity.platformIdKeyId
     ) {
-      platformId = await this.encryption.decryptPlatformId(
-        identity.platformIdCiphertext,
-        identity.platformIdIv,
-        identity.platformIdTag,
-        identity.platformIdWrappedKey,
-        identity.platformIdKeyId,
-      );
+      platformId = await this.encryption.decryptPlatformId({
+        platformIdCiphertext: identity.platformIdCiphertext,
+        platformIdIv: identity.platformIdIv,
+        platformIdTag: identity.platformIdTag,
+        platformIdWrappedKey: identity.platformIdWrappedKey,
+        platformIdKeyId: identity.platformIdKeyId,
+      });
     }
 
     return {

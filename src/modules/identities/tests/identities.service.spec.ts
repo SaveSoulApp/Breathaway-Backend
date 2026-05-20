@@ -224,13 +224,13 @@ describe('IdentityService', () => {
         orderBy: { createdAt: 'desc' },
       });
 
-      expect(encryption.decryptPublicValue).toHaveBeenCalledWith(
-        mockIdentityData.publicValueCiphertext,
-        mockIdentityData.publicValueIv,
-        mockIdentityData.publicValueTag,
-        mockIdentityData.publicValueWrappedKey,
-        mockIdentityData.publicValueKeyId,
-      );
+      expect(encryption.decryptPublicValue).toHaveBeenCalledWith({
+        publicValueCiphertext: mockIdentityData.publicValueCiphertext,
+        publicValueIv: mockIdentityData.publicValueIv,
+        publicValueTag: mockIdentityData.publicValueTag,
+        publicValueWrappedKey: mockIdentityData.publicValueWrappedKey,
+        publicValueKeyId: mockIdentityData.publicValueKeyId,
+      });
       expect(result).toEqual([
         {
           ...mockIdentityResponse,
@@ -258,13 +258,13 @@ describe('IdentityService', () => {
 
       // Assert
 
-      expect(encryption.decryptPlatformId).toHaveBeenCalledWith(
-        mockPlatformIdData.platformIdCiphertext,
-        mockPlatformIdData.platformIdIv,
-        mockPlatformIdData.platformIdTag,
-        mockPlatformIdData.platformIdWrappedKey,
-        mockPlatformIdData.platformIdKeyId,
-      );
+      expect(encryption.decryptPlatformId).toHaveBeenCalledWith({
+        platformIdCiphertext: mockPlatformIdData.platformIdCiphertext,
+        platformIdIv: mockPlatformIdData.platformIdIv,
+        platformIdTag: mockPlatformIdData.platformIdTag,
+        platformIdWrappedKey: mockPlatformIdData.platformIdWrappedKey,
+        platformIdKeyId: mockPlatformIdData.platformIdKeyId,
+      });
       expect(result).toEqual([
         {
           ...mockIdentityResponse,

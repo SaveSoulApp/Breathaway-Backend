@@ -10,4 +10,4 @@ import { WebhooksService } from './webhooks.service';
   controllers: [WebhooksController],
   providers: [WebhooksService],
 })
-export class WebhooksModule { }
+export class WebhooksModule {}

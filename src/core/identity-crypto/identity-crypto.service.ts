@@ -1,3 +1,4 @@
+import { PlatformId, PublicValue } from '@common/interfaces';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import {
   decryptAesGcm,
@@ -22,7 +23,10 @@ export class IdentityCryptoService {
     @Inject('KEY_MANAGER') private readonly keyManager: IKeyManager,
   ) {}
 
-  public async processPublicValue(value: string, type: IdentityType) {
+  public async processPublicValue(
+    value: string,
+    type: IdentityType,
+  ): Promise<PublicValue> {
     const normalized = normalizeIdentityValue(value, type);
     const hash = await this.computeHash(normalized);
     const encryptedPublicValue = await this.encryptPublicValue(normalized);
@@ -39,7 +43,7 @@ export class IdentityCryptoService {
     };
   }
 
-  public async processPlatformId(platformId: string) {
+  public async processPlatformId(platformId: string): Promise<PlatformId> {
     const hash = await this.computeHash(platformId);
     const encryptedPlatformId = await this.encryptPlatformId(platformId);
 
@@ -99,34 +103,26 @@ export class IdentityCryptoService {
   }
 
   async decryptPublicValue(
-    ciphertextBase64: string,
-    ivBase64: string,
-    tagBase64: string,
-    wrappedKeyBase64: string,
-    keyId: string,
+    data: Omit<PublicValue, 'publicValueHash' | 'publicValueMasked'>,
   ): Promise<string> {
     return this.decryptValue(
-      ciphertextBase64,
-      ivBase64,
-      tagBase64,
-      wrappedKeyBase64,
-      keyId,
+      data.publicValueCiphertext,
+      data.publicValueIv,
+      data.publicValueTag,
+      data.publicValueWrappedKey,
+      data.publicValueKeyId,
     );
   }
 
   async decryptPlatformId(
-    ciphertextBase64: string,
-    ivBase64: string,
-    tagBase64: string,
-    wrappedKeyBase64: string,
-    keyId: string,
+    data: Omit<PlatformId, 'platformIdHash'>,
   ): Promise<string> {
     return this.decryptValue(
-      ciphertextBase64,
-      ivBase64,
-      tagBase64,
-      wrappedKeyBase64,
-      keyId,
+      data.platformIdCiphertext,
+      data.platformIdIv,
+      data.platformIdTag,
+      data.platformIdWrappedKey,
+      data.platformIdKeyId,
     );
   }
 
