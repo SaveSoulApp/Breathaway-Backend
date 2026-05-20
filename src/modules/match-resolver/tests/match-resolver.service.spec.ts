@@ -351,7 +351,7 @@ describe('MatchResolverService', () => {
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         `Failed to resolve match for Like like-1`,
-        generalError.stack,
+        { stack: generalError.stack },
       );
     });
   });
