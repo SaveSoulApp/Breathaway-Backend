@@ -1,19 +1,23 @@
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
   HttpCode,
   HttpStatus,
-  Logger,
-  Post,
+  Post
 } from '@nestjs/common';
 import { PubSubPushRequestDto } from './dto';
 import { PubSubRegistryService } from './pubsub-registry.service';
 
 @Controller('pubsub')
-export class PubSubIngestionController {
-  private readonly logger = new Logger(PubSubIngestionController.name);
-
-  constructor(private readonly registryService: PubSubRegistryService) {}
+export class PubSubIngestionController extends BaseController {
+  constructor(
+    logger: LoggerService,
+    private readonly registryService: PubSubRegistryService,
+  ) {
+    super(logger);
+  }
 
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
