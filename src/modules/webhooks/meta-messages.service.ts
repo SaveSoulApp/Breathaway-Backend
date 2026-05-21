@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PubSubEvent } from '../pubsub/enums';
 import { PubSubListener } from '../pubsub/pubsub.decorator';
 
 export interface MetaWebhookPayload {
@@ -14,7 +15,7 @@ export class MetaMessagesService {
    * This handler is entirely pure. It only deals with parsed data and the message ID.
    * It is completely unaware of GCP Pub/Sub push mechanics, Base64 decoding, or HTTP routes.
    */
-  @PubSubListener('meta.webhook.received')
+  @PubSubListener(PubSubEvent.META_WEBHOOK_RECEIVED)
   handleMetaWebhook(data: unknown, messageId: string): Promise<void> {
     this.logger.log(`Received Meta Webhook data for messageId ${messageId}`);
 

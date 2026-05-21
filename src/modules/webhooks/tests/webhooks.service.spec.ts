@@ -6,6 +6,7 @@ import { LoggerService } from '@core/logger';
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { WebhooksService } from '../webhooks.service';
+import { PubSubPublisherService } from '../../pubsub/pubsub-publisher.service';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -20,6 +21,7 @@ describe('WebhooksService', () => {
   let logger: {
     forContext: jest.Mock;
   };
+  let pubsubPublisher: { publish: jest.Mock };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -34,6 +36,10 @@ describe('WebhooksService', () => {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 
+    pubsubPublisher = {
+      publish: jest.fn(),
+    };
+
     configService = {
       get: jest.fn(),
     } as unknown as jest.Mocked<ConfigService>;
@@ -42,6 +48,7 @@ describe('WebhooksService', () => {
       providers: [
         WebhooksService,
         { provide: ConfigService, useValue: configService },
+        { provide: PubSubPublisherService, useValue: pubsubPublisher },
         {
           provide: LoggerService,
           useValue: logger as unknown as LoggerService,
