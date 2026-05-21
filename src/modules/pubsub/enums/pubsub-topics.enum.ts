@@ -1,4 +1,5 @@
 export enum PubSubTopic {
-  VERIFY_INSTAGRAM_OTP = 'verify-instagram-otp',
-  // Add new topics here as the system grows
+  META_WEBHOOKS = 'meta-webhooks',
+  IDENTITY_WORKFLOWS = 'identity-workflows',
+  NOTIFICATIONS = 'notifications-stream',
 }
