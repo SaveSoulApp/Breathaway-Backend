@@ -1,0 +1,75 @@
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+} from '@nestjs/common';
+import { PubSubPushRequestDto } from './dto';
+import { PubSubRegistryService } from './pubsub-registry.service';
+
+@Controller('pubsub')
+export class PubSubIngestionController {
+  private readonly logger = new Logger(PubSubIngestionController.name);
+
+  constructor(private readonly registryService: PubSubRegistryService) {}
+
+  @Post('ingest')
+  @HttpCode(HttpStatus.OK)
+  async ingest(@Body() payload: PubSubPushRequestDto): Promise<void> {
+    const { message } = payload;
+    const { data, messageId, attributes } = message;
+
+    // The Pub/Sub eventType must be passed in the attributes map when publishing
+    const eventType = attributes?.eventType;
+    if (!eventType) {
+      this.logger.warn(
+        `Ignored message ${messageId}: Missing 'eventType' attribute.`,
+      );
+      return;
+    }
+
+    const handlerContext = this.registryService.getHandler(eventType);
+    if (!handlerContext) {
+      this.logger.warn(
+        `Ignored message ${messageId}: No handler registered for eventType '${eventType}'.`,
+      );
+      return;
+    }
+
+    // [TODO] Idempotency Guard (Redis)
+    // Here you would check if messageId exists in Redis. If yes, return early.
+    // If no, set messageId in Redis with a TTL. Example:
+    // const isDuplicate = await this.redisService.setnx(`pubsub:processed:${messageId}`, '1');
+    // if (!isDuplicate) { return; }
+    // await this.redisService.expire(`pubsub:processed:${messageId}`, 86400); // 1 day
+
+    try {
+      // Decode the Base64 data
+      const decodedString = Buffer.from(data, 'base64').toString('utf-8');
+      let parsedData: unknown;
+
+      try {
+        parsedData = JSON.parse(decodedString);
+      } catch (e) {
+        this.logger.error(
+          `Failed to parse JSON data for message ${messageId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return;
+      }
+
+      // Route to the registered handler (pure execution)
+      const { target, method } = handlerContext;
+      await method.call(target, parsedData, messageId);
+    } catch (error) {
+      this.logger.error(
+        `Error processing event '${eventType}' (messageId: ${messageId}):`,
+        error,
+      );
+      // We return OK (200) or throw error based on retry strategy.
+      // If we throw, Pub/Sub will retry according to the subscription's retry policy.
+      throw error;
+    }
+  }
+}
