@@ -12,10 +12,7 @@ export class PrismaService
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {
-    const databaseUrl =
-      configService.get<string>('OPERATION_MODE') === 'migration'
-        ? configService.getOrThrow<string>('DIRECT_URL')
-        : configService.getOrThrow<string>('DATABASE_URL');
+    const databaseUrl = configService.getOrThrow<string>('DATABASE_URL');
 
     const pool = new Pool({ connectionString: databaseUrl });
     super({ adapter: new PrismaPg(pool) });

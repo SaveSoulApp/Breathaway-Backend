@@ -66,7 +66,13 @@ deploy_service() {
         "API_KEYS=api-keys:latest"
         "JWT_SECRET=jwt-secret:latest"
         "INSTAGRAM_ACCESS_TOKEN=access-token-instagram:latest"
-        # "DATABASE_URL=database-url:latest"
+        "DATABASE_URL=database-url:latest"
+        "REDIS_URL=redis-url:latest"
+        "GCP_SECRET_MASTER_KEYS=gcp-secret-master-keys:latest"
+        "ACTIVE_MASTER_KEY_ID=active-master-key-id:latest"
+        "HMAC_KEY_BASE64=hmac-key-base64:latest"
+        "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
+        "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
     )
 
     # Check if env.dev.yaml file exists
