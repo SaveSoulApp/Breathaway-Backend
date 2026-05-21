@@ -10,9 +10,9 @@ export class PubSubPublisherService extends BaseService {
 
   constructor(
     logger: LoggerService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
   ) {
-    super(logger)
+    super(logger);
     const projectId = this.configService.get<string>('GCP_PROJECT_ID');
     // Using default credentials or specific config if needed
     this.pubsub = new PubSub(projectId ? { projectId } : undefined);

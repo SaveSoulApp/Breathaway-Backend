@@ -17,7 +17,7 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
     private readonly metadataScanner: MetadataScanner,
     private readonly reflector: Reflector,
   ) {
-    super(logger)
+    super(logger);
   }
 
   onModuleInit() {
@@ -41,31 +41,32 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
         return;
       }
 
-      this.metadataScanner.scanFromPrototype(
-        instance,
-        prototype,
-        (methodName: string) => {
-          const methodRef = instance[methodName] as (...args: unknown[]) => unknown;
-          if (!methodRef) return;
-          const eventType = this.reflector.get<string>(
-            PUBSUB_LISTENER_KEY,
-            methodRef,
-          );
+      const methodNames = this.metadataScanner.getAllMethodNames(prototype);
+      for (const methodName of methodNames) {
+        const methodRef = instance[methodName] as (
+          ...args: unknown[]
+        ) => unknown;
+        if (!methodRef) continue;
+        const eventType = this.reflector.get<string>(
+          PUBSUB_LISTENER_KEY,
+          methodRef,
+        );
 
-          if (eventType) {
-            if (this.registry.has(eventType)) {
-              this.logger.warn(
-                `Duplicate @PubSubListener found for event type: ${eventType}. Overwriting existing handler.`,
-              );
-            }
-            this.registry.set(eventType, { target: instance, method: methodRef });
-            const className = instance.constructor ? (instance.constructor as Function).name : 'UnknownClass';
-            this.logger.debug(
-              `Registered PubSub Listener for event type '${eventType}' on ${className}.${methodName}`,
+        if (eventType) {
+          if (this.registry.has(eventType)) {
+            this.logger.warn(
+              `Duplicate @PubSubListener found for event type: ${eventType}. Overwriting existing handler.`,
             );
           }
-        },
-      );
+          this.registry.set(eventType, { target: instance, method: methodRef });
+          const className = instance.constructor
+            ? (instance.constructor as Function).name
+            : 'UnknownClass';
+          this.logger.debug(
+            `Registered PubSub Listener for event type '${eventType}' on ${className}.${methodName}`,
+          );
+        }
+      }
     });
   }
 
