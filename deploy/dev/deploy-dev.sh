@@ -66,7 +66,7 @@ deploy_service() {
         "API_KEYS=api-keys:latest"
         "JWT_SECRET=jwt-secret:latest"
         "INSTAGRAM_ACCESS_TOKEN=access-token-instagram:latest"
-        # "DATABASE_URL=database-url:latest"
+        "DATABASE_URL=database-url:latest"
     )
 
     # Check if env.dev.yaml file exists
