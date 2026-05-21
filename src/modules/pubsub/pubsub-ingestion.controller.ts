@@ -1,16 +1,13 @@
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { PubSubPushRequestDto } from './dto';
 import { PubSubRegistryService } from './pubsub-registry.service';
 
-@Controller('pubsub')
+@Controller({
+  path: 'pubsub',
+  version: ['1'],
+})
 export class PubSubIngestionController extends BaseController {
   constructor(
     logger: LoggerService,
