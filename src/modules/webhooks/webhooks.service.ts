@@ -106,7 +106,7 @@ export class WebhooksService extends BaseService {
 
       try {
         await this.pubsubPublisher.publish(
-          PubSubTopic.VERIFY_INSTAGRAM_OTP,
+          PubSubTopic.META_WEBHOOKS,
           PubSubEvent.INSTAGRAM_OTP_RECEIVED,
           {
             otp: message.text,
