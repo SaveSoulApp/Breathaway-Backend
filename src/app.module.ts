@@ -21,8 +21,10 @@ import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlockModule } from './modules/blocks/blocks.module';
+import { CreditsModule } from './modules/credits/credits.module';
 import { DeviceModule } from './modules/devices/devices.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
+import { HealthModule } from './modules/health/health.module';
 import { IdentityModule } from './modules/identities/identities.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
 import { LikeModule } from './modules/likes/likes.module';
@@ -32,7 +34,6 @@ import { OtpModule } from './modules/one-time-passwords/one-time-passwords.modul
 import { ProfileModule } from './modules/profiles/profiles.module';
 import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { CreditsModule } from './modules/credits/credits.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { CreditsModule } from './modules/credits/credits.module';
     MatchModule,
     MatchResolverModule,
     CreditsModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [
