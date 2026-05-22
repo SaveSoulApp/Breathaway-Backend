@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { PubSubEvent, PubSubTopic } from '../pubsub/enums';
+import { PubSubPublisherService } from '../pubsub/pubsub-publisher.service';
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
@@ -12,6 +14,7 @@ export class WebhooksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
+    private readonly pubsubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -91,7 +94,7 @@ export class WebhooksService extends BaseService {
    * Extend this method with your business logic (e.g., store in DB,
    * trigger auto-replies, forward to AI, etc.)
    */
-  private handleMessageIntent(result: MetaWebhookResult): Promise<void> {
+  private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
       this.logger.log('Instagram message received', {
         senderId: message.senderId,
@@ -101,9 +104,23 @@ export class WebhooksService extends BaseService {
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
-      // TODO: Add your business logic here
-      // e.g., save to database, send auto-reply, forward to AI, etc.
+      try {
+        await this.pubsubPublisher.publish(
+          PubSubTopic.META_WEBHOOKS,
+          PubSubEvent.INSTAGRAM_OTP_RECEIVED,
+          {
+            otp: message.text,
+            senderId: message.senderId,
+          },
+        );
+        this.logger.log(
+          `Published OTP verification event for sender ${message.senderId}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to publish OTP verification event: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
-    return Promise.resolve();
   }
 }

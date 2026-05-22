@@ -3,6 +3,7 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
+  RequestMethod,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -32,6 +33,7 @@ import { MatchResolverModule } from './modules/match-resolver/match-resolver.mod
 import { MatchModule } from './modules/matches/matches.module';
 import { OtpModule } from './modules/one-time-passwords/one-time-passwords.module';
 import { ProfileModule } from './modules/profiles/profiles.module';
+import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
@@ -86,6 +88,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     MatchResolverModule,
     CreditsModule,
     HealthModule,
+    PubSubModule,
   ],
   controllers: [AppController],
   providers: [
@@ -110,6 +113,13 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware, TimezoneMiddleware).forRoutes('*'); // Apply to all routes
+    consumer
+      .apply(RequestIdMiddleware, TimezoneMiddleware)
+      .exclude(
+        { path: 'pubsub/(.*)', method: RequestMethod.ALL },
+        { path: 'v1/pubsub/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/pubsub/(.*)', method: RequestMethod.ALL },
+      )
+      .forRoutes('*'); // Apply to all routes
   }
 }
