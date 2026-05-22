@@ -1,13 +1,24 @@
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { PubSubPushRequestDto } from './dto';
 import { PubSubRegistryService } from './pubsub-registry.service';
+import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
 
 @Controller({
   path: 'pubsub',
   version: ['1'],
 })
+@SkipClientIdentity()
+@UseGuards(PubSubAuthGuard)
 export class PubSubIngestionController extends BaseController {
   constructor(
     logger: LoggerService,

@@ -3,6 +3,7 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
+  RequestMethod,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -112,6 +113,13 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware, TimezoneMiddleware).forRoutes('*'); // Apply to all routes
+    consumer
+      .apply(RequestIdMiddleware, TimezoneMiddleware)
+      .exclude(
+        { path: 'pubsub/(.*)', method: RequestMethod.ALL },
+        { path: 'v1/pubsub/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/pubsub/(.*)', method: RequestMethod.ALL },
+      )
+      .forRoutes('*'); // Apply to all routes
   }
 }
