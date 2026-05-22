@@ -53,7 +53,7 @@ export class PubSubPublisherService extends BaseService {
     } catch (error) {
       this.logger.error(
         `Failed to publish event '${eventType}' to topic '${topicName}':`,
-        error,
+        { error: error instanceof Error ? error.message : String(error) },
       );
       throw error;
     }

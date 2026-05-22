@@ -36,7 +36,9 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
       const instance = wrapper.instance as Record<string, unknown>;
 
       // Ensure the instance prototype is valid for scanning
-      const prototype = instance ? Object.getPrototypeOf(instance) : null;
+      const prototype = instance
+        ? (Object.getPrototypeOf(instance) as object | null)
+        : null;
       if (!prototype) {
         return;
       }
@@ -60,7 +62,7 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
           }
           this.registry.set(eventType, { target: instance, method: methodRef });
           const className = instance.constructor
-            ? (instance.constructor as Function).name
+            ? instance.constructor.name
             : 'UnknownClass';
           this.logger.debug(
             `Registered PubSub Listener for event type '${eventType}' on ${className}.${methodName}`,

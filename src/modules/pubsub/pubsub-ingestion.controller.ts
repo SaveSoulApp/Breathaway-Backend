@@ -7,7 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  UseGuards
+  UseGuards,
 } from '@nestjs/common';
 import { PubSubPushRequestDto } from './dto';
 import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
@@ -29,8 +29,8 @@ export class PubSubIngestionController extends BaseController {
 
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
-  async ingest(@Body() rawPayload: any): Promise<void> {
-    const payload = rawPayload as PubSubPushRequestDto;
+  async ingest(@Body() rawPayload: Record<string, unknown>): Promise<void> {
+    const payload = rawPayload as unknown as PubSubPushRequestDto;
     this.logger.info('Incoming Pub/Sub ingest payload', { payload });
 
     if (!payload?.message) {
@@ -87,7 +87,7 @@ export class PubSubIngestionController extends BaseController {
     } catch (error) {
       this.logger.error(
         `Error processing event '${eventType}' (messageId: ${messageId}):`,
-        error,
+        { error: error instanceof Error ? error.message : String(error) },
       );
       // We return OK (200) or throw error based on retry strategy.
       // If we throw, Pub/Sub will retry according to the subscription's retry policy.
