@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { Injectable } from '@nestjs/common';
 import { PubSubEvent } from '../pubsub/enums';
 import { PubSubListener } from '../pubsub/pubsub.decorator';
 
@@ -8,8 +10,10 @@ export interface MetaWebhookPayload {
 }
 
 @Injectable()
-export class MetaMessagesService {
-  private readonly logger = new Logger(MetaMessagesService.name);
+export class MetaMessagesService extends BaseService {
+  constructor(logger: LoggerService) {
+    super(logger);
+  }
 
   /**
    * This handler is entirely pure. It only deals with parsed data and the message ID.
@@ -17,7 +21,7 @@ export class MetaMessagesService {
    */
   @PubSubListener(PubSubEvent.META_WEBHOOK_RECEIVED)
   handleMetaWebhook(data: unknown, messageId: string): Promise<void> {
-    this.logger.log(`Received Meta Webhook data for messageId ${messageId}`);
+    this.logger.info(`Received Meta Webhook data for messageId ${messageId}`);
 
     const metaData = data as MetaWebhookPayload;
     // Domain-specific business logic goes here

@@ -19,6 +19,7 @@ export class PubSubIngestionController extends BaseController {
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
   async ingest(@Body() payload: PubSubPushRequestDto): Promise<void> {
+    this.logger.info('Incoming Pub/Sub ingest payload', { payload });
     const { message } = payload;
     const { data, messageId, attributes } = message;
 
