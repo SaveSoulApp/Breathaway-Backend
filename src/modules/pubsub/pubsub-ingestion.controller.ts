@@ -1,3 +1,4 @@
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import {
@@ -6,12 +7,11 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  UseGuards,
+  UseGuards
 } from '@nestjs/common';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { PubSubPushRequestDto } from './dto';
-import { PubSubRegistryService } from './pubsub-registry.service';
 import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
+import { PubSubRegistryService } from './pubsub-registry.service';
 
 @Controller({
   path: 'pubsub',
@@ -29,8 +29,15 @@ export class PubSubIngestionController extends BaseController {
 
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
-  async ingest(@Body() payload: PubSubPushRequestDto): Promise<void> {
+  async ingest(@Body() rawPayload: any): Promise<void> {
+    const payload = rawPayload as PubSubPushRequestDto;
     this.logger.info('Incoming Pub/Sub ingest payload', { payload });
+
+    if (!payload?.message) {
+      this.logger.warn('Ignored invalid payload: missing message object');
+      return;
+    }
+
     const { message } = payload;
     const { data, messageId, attributes } = message;
 
@@ -59,17 +66,19 @@ export class PubSubIngestionController extends BaseController {
     // await this.redisService.expire(`pubsub:processed:${messageId}`, 86400); // 1 day
 
     try {
-      // Decode the Base64 data
-      const decodedString = Buffer.from(data, 'base64').toString('utf-8');
-      let parsedData: unknown;
+      let parsedData: unknown = {};
 
-      try {
-        parsedData = JSON.parse(decodedString);
-      } catch (e) {
-        this.logger.error(
-          `Failed to parse JSON data for message ${messageId}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        return;
+      if (data) {
+        try {
+          // Decode the Base64 data
+          const decodedString = Buffer.from(data, 'base64').toString('utf-8');
+          parsedData = JSON.parse(decodedString);
+        } catch (e) {
+          this.logger.error(
+            `Failed to parse JSON data for message ${messageId}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return;
+        }
       }
 
       // Route to the registered handler (pure execution)
