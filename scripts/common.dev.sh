@@ -40,3 +40,7 @@ export JWT_ISSUER='https://breathaway.app'
 
 export OTP_TTL='300'
 export OTP_RATE_LIMIT_TTL='120'
+
+# Swagger UI Access Control
+# Set to 'false' to completely disable Swagger UI on this environment
+export SWAGGER_ENABLED='true'

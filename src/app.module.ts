@@ -3,7 +3,6 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
-  RequestMethod,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -12,11 +11,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import {
-  MiddlewareModule,
-  RequestIdMiddleware,
-  TimezoneMiddleware,
-} from './common/middlewares';
+import { configureMiddleware, MiddlewareModule } from './common/middlewares';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
@@ -112,14 +107,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
   ],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RequestIdMiddleware, TimezoneMiddleware)
-      .exclude(
-        { path: 'pubsub/(.*)', method: RequestMethod.ALL },
-        { path: 'v1/pubsub/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/pubsub/(.*)', method: RequestMethod.ALL },
-      )
-      .forRoutes('*'); // Apply to all routes
+  configure(consumer: MiddlewareConsumer): void {
+    configureMiddleware(consumer);
   }
 }
