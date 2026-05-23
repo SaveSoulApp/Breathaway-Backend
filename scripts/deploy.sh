@@ -64,6 +64,8 @@ deploy_service() {
         "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
         "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
         "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
+        "KMS_KEY_NAMES=kms-key-names:latest"
+        "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
     )
 
     local gcloud_run_args=(
@@ -103,7 +105,7 @@ deploy_service() {
     done
     env_vars_str="${env_vars_str%@}" # Remove trailing @
     
-    gcloud_run_args+=(--update-env-vars="${env_vars_str}")
+    gcloud_run_args+=(--set-env-vars="${env_vars_str}")
 
     # Attach secrets
     for secret in "${secrets[@]}"; do
