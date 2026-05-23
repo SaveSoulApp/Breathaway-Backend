@@ -1,45 +1,55 @@
 # ---------------------------
-# 1. Build Stage
+# 1. Base Stage
 # ---------------------------
-FROM node:20-slim AS builder
+FROM node:20-slim AS base
+# Prisma requires OpenSSL to run its query engine
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Pin pnpm version explicitly to avoid corepack update warnings
+RUN npm install -g pnpm@9
 
-# Install pnpm
-RUN npm install -g pnpm
-
+# ---------------------------
+# 2. Builder Stage
+# ---------------------------
+FROM base AS builder
 WORKDIR /app
 
-# Copy dependency manifests first
+# Leverage layer caching by copying manifests first
 COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma
 
-# Install dependencies (dev + prod)
+# Install all dependencies required for the build
 RUN pnpm install --frozen-lockfile
 
-# Copy Prisma schema first (needed for generate)
-COPY prisma ./prisma
-RUN pnpm run generate:prod
+# Generate Prisma Client (writes binaries to node_modules/.prisma)
+RUN pnpm dlx prisma generate
 
-# Copy the rest of the app source
+# Copy source code and compile
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
-
-# Build the NestJS app
 RUN pnpm build
 
-# ---------------------------
-# 2. Production Stage
-# ---------------------------
-FROM node:20-slim AS runner
-RUN npm install -g pnpm
+# The Optimization: Eject devDependencies.
+# Leaves only production dependencies and the generated Prisma Client.
+RUN pnpm prune --prod
 
+# ---------------------------
+# 3. Runner Stage
+# ---------------------------
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Copy everything from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
+# Switch to the non-root user
+USER node
 
-# Start the app
+# Copy only the compiled code and pruned node_modules securely
+COPY --chown=node:node --from=builder /app/dist ./dist
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./
+
+EXPOSE 8080
+
+# Start the NestJS application
 CMD ["node", "dist/main.js"]
