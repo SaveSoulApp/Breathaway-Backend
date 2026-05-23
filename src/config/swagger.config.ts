@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AuthModule } from '@modules/auth/auth.module';
@@ -7,13 +8,28 @@ import { IdentityModule } from '@modules/identities/identities.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 
-export function setupSwagger(app: INestApplication): void {
-  publicApiDocumentation(app);
+import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
+import { SWAGGER_ADMIN_PATH, SWAGGER_PUBLIC_PATH } from './swagger.constants';
 
+export function setupSwagger(
+  app: INestApplication,
+  configService: ConfigService,
+): void {
+  const isSwaggerEnabled =
+    configService.get<string>('SWAGGER_ENABLED') === 'true';
+
+  if (!isSwaggerEnabled) {
+    return;
+  }
+
+  // Register Basic Auth guard before mounting Swagger UI routes
+  applySwaggerBasicAuth(app, configService);
+
+  publicApiDocumentation(app);
   adminApiDocumentation(app);
 }
 
-function publicApiDocumentation(app: INestApplication) {
+function publicApiDocumentation(app: INestApplication): void {
   const publicModules = [AuthModule, IdentityModule, BlockModule];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')
@@ -25,7 +41,7 @@ function publicApiDocumentation(app: INestApplication) {
   const publicDoc = SwaggerModule.createDocument(app, publicConfig, {
     include: publicModules,
   });
-  SwaggerModule.setup('api/public', app, publicDoc, {
+  SwaggerModule.setup(SWAGGER_PUBLIC_PATH, app, publicDoc, {
     swaggerOptions: {
       docExpansion: 'none',
       filter: true,
@@ -38,7 +54,7 @@ function publicApiDocumentation(app: INestApplication) {
   });
 }
 
-function adminApiDocumentation(app: INestApplication) {
+function adminApiDocumentation(app: INestApplication): void {
   const adminModules = [InstagramModule, WebhooksModule];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
@@ -52,7 +68,7 @@ function adminApiDocumentation(app: INestApplication) {
   const adminDoc = SwaggerModule.createDocument(app, adminConfig, {
     include: adminModules,
   });
-  SwaggerModule.setup('api/admin', app, adminDoc, {
+  SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {
       docExpansion: 'none',
       filter: true,

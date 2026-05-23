@@ -66,6 +66,8 @@ deploy_service() {
         "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
         "KMS_KEY_NAMES=kms-key-names:latest"
         "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
+        "SWAGGER_USERNAME=swagger-username:latest"
+        "SWAGGER_PASSWORD=swagger-password:latest"
     )
 
     local gcloud_run_args=(
@@ -96,6 +98,7 @@ deploy_service() {
         "JWT_ISSUER=${JWT_ISSUER}"
         "OTP_TTL=${OTP_TTL}"
         "OTP_RATE_LIMIT_TTL=${OTP_RATE_LIMIT_TTL}"
+        "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
     )
 
     # Join environment variables with @ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
