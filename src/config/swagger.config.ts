@@ -4,8 +4,16 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlockModule } from '@modules/blocks/blocks.module';
+import { CreditsModule } from '@modules/credits/credits.module';
+import { DeviceModule } from '@modules/devices/devices.module';
+import { HealthModule } from '@modules/health/health.module';
 import { IdentityModule } from '@modules/identities/identities.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
+import { LikeModule } from '@modules/likes/likes.module';
+import { MatchModule } from '@modules/matches/matches.module';
+import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module';
+import { ProfileModule } from '@modules/profiles/profiles.module';
+import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 
 import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
@@ -30,7 +38,21 @@ export function setupSwagger(
 }
 
 function publicApiDocumentation(app: INestApplication): void {
-  const publicModules = [AuthModule, IdentityModule, BlockModule];
+  // All mobile-facing modules. Excludes: FirebaseModule (no HTTP controller),
+  // PubSubModule (internal bus), MatchResolverModule (background job).
+  const publicModules = [
+    AuthModule,
+    BlockModule,
+    CreditsModule,
+    DeviceModule,
+    HealthModule,
+    IdentityModule,
+    LikeModule,
+    MatchModule,
+    OtpModule,
+    ProfileModule,
+    SocialidentityModule,
+  ];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')
     .setDescription('BreathAway APIs - REST APIs for BreathAway App')
