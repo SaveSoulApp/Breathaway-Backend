@@ -76,12 +76,12 @@ deploy_service() {
     )
 
     # Check if env.dev.yaml file exists
-    if [[ ! -f "${PROJECT_ROOT}/env.dev.yaml" ]]; then
-        print_warning "env.dev.yaml file not found at ${PROJECT_ROOT}/env.dev.yaml"
+    if [[ ! -f "${PROJECT_ROOT}/.env.dev.yaml" ]]; then
+        print_warning ".env.dev.yaml file not found at ${PROJECT_ROOT}/.env.dev.yaml"
         print_warning "Continuing deployment without environment variables file"
         ENV_VARS_FLAG=""
     else
-        ENV_VARS_FLAG="--env-vars-file=\"${PROJECT_ROOT}/env.dev.yaml\""
+        ENV_VARS_FLAG="--env-vars-file=\"${PROJECT_ROOT}/.env.dev.yaml\""
     fi
 
     # Build the gcloud command

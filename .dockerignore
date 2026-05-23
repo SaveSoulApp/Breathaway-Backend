@@ -34,8 +34,6 @@ test
 .env.*
 .env.local
 .env.*.local
-.env.dev.yaml
-env.dev.yaml
 !.env.example
 
 # Logs

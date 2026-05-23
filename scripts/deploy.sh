@@ -63,6 +63,7 @@ deploy_service() {
         "HMAC_KEY_BASE64=hmac-key-base64:latest"
         "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
         "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
+        "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
     )
 
     local gcloud_run_args=(
@@ -74,6 +75,35 @@ deploy_service() {
         --allow-unauthenticated # Remove if this is a private microservice
         --quiet
     )
+
+    # Prepare environment variables
+    local env_vars=(
+        "NODE_ENV=${NODE_ENV}"
+        "LOG_LEVEL=${LOG_LEVEL}"
+        "SHOULD_LOG_RESPONSE=${SHOULD_LOG_RESPONSE}"
+        "DEPLOYMENT_ENV=${DEPLOYMENT_ENV}"
+        "APP_NAME=${APP_NAME}"
+        "REQUIRED_PLATFORMS=${REQUIRED_PLATFORMS}"
+        "MIN_APP_VERSION=${MIN_APP_VERSION}"
+        "GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+        "GCP_BUCKET_NAME=${GCP_BUCKET_NAME}"
+        "META_VERIFY_TOKEN=${META_VERIFY_TOKEN}"
+        "FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}"
+        "JWT_EXPIRES_IN=${JWT_EXPIRES_IN}"
+        "JWT_AUDIENCE=${JWT_AUDIENCE}"
+        "JWT_ISSUER=${JWT_ISSUER}"
+        "OTP_TTL=${OTP_TTL}"
+        "OTP_RATE_LIMIT_TTL=${OTP_RATE_LIMIT_TTL}"
+    )
+
+    # Join environment variables with @ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
+    local env_vars_str="^@^"
+    for ev in "${env_vars[@]}"; do
+        env_vars_str="${env_vars_str}${ev}@"
+    done
+    env_vars_str="${env_vars_str%@}" # Remove trailing @
+    
+    gcloud_run_args+=(--update-env-vars="${env_vars_str}")
 
     # Attach secrets
     for secret in "${secrets[@]}"; do

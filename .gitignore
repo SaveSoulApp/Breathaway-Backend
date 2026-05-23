@@ -10,7 +10,6 @@
 # Environment & Secrets
 .env
 .env.*
-env.dev.yaml
 
 # Logs & Diagnostics
 logs
