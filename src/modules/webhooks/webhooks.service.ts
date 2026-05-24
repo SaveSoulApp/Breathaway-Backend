@@ -2,6 +2,8 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { IdentityService } from '@modules/identities/identities.service';
 import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +21,7 @@ export class WebhooksService extends BaseService {
     private readonly otpService: OtpService,
     private readonly socialidentityService: SocialidentityService,
     private readonly identityService: IdentityService,
+    private readonly pubsubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -153,6 +156,23 @@ export class WebhooksService extends BaseService {
         } catch (error) {
           this.logger.error(
             `Error during OTP verification flow for sender ${message.senderId}: ${(error as Error).message}`,
+          );
+        }
+        try {
+          await this.pubsubPublisher.publish(
+            PubSubTopic.META_WEBHOOKS,
+            PubSubEvent.INSTAGRAM_OTP_RECEIVED,
+            {
+              otp: message.text,
+              senderId: message.senderId,
+            },
+          );
+          this.logger.log(
+            `Published OTP verification event for sender ${message.senderId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to publish OTP verification event: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }

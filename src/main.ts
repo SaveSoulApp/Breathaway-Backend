@@ -39,7 +39,10 @@ async function bootstrap(): Promise<void> {
     prefix: 'api/v',
   });
 
-  setupSwagger(app);
+  // 4. Graceful Shutdown
+  app.enableShutdownHooks();
+
+  setupSwagger(app, configService);
 
   const port = configService.get<number>('PORT', 3000);
 

@@ -4,6 +4,7 @@ import { OtpService } from '@modules/one-time-passwords/one-time-passwords.servi
 import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PubSubPublisherService } from '../../pubsub/pubsub-publisher.service';
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { WebhooksService } from '../webhooks.service';
@@ -24,6 +25,7 @@ describe('WebhooksService', () => {
   let logger: {
     forContext: jest.Mock;
   };
+  let pubsubPublisher: { publish: jest.Mock };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -36,6 +38,10 @@ describe('WebhooksService', () => {
 
     logger = {
       forContext: jest.fn().mockReturnValue(contextualLogger),
+    };
+
+    pubsubPublisher = {
+      publish: jest.fn(),
     };
 
     configService = {
@@ -61,6 +67,7 @@ describe('WebhooksService', () => {
         { provide: OtpService, useValue: otpService },
         { provide: SocialidentityService, useValue: socialidentityService },
         { provide: IdentityService, useValue: identityService },
+        { provide: PubSubPublisherService, useValue: pubsubPublisher },
         {
           provide: LoggerService,
           useValue: logger as unknown as LoggerService,

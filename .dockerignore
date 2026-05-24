@@ -1,44 +1,61 @@
-# Node / Dependencies
-node_modules
-npm-debug.log
-dist
-.pnpm-store
-.npm
-.cache
-*.log
-
-# Environment & secrets
-.env
-.env.*
-.env.local
-.env.*.local
-env.dev.yaml
-
 # Git & IDE
 .git
 .gitignore
 .gitattributes
 .vscode
 .idea
-.DS_Store
 
 # OS / Editor
+.DS_Store
 Thumbs.db
 *.swp
 *.swo
 
-# Tests & coverage
+# Dependencies & Package Managers
+node_modules
+.pnp
+.pnp.js
+.pnpm-store
+.npm
+.cache
+
+# Build Outputs
+dist
+build
+
+# Tests & Coverage
 coverage
 test
 *.spec.ts
 *.test.ts
 
-# Docker related
+# Environment & Secrets
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Docker Related
 Dockerfile
+.dockerignore
 docker-compose.yml
 
-# File
+# Docs & Miscellaneous
 README.md
-
-# Other
 deployment
+
+# Ignore all terraform files from the docker context
+terraform/
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
