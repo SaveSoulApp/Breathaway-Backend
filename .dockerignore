@@ -49,3 +49,13 @@ docker-compose.yml
 # Docs & Miscellaneous
 README.md
 deployment
+
+# Ignore all terraform files from the docker context
+terraform/
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
