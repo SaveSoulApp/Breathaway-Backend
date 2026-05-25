@@ -22,6 +22,7 @@ import { DeviceModule } from './modules/devices/devices.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { HealthModule } from './modules/health/health.module';
 import { IdentityModule } from './modules/identities/identities.module';
+import { IdentityWorkflowsModule } from './modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
 import { LikeModule } from './modules/likes/likes.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
@@ -84,6 +85,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     CreditsModule,
     HealthModule,
     PubSubModule,
+    IdentityWorkflowsModule,
   ],
   controllers: [AppController],
   providers: [
