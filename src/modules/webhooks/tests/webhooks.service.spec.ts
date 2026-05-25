@@ -1,10 +1,8 @@
 import { LoggerService } from '@core/logger';
-import { IdentityService } from '@modules/identities/identities.service';
-import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
-import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PubSubPublisherService } from '../../pubsub/pubsub-publisher.service';
+import { WEBHOOK_MESSAGE_HANDLERS } from '../webhooks.constants';
+import { WebhookMessageHandler } from '../handlers/webhook-message.handler.interface';
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { WebhooksService } from '../webhooks.service';
@@ -12,9 +10,6 @@ import { WebhooksService } from '../webhooks.service';
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let configService: jest.Mocked<ConfigService>;
-  let otpService: { verifyAndConsumeOtp: jest.Mock };
-  let socialidentityService: { verifyInstagramIdentity: jest.Mock };
-  let identityService: { claimOrCreateIdentity: jest.Mock };
   let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
@@ -25,7 +20,8 @@ describe('WebhooksService', () => {
   let logger: {
     forContext: jest.Mock;
   };
-  let pubsubPublisher: { publish: jest.Mock };
+  let mockHandler1: jest.Mocked<WebhookMessageHandler>;
+  let mockHandler2: jest.Mocked<WebhookMessageHandler>;
 
   beforeEach(async () => {
     contextualLogger = {
@@ -40,34 +36,28 @@ describe('WebhooksService', () => {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 
-    pubsubPublisher = {
-      publish: jest.fn(),
-    };
-
     configService = {
       get: jest.fn(),
     } as unknown as jest.Mocked<ConfigService>;
 
-    otpService = {
-      verifyAndConsumeOtp: jest.fn(),
+    mockHandler1 = {
+      canHandle: jest.fn().mockReturnValue(false),
+      handle: jest.fn().mockResolvedValue(undefined),
     };
 
-    socialidentityService = {
-      verifyInstagramIdentity: jest.fn(),
-    };
-
-    identityService = {
-      claimOrCreateIdentity: jest.fn(),
+    mockHandler2 = {
+      canHandle: jest.fn().mockReturnValue(false),
+      handle: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhooksService,
         { provide: ConfigService, useValue: configService },
-        { provide: OtpService, useValue: otpService },
-        { provide: SocialidentityService, useValue: socialidentityService },
-        { provide: IdentityService, useValue: identityService },
-        { provide: PubSubPublisherService, useValue: pubsubPublisher },
+        {
+          provide: WEBHOOK_MESSAGE_HANDLERS,
+          useValue: [mockHandler1, mockHandler2],
+        },
         {
           provide: LoggerService,
           useValue: logger as unknown as LoggerService,
@@ -187,7 +177,7 @@ describe('WebhooksService', () => {
   });
 
   describe('handleMetaWebhookEvents', () => {
-    it('should handle MESSAGE intent', async () => {
+    it('should handle MESSAGE intent using the first matching handler', async () => {
       const results = [
         {
           intent: MetaWebhookIntent.MESSAGE,
@@ -205,18 +195,16 @@ describe('WebhooksService', () => {
         },
       ];
 
+      mockHandler1.canHandle.mockReturnValue(true);
+
       await service.handleMetaWebhookEvents(results);
 
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Instagram message received',
-        {
-          senderId: 'sender-1',
-          recipientId: 'recipient-1',
-          messageId: 'mid-1',
-          text: 'hello',
-          timestamp: new Date(1234567890).toISOString(),
-        },
+      expect(mockHandler1.canHandle).toHaveBeenCalledWith(
+        results[0].messages[0],
       );
+      expect(mockHandler1.handle).toHaveBeenCalledWith(results[0].messages[0]);
+      expect(mockHandler2.canHandle).not.toHaveBeenCalled();
+      expect(mockHandler2.handle).not.toHaveBeenCalled();
     });
 
     it('should warn for UNKNOWN intent', async () => {
