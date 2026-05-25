@@ -26,7 +26,7 @@ export class IdentityWorkflowsService extends BaseService {
   ): Promise<void> {
     this.logger.info(`Received Instagram OTP event for messageId ${messageId}`);
 
-    const { otp: extractedOtp, senderId, timestamp } = data;
+    const { otp: extractedOtp, senderId } = data;
 
     try {
       this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
