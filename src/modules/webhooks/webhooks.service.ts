@@ -1,22 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
-import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
+import { WebhookMessageHandler } from './handlers/webhook-message.handler.interface';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
+import { WEBHOOK_MESSAGE_HANDLERS } from './webhooks.constants';
 
 @Injectable()
 export class WebhooksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
-    private readonly pubsubPublisher: PubSubPublisherService,
+    @Inject(WEBHOOK_MESSAGE_HANDLERS)
+    private readonly messageHandlers: WebhookMessageHandler[],
   ) {
     super(logger);
   }
@@ -107,52 +108,11 @@ export class WebhooksService extends BaseService {
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
-      // 2. Categorize and Publish Event
-      const verifyRegex = /^verify:\s*(\S+)/i;
-      const match = message.text.match(verifyRegex);
-
-      if (match && match[1]) {
-        const extractedOtp = match[1];
-
-        try {
-          await this.pubsubPublisher.publish(
-            PubSubTopic.IDENTITY_WORKFLOWS,
-            PubSubEvent.INSTAGRAM_OTP_RECEIVED,
-            {
-              otp: extractedOtp,
-              senderId: message.senderId,
-              timestamp: message.timestamp,
-            },
-          );
-          this.logger.log(
-            `Published OTP verification event for sender ${message.senderId}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Failed to publish OTP verification event: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      } else {
-        // Publish generic message received event for other downstreams
-        try {
-          await this.pubsubPublisher.publish(
-            PubSubTopic.META_WEBHOOKS,
-            PubSubEvent.META_WEBHOOK_RECEIVED,
-            {
-              messageId: message.messageId,
-              text: message.text,
-              senderId: message.senderId,
-              recipientId: message.recipientId,
-              timestamp: message.timestamp,
-            },
-          );
-          this.logger.log(
-            `Published generic message event for message ${message.messageId}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Failed to publish generic message event: ${error instanceof Error ? error.message : String(error)}`,
-          );
+      // 2. Delegate to Composite Handlers
+      for (const handler of this.messageHandlers) {
+        if (handler.canHandle(message)) {
+          await handler.handle(message);
+          break; // Stop at the first handler that processes the message
         }
       }
     }
