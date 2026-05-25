@@ -5,5 +5,6 @@ import { SocialidentityService } from './social-identities.service';
 @Module({
   controllers: [SocialidentityController],
   providers: [SocialidentityService],
+  exports: [SocialidentityService],
 })
 export class SocialidentityModule {}

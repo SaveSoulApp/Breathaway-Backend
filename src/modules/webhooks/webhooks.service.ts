@@ -1,20 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { PubSubEvent, PubSubTopic } from '../pubsub/enums';
-import { PubSubPublisherService } from '../pubsub/pubsub-publisher.service';
+
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
+import { WebhookMessageHandler } from './handlers/webhook-message.handler.interface';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
+import { WEBHOOK_MESSAGE_HANDLERS } from './webhooks.constants';
 
 @Injectable()
 export class WebhooksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
-    private readonly pubsubPublisher: PubSubPublisherService,
+    @Inject(WEBHOOK_MESSAGE_HANDLERS)
+    private readonly messageHandlers: WebhookMessageHandler[],
   ) {
     super(logger);
   }
@@ -96,6 +99,7 @@ export class WebhooksService extends BaseService {
    */
   private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
+      // 1. Logging
       this.logger.log('Instagram message received', {
         senderId: message.senderId,
         recipientId: message.recipientId,
@@ -104,22 +108,12 @@ export class WebhooksService extends BaseService {
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
-      try {
-        await this.pubsubPublisher.publish(
-          PubSubTopic.META_WEBHOOKS,
-          PubSubEvent.INSTAGRAM_OTP_RECEIVED,
-          {
-            otp: message.text,
-            senderId: message.senderId,
-          },
-        );
-        this.logger.log(
-          `Published OTP verification event for sender ${message.senderId}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to publish OTP verification event: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      // 2. Delegate to Composite Handlers
+      for (const handler of this.messageHandlers) {
+        if (handler.canHandle(message)) {
+          await handler.handle(message);
+          break; // Stop at the first handler that processes the message
+        }
       }
     }
   }
