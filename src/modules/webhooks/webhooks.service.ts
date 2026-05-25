@@ -1,13 +1,11 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { IdentityService } from '@modules/identities/identities.service';
-import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
-import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
-import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { IdentityType } from '@prisma/client';
+
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
@@ -18,9 +16,6 @@ export class WebhooksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
-    private readonly otpService: OtpService,
-    private readonly socialidentityService: SocialidentityService,
-    private readonly identityService: IdentityService,
     private readonly pubsubPublisher: PubSubPublisherService,
   ) {
     super(logger);
@@ -103,6 +98,7 @@ export class WebhooksService extends BaseService {
    */
   private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
+      // 1. Logging
       this.logger.log('Instagram message received', {
         senderId: message.senderId,
         recipientId: message.recipientId,
@@ -111,7 +107,7 @@ export class WebhooksService extends BaseService {
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
-      // Check if message is a Verify OTP request
+      // 2. Categorize and Publish Event
       const verifyRegex = /^verify:\s*(\S+)/i;
       const match = message.text.match(verifyRegex);
 
@@ -119,52 +115,13 @@ export class WebhooksService extends BaseService {
         const extractedOtp = match[1];
 
         try {
-          this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
-          // Note: verifyAndConsumeOtp automatically handles hashing the OTP
-          const userId =
-            await this.otpService.verifyAndConsumeOtp(extractedOtp);
-
-          this.logger.log(
-            `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${message.senderId}`,
-          );
-          const identity =
-            await this.socialidentityService.verifyInstagramIdentity(
-              message.senderId,
-            );
-
-          const username = identity.username;
-
-          if (username) {
-            this.logger.log(
-              `Found Instagram username: ${username}. Linking identity to user ${userId}...`,
-            );
-            await this.identityService.claimOrCreateIdentity(
-              IdentityType.INSTAGRAM,
-              username,
-              message.senderId,
-              userId,
-            );
-            this.logger.log(
-              `Successfully linked Instagram identity (${username}) to user (${userId}).`,
-            );
-            // TODO: take the next steps
-          } else {
-            this.logger.warn(
-              `Could not extract a valid username from Instagram identity payload.`,
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `Error during OTP verification flow for sender ${message.senderId}: ${(error as Error).message}`,
-          );
-        }
-        try {
           await this.pubsubPublisher.publish(
-            PubSubTopic.META_WEBHOOKS,
+            PubSubTopic.IDENTITY_WORKFLOWS,
             PubSubEvent.INSTAGRAM_OTP_RECEIVED,
             {
-              otp: message.text,
+              otp: extractedOtp,
               senderId: message.senderId,
+              timestamp: message.timestamp,
             },
           );
           this.logger.log(
@@ -173,6 +130,28 @@ export class WebhooksService extends BaseService {
         } catch (error) {
           this.logger.error(
             `Failed to publish OTP verification event: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      } else {
+        // Publish generic message received event for other downstreams
+        try {
+          await this.pubsubPublisher.publish(
+            PubSubTopic.META_WEBHOOKS,
+            PubSubEvent.META_WEBHOOK_RECEIVED,
+            {
+              messageId: message.messageId,
+              text: message.text,
+              senderId: message.senderId,
+              recipientId: message.recipientId,
+              timestamp: message.timestamp,
+            },
+          );
+          this.logger.log(
+            `Published generic message event for message ${message.messageId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to publish generic message event: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
