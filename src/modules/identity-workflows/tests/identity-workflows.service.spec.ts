@@ -1,9 +1,10 @@
 import { LoggerService } from '@core/logger';
 import { IdentityService } from '@modules/identities/identities.service';
 import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
 import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { IdentityType } from '@prisma/client';
+import { Identity, IdentityType } from '@prisma/client';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
 
 describe('IdentityWorkflowsService', () => {
@@ -74,8 +75,10 @@ describe('IdentityWorkflowsService', () => {
       otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
       socialidentityService.verifyInstagramIdentity.mockResolvedValue({
         username: 'test_user',
-      } as any);
-      identityService.claimOrCreateIdentity.mockResolvedValue({} as any);
+      } as unknown as SocialIdentityResponseDto);
+      identityService.claimOrCreateIdentity.mockResolvedValue(
+        {} as unknown as Identity,
+      );
 
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
@@ -101,7 +104,7 @@ describe('IdentityWorkflowsService', () => {
       otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
       socialidentityService.verifyInstagramIdentity.mockResolvedValue({
         username: null,
-      } as any);
+      } as unknown as SocialIdentityResponseDto);
 
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
