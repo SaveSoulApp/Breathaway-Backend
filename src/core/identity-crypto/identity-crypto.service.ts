@@ -1,11 +1,13 @@
 import { PlatformId, PublicValue } from '@common/interfaces';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
+import { BaseService } from '@core/base';
 import {
   decryptAesGcm,
   encryptAesGcm,
   generateDataKey,
 } from '@core/crypto/crypto.utils';
 import type { IKeyManager } from '@core/kms/key-manager.interface';
+import { LoggerService } from '@core/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { IdentityType } from '@prisma/client';
 
@@ -18,10 +20,13 @@ export interface EncryptedValue {
 }
 
 @Injectable()
-export class IdentityCryptoService {
+export class IdentityCryptoService extends BaseService {
   constructor(
+    logger: LoggerService,
     @Inject('KEY_MANAGER') private readonly keyManager: IKeyManager,
-  ) {}
+  ) {
+    super(logger);
+  }
 
   public async processPublicValue(
     value: string,

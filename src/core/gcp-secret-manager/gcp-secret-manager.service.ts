@@ -1,12 +1,15 @@
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from '@core/logger';
 
 @Injectable()
-export class GcpSecretManagerService {
+export class GcpSecretManagerService extends BaseService {
   private readonly client = new SecretManagerServiceClient();
 
-  constructor(private readonly logger: LoggerService) {}
+  constructor(logger: LoggerService) {
+    super(logger);
+  }
 
   /**
    * Adds a new version to an existing GCP secret.
