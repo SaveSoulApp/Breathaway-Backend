@@ -32,6 +32,7 @@ import { ProfileModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     HealthModule,
     PubSubModule,
     IdentityWorkflowsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
