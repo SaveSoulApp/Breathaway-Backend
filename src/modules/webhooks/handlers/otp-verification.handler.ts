@@ -1,18 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BaseHandler } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { Injectable } from '@nestjs/common';
 import { ParsedInstagramMessage } from '../interfaces/meta-webhook-result.interface';
 import { WebhookMessageHandler } from './webhook-message.handler.interface';
 
 @Injectable()
-export class OtpVerificationHandler implements WebhookMessageHandler {
+export class OtpVerificationHandler
+  extends BaseHandler
+  implements WebhookMessageHandler
+{
   private readonly verifyRegex = /^verify:\s*(\S+)/i;
 
   constructor(
-    private readonly logger: LoggerService,
+    logger: LoggerService,
     private readonly pubsubPublisher: PubSubPublisherService,
-  ) {}
+  ) {
+    super(logger);
+  }
 
   canHandle(message: ParsedInstagramMessage): boolean {
     return this.verifyRegex.test(message.text);
