@@ -1,0 +1,6 @@
+export enum NotificationType {
+  NEW_MATCH = 'NEW_MATCH',
+  NEW_MESSAGE = 'NEW_MESSAGE',
+  CREDIT_UPDATE = 'CREDIT_UPDATE',
+  SYSTEM_ALERT = 'SYSTEM_ALERT',
+}
