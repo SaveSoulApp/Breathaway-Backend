@@ -1,4 +1,3 @@
-import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { Module } from '@nestjs/common';
 import { GenericMessageHandler } from './handlers/generic-message.handler';
 import { OtpVerificationHandler } from './handlers/otp-verification.handler';
@@ -7,7 +6,7 @@ import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
 
 @Module({
-  imports: [PubSubModule],
+  imports: [],
   controllers: [WebhooksController],
   providers: [
     WebhooksService,
