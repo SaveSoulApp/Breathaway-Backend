@@ -60,7 +60,7 @@ export class IdentityWorkflowsService extends BaseService {
         this.logger.log(
           `Successfully linked Instagram identity (${username}) to user (${userId}).`,
         );
-        
+
         // TODO: take the next steps
         this.notificationsService
           .dispatch({
@@ -78,7 +78,6 @@ export class IdentityWorkflowsService extends BaseService {
               { error: err instanceof Error ? err.message : String(err) },
             );
           });
-
       } else {
         this.logger.warn(
           `Could not extract a valid username from Instagram identity payload.`,
