@@ -3,9 +3,20 @@ import { LoggerService } from '@core/logger';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { Injectable } from '@nestjs/common';
 import { Device, DevicePlatform } from '@prisma/client';
+import * as admin from 'firebase-admin';
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 import { NotificationPriority } from '../enums/notification-priority.enum';
 import { INotificationProvider } from './notification-provider.interface';
+
+export interface FcmPayload {
+  notification: {
+    title?: string;
+    body?: string;
+  };
+  data: Record<string, string>;
+  apns?: admin.messaging.ApnsConfig;
+  android?: admin.messaging.AndroidConfig;
+}
 
 @Injectable()
 export class FcmProviderService
@@ -71,7 +82,7 @@ export class FcmProviderService
 
   private async sendToFcm(
     tokens: string[],
-    payload: any,
+    payload: FcmPayload,
     platform: DevicePlatform,
   ): Promise<void> {
     try {
@@ -83,7 +94,7 @@ export class FcmProviderService
 
       // For multiple tokens, use sendEachForMulticast for better performance
       if (tokens.length > 1) {
-        const message = {
+        const message: admin.messaging.MulticastMessage = {
           tokens,
           notification: payload.notification,
           data: payload.data,
@@ -109,7 +120,7 @@ export class FcmProviderService
         }
       } else {
         // Single token
-        const message = {
+        const message: admin.messaging.Message = {
           token: tokens[0],
           notification: payload.notification,
           data: payload.data,
@@ -129,7 +140,7 @@ export class FcmProviderService
     }
   }
 
-  private createBasePayload(dto: SendNotificationRequestDto): any {
+  private createBasePayload(dto: SendNotificationRequestDto): FcmPayload {
     return {
       notification: {
         title: dto.title,
@@ -146,7 +157,7 @@ export class FcmProviderService
     };
   }
 
-  private createIosPayload(dto: SendNotificationRequestDto): any {
+  private createIosPayload(dto: SendNotificationRequestDto): FcmPayload {
     return {
       ...this.createBasePayload(dto),
       apns: {
@@ -165,14 +176,14 @@ export class FcmProviderService
     };
   }
 
-  private createAndroidPayload(dto: SendNotificationRequestDto): any {
+  private createAndroidPayload(dto: SendNotificationRequestDto): FcmPayload {
     return {
       ...this.createBasePayload(dto),
       android: {
         priority:
           dto.priority === NotificationPriority.HIGH ? 'high' : 'normal',
         notification: {
-          channel_id:
+          channelId:
             dto.priority === NotificationPriority.HIGH
               ? 'high_priority'
               : 'default',
@@ -182,12 +193,16 @@ export class FcmProviderService
     };
   }
 
-  private convertDataToStrings(data: any): Record<string, string> {
+  private convertDataToStrings(
+    data: Record<string, unknown>,
+  ): Record<string, string> {
     const convertedData: Record<string, string> = {};
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined && value !== null) {
         convertedData[key] =
-          typeof value === 'object' ? JSON.stringify(value) : String(value);
+          typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value as string | number | boolean);
       }
     }
     return convertedData;
