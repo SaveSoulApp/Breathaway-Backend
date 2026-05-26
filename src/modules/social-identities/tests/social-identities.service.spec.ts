@@ -54,9 +54,9 @@ describe('SocialidentityService', () => {
     it('should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is not defined', async () => {
       configService.get.mockReturnValue(undefined);
 
-      await expect(
-        service.verifyInstagramIdentity('test-id'),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
+        InternalServerErrorException,
+      );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
@@ -74,9 +74,9 @@ describe('SocialidentityService', () => {
       };
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(
-        service.verifyInstagramIdentity('test-id'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
+        BadRequestException,
+      );
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Instagram API returned error: 400'),
@@ -92,18 +92,20 @@ describe('SocialidentityService', () => {
       };
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(
-        service.verifyInstagramIdentity('test-id'),
-      ).rejects.toThrow(new BadRequestException('Instagram API Error: Failed to verify Instagram identity'));
+      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
+        new BadRequestException(
+          'Instagram API Error: Failed to verify Instagram identity',
+        ),
+      );
     });
 
     it('should throw BadGatewayException if network request fails completely', async () => {
       configService.get.mockReturnValue('valid-token');
       (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-      await expect(
-        service.verifyInstagramIdentity('test-id'),
-      ).rejects.toThrow(BadGatewayException);
+      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
+        BadGatewayException,
+      );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Network or unexpected error while calling Instagram API: Network error',
@@ -144,7 +146,9 @@ describe('SocialidentityService', () => {
         platform: 'instagram',
       });
 
-      expect(contextualLogger.log).toHaveBeenCalledWith('Fetching identity for instagramId: 123');
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Fetching identity for instagramId: 123',
+      );
     });
   });
 });

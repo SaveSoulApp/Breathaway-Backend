@@ -30,8 +30,14 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
     { path: `${path}-yaml`, method: RequestMethod.ALL },
   ]);
 
+  const browserExclusions = [
+    { path: 'favicon.ico', method: RequestMethod.GET },
+    { path: 'apple-touch-icon.png', method: RequestMethod.GET },
+    { path: 'apple-touch-icon-precomposed.png', method: RequestMethod.GET },
+  ];
+
   consumer
     .apply(RequestIdMiddleware, TimezoneMiddleware)
-    .exclude(...pubSubExclusions, ...swaggerExclusions)
+    .exclude(...pubSubExclusions, ...swaggerExclusions, ...browserExclusions)
     .forRoutes('*');
 }
