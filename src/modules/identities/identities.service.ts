@@ -2,14 +2,19 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
-
-import { CreateIdentityDto, UpdateIdentityDto } from './dto';
+import {
+  CreateIdentityDto,
+  LookupIdentityRequestDto,
+  UpdateIdentityDto,
+} from './dto';
 
 @Injectable()
 export class IdentityService extends BaseService {
@@ -17,6 +22,7 @@ export class IdentityService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
+    private readonly pubSubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -266,6 +272,8 @@ export class IdentityService extends BaseService {
           ...platformIdData,
         },
       });
+
+      this.publishIdentityClaimedEvent(userId);
       return this.toMaskedResponse(updated);
     }
 
@@ -280,10 +288,77 @@ export class IdentityService extends BaseService {
       },
     });
 
+    this.publishIdentityClaimedEvent(userId);
     return this.toMaskedResponse(identity);
   }
 
+  async findByPublicValue(userId: string, dto: LookupIdentityRequestDto) {
+    const { publicValueHash } = await this.encryption.processPublicValue(
+      dto.publicValue,
+      dto.type,
+    );
+
+    const identity = await this.prisma.identity.findFirst({
+      where: { type: dto.type, publicValueHash, userId, deletedAt: null },
+    });
+
+    if (!identity) {
+      throw new NotFoundException(
+        `No ${dto.type} identity with the provided value found for this user`,
+      );
+    }
+
+    const publicValue = await this.encryption.decryptPublicValue({
+      publicValueCiphertext: identity.publicValueCiphertext,
+      publicValueIv: identity.publicValueIv,
+      publicValueTag: identity.publicValueTag,
+      publicValueWrappedKey: identity.publicValueWrappedKey,
+      publicValueKeyId: identity.publicValueKeyId,
+    });
+
+    let platformId: string | null = null;
+    if (
+      identity.platformIdCiphertext &&
+      identity.platformIdIv &&
+      identity.platformIdTag &&
+      identity.platformIdWrappedKey &&
+      identity.platformIdKeyId
+    ) {
+      platformId = await this.encryption.decryptPlatformId({
+        platformIdCiphertext: identity.platformIdCiphertext,
+        platformIdIv: identity.platformIdIv,
+        platformIdTag: identity.platformIdTag,
+        platformIdWrappedKey: identity.platformIdWrappedKey,
+        platformIdKeyId: identity.platformIdKeyId,
+      });
+    }
+
+    return {
+      ...this.toMaskedResponse(identity),
+      publicValue,
+      platformId,
+    };
+  }
+
   // ----- Private helpers -----
+
+  /**
+   * Publishes an IDENTITY_CLAIMED event to Pub/Sub to trigger async match resolution
+   * for the newly claiming user. The publish is fire-and-forget — Pub/Sub provides
+   * the durability and retry guarantees, so we only log on failure.
+   */
+  private publishIdentityClaimedEvent(userId: string): void {
+    this.pubSubPublisher
+      .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+        userId,
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for user ${userId}`,
+          { error: err.message },
+        );
+      });
+  }
 
   private async findOwnedOrFail(id: string, userId: string) {
     const identity = await this.prisma.identity.findFirst({

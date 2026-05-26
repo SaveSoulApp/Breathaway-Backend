@@ -1,4 +1,5 @@
 import { IdentityModule } from '@modules/identities/identities.module';
+import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
@@ -12,6 +13,7 @@ import { IdentityWorkflowsService } from './identity-workflows.service';
     SocialidentityModule,
     IdentityModule,
     NotificationsModule,
+    MatchResolverModule,
   ],
   controllers: [IdentityWorkflowsController],
   providers: [IdentityWorkflowsService],

@@ -70,3 +70,8 @@ export const mockIdentityCompleteResponse = {
   publicValue: 'test@example.com',
   platformId: null,
 };
+
+export const mockLookupIdentityDto = {
+  type: IdentityType.EMAIL,
+  publicValue: 'test@example.com',
+};

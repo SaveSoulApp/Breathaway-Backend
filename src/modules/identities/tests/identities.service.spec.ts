@@ -1,7 +1,3 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { Identity } from '@prisma/client';
-
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -9,8 +5,15 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-
-import { CreateIdentityDto, UpdateIdentityDto } from '../dto';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Identity, IdentityType } from '@prisma/client';
+import {
+  CreateIdentityDto,
+  LookupIdentityRequestDto,
+  UpdateIdentityDto,
+} from '../dto';
 import { IdentityService } from '../identities.service';
 import {
   mockCreateIdentityDto,
@@ -18,6 +21,7 @@ import {
   mockIdentityData,
   mockIdentityId,
   mockIdentityResponse,
+  mockLookupIdentityDto,
   mockPlatformIdData,
   mockUserId,
 } from './mocks/identities.mock';
@@ -26,8 +30,22 @@ describe('IdentityService', () => {
   let service: IdentityService;
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
+  let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
+  let contextualLogger: {
+    info: jest.Mock;
+    error: jest.Mock;
+    warn: jest.Mock;
+    debug: jest.Mock;
+  };
 
   beforeEach(async () => {
+    contextualLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    };
+
     const mockEncryptionService = {
       processPublicValue: jest.fn(),
       processPlatformId: jest.fn(),
@@ -36,12 +54,11 @@ describe('IdentityService', () => {
     };
 
     const mockLoggerService = {
-      forContext: jest.fn().mockReturnValue({
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
-      }),
+      forContext: jest.fn().mockReturnValue(contextualLogger),
+    };
+
+    const mockPubSubPublisherService = {
+      publish: jest.fn().mockResolvedValue('mock-message-id'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -50,14 +67,18 @@ describe('IdentityService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
+        {
+          provide: PubSubPublisherService,
+          useValue: mockPubSubPublisherService,
+        },
       ],
     }).compile();
 
     service = module.get<IdentityService>(IdentityService);
 
     prisma = module.get(PrismaService);
-
     encryption = module.get(IdentityCryptoService);
+    pubSubPublisher = module.get(PubSubPublisherService);
   });
 
   afterEach(() => {
@@ -514,6 +535,18 @@ describe('IdentityService', () => {
         },
       });
     });
+
+    it('should throw NotFoundException if identity not owned by user', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.delete(mockIdentityId, mockUserId)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prisma.identity.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('verify', () => {
@@ -547,6 +580,275 @@ describe('IdentityService', () => {
         isVerified: true,
         verifiedAt: updatedIdentity.verifiedAt,
       });
+    });
+
+    it('should throw NotFoundException if identity not owned by user', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.verify(mockIdentityId, mockUserId)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prisma.identity.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — findOwnedOrFail propagation', () => {
+    it('should throw NotFoundException if identity not owned by user', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        service.update(mockIdentityId, mockUserId, {
+          publicValue: 'new@example.com',
+        } as UpdateIdentityDto),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(encryption.processPublicValue).not.toHaveBeenCalled();
+      expect(prisma.identity.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('claimOrCreateIdentity', () => {
+    const type = IdentityType.INSTAGRAM;
+    const publicValue = 'instagram_user';
+    const platformId = 'igid_123';
+
+    it('should create a new identity when no existing record is found', async () => {
+      // Arrange
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      const newIdentity = {
+        ...mockIdentityData,
+        type,
+        isVerified: true,
+        verifiedAt: new Date(),
+        ...mockPlatformIdData,
+      };
+      prisma.identity.create.mockResolvedValue(newIdentity as Identity);
+
+      // Act
+      const result = await service.claimOrCreateIdentity(
+        type,
+        publicValue,
+        platformId,
+        mockUserId,
+      );
+
+      // Assert
+      expect(encryption.processPublicValue).toHaveBeenCalledWith(
+        publicValue,
+        type,
+      );
+      expect(encryption.processPlatformId).toHaveBeenCalledWith(platformId);
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          type,
+          publicValueHash: mockEncryptedData.publicValueHash,
+          deletedAt: null,
+        },
+      });
+      expect(prisma.identity.create).toHaveBeenCalledWith({
+        data: {
+          type,
+          userId: mockUserId,
+          isVerified: true,
+          verifiedAt: expect.any(Date),
+          ...mockEncryptedData,
+          ...mockPlatformIdData,
+        },
+      });
+      expect(pubSubPublisher.publish).toHaveBeenCalled();
+      expect(result).toMatchObject({ isVerified: true });
+    });
+
+    it('should claim (update) an existing unclaimed identity', async () => {
+      // Arrange
+      const unclaimedIdentity = { ...mockIdentityData, userId: null };
+
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
+      prisma.identity.findFirst.mockResolvedValue(
+        unclaimedIdentity as unknown as Identity,
+      );
+
+      const updatedIdentity = {
+        ...mockIdentityData,
+        userId: mockUserId,
+        isVerified: true,
+        verifiedAt: new Date(),
+        ...mockPlatformIdData,
+      };
+      prisma.identity.update.mockResolvedValue(updatedIdentity as Identity);
+
+      // Act
+      const result = await service.claimOrCreateIdentity(
+        type,
+        publicValue,
+        platformId,
+        mockUserId,
+      );
+
+      // Assert
+      expect(prisma.identity.create).not.toHaveBeenCalled();
+      expect(prisma.identity.update).toHaveBeenCalledWith({
+        where: { id: unclaimedIdentity.id },
+        data: {
+          userId: mockUserId,
+          isVerified: true,
+          verifiedAt: expect.any(Date),
+          ...mockPlatformIdData,
+        },
+      });
+      expect(pubSubPublisher.publish).toHaveBeenCalled();
+      expect(result).toMatchObject({ isVerified: true, userId: mockUserId });
+    });
+
+    it('should throw ConflictException if identity is already claimed by another user', async () => {
+      // Arrange
+      const claimedByOther = { ...mockIdentityData, userId: 'other-user-999' };
+
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
+      prisma.identity.findFirst.mockResolvedValue(
+        claimedByOther as unknown as Identity,
+      );
+
+      // Act & Assert
+      await expect(
+        service.claimOrCreateIdentity(
+          type,
+          publicValue,
+          platformId,
+          mockUserId,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.identity.update).not.toHaveBeenCalled();
+      expect(prisma.identity.create).not.toHaveBeenCalled();
+      expect(pubSubPublisher.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findByPublicValue', () => {
+    it('should return complete identity without platformId when fields are absent', async () => {
+      // Arrange
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
+      encryption.decryptPublicValue.mockResolvedValue('test@example.com');
+
+      // Act
+      const result = await service.findByPublicValue(
+        mockUserId,
+        mockLookupIdentityDto as LookupIdentityRequestDto,
+      );
+
+      // Assert
+      expect(encryption.processPublicValue).toHaveBeenCalledWith(
+        mockLookupIdentityDto.publicValue,
+        mockLookupIdentityDto.type,
+      );
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: mockLookupIdentityDto.type,
+          publicValueHash: mockEncryptedData.publicValueHash,
+          userId: mockUserId,
+          deletedAt: null,
+        },
+      });
+      expect(result).toEqual({
+        ...mockIdentityResponse,
+        publicValue: 'test@example.com',
+        platformId: null,
+      });
+    });
+
+    it('should return complete identity with decrypted platformId when fields are present', async () => {
+      // Arrange
+      const identityWithPlatform = {
+        ...mockIdentityData,
+        ...mockPlatformIdData,
+      };
+
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue(
+        identityWithPlatform as Identity,
+      );
+      encryption.decryptPublicValue.mockResolvedValue('test@example.com');
+      encryption.decryptPlatformId.mockResolvedValue('plat_12345');
+
+      // Act
+      const result = await service.findByPublicValue(
+        mockUserId,
+        mockLookupIdentityDto as LookupIdentityRequestDto,
+      );
+
+      // Assert
+      expect(encryption.decryptPlatformId).toHaveBeenCalledWith({
+        platformIdCiphertext: mockPlatformIdData.platformIdCiphertext,
+        platformIdIv: mockPlatformIdData.platformIdIv,
+        platformIdTag: mockPlatformIdData.platformIdTag,
+        platformIdWrappedKey: mockPlatformIdData.platformIdWrappedKey,
+        platformIdKeyId: mockPlatformIdData.platformIdKeyId,
+      });
+      expect(result).toEqual({
+        ...mockIdentityResponse,
+        publicValue: 'test@example.com',
+        platformId: 'plat_12345',
+      });
+    });
+
+    it('should throw NotFoundException when no identity matches', async () => {
+      // Arrange
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        service.findByPublicValue(
+          mockUserId,
+          mockLookupIdentityDto as LookupIdentityRequestDto,
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(encryption.decryptPublicValue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('publishIdentityClaimedEvent', () => {
+    it('should log an error when PubSub publish rejects, without propagating the exception', async () => {
+      // Arrange — use claimOrCreateIdentity (new path) to trigger the private helper
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.identity.create.mockResolvedValue(mockIdentityData as Identity);
+
+      const pubSubError = new Error('PubSub unavailable');
+      pubSubPublisher.publish.mockRejectedValue(pubSubError);
+
+      // Act — must not throw
+      await expect(
+        service.claimOrCreateIdentity(
+          IdentityType.INSTAGRAM,
+          'ig_user',
+          'igid_456',
+          mockUserId,
+        ),
+      ).resolves.not.toThrow();
+
+      // Allow microtask queue to drain so the fire-and-forget .catch() runs
+      await Promise.resolve();
+
+      // Assert — error logged, exception swallowed
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to publish'),
+        expect.objectContaining({ error: pubSubError.message }),
+      );
     });
   });
 });
