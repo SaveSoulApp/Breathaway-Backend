@@ -2,13 +2,14 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
-
 import {
   CreateIdentityDto,
   LookupIdentityRequestDto,
@@ -21,6 +22,7 @@ export class IdentityService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
+    private readonly pubSubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -270,6 +272,8 @@ export class IdentityService extends BaseService {
           ...platformIdData,
         },
       });
+
+      this.publishIdentityClaimedEvent(userId);
       return this.toMaskedResponse(updated);
     }
 
@@ -284,6 +288,7 @@ export class IdentityService extends BaseService {
       },
     });
 
+    this.publishIdentityClaimedEvent(userId);
     return this.toMaskedResponse(identity);
   }
 
@@ -336,6 +341,24 @@ export class IdentityService extends BaseService {
   }
 
   // ----- Private helpers -----
+
+  /**
+   * Publishes an IDENTITY_CLAIMED event to Pub/Sub to trigger async match resolution
+   * for the newly claiming user. The publish is fire-and-forget — Pub/Sub provides
+   * the durability and retry guarantees, so we only log on failure.
+   */
+  private publishIdentityClaimedEvent(userId: string): void {
+    this.pubSubPublisher
+      .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+        userId,
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for user ${userId}`,
+          { error: err.message },
+        );
+      });
+  }
 
   private async findOwnedOrFail(id: string, userId: string) {
     const identity = await this.prisma.identity.findFirst({
