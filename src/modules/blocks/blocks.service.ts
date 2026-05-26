@@ -4,11 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-
 import { CreateBlockDto } from './dto';
 
 interface BlockWithProfile {
@@ -70,7 +69,7 @@ export class BlockService extends BaseService {
         where: { id: existingBlock.id },
         data: {
           deletedAt: null,
-          createdAt: new Date(), // Resetting createdAt makes it a "new" block in terms of history/sorting
+          createdAt: DateUtil.now(), // Resetting createdAt makes it a "new" block in terms of history/sorting
         },
         select: {
           id: true,
@@ -194,7 +193,7 @@ export class BlockService extends BaseService {
     await this.prisma.block.update({
       where: { id: block.id },
       data: {
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
       },
     });
 

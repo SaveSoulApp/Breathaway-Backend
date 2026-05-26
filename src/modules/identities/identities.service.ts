@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -220,7 +221,7 @@ export class IdentityService extends BaseService {
     await this.prisma.identity.update({
       where: { id },
       data: {
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
         userId: null,
       },
     });
@@ -232,7 +233,7 @@ export class IdentityService extends BaseService {
       where: { id },
       data: {
         isVerified: true,
-        verifiedAt: new Date(),
+        verifiedAt: DateUtil.now(),
       },
     });
     return this.toMaskedResponse(updated);
@@ -268,7 +269,7 @@ export class IdentityService extends BaseService {
         data: {
           userId,
           isVerified: true,
-          verifiedAt: new Date(),
+          verifiedAt: DateUtil.now(),
           ...platformIdData,
         },
       });
@@ -282,7 +283,7 @@ export class IdentityService extends BaseService {
         type,
         userId,
         isVerified: true,
-        verifiedAt: new Date(),
+        verifiedAt: DateUtil.now(),
         ...publicValueData,
         ...platformIdData,
       },

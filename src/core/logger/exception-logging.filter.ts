@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import {
   ArgumentsHost,
   Catch,
@@ -6,7 +7,6 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-
 import { ContextualLogger } from './logger.interface';
 import { LoggerService } from './logger.service';
 
@@ -63,7 +63,7 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
 
     response.status(status).json({
       statusCode: status,
-      timestamp: new Date().toISOString(),
+      timestamp: DateUtil.now().toISOString(),
       path: request.url,
       message: message,
     });

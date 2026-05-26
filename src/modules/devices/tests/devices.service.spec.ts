@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
 
 import { Platform } from '@common/interfaces';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -54,7 +55,7 @@ describe('DeviceService', () => {
     jest.clearAllMocks();
   });
 
-  const mockDate = new Date();
+  const mockDate = DateUtil.now();
   const mockDevice = {
     id: 'device-id-123',
     userId: 'user-1',

@@ -6,6 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { User } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -32,7 +33,7 @@ describe('BlockService', () => {
     id: blockId,
     blockerUserId: userId,
     blockedUserId,
-    createdAt: new Date(),
+    createdAt: DateUtil.now(),
     deletedAt: null as Date | null,
     blocked: {
       id: blockedUserId,
@@ -125,7 +126,7 @@ describe('BlockService', () => {
 
     it('should reactivate soft-deleted block if it exists', async () => {
       // Arrange
-      const softDeletedBlock = { ...mockBlockData, deletedAt: new Date() };
+      const softDeletedBlock = { ...mockBlockData, deletedAt: DateUtil.now() };
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.block.findUnique.mockResolvedValue(softDeletedBlock);
       prisma.block.update.mockResolvedValue(mockBlockData); // reactivated
@@ -283,7 +284,7 @@ describe('BlockService', () => {
       prisma.block.findFirst.mockResolvedValue(mockBlockData);
       prisma.block.update.mockResolvedValue({
         ...mockBlockData,
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
       });
 
       // Act

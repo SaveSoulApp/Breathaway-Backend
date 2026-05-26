@@ -1,9 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { WebhookMessageHandler } from './handlers/webhook-message.handler.interface';
@@ -105,7 +104,7 @@ export class WebhooksService extends BaseService {
         recipientId: message.recipientId,
         messageId: message.messageId,
         text: message.text,
-        timestamp: new Date(message.timestamp).toISOString(),
+        timestamp: DateUtil.parse(message.timestamp).toISOString(),
       });
 
       // 2. Delegate to Composite Handlers

@@ -58,7 +58,7 @@
     "firebase-admin": "^13.8.0",
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
-    "moment-timezone": "^0.6.1",
+    "dayjs": "^1.11.11",
     "nanoid": "^5.1.9",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

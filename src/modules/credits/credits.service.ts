@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -9,8 +10,8 @@ import {
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 import {
   ConsumeCreditsRequestDto,
-  GrantCreditsRequestDto,
   CreditLedgerQueryDto,
+  GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
@@ -28,7 +29,7 @@ export class CreditsService extends BaseService {
     userId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<number> {
-    const now = new Date();
+    const now = DateUtil.now();
     const client = tx ?? this.prisma;
 
     const groups = await client.creditLedger.groupBy({
@@ -89,10 +90,10 @@ export class CreditsService extends BaseService {
     if (createdFrom || createdTo) {
       where.createdAt = {};
       if (createdFrom) {
-        where.createdAt.gte = new Date(createdFrom);
+        where.createdAt.gte = DateUtil.parse(createdFrom);
       }
       if (createdTo) {
-        const to = new Date(createdTo);
+        const to = DateUtil.parse(createdTo);
         // Date-only strings (no "T") are parsed as midnight UTC; shift to end-of-day
         // so the filter is inclusive of all records on that calendar day.
         if (!createdTo.includes('T')) {
@@ -109,7 +110,7 @@ export class CreditsService extends BaseService {
       };
     }
 
-    const now = new Date();
+    const now = DateUtil.now();
 
     if (creditStatus) {
       if (creditStatus === CreditStatusFilter.ACTIVE) {
@@ -120,7 +121,7 @@ export class CreditsService extends BaseService {
     }
 
     if (expiresWithinDays) {
-      const expiresAtMax = new Date(
+      const expiresAtMax = DateUtil.parse(
         now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000,
       );
       where.expiresAt = {
@@ -204,7 +205,7 @@ export class CreditsService extends BaseService {
         amount: Math.abs(dto.amount),
         source: dto.source,
         referenceId: dto.referenceId,
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        expiresAt: dto.expiresAt ? DateUtil.parse(dto.expiresAt) : null,
       },
     });
   }

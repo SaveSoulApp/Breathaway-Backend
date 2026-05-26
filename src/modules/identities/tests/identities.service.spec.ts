@@ -1,4 +1,5 @@
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -555,7 +556,7 @@ describe('IdentityService', () => {
       const updatedIdentity = {
         ...mockIdentityData,
         isVerified: true,
-        verifiedAt: new Date(),
+        verifiedAt: DateUtil.now(),
       };
 
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
@@ -627,7 +628,7 @@ describe('IdentityService', () => {
         ...mockIdentityData,
         type,
         isVerified: true,
-        verifiedAt: new Date(),
+        verifiedAt: DateUtil.now(),
         ...mockPlatformIdData,
       };
       prisma.identity.create.mockResolvedValue(newIdentity as Identity);
@@ -681,7 +682,7 @@ describe('IdentityService', () => {
         ...mockIdentityData,
         userId: mockUserId,
         isVerified: true,
-        verifiedAt: new Date(),
+        verifiedAt: DateUtil.now(),
         ...mockPlatformIdData,
       };
       prisma.identity.update.mockResolvedValue(updatedIdentity as Identity);

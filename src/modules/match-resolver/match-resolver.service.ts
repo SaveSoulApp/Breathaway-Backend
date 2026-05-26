@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -102,7 +103,7 @@ export class MatchResolverService extends BaseService {
         targetUserId: userAId,
         status: LikeStatus.PENDING,
         deletedAt: null,
-        expiresAt: { gt: new Date() },
+        expiresAt: { gt: DateUtil.now() },
       },
     });
   }
@@ -166,7 +167,7 @@ export class MatchResolverService extends BaseService {
             intentTwo: likeTwo.intent,
             status: MatchStatus.ACTIVE,
             deletedAt: null,
-            matchedAt: new Date(),
+            matchedAt: DateUtil.now(),
           },
         });
       } else {

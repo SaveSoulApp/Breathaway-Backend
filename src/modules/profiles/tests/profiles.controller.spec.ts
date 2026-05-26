@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { UserProfile } from '@prisma/client';
 import { ProfileController } from '../profiles.controller';
@@ -18,9 +19,9 @@ describe('ProfileController', () => {
     firstName: 'John',
     lastName: 'Doe',
     gender: null,
-    dateOfBirth: new Date('1990-01-01'),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    dateOfBirth: DateUtil.parse('1990-01-01'),
+    createdAt: DateUtil.now(),
+    updatedAt: DateUtil.now(),
   };
 
   beforeEach(async () => {

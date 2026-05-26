@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -43,7 +44,7 @@ export class AuthCredentialService extends BaseService {
           publicValueMasked: valueMasked,
           userId: newUser.id,
           isVerified,
-          verifiedAt: isVerified ? new Date() : null,
+          verifiedAt: isVerified ? DateUtil.now() : null,
         },
       });
 

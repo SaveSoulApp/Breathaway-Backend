@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -101,7 +102,7 @@ export class LikeService extends BaseService {
       throw new ConflictException({ message: 'You already liked this person' });
     }
 
-    const expiresAt = new Date();
+    const expiresAt = DateUtil.now();
     expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
 
     const like = await this.prisma.like.create({
@@ -219,7 +220,7 @@ export class LikeService extends BaseService {
     await this.prisma.like.update({
       where: { id },
       data: {
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
         status: LikeStatus.DELETED,
       },
     });
