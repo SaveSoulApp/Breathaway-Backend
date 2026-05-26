@@ -1,10 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-
 import { LoggerService } from '@core/logger';
-
 import {
   CreateIdentityDto,
   IdentityResponseDto,
+  LookupIdentityRequestDto,
   UpdateIdentityDto,
 } from '../dto';
 import { IdentityController } from '../identities.controller';
@@ -14,6 +13,7 @@ import {
   mockIdentityCompleteResponse,
   mockIdentityId,
   mockIdentityResponse,
+  mockLookupIdentityDto,
   mockUpdateIdentityDto,
   mockUserId,
 } from './mocks/identities.mock';
@@ -32,6 +32,7 @@ describe('IdentityController', () => {
       update: jest.fn(),
       delete: jest.fn(),
       verify: jest.fn(),
+      findByPublicValue: jest.fn(),
     };
 
     const mockLoggerService = {
@@ -224,6 +225,30 @@ describe('IdentityController', () => {
 
       expect(service.verify).toHaveBeenCalledWith(mockIdentityId, mockUserId);
       expect(result).toEqual(mockIdentityResponse);
+    });
+  });
+
+  describe('lookup', () => {
+    it('should delegate to identityService.findByPublicValue with correct args', async () => {
+      // Arrange
+      service.findByPublicValue.mockResolvedValue(
+        mockIdentityCompleteResponse as Awaited<
+          ReturnType<IdentityService['findByPublicValue']>
+        >,
+      );
+
+      // Act
+      const result = await controller.lookup(
+        mockUserId,
+        mockLookupIdentityDto as LookupIdentityRequestDto,
+      );
+
+      // Assert
+      expect(service.findByPublicValue).toHaveBeenCalledWith(
+        mockUserId,
+        mockLookupIdentityDto,
+      );
+      expect(result).toEqual(mockIdentityCompleteResponse);
     });
   });
 });

@@ -1,8 +1,16 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  Identity,
+  IdentityType,
+  IntentType,
+  Like,
+  LikeStatus,
+} from '@prisma/client';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
-  createPrismaMock,
   MockPrismaService,
+  createPrismaMock,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { IdentityService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
@@ -10,8 +18,6 @@ import { NotificationsService } from '@modules/notifications/notifications.servi
 import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
 import { SocialidentityService } from '@modules/social-identities/social-identities.service';
-import { Test, TestingModule } from '@nestjs/testing';
-import { Identity, IdentityType, IntentType, LikeStatus } from '@prisma/client';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
 
 describe('IdentityWorkflowsService', () => {
@@ -176,6 +182,70 @@ describe('IdentityWorkflowsService', () => {
       expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalled();
     });
+
+    it('should silently log when notification dispatch fails after identity is linked', async () => {
+      // Arrange
+      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'test_user',
+      } as unknown as SocialIdentityResponseDto);
+      identityService.claimOrCreateIdentity.mockResolvedValue(
+        {} as unknown as Identity,
+      );
+      const dispatchError = new Error('Push service unavailable');
+      notificationsService.dispatch.mockRejectedValue(dispatchError);
+
+      // Act — must not throw
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      // Allow the fire-and-forget .catch() to run
+      await Promise.resolve();
+
+      // Assert — identity still linked, error logged via .catch
+      expect(identityService.claimOrCreateIdentity).toHaveBeenCalled();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Failed to dispatch identity claimed notification',
+        ),
+        expect.objectContaining({ error: dispatchError.message }),
+      );
+    });
+
+    it('should warn and skip linking when username is an empty string (falsy)', async () => {
+      // Arrange — empty string is falsy, so if (username) is false
+      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+        username: '',
+      } as unknown as SocialIdentityResponseDto);
+
+      // Act
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      // Assert
+      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(notificationsService.dispatch).not.toHaveBeenCalled();
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Could not extract a valid username from Instagram identity payload.',
+      );
+    });
+
+    it('should catch errors thrown by verifyInstagramIdentity after OTP is consumed', async () => {
+      // Arrange
+      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      const socialError = new Error('Instagram API error');
+      socialidentityService.verifyInstagramIdentity.mockRejectedValue(
+        socialError,
+      );
+
+      // Act
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      // Assert
+      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        `Error during OTP verification flow for sender ${defaultData.senderId}: ${socialError.message}`,
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -188,7 +258,7 @@ describe('IdentityWorkflowsService', () => {
     const identityId = 'identity_xyz';
 
     it('should skip all processing when the user has no active identities', async () => {
-      prisma.identity.findMany.mockResolvedValue([] as any);
+      prisma.identity.findMany.mockResolvedValue([] as unknown as Identity[]);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
@@ -205,11 +275,13 @@ describe('IdentityWorkflowsService', () => {
     });
 
     it('should backfill all unresolved likes (including expired/deleted) regardless of status', async () => {
-      prisma.identity.findMany.mockResolvedValue([{ id: identityId }] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
       // Backfill returns 3 rows updated (e.g., 1 valid + 2 expired)
       prisma.like.updateMany.mockResolvedValue({ count: 3 });
       // Resolution query finds no actionable likes (all were expired)
-      prisma.like.findMany.mockResolvedValue([] as any);
+      prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
@@ -238,9 +310,13 @@ describe('IdentityWorkflowsService', () => {
         status: LikeStatus.PENDING,
       };
 
-      prisma.identity.findMany.mockResolvedValue([{ id: identityId }] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
       prisma.like.updateMany.mockResolvedValue({ count: 1 });
-      prisma.like.findMany.mockResolvedValue([pendingLike] as any);
+      prisma.like.findMany.mockResolvedValue([
+        pendingLike,
+      ] as unknown as Like[]);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
@@ -290,9 +366,11 @@ describe('IdentityWorkflowsService', () => {
         },
       ];
 
-      prisma.identity.findMany.mockResolvedValue([{ id: identityId }] as any);
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
       prisma.like.updateMany.mockResolvedValue({ count: 2 });
-      prisma.like.findMany.mockResolvedValue(likes as any);
+      prisma.like.findMany.mockResolvedValue(likes as unknown as Like[]);
 
       // First like resolution fails, second succeeds
       matchResolverService.resolveFromLike
@@ -308,6 +386,90 @@ describe('IdentityWorkflowsService', () => {
         expect.objectContaining({ error: 'resolution error' }),
       );
       // Final completion log still emitted
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining('Match resolution complete'),
+      );
+    });
+
+    it('should include all identity IDs in the query when the user has multiple active identities', async () => {
+      const secondIdentityId = 'identity_yyy';
+
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+        { id: secondIdentityId },
+      ] as unknown as Identity[]);
+      prisma.like.updateMany.mockResolvedValue({ count: 0 });
+      prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
+
+      await service.handleIdentityClaimed({ userId }, messageId);
+
+      // Backfill must pass BOTH identity IDs
+      expect(prisma.like.updateMany).toHaveBeenCalledWith({
+        where: {
+          targetIdentityId: { in: [identityId, secondIdentityId] },
+          targetUserId: null,
+        },
+        data: { targetUserId: userId },
+      });
+
+      // Resolution query must also scope to both IDs
+      expect(prisma.like.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            targetIdentityId: { in: [identityId, secondIdentityId] },
+          }),
+        }),
+      );
+    });
+
+    it('should log zero-row backfill and still run the resolution pass', async () => {
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
+      // No historical likes to backfill
+      prisma.like.updateMany.mockResolvedValue({ count: 0 });
+      prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
+
+      await service.handleIdentityClaimed({ userId }, messageId);
+
+      // Backfill log should mention 0
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining('0 like(s)'),
+      );
+      // Resolution still attempted (finds nothing, returns early)
+      expect(prisma.like.findMany).toHaveBeenCalled();
+      expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
+    });
+
+    it('should resolve all actionable likes and emit completion log when all succeed', async () => {
+      const likes = [
+        {
+          id: 'like_a',
+          senderUserId: 'user_x',
+          targetUserId: userId,
+          intent: IntentType.OPEN,
+          status: LikeStatus.PENDING,
+        },
+        {
+          id: 'like_b',
+          senderUserId: 'user_y',
+          targetUserId: userId,
+          intent: IntentType.OPEN,
+          status: LikeStatus.PENDING,
+        },
+      ];
+
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
+      prisma.like.updateMany.mockResolvedValue({ count: 2 });
+      prisma.like.findMany.mockResolvedValue(likes as unknown as Like[]);
+      matchResolverService.resolveFromLike.mockResolvedValue(undefined);
+
+      await service.handleIdentityClaimed({ userId }, messageId);
+
+      expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(2);
+      expect(contextualLogger.error).not.toHaveBeenCalled();
       expect(contextualLogger.log).toHaveBeenCalledWith(
         expect.stringContaining('Match resolution complete'),
       );
