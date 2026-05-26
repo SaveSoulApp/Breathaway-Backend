@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import redoc from 'redoc-express';
 
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlockModule } from '@modules/blocks/blocks.module';
@@ -74,6 +75,24 @@ function publicApiDocumentation(app: INestApplication): void {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: 'BreathAway Public API Docs',
   });
+
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get(
+    `/${SWAGGER_PUBLIC_PATH}/redoc`,
+    redoc({
+      title: 'BreathAway Public API Docs',
+      specUrl: `/${SWAGGER_PUBLIC_PATH}-json`,
+      redocOptions: {
+        theme: {
+          colors: {
+            primary: {
+              main: '#000000',
+            },
+          },
+        },
+      },
+    }),
+  );
 }
 
 function adminApiDocumentation(app: INestApplication): void {
@@ -101,4 +120,22 @@ function adminApiDocumentation(app: INestApplication): void {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: 'BreathAway Admin API Docs',
   });
+
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get(
+    `/${SWAGGER_ADMIN_PATH}/redoc`,
+    redoc({
+      title: 'BreathAway Admin API Docs',
+      specUrl: `/${SWAGGER_ADMIN_PATH}-json`,
+      redocOptions: {
+        theme: {
+          colors: {
+            primary: {
+              main: '#000000',
+            },
+          },
+        },
+      },
+    }),
+  );
 }
