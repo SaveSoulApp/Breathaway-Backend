@@ -13,7 +13,7 @@ export class GenericMessageHandler
 {
   constructor(
     logger: LoggerService,
-    private readonly pubsubPublisher: PubSubPublisherService,
+    private readonly pubsubPublisherService: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -27,7 +27,7 @@ export class GenericMessageHandler
 
   async handle(message: ParsedInstagramMessage): Promise<void> {
     try {
-      await this.pubsubPublisher.publish(
+      await this.pubsubPublisherService.publish(
         PubSubTopic.META_WEBHOOKS,
         PubSubEvent.META_WEBHOOK_RECEIVED,
         {

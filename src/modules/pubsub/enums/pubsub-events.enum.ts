@@ -7,5 +7,6 @@ export enum PubSubEvent {
   USER_SIGNUP_COMPLETED = 'user.signup.completed',
 
   // Events flowing through the NOTIFICATIONS topic
+  NOTIFICATION_SEND_REQUESTED = 'notification.send_requested',
   OTP_SMS_SENT = 'otp.sms.sent',
 }

@@ -5,6 +5,7 @@ import { SocialIdentityResponseDto } from '@modules/social-identities/dto/respon
 import { SocialidentityService } from '@modules/social-identities/social-identities.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
 
 describe('IdentityWorkflowsService', () => {
@@ -12,6 +13,7 @@ describe('IdentityWorkflowsService', () => {
   let otpService: jest.Mocked<OtpService>;
   let socialidentityService: jest.Mocked<SocialidentityService>;
   let identityService: jest.Mocked<IdentityService>;
+  let notificationsService: jest.Mocked<NotificationsService>;
   let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
@@ -43,6 +45,10 @@ describe('IdentityWorkflowsService', () => {
       claimOrCreateIdentity: jest.fn(),
     };
 
+    const mockNotificationsService = {
+      dispatch: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IdentityWorkflowsService,
@@ -50,6 +56,7 @@ describe('IdentityWorkflowsService', () => {
         { provide: OtpService, useValue: mockOtpService },
         { provide: SocialidentityService, useValue: mockSocialidentityService },
         { provide: IdentityService, useValue: mockIdentityService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
@@ -57,6 +64,7 @@ describe('IdentityWorkflowsService', () => {
     otpService = module.get(OtpService);
     socialidentityService = module.get(SocialidentityService);
     identityService = module.get(IdentityService);
+    notificationsService = module.get(NotificationsService);
   });
 
   afterEach(() => {
@@ -97,6 +105,12 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
         'Successfully linked Instagram identity (test_user) to user (user_123).',
+      );
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userIds: ['user_123'],
+          title: 'Identity Claimed',
+        }),
       );
     });
 
