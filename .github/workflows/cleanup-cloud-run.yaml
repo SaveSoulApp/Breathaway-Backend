@@ -1,0 +1,31 @@
+name: Cleanup Old Cloud Run Revisions
+
+on:
+  schedule:
+    # Run at 02:00 AM every Sunday
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: Development
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ secrets.WIF_PROVIDER }}' # e.g., projects/123456789/locations/global/workloadIdentityPools/github/providers/my-repo
+          service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}' # e.g., my-service-account@my-project.iam.gserviceaccount.com
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run Cleanup Script
+        run: python ./scripts/cleanup-cloud-run.py
