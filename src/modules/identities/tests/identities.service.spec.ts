@@ -1,7 +1,3 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { Identity } from '@prisma/client';
-
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -9,7 +5,10 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Identity } from '@prisma/client';
 import { CreateIdentityDto, UpdateIdentityDto } from '../dto';
 import { IdentityService } from '../identities.service';
 import {
@@ -44,12 +43,20 @@ describe('IdentityService', () => {
       }),
     };
 
+    const mockPubSubPublisherService = {
+      publish: jest.fn().mockResolvedValue('mock-message-id'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IdentityService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
+        {
+          provide: PubSubPublisherService,
+          useValue: mockPubSubPublisherService,
+        },
       ],
     }).compile();
 
