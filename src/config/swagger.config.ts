@@ -1,8 +1,3 @@
-import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import redoc from 'redoc-express';
-
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlockModule } from '@modules/blocks/blocks.module';
 import { CreditsModule } from '@modules/credits/credits.module';
@@ -16,9 +11,16 @@ import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module
 import { ProfileModule } from '@modules/profiles/profiles.module';
 import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
-
+import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import redoc from 'redoc-express';
 import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
-import { SWAGGER_ADMIN_PATH, SWAGGER_PUBLIC_PATH } from './swagger.constants';
+import {
+  REDOC_SUBPATH,
+  SWAGGER_ADMIN_PATH,
+  SWAGGER_PUBLIC_PATH,
+} from './swagger.constants';
 
 export function setupSwagger(
   app: INestApplication,
@@ -78,7 +80,7 @@ function publicApiDocumentation(app: INestApplication): void {
 
   const httpAdapter = app.getHttpAdapter();
   httpAdapter.get(
-    `/${SWAGGER_PUBLIC_PATH}/redoc`,
+    `/${SWAGGER_PUBLIC_PATH}/${REDOC_SUBPATH}`,
     redoc({
       title: 'BreathAway Public API Docs',
       specUrl: `/${SWAGGER_PUBLIC_PATH}-json`,
@@ -123,7 +125,7 @@ function adminApiDocumentation(app: INestApplication): void {
 
   const httpAdapter = app.getHttpAdapter();
   httpAdapter.get(
-    `/${SWAGGER_ADMIN_PATH}/redoc`,
+    `/${SWAGGER_ADMIN_PATH}/${REDOC_SUBPATH}`,
     redoc({
       title: 'BreathAway Admin API Docs',
       specUrl: `/${SWAGGER_ADMIN_PATH}-json`,
