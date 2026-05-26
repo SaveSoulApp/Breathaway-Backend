@@ -160,7 +160,7 @@ export class AuthService extends BaseService {
       );
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
-      return { userId: user.id, status: 'pending_verification' };
+      return this.authTokenService.generateAuthResponse(user);
     }
 
     // Existing credential
