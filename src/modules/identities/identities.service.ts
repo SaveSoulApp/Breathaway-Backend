@@ -9,7 +9,11 @@ import {
 } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
 
-import { CreateIdentityDto, UpdateIdentityDto } from './dto';
+import {
+  CreateIdentityDto,
+  LookupIdentityRequestDto,
+  UpdateIdentityDto,
+} from './dto';
 
 @Injectable()
 export class IdentityService extends BaseService {
@@ -281,6 +285,54 @@ export class IdentityService extends BaseService {
     });
 
     return this.toMaskedResponse(identity);
+  }
+
+  async findByPublicValue(userId: string, dto: LookupIdentityRequestDto) {
+    const { publicValueHash } = await this.encryption.processPublicValue(
+      dto.publicValue,
+      dto.type,
+    );
+
+    const identity = await this.prisma.identity.findFirst({
+      where: { type: dto.type, publicValueHash, userId, deletedAt: null },
+    });
+
+    if (!identity) {
+      throw new NotFoundException(
+        `No ${dto.type} identity with the provided value found for this user`,
+      );
+    }
+
+    const publicValue = await this.encryption.decryptPublicValue({
+      publicValueCiphertext: identity.publicValueCiphertext,
+      publicValueIv: identity.publicValueIv,
+      publicValueTag: identity.publicValueTag,
+      publicValueWrappedKey: identity.publicValueWrappedKey,
+      publicValueKeyId: identity.publicValueKeyId,
+    });
+
+    let platformId: string | null = null;
+    if (
+      identity.platformIdCiphertext &&
+      identity.platformIdIv &&
+      identity.platformIdTag &&
+      identity.platformIdWrappedKey &&
+      identity.platformIdKeyId
+    ) {
+      platformId = await this.encryption.decryptPlatformId({
+        platformIdCiphertext: identity.platformIdCiphertext,
+        platformIdIv: identity.platformIdIv,
+        platformIdTag: identity.platformIdTag,
+        platformIdWrappedKey: identity.platformIdWrappedKey,
+        platformIdKeyId: identity.platformIdKeyId,
+      });
+    }
+
+    return {
+      ...this.toMaskedResponse(identity),
+      publicValue,
+      platformId,
+    };
   }
 
   // ----- Private helpers -----

@@ -1,3 +1,8 @@
+import { CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -16,15 +21,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
-import { CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { LoggerService } from '@core/logger';
 import {
   CreateIdentityDto,
   IdentityCompleteResponseDto,
   IdentityResponseDto,
+  LookupIdentityRequestDto,
   UpdateIdentityDto,
 } from './dto';
 import { IdentityService } from './identities.service';
@@ -73,6 +74,28 @@ export class IdentityController extends BaseController {
   @SerializeExpose(IdentityCompleteResponseDto)
   async findAllComplete(@CurrentUserId() userId: string) {
     return this.identityService.findAllCompleteByUser(userId);
+  }
+
+  @Post('lookup')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Look up an identity by its raw public value (scoped to current user)',
+    description:
+      'Returns the full identity details including decrypted public value and platform ID. ' +
+      'Returns 404 if no matching identity is registered under this user.',
+  })
+  @ApiResponse({ status: HttpStatus.OK, type: IdentityCompleteResponseDto })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No identity with the provided value found for this user',
+  })
+  @SerializeExpose(IdentityCompleteResponseDto)
+  async lookup(
+    @CurrentUserId() userId: string,
+    @Body() dto: LookupIdentityRequestDto,
+  ) {
+    return this.identityService.findByPublicValue(userId, dto);
   }
 
   @Get(':id')
