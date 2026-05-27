@@ -9,7 +9,7 @@ export class TimezoneUtil {
     try {
       Intl.DateTimeFormat(undefined, { timeZone: tz.trim() });
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -28,18 +28,23 @@ export class TimezoneUtil {
 
     try {
       // Get the canonical name from Intl.DateTimeFormat (handles case-insensitive match automatically)
-      let resolved = Intl.DateTimeFormat(undefined, { timeZone: trimmed }).resolvedOptions().timeZone;
+      let resolved = Intl.DateTimeFormat(undefined, {
+        timeZone: trimmed,
+      }).resolvedOptions().timeZone;
       if (resolved === 'Asia/Calcutta') {
         resolved = 'Asia/Kolkata';
       }
       return resolved;
-    } catch (e) {
+    } catch {
       // Look for exact match ignoring case or partial match as fallbacks
       const normalizedInput = trimmed.toLowerCase();
-      if (typeof Intl !== 'undefined' && (Intl as any).supportedValuesOf) {
+      if (typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl) {
+        const intlWithSupportedValues = Intl as unknown as {
+          supportedValuesOf: (key: string) => string[];
+        };
         const aliases = ['Asia/Kolkata'];
         const allZones = [
-          ...((Intl as any).supportedValuesOf('timeZone') as string[]),
+          ...intlWithSupportedValues.supportedValuesOf('timeZone'),
           ...aliases,
         ];
 
@@ -61,7 +66,9 @@ export class TimezoneUtil {
         );
 
         if (partialMatch) {
-          return partialMatch === 'Asia/Calcutta' ? 'Asia/Kolkata' : partialMatch;
+          return partialMatch === 'Asia/Calcutta'
+            ? 'Asia/Kolkata'
+            : partialMatch;
         }
       }
 
