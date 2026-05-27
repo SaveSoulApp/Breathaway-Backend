@@ -8,6 +8,7 @@ import {
   IsPositive,
   IsString,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class GrantCreditsRequestDto {
   @ApiProperty({ description: 'The ULID of the user receiving the credits' })
@@ -20,6 +21,9 @@ export class GrantCreditsRequestDto {
   amount: number;
 
   @ApiProperty({ enum: CreditSource, description: 'Source of the credits' })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsEnum(CreditSource)
   source: CreditSource;
 

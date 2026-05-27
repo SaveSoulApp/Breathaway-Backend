@@ -9,6 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateProfileDto {
   @ApiProperty({
@@ -46,6 +47,9 @@ export class CreateProfileDto {
     enum: GenderType,
     example: GenderType.MALE,
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsOptional()
   @IsEnum(GenderType)
   gender?: GenderType;
