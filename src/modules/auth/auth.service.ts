@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -237,7 +238,7 @@ export class AuthService extends BaseService {
 
           userId: newUser.id,
           isVerified: true, // social accounts are pre‑verified
-          verifiedAt: new Date(),
+          verifiedAt: DateUtil.now(),
         },
       });
 

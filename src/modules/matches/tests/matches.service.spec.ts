@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -22,7 +23,7 @@ describe('MatchService', () => {
   const mockMatchDataUserOne = {
     id: matchId,
     status: MatchStatus.ACTIVE,
-    matchedAt: new Date(),
+    matchedAt: DateUtil.now(),
     intentOne: IntentType.CASUAL,
     intentTwo: IntentType.CASUAL,
     userOneId: currentUserId,

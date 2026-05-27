@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { BlockController } from '../blocks.controller';
 import { BlockService } from '../blocks.service';
@@ -13,7 +14,7 @@ describe('BlockController', () => {
 
   const mockBlockResponse = {
     id: blockId,
-    createdAt: new Date(),
+    createdAt: DateUtil.now(),
     blockedUser: {
       id: 'blocked-user-id',
       firstName: 'John',

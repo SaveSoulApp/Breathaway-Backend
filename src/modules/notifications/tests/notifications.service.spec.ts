@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
@@ -121,8 +122,8 @@ describe('NotificationsService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
       ];
 

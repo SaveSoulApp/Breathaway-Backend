@@ -6,6 +6,7 @@ import {
   CreditTransactionType,
 } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -36,7 +37,7 @@ describe('CreditsService', () => {
     source: CreditSource.PURCHASE,
     referenceId: 'ref-123',
     expiresAt: null,
-    createdAt: new Date(),
+    createdAt: DateUtil.now(),
   };
 
   beforeEach(async () => {
@@ -221,7 +222,7 @@ describe('CreditsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             createdAt: expect.objectContaining({
-              lte: new Date('2023-12-31T12:00:00Z'),
+              lte: DateUtil.parse('2023-12-31T12:00:00Z'),
             }),
           }),
         }),

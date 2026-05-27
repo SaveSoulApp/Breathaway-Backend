@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -26,9 +27,9 @@ describe('ProfileService', () => {
     firstName: 'John',
     lastName: 'Doe',
     gender: null,
-    dateOfBirth: new Date('1990-01-01'),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    dateOfBirth: DateUtil.parse('1990-01-01'),
+    createdAt: DateUtil.now(),
+    updatedAt: DateUtil.now(),
   };
 
   beforeEach(async () => {
@@ -81,7 +82,7 @@ describe('ProfileService', () => {
         data: {
           userId,
           ...createDto,
-          dateOfBirth: new Date(createDto.dateOfBirth!),
+          dateOfBirth: DateUtil.parse(createDto.dateOfBirth!),
         },
       });
       expect(result).toEqual(mockUserProfile);
@@ -212,7 +213,7 @@ describe('ProfileService', () => {
       const updatedProfile = {
         ...mockUserProfile,
         firstName: 'Jane',
-        dateOfBirth: new Date('1995-01-01'),
+        dateOfBirth: DateUtil.parse('1995-01-01'),
       };
       prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
       prisma.userProfile.update.mockResolvedValue(updatedProfile);
@@ -228,7 +229,7 @@ describe('ProfileService', () => {
         where: { userId },
         data: {
           ...updateDto,
-          dateOfBirth: new Date(updateDto.dateOfBirth!),
+          dateOfBirth: DateUtil.parse(updateDto.dateOfBirth!),
         },
       });
       expect(result).toEqual(updatedProfile);
@@ -321,7 +322,7 @@ describe('ProfileService', () => {
       };
       const patchedProfile = {
         ...mockUserProfile,
-        dateOfBirth: new Date(dtoWithDob.dateOfBirth!),
+        dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
       };
       prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
       prisma.userProfile.update.mockResolvedValue(patchedProfile);
@@ -333,7 +334,7 @@ describe('ProfileService', () => {
       expect(prisma.userProfile.update).toHaveBeenCalledWith({
         where: { userId },
         data: {
-          dateOfBirth: new Date(dtoWithDob.dateOfBirth!),
+          dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
         },
       });
       expect(result).toEqual(patchedProfile);

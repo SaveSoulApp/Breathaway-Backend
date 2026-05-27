@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -75,8 +76,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
       ];
 
@@ -101,8 +102,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
         {
           id: 'dev-2',
@@ -112,8 +113,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
       ];
 
@@ -142,8 +143,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
         {
           id: 'dev-2',
@@ -153,8 +154,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
       ];
 
@@ -191,8 +192,8 @@ describe('FcmProviderService', () => {
           isActive: true,
           deviceId: null,
           appVersion: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
         },
       ];
 

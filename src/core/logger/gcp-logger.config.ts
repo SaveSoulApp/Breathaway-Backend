@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import * as pino from 'pino';
 
 export const createGcpLoggerConfig = (
@@ -15,7 +16,7 @@ export const createGcpLoggerConfig = (
     }),
   },
   messageKey: 'message',
-  timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
+  timestamp: () => `,"timestamp":"${DateUtil.now().toISOString()}"`,
   serializers: {
     error: pino.stdSerializers.err,
     req: (req: {

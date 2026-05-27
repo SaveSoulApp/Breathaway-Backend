@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 
 import { CreditsController } from '../credits.controller';
@@ -25,7 +26,7 @@ describe('CreditsController', () => {
     source: CreditSource.PURCHASE,
     referenceId: 'ref-123',
     expiresAt: null,
-    createdAt: new Date(),
+    createdAt: DateUtil.now(),
   };
 
   const mockPaginatedLedger = {

@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { IdentityType } from '@prisma/client';
 
 export const mockUserId = 'user-123';
@@ -36,7 +37,7 @@ export const mockIdentityData = {
   type: IdentityType.EMAIL,
   isVerified: false,
   verifiedAt: null,
-  createdAt: new Date(),
+  createdAt: DateUtil.now(),
   deletedAt: null,
   userId: mockUserId,
   publicValueCiphertext: 'cipher-abc',

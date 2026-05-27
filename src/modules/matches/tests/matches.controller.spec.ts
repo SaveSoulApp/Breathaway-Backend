@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { MatchController } from '../matches.controller';
 import { MatchService } from '../matches.service';
@@ -14,7 +15,7 @@ describe('MatchController', () => {
   const mockMatchResponse = {
     id: matchId,
     status: MatchStatus.ACTIVE,
-    matchedAt: new Date(),
+    matchedAt: DateUtil.now(),
     intentOne: IntentType.CASUAL,
     intentTwo: IntentType.CASUAL,
     otherUser: {

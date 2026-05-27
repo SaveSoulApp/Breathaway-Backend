@@ -1,4 +1,4 @@
-import { formatDate } from '../../utils/date.utils';
+import { DateUtil, formatDate } from '../../utils/date.utils';
 
 describe('Date Utils', () => {
   describe('formatDate', () => {
@@ -14,7 +14,7 @@ describe('Date Utils', () => {
     });
 
     it('should format a Date object correctly', () => {
-      const date = new Date('2025-11-27T00:00:00Z');
+      const date = DateUtil.parse('2025-11-27T00:00:00Z');
       expect(formatDate(date)).toBe('November 27, 2025');
     });
 

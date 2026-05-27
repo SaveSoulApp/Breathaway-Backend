@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { IntentType, MatchStatus } from '@prisma/client';
-
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { IntentType, MatchStatus } from '@prisma/client';
 
 interface MatchWithUsers {
   id: string;
@@ -149,7 +149,7 @@ export class MatchService extends BaseService {
       where: { id: matchId },
       data: {
         status: MatchStatus.UNMATCHED,
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
       },
     });
 

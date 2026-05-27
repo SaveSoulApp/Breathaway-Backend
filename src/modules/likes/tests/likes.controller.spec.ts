@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 
 import {
@@ -24,14 +25,14 @@ describe('LikeController', () => {
     targetUserId: 'target-user',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
-    createdAt: new Date(),
-    expiresAt: new Date(),
+    createdAt: DateUtil.now(),
+    expiresAt: DateUtil.now(),
     targetIdentity: {
       id: 'target-identity-id',
       type: IdentityType.PHONE,
       publicValueMasked: '***-***-****',
       isVerified: true,
-      verifiedAt: new Date(),
+      verifiedAt: DateUtil.now(),
     },
   };
 

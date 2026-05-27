@@ -1,3 +1,4 @@
+import { DateUtil } from '@common/utils/date.utils';
 import { TimezoneUtil } from '../../utils/timezone.utils';
 
 describe('TimezoneUtil', () => {
@@ -74,7 +75,7 @@ describe('TimezoneUtil', () => {
     it('should convert a date string from a given timezone to a UTC Date object (start of day)', () => {
       const dateString = '2023-07-04';
       const timezone = 'America/New_York'; // EDT is UTC-4
-      const expectedUTCDate = new Date('2023-07-04T04:00:00.000Z');
+      const expectedUTCDate = DateUtil.parse('2023-07-04T04:00:00.000Z');
       expect(TimezoneUtil.convertToUTC(dateString, timezone, 'start')).toEqual(
         expectedUTCDate,
       );
@@ -83,7 +84,7 @@ describe('TimezoneUtil', () => {
     it('should convert a date string from a given timezone to a UTC Date object (end of day)', () => {
       const dateString = '2023-07-04';
       const timezone = 'America/New_York'; // EDT is UTC-4
-      const expectedUTCDate = new Date('2023-07-05T03:59:59.999Z');
+      const expectedUTCDate = DateUtil.parse('2023-07-05T03:59:59.999Z');
       expect(TimezoneUtil.convertToUTC(dateString, timezone, 'end')).toEqual(
         expectedUTCDate,
       );
@@ -92,7 +93,7 @@ describe('TimezoneUtil', () => {
 
   describe('formatInTimezone', () => {
     it('should format a UTC Date object into a string for a given timezone', () => {
-      const date = new Date('2023-07-04T12:00:00.000Z');
+      const date = DateUtil.parse('2023-07-04T12:00:00.000Z');
       const timezone = 'America/New_York'; // 12:00 UTC is 8:00 EDT
       expect(
         TimezoneUtil.formatInTimezone(date, timezone, 'YYYY-MM-DD HH:mm'),
@@ -115,16 +116,16 @@ describe('TimezoneUtil', () => {
       // On Nov 5, 2023, DST ends in America/New_York. The day starts in EDT (UTC-4)
       // and ends in EST (UTC-5).
       // 2023-11-05 00:00:00 EDT = 2023-11-05T04:00:00.000Z
-      expect(startUTC).toEqual(new Date('2023-11-05T04:00:00.000Z'));
+      expect(startUTC).toEqual(DateUtil.parse('2023-11-05T04:00:00.000Z'));
 
       // 2023-11-06 23:59:59.999 EST = 2023-11-07T04:59:59.999Z
-      expect(endUTC).toEqual(new Date('2023-11-07T04:59:59.999Z'));
+      expect(endUTC).toEqual(DateUtil.parse('2023-11-07T04:59:59.999Z'));
     });
   });
 
   describe('getOffsetInMinutes', () => {
     it('should return the correct offset in minutes', () => {
-      const date = new Date();
+      const date = DateUtil.now();
       expect(TimezoneUtil.getOffsetInMinutes(date, 'Asia/Kolkata')).toBe(330);
       expect(TimezoneUtil.getOffsetInMinutes(date, 'UTC')).toBe(0);
     });
@@ -133,19 +134,19 @@ describe('TimezoneUtil', () => {
   describe('getTimezoneAbbreviation', () => {
     it('should return the correct timezone abbreviation', () => {
       // Test during standard time
-      const winterDate = new Date('2023-01-15T12:00:00Z');
+      const winterDate = DateUtil.parse('2023-01-15T12:00:00Z');
       expect(
         TimezoneUtil.getTimezoneAbbreviation('America/New_York', winterDate),
       ).toBe('EST');
 
       // Test during daylight saving time
-      const summerDate = new Date('2023-07-15T12:00:00Z');
+      const summerDate = DateUtil.parse('2023-07-15T12:00:00Z');
       expect(
         TimezoneUtil.getTimezoneAbbreviation('America/New_York', summerDate),
       ).toBe('EDT');
 
       expect(
-        TimezoneUtil.getTimezoneAbbreviation('Asia/Kolkata', new Date()),
+        TimezoneUtil.getTimezoneAbbreviation('Asia/Kolkata', DateUtil.now()),
       ).toBe('IST');
     });
   });

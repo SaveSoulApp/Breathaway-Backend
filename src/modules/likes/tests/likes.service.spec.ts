@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -56,8 +57,8 @@ describe('LikeService', () => {
     platformIdWrappedKey: null,
     platformIdKeyId: null,
     isVerified: true,
-    verifiedAt: new Date(),
-    createdAt: new Date(),
+    verifiedAt: DateUtil.now(),
+    createdAt: DateUtil.now(),
     deletedAt: null,
   };
 
@@ -68,10 +69,10 @@ describe('LikeService', () => {
     targetUserId,
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: DateUtil.now(),
+    updatedAt: DateUtil.now(),
     deletedAt: null,
-    expiresAt: new Date(),
+    expiresAt: DateUtil.now(),
     targetIdentity: mockTargetIdentity,
   } as unknown as Like & { targetIdentity: Identity };
 
@@ -402,7 +403,7 @@ describe('LikeService', () => {
       prisma.like.findFirst.mockResolvedValue(mockLikeData);
       prisma.like.update.mockResolvedValue({
         ...mockLikeData,
-        deletedAt: new Date(),
+        deletedAt: DateUtil.now(),
         status: LikeStatus.DELETED,
       });
 

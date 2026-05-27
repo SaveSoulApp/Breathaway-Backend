@@ -1,4 +1,4 @@
-import moment from 'moment-timezone';
+import { DateUtil, dayjs } from './date.utils';
 
 export class TimezoneUtil {
   /**
@@ -6,7 +6,12 @@ export class TimezoneUtil {
    */
   static isValidTimezone(tz: string): boolean {
     if (!tz || typeof tz !== 'string') return false;
-    return moment.tz.zone(tz.trim()) !== null;
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: tz.trim() });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -21,31 +26,55 @@ export class TimezoneUtil {
 
     const trimmed = tz.trim();
 
-    // Try case-insensitive matching
-    const allZones = moment.tz.names();
-    const normalizedInput = trimmed.toLowerCase();
+    try {
+      // Get the canonical name from Intl.DateTimeFormat (handles case-insensitive match automatically)
+      let resolved = Intl.DateTimeFormat(undefined, {
+        timeZone: trimmed,
+      }).resolvedOptions().timeZone;
+      if (resolved === 'Asia/Calcutta') {
+        resolved = 'Asia/Kolkata';
+      }
+      return resolved;
+    } catch {
+      // Look for exact match ignoring case or partial match as fallbacks
+      const normalizedInput = trimmed.toLowerCase();
+      if (typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl) {
+        const intlWithSupportedValues = Intl as unknown as {
+          supportedValuesOf: (key: string) => string[];
+        };
+        const aliases = ['Asia/Kolkata'];
+        const allZones = [
+          ...intlWithSupportedValues.supportedValuesOf('timeZone'),
+          ...aliases,
+        ];
 
-    // Look for exact match ignoring case
-    const exactMatch = allZones.find(
-      (zone) => zone.toLowerCase() === normalizedInput,
-    );
-    if (exactMatch) {
-      return exactMatch;
+        // Exact match ignoring case
+        const exactMatch = allZones.find(
+          (zone) => zone.toLowerCase() === normalizedInput,
+        );
+        if (exactMatch) {
+          return exactMatch === 'Asia/Calcutta' ? 'Asia/Kolkata' : exactMatch;
+        }
+
+        // Partial match
+        const partialMatch = allZones.find(
+          (zone) =>
+            zone.toLowerCase().includes(normalizedInput) ||
+            normalizedInput.includes(
+              zone.split('/').pop()?.toLowerCase() || '',
+            ),
+        );
+
+        if (partialMatch) {
+          return partialMatch === 'Asia/Calcutta'
+            ? 'Asia/Kolkata'
+            : partialMatch;
+        }
+      }
+
+      // Default to UTC for invalid timezones
+      return 'UTC';
     }
-
-    // Look for partial match (e.g., "Asia/Kolkata" for "kolkata")
-    const partialMatch = allZones.find(
-      (zone) =>
-        zone.toLowerCase().includes(normalizedInput) ||
-        normalizedInput.includes(zone.split('/').pop()?.toLowerCase() || ''),
-    );
-
-    if (partialMatch) {
-      return partialMatch;
-    }
-
-    // Default to UTC for invalid timezones
-    return 'UTC';
   }
 
   /**
@@ -61,21 +90,20 @@ export class TimezoneUtil {
     // Parse the date in YYYY-MM-DD format
     const [year, month, day] = dateString.split('-').map(Number);
 
-    // Create moment object in user's timezone
-    let momentDate = moment.tz(
+    let dayjsDate = dayjs.tz(
       `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
       'YYYY-MM-DD',
       normalizedTz,
     );
 
     if (timeOfDay === 'start') {
-      momentDate = momentDate.startOf('day');
+      dayjsDate = dayjsDate.startOf('day');
     } else {
-      momentDate = momentDate.endOf('day');
+      dayjsDate = dayjsDate.endOf('day');
     }
 
     // Convert to UTC
-    return momentDate.utc().toDate();
+    return dayjsDate.utc().toDate();
   }
 
   /**
@@ -87,7 +115,7 @@ export class TimezoneUtil {
     format: string = 'YYYY-MM-DD',
   ): string {
     const normalizedTz = this.normalizeTimezone(timezone);
-    return moment(date).tz(normalizedTz).format(format);
+    return dayjs(date).tz(normalizedTz).format(format);
   }
 
   /**
@@ -109,7 +137,7 @@ export class TimezoneUtil {
    */
   static getOffsetInMinutes(date: Date, timezone: string): number {
     const normalizedTz = this.normalizeTimezone(timezone);
-    return moment(date).tz(normalizedTz).utcOffset();
+    return dayjs(date).tz(normalizedTz).utcOffset();
   }
 
   /**
@@ -117,10 +145,19 @@ export class TimezoneUtil {
    */
   static getTimezoneAbbreviation(
     timezone: string,
-    date: Date = new Date(),
+    // Note: this still defaults to DateUtil logic indirectly,
+    // but preserving original signature
+    date: Date = DateUtil.now(),
   ): string {
     const normalizedTz = this.normalizeTimezone(timezone);
-    return moment(date).tz(normalizedTz).format('z');
+    const abbr = dayjs(date).tz(normalizedTz).format('z');
+
+    // Fallback for known zones where Intl returns GMT offsets
+    if (normalizedTz === 'Asia/Kolkata' || normalizedTz === 'Asia/Calcutta') {
+      return 'IST';
+    }
+
+    return abbr;
   }
 
   /**
