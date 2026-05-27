@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsNumber,
@@ -16,9 +17,15 @@ import {
  * ```
  */
 export class MetaMessageDto {
+  @ApiProperty({
+    description: 'Message ID',
+  })
   @IsString()
   mid: string;
 
+  @ApiPropertyOptional({
+    description: 'Message text content',
+  })
   @IsOptional()
   @IsString()
   text?: string;
@@ -28,6 +35,9 @@ export class MetaMessageDto {
  * Represents a sender or recipient with an ID.
  */
 export class MetaParticipantDto {
+  @ApiProperty({
+    description: 'Participant ID (Sender or Recipient)',
+  })
   @IsString()
   id: string;
 }
@@ -46,17 +56,32 @@ export class MetaParticipantDto {
  * ```
  */
 export class MetaMessagingEventDto {
+  @ApiProperty({
+    description: 'Sender of the message',
+    type: () => MetaParticipantDto,
+  })
   @ValidateNested()
   @Type(() => MetaParticipantDto)
   sender: MetaParticipantDto;
 
+  @ApiProperty({
+    description: 'Recipient of the message',
+    type: () => MetaParticipantDto,
+  })
   @ValidateNested()
   @Type(() => MetaParticipantDto)
   recipient: MetaParticipantDto;
 
+  @ApiProperty({
+    description: 'Event timestamp',
+  })
   @IsNumber()
   timestamp: number;
 
+  @ApiPropertyOptional({
+    description: 'Message details (if present)',
+    type: () => MetaMessageDto,
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => MetaMessageDto)
@@ -70,12 +95,22 @@ export class MetaMessagingEventDto {
  * multiple messaging events.
  */
 export class MetaWebhookEntryDto {
+  @ApiProperty({
+    description: 'Page or Account ID',
+  })
   @IsString()
   id: string;
 
+  @ApiProperty({
+    description: 'Time of update',
+  })
   @IsNumber()
   time: number;
 
+  @ApiPropertyOptional({
+    description: 'Array of messaging events',
+    type: [MetaMessagingEventDto],
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -95,9 +130,17 @@ export class MetaWebhookEntryDto {
  * ```
  */
 export class MetaWebhookDto {
+  @ApiProperty({
+    description: 'Object type (usually "instagram")',
+    example: 'instagram',
+  })
   @IsString()
   object: string;
 
+  @ApiProperty({
+    description: 'Array of entry objects',
+    type: [MetaWebhookEntryDto],
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MetaWebhookEntryDto)

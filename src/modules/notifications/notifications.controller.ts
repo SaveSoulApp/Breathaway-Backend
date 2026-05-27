@@ -3,7 +3,9 @@ import { LoggerService } from '@core/logger';
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { SendNotificationRequestDto } from './dto/request/send-notification.request.dto';
 import { NotificationsService } from './notifications.service';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
+@ApiTags('Notifications')
 @Controller({
   path: 'notifications',
   version: ['1'],
@@ -17,6 +19,11 @@ export class NotificationsController extends BaseController {
   }
 
   @Post('send')
+  @ApiOperation({ summary: 'Send a notification' })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Notification dispatch requested successfully',
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   async send(
     @Body() sendNotificationRequestDto: SendNotificationRequestDto,

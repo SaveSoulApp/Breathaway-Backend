@@ -12,7 +12,15 @@ import {
 import { PubSubPushRequestDto } from './dto';
 import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
 import { PubSubRegistryService } from './pubsub-registry.service';
+import {
+  ApiExcludeController,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 
+@ApiTags('PubSub (Internal)')
+@ApiExcludeController()
 @Controller({
   path: 'pubsub',
   version: ['1'],
@@ -28,6 +36,11 @@ export class PubSubIngestionController extends BaseController {
   }
 
   @Post('ingest')
+  @ApiOperation({ summary: 'Ingest Pub/Sub messages (Internal)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Message successfully ingested',
+  })
   @HttpCode(HttpStatus.OK)
   async ingest(@Body() rawPayload: Record<string, unknown>): Promise<void> {
     const payload = rawPayload as unknown as PubSubPushRequestDto;
