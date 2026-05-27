@@ -26,11 +26,17 @@ export class TargetIdentityInputDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   publicValue: string;
 
   @ApiPropertyOptional({ description: 'Constant numeric platform ID' })
   @IsString()
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   platformId?: string;
 }
 

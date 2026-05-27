@@ -13,6 +13,6 @@ export function normalizeIdentityValue(
     case IdentityType.LINKEDIN:
       return value.replace(/^@/, '').trim().toLowerCase();
     default:
-      return value.trim();
+      return value.trim().toLowerCase();
   }
 }

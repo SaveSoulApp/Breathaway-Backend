@@ -49,8 +49,10 @@ export class IdentityCryptoService extends BaseService {
   }
 
   public async processPlatformId(platformId: string): Promise<PlatformId> {
-    const hash = await this.computeHash(platformId);
-    const encryptedPlatformId = await this.encryptPlatformId(platformId);
+    const normalizedPlatformId = platformId.trim().toLowerCase();
+    const hash = await this.computeHash(normalizedPlatformId);
+    const encryptedPlatformId =
+      await this.encryptPlatformId(normalizedPlatformId);
 
     return {
       platformIdHash: hash,
