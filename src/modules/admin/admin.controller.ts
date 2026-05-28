@@ -1,3 +1,4 @@
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
 import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
 
 @ApiTags('Admin')
+@SkipClientIdentity()
 @Controller({
   path: 'admin',
   version: ['1'],
