@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ValidateNested } from 'class-validator';
 
-class TimeframeDto {
+export class TimeframeDto {
   @ApiProperty({ nullable: true })
   startDate: Date | null;
 
@@ -10,7 +10,7 @@ class TimeframeDto {
   endDate: Date | null;
 }
 
-class DemographicsDto {
+export class DemographicsDto {
   @ApiProperty()
   male: number;
 
@@ -27,23 +27,7 @@ class DemographicsDto {
   unknown: number;
 }
 
-class UsersReportDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  acquiredInTimeframe: number;
-
-  @ApiProperty()
-  completedProfiles: number;
-
-  @ApiProperty({ type: DemographicsDto })
-  @ValidateNested()
-  @Type(() => DemographicsDto)
-  demographics: DemographicsDto;
-}
-
-class IdentitySplitDto {
+export class IdentitySplitDto {
   @ApiProperty()
   instagram: number;
 
@@ -63,20 +47,7 @@ class IdentitySplitDto {
   other: number;
 }
 
-class IdentitiesReportDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  averagePerUser: number;
-
-  @ApiProperty({ type: IdentitySplitDto })
-  @ValidateNested()
-  @Type(() => IdentitySplitDto)
-  split: IdentitySplitDto;
-}
-
-class PlatformSplitDto {
+export class PlatformSplitDto {
   @ApiProperty()
   android: number;
 
@@ -84,23 +55,7 @@ class PlatformSplitDto {
   ios: number;
 }
 
-class DevicesReportDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  active: number;
-
-  @ApiProperty()
-  averagePerUser: number;
-
-  @ApiProperty({ type: PlatformSplitDto })
-  @ValidateNested()
-  @Type(() => PlatformSplitDto)
-  platformSplit: PlatformSplitDto;
-}
-
-class IntentStatsDto {
+export class IntentStatsDto {
   @ApiProperty()
   count: number;
 
@@ -108,7 +63,7 @@ class IntentStatsDto {
   percentage: number;
 }
 
-class IntentSplitDto {
+export class IntentSplitDto {
   @ApiProperty({ type: IntentStatsDto })
   @ValidateNested()
   @Type(() => IntentStatsDto)
@@ -125,44 +80,7 @@ class IntentSplitDto {
   open: IntentStatsDto;
 }
 
-class LikesReportDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  totalInTimeframe: number;
-
-  @ApiProperty()
-  averagePerUser: number;
-
-  @ApiProperty({ type: IdentitySplitDto })
-  @ValidateNested()
-  @Type(() => IdentitySplitDto)
-  targetIdentitySplit: IdentitySplitDto;
-
-  @ApiProperty({ type: IntentSplitDto })
-  @ValidateNested()
-  @Type(() => IntentSplitDto)
-  intentSplit: IntentSplitDto;
-}
-
-class MatchesReportDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  totalInTimeframe: number;
-
-  @ApiProperty()
-  averagePerUser: number;
-}
-
-class BlocksReportDto {
-  @ApiProperty()
-  total: number;
-}
-
-class CreditsGivenSplitDto {
+export class CreditsGivenSplitDto {
   @ApiProperty()
   purchase: number;
 
@@ -179,12 +97,83 @@ class CreditsGivenSplitDto {
   likeUsage: number;
 }
 
-class CreditsGivenDto {
+// TOTAL REPORT DTOs
+export class TotalUsersReportDto {
   @ApiProperty()
   total: number;
 
   @ApiProperty()
-  inTimeframe: number;
+  completedProfiles: number;
+
+  @ApiProperty({ type: DemographicsDto })
+  @ValidateNested()
+  @Type(() => DemographicsDto)
+  demographics: DemographicsDto;
+}
+
+export class TotalIdentitiesReportDto {
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  averagePerUser: number;
+
+  @ApiProperty({ type: IdentitySplitDto })
+  @ValidateNested()
+  @Type(() => IdentitySplitDto)
+  split: IdentitySplitDto;
+}
+
+export class TotalDevicesReportDto {
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  active: number;
+
+  @ApiProperty()
+  averagePerUser: number;
+
+  @ApiProperty({ type: PlatformSplitDto })
+  @ValidateNested()
+  @Type(() => PlatformSplitDto)
+  platformSplit: PlatformSplitDto;
+}
+
+export class TotalLikesReportDto {
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  averagePerUser: number;
+
+  @ApiProperty({ type: IdentitySplitDto })
+  @ValidateNested()
+  @Type(() => IdentitySplitDto)
+  targetIdentitySplit: IdentitySplitDto;
+
+  @ApiProperty({ type: IntentSplitDto })
+  @ValidateNested()
+  @Type(() => IntentSplitDto)
+  intentSplit: IntentSplitDto;
+}
+
+export class TotalMatchesReportDto {
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  averagePerUser: number;
+}
+
+export class BlocksReportDto {
+  @ApiProperty()
+  total: number;
+}
+
+export class TotalCreditsGivenDto {
+  @ApiProperty()
+  total: number;
 
   @ApiProperty({ type: CreditsGivenSplitDto })
   @ValidateNested()
@@ -192,64 +181,162 @@ class CreditsGivenDto {
   splitBySource: CreditsGivenSplitDto;
 }
 
-class CreditsUtilisedDto {
-  @ApiProperty()
-  total: number;
+export class TotalCreditsReportDto {
+  @ApiProperty({ type: TotalCreditsGivenDto })
+  @ValidateNested()
+  @Type(() => TotalCreditsGivenDto)
+  given: TotalCreditsGivenDto;
 
   @ApiProperty()
-  inTimeframe: number;
+  utilisedTotal: number;
 }
 
-class CreditsReportDto {
-  @ApiProperty({ type: CreditsGivenDto })
+export class ReportTotalResponseDto {
+  @ApiProperty({ type: TotalUsersReportDto })
   @ValidateNested()
-  @Type(() => CreditsGivenDto)
-  given: CreditsGivenDto;
+  @Type(() => TotalUsersReportDto)
+  users: TotalUsersReportDto;
 
-  @ApiProperty({ type: CreditsUtilisedDto })
+  @ApiProperty({ type: TotalIdentitiesReportDto })
   @ValidateNested()
-  @Type(() => CreditsUtilisedDto)
-  utilised: CreditsUtilisedDto;
-}
+  @Type(() => TotalIdentitiesReportDto)
+  identities: TotalIdentitiesReportDto;
 
-export class ReportResponseDto {
-  @ApiProperty({ type: TimeframeDto })
+  @ApiProperty({ type: TotalDevicesReportDto })
   @ValidateNested()
-  @Type(() => TimeframeDto)
-  timeframe: TimeframeDto;
+  @Type(() => TotalDevicesReportDto)
+  devices: TotalDevicesReportDto;
 
-  @ApiProperty({ type: UsersReportDto })
+  @ApiProperty({ type: TotalLikesReportDto })
   @ValidateNested()
-  @Type(() => UsersReportDto)
-  users: UsersReportDto;
+  @Type(() => TotalLikesReportDto)
+  likes: TotalLikesReportDto;
 
-  @ApiProperty({ type: IdentitiesReportDto })
+  @ApiProperty({ type: TotalMatchesReportDto })
   @ValidateNested()
-  @Type(() => IdentitiesReportDto)
-  identities: IdentitiesReportDto;
-
-  @ApiProperty({ type: DevicesReportDto })
-  @ValidateNested()
-  @Type(() => DevicesReportDto)
-  devices: DevicesReportDto;
-
-  @ApiProperty({ type: LikesReportDto })
-  @ValidateNested()
-  @Type(() => LikesReportDto)
-  likes: LikesReportDto;
-
-  @ApiProperty({ type: MatchesReportDto })
-  @ValidateNested()
-  @Type(() => MatchesReportDto)
-  matches: MatchesReportDto;
+  @Type(() => TotalMatchesReportDto)
+  matches: TotalMatchesReportDto;
 
   @ApiProperty({ type: BlocksReportDto })
   @ValidateNested()
   @Type(() => BlocksReportDto)
   blocks: BlocksReportDto;
 
-  @ApiProperty({ type: CreditsReportDto })
+  @ApiProperty({ type: TotalCreditsReportDto })
   @ValidateNested()
-  @Type(() => CreditsReportDto)
-  credits: CreditsReportDto;
+  @Type(() => TotalCreditsReportDto)
+  credits: TotalCreditsReportDto;
+}
+
+// TIMEFRAME REPORT DTOs
+export class TimeframeUsersReportDto {
+  @ApiProperty()
+  acquired: number;
+
+  @ApiProperty({ type: DemographicsDto })
+  @ValidateNested()
+  @Type(() => DemographicsDto)
+  demographics: DemographicsDto;
+}
+
+export class TimeframeIdentitiesReportDto {
+  @ApiProperty()
+  created: number;
+
+  @ApiProperty({ type: IdentitySplitDto })
+  @ValidateNested()
+  @Type(() => IdentitySplitDto)
+  split: IdentitySplitDto;
+}
+
+export class TimeframeDevicesReportDto {
+  @ApiProperty()
+  registered: number;
+
+  @ApiProperty({ type: PlatformSplitDto })
+  @ValidateNested()
+  @Type(() => PlatformSplitDto)
+  platformSplit: PlatformSplitDto;
+}
+
+export class TimeframeLikesReportDto {
+  @ApiProperty()
+  made: number;
+
+  @ApiProperty({ type: IdentitySplitDto })
+  @ValidateNested()
+  @Type(() => IdentitySplitDto)
+  targetIdentitySplit: IdentitySplitDto;
+
+  @ApiProperty({ type: IntentSplitDto })
+  @ValidateNested()
+  @Type(() => IntentSplitDto)
+  intentSplit: IntentSplitDto;
+}
+
+export class TimeframeMatchesReportDto {
+  @ApiProperty()
+  matched: number;
+}
+
+export class TimeframeCreditsGivenDto {
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty({ type: CreditsGivenSplitDto })
+  @ValidateNested()
+  @Type(() => CreditsGivenSplitDto)
+  splitBySource: CreditsGivenSplitDto;
+}
+
+export class TimeframeCreditsReportDto {
+  @ApiProperty({ type: TimeframeCreditsGivenDto })
+  @ValidateNested()
+  @Type(() => TimeframeCreditsGivenDto)
+  given: TimeframeCreditsGivenDto;
+
+  @ApiProperty()
+  utilisedTotal: number;
+}
+
+export class ReportTimeframeResponseDto {
+  @ApiProperty({ type: TimeframeDto })
+  @ValidateNested()
+  @Type(() => TimeframeDto)
+  timeframe: TimeframeDto;
+
+  @ApiProperty({ type: TimeframeUsersReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeUsersReportDto)
+  users: TimeframeUsersReportDto;
+
+  @ApiProperty({ type: TimeframeIdentitiesReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeIdentitiesReportDto)
+  identities: TimeframeIdentitiesReportDto;
+
+  @ApiProperty({ type: TimeframeDevicesReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeDevicesReportDto)
+  devices: TimeframeDevicesReportDto;
+
+  @ApiProperty({ type: TimeframeLikesReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeLikesReportDto)
+  likes: TimeframeLikesReportDto;
+
+  @ApiProperty({ type: TimeframeMatchesReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeMatchesReportDto)
+  matches: TimeframeMatchesReportDto;
+
+  @ApiProperty({ type: BlocksReportDto })
+  @ValidateNested()
+  @Type(() => BlocksReportDto)
+  blocks: BlocksReportDto;
+
+  @ApiProperty({ type: TimeframeCreditsReportDto })
+  @ValidateNested()
+  @Type(() => TimeframeCreditsReportDto)
+  credits: TimeframeCreditsReportDto;
 }
