@@ -334,7 +334,7 @@ export class AdminService extends BaseService {
     const { startDate, endDate } = query;
 
     const actualEndDate = endDate || new Date();
-    
+
     const timeframeFilter: Prisma.DateTimeFilter = { lte: actualEndDate };
     if (startDate) {
       timeframeFilter.gte = startDate;
@@ -348,19 +348,33 @@ export class AdminService extends BaseService {
     const acquiredUsersDemographics = await this.prisma.userProfile.groupBy({
       by: ['gender'],
       where: {
-        user: { deletedAt: null, createdAt: timeframeFilter }
+        user: { deletedAt: null, createdAt: timeframeFilter },
       },
       _count: true,
     });
 
-    let male = 0, female = 0, nonbinary = 0, otherGender = 0, unknownGender = 0;
+    let male = 0,
+      female = 0,
+      nonbinary = 0,
+      otherGender = 0,
+      unknownGender = 0;
     for (const group of acquiredUsersDemographics) {
       switch (group.gender) {
-        case GenderType.MALE: male = group._count; break;
-        case GenderType.FEMALE: female = group._count; break;
-        case GenderType.NONBINARY: nonbinary = group._count; break;
-        case GenderType.OTHER: otherGender = group._count; break;
-        default: unknownGender = group._count; break;
+        case GenderType.MALE:
+          male = group._count;
+          break;
+        case GenderType.FEMALE:
+          female = group._count;
+          break;
+        case GenderType.NONBINARY:
+          nonbinary = group._count;
+          break;
+        case GenderType.OTHER:
+          otherGender = group._count;
+          break;
+        default:
+          unknownGender = group._count;
+          break;
       }
     }
 
@@ -375,15 +389,32 @@ export class AdminService extends BaseService {
       _count: true,
     });
 
-    let instagramIds = 0, phoneIds = 0, emailIds = 0, linkedinIds = 0, twitterIds = 0, otherIds = 0;
+    let instagramIds = 0,
+      phoneIds = 0,
+      emailIds = 0,
+      linkedinIds = 0,
+      twitterIds = 0,
+      otherIds = 0;
     for (const group of createdIdentitiesGroup) {
       switch (group.type) {
-        case IdentityType.INSTAGRAM: instagramIds = group._count; break;
-        case IdentityType.PHONE: phoneIds = group._count; break;
-        case IdentityType.EMAIL: emailIds = group._count; break;
-        case IdentityType.LINKEDIN: linkedinIds = group._count; break;
-        case IdentityType.TWITTER: twitterIds = group._count; break;
-        case IdentityType.OTHER: otherIds = group._count; break;
+        case IdentityType.INSTAGRAM:
+          instagramIds = group._count;
+          break;
+        case IdentityType.PHONE:
+          phoneIds = group._count;
+          break;
+        case IdentityType.EMAIL:
+          emailIds = group._count;
+          break;
+        case IdentityType.LINKEDIN:
+          linkedinIds = group._count;
+          break;
+        case IdentityType.TWITTER:
+          twitterIds = group._count;
+          break;
+        case IdentityType.OTHER:
+          otherIds = group._count;
+          break;
       }
     }
 
@@ -397,10 +428,12 @@ export class AdminService extends BaseService {
       where: { createdAt: timeframeFilter },
       _count: true,
     });
-    
-    let androidDevices = 0, iosDevices = 0;
+
+    let androidDevices = 0,
+      iosDevices = 0;
     for (const group of devicesGroup) {
-      if (group.platform === DevicePlatform.ANDROID) androidDevices = group._count;
+      if (group.platform === DevicePlatform.ANDROID)
+        androidDevices = group._count;
       else if (group.platform === DevicePlatform.IOS) iosDevices = group._count;
     }
 
@@ -409,11 +442,16 @@ export class AdminService extends BaseService {
       where: { deletedAt: null, createdAt: timeframeFilter },
     });
 
-    let instagramLikes = 0, phoneLikes = 0, emailLikes = 0, linkedinLikes = 0, twitterLikes = 0, otherLikes = 0;
-    
+    let instagramLikes = 0,
+      phoneLikes = 0,
+      emailLikes = 0,
+      linkedinLikes = 0,
+      twitterLikes = 0,
+      otherLikes = 0;
+
     if (likesMade > 0) {
       let likesIdentityRaw: Array<{ type: string; count: bigint }> = [];
-      
+
       if (startDate) {
         likesIdentityRaw = await this.prisma.$queryRaw<
           Array<{ type: string; count: bigint }>
@@ -442,12 +480,24 @@ export class AdminService extends BaseService {
       for (const row of likesIdentityRaw) {
         const count = Number(row.count);
         switch (row.type) {
-          case IdentityType.INSTAGRAM: instagramLikes = count; break;
-          case IdentityType.PHONE: phoneLikes = count; break;
-          case IdentityType.EMAIL: emailLikes = count; break;
-          case IdentityType.LINKEDIN: linkedinLikes = count; break;
-          case IdentityType.TWITTER: twitterLikes = count; break;
-          case IdentityType.OTHER: otherLikes = count; break;
+          case IdentityType.INSTAGRAM:
+            instagramLikes = count;
+            break;
+          case IdentityType.PHONE:
+            phoneLikes = count;
+            break;
+          case IdentityType.EMAIL:
+            emailLikes = count;
+            break;
+          case IdentityType.LINKEDIN:
+            linkedinLikes = count;
+            break;
+          case IdentityType.TWITTER:
+            twitterLikes = count;
+            break;
+          case IdentityType.OTHER:
+            otherLikes = count;
+            break;
         }
       }
     }
@@ -458,20 +508,23 @@ export class AdminService extends BaseService {
       _count: true,
     });
 
-    let relCount = 0, casCount = 0, openCount = 0;
+    let relCount = 0,
+      casCount = 0,
+      openCount = 0;
     for (const group of likesIntentGroup) {
       if (group.intent === IntentType.RELATIONSHIP) relCount = group._count;
       else if (group.intent === IntentType.CASUAL) casCount = group._count;
       else if (group.intent === IntentType.OPEN) openCount = group._count;
     }
 
-    const getPerc = (c: number, total: number) => total > 0 ? (c / total) * 100 : 0;
+    const getPerc = (c: number, total: number) =>
+      total > 0 ? (c / total) * 100 : 0;
 
     // Matches
     const matchesMade = await this.prisma.match.count({
       where: { deletedAt: null, matchedAt: timeframeFilter },
     });
-    
+
     // Blocks
     const blocksMade = await this.prisma.block.count({
       where: { deletedAt: null, createdAt: timeframeFilter },
@@ -479,7 +532,7 @@ export class AdminService extends BaseService {
 
     // Credits
     const creditsGivenAgg = await this.prisma.creditLedger.aggregate({
-      where: { 
+      where: {
         transactionType: CreditTransactionType.CREDIT,
         createdAt: timeframeFilter,
       },
@@ -488,27 +541,41 @@ export class AdminService extends BaseService {
 
     const creditsGivenGroup = await this.prisma.creditLedger.groupBy({
       by: ['source'],
-      where: { 
+      where: {
         transactionType: CreditTransactionType.CREDIT,
         createdAt: timeframeFilter,
       },
       _sum: { amount: true },
     });
 
-    let purchaseCred = 0, bonusCred = 0, referralCred = 0, adminCred = 0, likeUsageCred = 0;
+    let purchaseCred = 0,
+      bonusCred = 0,
+      referralCred = 0,
+      adminCred = 0,
+      likeUsageCred = 0;
     for (const group of creditsGivenGroup) {
       const sum = group._sum.amount || 0;
       switch (group.source) {
-        case CreditSource.PURCHASE: purchaseCred = sum; break;
-        case CreditSource.BONUS: bonusCred = sum; break;
-        case CreditSource.REFERRAL: referralCred = sum; break;
-        case CreditSource.ADMIN: adminCred = sum; break;
-        case CreditSource.LIKE_USAGE: likeUsageCred = sum; break;
+        case CreditSource.PURCHASE:
+          purchaseCred = sum;
+          break;
+        case CreditSource.BONUS:
+          bonusCred = sum;
+          break;
+        case CreditSource.REFERRAL:
+          referralCred = sum;
+          break;
+        case CreditSource.ADMIN:
+          adminCred = sum;
+          break;
+        case CreditSource.LIKE_USAGE:
+          likeUsageCred = sum;
+          break;
       }
     }
 
     const creditsUtilisedAgg = await this.prisma.creditLedger.aggregate({
-      where: { 
+      where: {
         transactionType: CreditTransactionType.DEBIT,
         createdAt: timeframeFilter,
       },
