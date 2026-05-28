@@ -66,6 +66,8 @@ deploy_service() {
         "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
         "KMS_KEY_NAMES=kms-key-names:latest"
         "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
+        "ADMIN_USERNAME=admin-username:latest"
+        "ADMIN_PASSWORD=admin-password:latest"
         "SWAGGER_USERNAME=swagger-username:latest"
         "SWAGGER_PASSWORD=swagger-password:latest"
     )
@@ -97,16 +99,22 @@ deploy_service() {
         "JWT_AUDIENCE=${JWT_AUDIENCE}"
         "JWT_ISSUER=${JWT_ISSUER}"
         "OTP_TTL=${OTP_TTL}"
-        "OTP_RATE_LIMIT_TTL=${OTP_RATE_LIMIT_TTL}"
+        "EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}"
+        "EMAIL_FROM_NAME=${EMAIL_FROM_NAME}"
+        "EMAIL_PROVIDER=${EMAIL_PROVIDER}"
+        "MAILGUN_API_KEY=${MAILGUN_API_KEY}"
+        "MAILGUN_DOMAIN=${MAILGUN_DOMAIN}"
+        "SENDGRID_API_KEY=${SENDGRID_API_KEY}"
+        "BREVO_API_KEY=${BREVO_API_KEY}"
         "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
     )
 
-    # Join environment variables with @ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
-    local env_vars_str="^@^"
+    # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
+    local env_vars_str="^~^"
     for ev in "${env_vars[@]}"; do
-        env_vars_str="${env_vars_str}${ev}@"
+        env_vars_str="${env_vars_str}${ev}~"
     done
-    env_vars_str="${env_vars_str%@}" # Remove trailing @
+    env_vars_str="${env_vars_str%~}" # Remove trailing ~
     
     gcloud_run_args+=(--set-env-vars="${env_vars_str}")
 
