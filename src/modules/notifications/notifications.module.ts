@@ -29,7 +29,7 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
         sendGrid: SendGridEmailAdapter,
         mailgun: MailgunEmailAdapter,
       ) => {
-        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'sendgrid';
+        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'mailgun';
         return provider === 'mailgun' ? mailgun : sendGrid;
       },
     },

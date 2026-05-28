@@ -7,7 +7,11 @@ import * as fs from 'fs';
 import * as Handlebars from 'handlebars';
 import * as path from 'path';
 import { EmailType } from '../enums/email-type.enum';
-import { EMAIL_ADAPTER_TOKEN, EmailPayload, type IEmailAdapter } from './adapters/email-adapter.interface';
+import {
+  EMAIL_ADAPTER_TOKEN,
+  EmailPayload,
+  type IEmailAdapter,
+} from './adapters/email-adapter.interface';
 import { EMAIL_TEMPLATE_MAP } from './email-template.registry';
 
 export interface SendEmailOptions {
@@ -42,8 +46,7 @@ export class EmailService extends BaseService implements OnModuleInit {
     private readonly emailAdapter: IEmailAdapter,
   ) {
     super(loggerService);
-    // Resolve templates directory relative to this file at runtime
-    this.templatesDir = path.resolve(__dirname, '../../templates');
+    this.templatesDir = path.resolve(__dirname, '../templates');
   }
 
   /**

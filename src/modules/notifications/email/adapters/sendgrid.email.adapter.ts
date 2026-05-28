@@ -2,7 +2,7 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as SendGrid from '@sendgrid/mail';
+import SendGrid from '@sendgrid/mail';
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
 
 @Injectable()
