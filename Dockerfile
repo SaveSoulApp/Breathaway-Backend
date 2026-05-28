@@ -2,6 +2,8 @@
 # 1. Base Stage
 # ---------------------------
 FROM node:20-slim AS base
+# Suppress npm and pnpm update notices
+ENV npm_config_update_notifier=false
 # Prisma requires OpenSSL to run its query engine
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 # Pin pnpm version explicitly to avoid corepack update warnings
