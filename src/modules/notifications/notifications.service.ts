@@ -7,8 +7,8 @@ import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Device } from '@prisma/client';
-import { EmailService } from './email/email.service';
 import { SendNotificationRequestDto } from './dto/request/send-notification.request.dto';
+import { EmailService } from './email/email.service';
 import { EmailType } from './enums/email-type.enum';
 import { NotificationChannel } from './enums/notification-channel.enum';
 import { NotificationType } from './enums/notification-type.enum';
@@ -19,7 +19,9 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
  * Maps a push NotificationType to the corresponding EmailType for template selection.
  * Only types that have a corresponding email template need to be listed here.
  */
-const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<Record<NotificationType, EmailType>> = {
+const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
+  Record<NotificationType, EmailType>
+> = {
   [NotificationType.NEW_MATCH]: EmailType.NEW_MATCH,
   [NotificationType.NEW_MESSAGE]: EmailType.NEW_MESSAGE,
   [NotificationType.CREDIT_UPDATE]: EmailType.CREDIT_UPDATE,

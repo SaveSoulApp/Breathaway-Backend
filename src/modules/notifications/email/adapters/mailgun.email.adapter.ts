@@ -3,9 +3,9 @@ import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const mailgunTransport = require('nodemailer-mailgun-transport');
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+const mailgunTransport = require('nodemailer-mailgun-transport');
 
 @Injectable()
 export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
@@ -29,6 +29,7 @@ export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
     }
 
     this.transporter = nodemailer.createTransport(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call
       mailgunTransport({
         auth: { api_key: apiKey ?? '', domain: domain ?? '' },
       }),

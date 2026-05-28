@@ -1,11 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep, MockProxy } from 'jest-mock-extended';
 import * as fs from 'fs';
-import * as path from 'path';
+
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { EmailService, SendEmailOptions } from '@modules/notifications/email/email.service';
-import { IEmailAdapter, EMAIL_ADAPTER_TOKEN } from '@modules/notifications/email/adapters/email-adapter.interface';
+import {
+  EmailService,
+  SendEmailOptions,
+} from '@modules/notifications/email/email.service';
+import {
+  IEmailAdapter,
+  EMAIL_ADAPTER_TOKEN,
+} from '@modules/notifications/email/adapters/email-adapter.interface';
 import { EmailType } from '@modules/notifications/enums/email-type.enum';
 import { EMAIL_TEMPLATE_MAP } from '@modules/notifications/email/email-template.registry';
 
@@ -26,10 +32,20 @@ describe('EmailService', () => {
     mockPrisma = mockDeep<PrismaService>();
     mockAdapter = mockDeep<IEmailAdapter>();
     mockLogger = mockDeep<LoggerService>();
+    const contextualLogger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+    };
+    mockLogger.forContext.mockReturnValue(contextualLogger as never);
 
     // Stub fs.existsSync + fs.readdirSync + fs.readFileSync
     mockFs.existsSync.mockReturnValue(true);
-    mockFs.readdirSync.mockReturnValue([] as unknown as ReturnType<typeof fs.readdirSync>);
+    mockFs.readdirSync.mockReturnValue(
+      [] as unknown as ReturnType<typeof fs.readdirSync>,
+    );
     mockFs.readFileSync.mockImplementation((filePath: unknown) => {
       const fp = String(filePath);
       if (fp.includes('layout.hbs')) return STUB_LAYOUT;
@@ -64,14 +80,20 @@ describe('EmailService', () => {
       const options: SendEmailOptions = {
         emailType: EmailType.WELCOME,
         userIds: ['user-1', 'user-2'],
-        templateData: { name: 'Alice', appUrl: 'https://app.breathaway.com', currentYear: 2026 },
+        templateData: {
+          name: 'Alice',
+          appUrl: 'https://app.breathaway.com',
+          currentYear: 2026,
+        },
       };
 
       await service.send(options);
 
       expect(mockPrisma.authCredential.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ userId: { in: ['user-1', 'user-2'] } }),
+          where: expect.objectContaining({
+            userId: { in: ['user-1', 'user-2'] },
+          }),
         }),
       );
       expect(mockAdapter.send).toHaveBeenCalledTimes(2);

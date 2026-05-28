@@ -7,11 +7,11 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
+import { EmailService } from '../email/email.service';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsService } from '../notifications.service';
-import { EmailProviderService } from '../providers/email.provider.service';
 import { FcmProviderService } from '../providers/fcm.provider.service';
 import { WhatsAppProviderService } from '../providers/whatsapp.provider.service';
 
@@ -20,7 +20,7 @@ describe('NotificationsService', () => {
   let pubSubPublisherService: jest.Mocked<PubSubPublisherService>;
   let prismaService: jest.Mocked<PrismaService>;
   let fcmProvider: jest.Mocked<FcmProviderService>;
-  let emailProvider: jest.Mocked<EmailProviderService>;
+  let emailService: jest.Mocked<EmailService>;
   let whatsAppProvider: jest.Mocked<WhatsAppProviderService>;
 
   beforeEach(async () => {
@@ -62,7 +62,7 @@ describe('NotificationsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PubSubPublisherService, useValue: mockPubSub },
         { provide: FcmProviderService, useValue: mockFcm },
-        { provide: EmailProviderService, useValue: mockEmail },
+        { provide: EmailService, useValue: mockEmail },
         { provide: WhatsAppProviderService, useValue: mockWhatsApp },
       ],
     }).compile();
@@ -71,7 +71,7 @@ describe('NotificationsService', () => {
     pubSubPublisherService = module.get(PubSubPublisherService);
     prismaService = module.get(PrismaService);
     fcmProvider = module.get(FcmProviderService);
-    emailProvider = module.get(EmailProviderService);
+    emailService = module.get(EmailService);
     whatsAppProvider = module.get(WhatsAppProviderService);
   });
 
@@ -141,7 +141,7 @@ describe('NotificationsService', () => {
         },
       });
       expect(fcmProvider.send).toHaveBeenCalledWith(dto, mockDevices);
-      expect(emailProvider.send).not.toHaveBeenCalled();
+      expect(emailService.send).not.toHaveBeenCalled();
       expect(whatsAppProvider.send).not.toHaveBeenCalled();
     });
 
@@ -161,13 +161,19 @@ describe('NotificationsService', () => {
 
       (prismaService.device.findMany as jest.Mock).mockResolvedValue([]);
       fcmProvider.send.mockResolvedValue();
-      emailProvider.send.mockResolvedValue();
+      emailService.send.mockResolvedValue(undefined as never);
       whatsAppProvider.send.mockResolvedValue();
 
       await service.processSendRequest(dto);
 
       expect(fcmProvider.send).toHaveBeenCalled();
-      expect(emailProvider.send).toHaveBeenCalledWith(dto);
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emailType: expect.anything(),
+          userIds: expect.anything(),
+          templateData: expect.anything(),
+        }),
+      );
       expect(whatsAppProvider.send).toHaveBeenCalledWith(dto);
     });
 
@@ -181,7 +187,7 @@ describe('NotificationsService', () => {
         category: NotificationCategory.SYSTEM,
       };
 
-      emailProvider.send.mockRejectedValue(new Error('Email failed'));
+      emailService.send.mockRejectedValue(new Error('Email failed'));
 
       // The processSendRequest shouldn't throw, it should use Promise.allSettled and log
       await expect(service.processSendRequest(dto)).resolves.not.toThrow();
