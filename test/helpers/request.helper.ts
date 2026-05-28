@@ -7,12 +7,16 @@ import { App } from 'supertest/types';
  * Reads the mandatory client-identity header values from env (set by .env.test).
  * These mirror what a real mobile client sends on every request.
  */
-function getClientIdentityHeaders(app: INestApplication): Record<string, string> {
+function getClientIdentityHeaders(
+  app: INestApplication,
+): Record<string, string> {
   const config = app.get(ConfigService);
 
   // API_KEYS and CLIENT_IDS are JSON arrays in .env.test  e.g. '["test-api-key"]'
   const apiKeys = JSON.parse(config.get<string>('API_KEYS', '[]')) as string[];
-  const clientIds = JSON.parse(config.get<string>('CLIENT_IDS', '[]')) as string[];
+  const clientIds = JSON.parse(
+    config.get<string>('CLIENT_IDS', '[]'),
+  ) as string[];
   const appName = config.get<string>('APP_NAME', 'BreathAway');
   const minVersion = config.get<string>('MIN_APP_VERSION', '1.0.0');
   const platforms = JSON.parse(
@@ -38,6 +42,7 @@ function getClientIdentityHeaders(app: INestApplication): Record<string, string>
 export function authedRequest(app: INestApplication): {
   get: (url: string) => SupertestChain;
   post: (url: string) => SupertestChain;
+  put: (url: string) => SupertestChain;
   patch: (url: string) => SupertestChain;
   delete: (url: string) => SupertestChain;
 } {
@@ -55,6 +60,7 @@ export function authedRequest(app: INestApplication): {
   return {
     get: (url: string) => attach(request(server).get(url)),
     post: (url: string) => attach(request(server).post(url)),
+    put: (url: string) => attach(request(server).put(url)),
     patch: (url: string) => attach(request(server).patch(url)),
     delete: (url: string) => attach(request(server).delete(url)),
   };

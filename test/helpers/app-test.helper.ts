@@ -34,7 +34,9 @@ export interface AppTestContext {
  * real Firebase tokens. All other dependencies (Prisma, KMS, JWT) run against
  * the real .env.test configuration.
  */
-export async function createAuthTestApp(): Promise<AppTestContext> {
+export async function createAuthTestApp(
+  extraModules: any[] = [],
+): Promise<AppTestContext> {
   const mockFirebaseValidation = jest.fn<
     Promise<FirebaseValidationResult>,
     [string, string]
@@ -59,6 +61,7 @@ export async function createAuthTestApp(): Promise<AppTestContext> {
       PrismaModule,
       FirebaseModule,
       AuthModule,
+      ...extraModules,
     ],
     providers: [
       {
