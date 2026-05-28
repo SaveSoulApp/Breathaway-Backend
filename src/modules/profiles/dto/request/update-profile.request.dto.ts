@@ -8,6 +8,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({
@@ -45,6 +46,9 @@ export class UpdateProfileDto {
     enum: GenderType,
     example: GenderType.MALE,
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsOptional()
   @IsEnum(GenderType)
   gender?: GenderType;

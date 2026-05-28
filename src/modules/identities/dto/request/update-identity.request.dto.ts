@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateIdentityDto {
@@ -7,6 +8,9 @@ export class UpdateIdentityDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   publicValue?: string;
 
   @ApiPropertyOptional({
@@ -14,5 +18,8 @@ export class UpdateIdentityDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   platformId?: string;
 }

@@ -4,11 +4,14 @@ import { CreditsModule } from '@modules/credits/credits.module';
 import { DeviceModule } from '@modules/devices/devices.module';
 import { HealthModule } from '@modules/health/health.module';
 import { IdentityModule } from '@modules/identities/identities.module';
+import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { LikeModule } from '@modules/likes/likes.module';
 import { MatchModule } from '@modules/matches/matches.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { ProfileModule } from '@modules/profiles/profiles.module';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 import { INestApplication } from '@nestjs/common';
@@ -98,7 +101,13 @@ function publicApiDocumentation(app: INestApplication): void {
 }
 
 function adminApiDocumentation(app: INestApplication): void {
-  const adminModules = [InstagramModule, WebhooksModule];
+  const adminModules = [
+    InstagramModule,
+    WebhooksModule,
+    PubSubModule,
+    IdentityWorkflowsModule,
+    NotificationsModule,
+  ];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
     .setDescription(

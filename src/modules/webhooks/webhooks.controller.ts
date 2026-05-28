@@ -4,7 +4,9 @@ import { LoggerService } from '@core/logger';
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { MetaWebhookDto } from './dto';
 import { WebhooksService } from './webhooks.service';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
+@ApiTags('Webhooks')
 @Controller({
   path: 'webhooks',
   version: ['1'],
@@ -19,6 +21,11 @@ export class WebhooksController extends BaseController {
   }
 
   @Get('meta')
+  @ApiOperation({ summary: 'Verify Meta Webhook' })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook successfully verified',
+  })
   verifyWebhook(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
@@ -28,6 +35,11 @@ export class WebhooksController extends BaseController {
   }
 
   @Post('meta')
+  @ApiOperation({ summary: 'Handle Meta Webhook events' })
+  @ApiResponse({
+    status: 201,
+    description: 'Events successfully received',
+  })
   async handleMetaWebhook(@Body() body: MetaWebhookDto) {
     this.logger.log('Meta webhook received', { object: body.object });
 

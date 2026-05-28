@@ -49,8 +49,10 @@ export class IdentityCryptoService extends BaseService {
   }
 
   public async processPlatformId(platformId: string): Promise<PlatformId> {
-    const hash = await this.computeHash(platformId);
-    const encryptedPlatformId = await this.encryptPlatformId(platformId);
+    const normalizedPlatformId = platformId.trim().toLowerCase();
+    const hash = await this.computeHash(normalizedPlatformId);
+    const encryptedPlatformId =
+      await this.encryptPlatformId(normalizedPlatformId);
 
     return {
       platformIdHash: hash,
@@ -147,12 +149,8 @@ export class IdentityCryptoService extends BaseService {
 
   private maskPhone(phone: string): string {
     const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length <= 4) return '••••';
-    return (
-      '+' +
-      cleaned.slice(0, cleaned.length - 4).replace(/\d/g, '•') +
-      cleaned.slice(-4)
-    );
+    if (cleaned.length <= 6) return '****';
+    return `+${cleaned.slice(0, 2)}****${cleaned.slice(-4)}`;
   }
 
   private maskEmail(email: string): string {
