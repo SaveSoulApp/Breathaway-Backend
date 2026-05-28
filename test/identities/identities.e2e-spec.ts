@@ -60,13 +60,18 @@ describe('IdentityController (e2e)', () => {
       });
     });
 
+    const uniqueSuffix = Date.now();
+    const testEmail = `test-${uniqueSuffix}@example.com`;
+    const testEmailConflict = `TEST-${uniqueSuffix}@example.com`;
+    const testEmailUpdated = `updated-${uniqueSuffix}@example.com`;
+
     it('POST /api/v1/identities - creates a new identity', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/identities')
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           type: IdentityType.EMAIL,
-          publicValue: 'test@example.com',
+          publicValue: testEmail,
         });
 
       expect(res.status).toBe(201);
@@ -84,7 +89,7 @@ describe('IdentityController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           type: IdentityType.EMAIL,
-          publicValue: 'TEST@example.com', // testing case insensitivity as well
+          publicValue: testEmailConflict, // testing case insensitivity as well
         });
 
       expect(res.status).toBe(409); // Conflict
@@ -113,7 +118,7 @@ describe('IdentityController (e2e)', () => {
       expect(res.body.length).toBeGreaterThan(0);
       expect(res.body[0]).toMatchObject({
         type: IdentityType.EMAIL,
-        publicValue: 'test@example.com', // complete endpoint exposes raw values
+        publicValue: testEmail, // complete endpoint exposes raw values
       });
     });
 
@@ -123,13 +128,13 @@ describe('IdentityController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           type: IdentityType.EMAIL,
-          publicValue: 'TEST@example.com', // testing lowercase transformation
+          publicValue: testEmailConflict, // testing lowercase transformation
         });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
         type: IdentityType.EMAIL,
-        publicValue: 'test@example.com',
+        publicValue: testEmail,
       });
     });
 
@@ -181,7 +186,7 @@ describe('IdentityController (e2e)', () => {
       expect(res.body).toMatchObject({
         id: identityId,
         type: IdentityType.EMAIL,
-        publicValue: 'test@example.com',
+        publicValue: testEmail,
       });
     });
 
@@ -211,7 +216,7 @@ describe('IdentityController (e2e)', () => {
         .patch(`/api/v1/identities/${identityId}`)
         .set('authorization', `Bearer ${validJwt}`)
         .send({
-          publicValue: 'updated@example.com',
+          publicValue: testEmailUpdated,
         });
 
       expect(res.status).toBe(200);
@@ -221,7 +226,7 @@ describe('IdentityController (e2e)', () => {
         .get(`/api/v1/identities/${identityId}/complete`)
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(completeRes.body.publicValue).toBe('updated@example.com');
+      expect(completeRes.body.publicValue).toBe(testEmailUpdated);
     });
 
     it('POST /api/v1/identities/:id/verify - marks identity as verified', async () => {
