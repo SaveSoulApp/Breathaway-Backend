@@ -1,0 +1,33 @@
+{{!--
+  Template: system-alert
+  Data keys:
+    - name           {string}  Recipient's first name
+    - alertTitle     {string}  Short alert title (also used in subject)
+    - alertMessage   {string}  Main alert body text
+    - alertSeverity  {string}  One of: info | success | warning | danger (defaults to info)
+    - ctaLabel       {string}  Optional button label
+    - ctaUrl         {string}  Optional button URL
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+--}}
+<p class="email-greeting">{{alertTitle}}</p>
+
+<p>Hi {{name}},</p>
+
+<div class="email-alert email-alert--{{alertSeverity}}">
+  <p>{{alertMessage}}</p>
+</div>
+
+{{#if ctaUrl}}
+<div style="text-align: center;">
+  <a href="{{ctaUrl}}" class="email-btn">{{#if ctaLabel}}{{ctaLabel}}{{else}}Take Action →{{/if}}</a>
+</div>
+{{/if}}
+
+<hr class="email-divider" />
+
+<p style="font-size: 13px; color: #9CA3AF; text-align: center;">
+  This is an automated system notification from BreathAway.<br />
+  If you have questions, visit our <a href="{{appUrl}}/help">Help Centre</a>.
+</p>

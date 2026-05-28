@@ -1,0 +1,39 @@
+{{!--
+  Template: welcome
+  Data keys:
+    - name           {string}  Recipient's first name
+    - appUrl         {string}  Base URL of the app
+    - ctaUrl         {string}  Onboarding CTA link
+    - unsubscribeToken {string}
+    - currentYear    {number}
+--}}
+<p class="email-greeting">Welcome aboard, {{name}}! 🎉</p>
+
+<p>
+  We're thrilled to have you join the BreathAway community. You've just taken
+  the first step toward meaningful connections built on authenticity and
+  intention.
+</p>
+
+<div class="email-highlight-box">
+  <p>
+    BreathAway is a space where you can breathe freely, show up as your true
+    self, and connect with people who truly get you.
+  </p>
+</div>
+
+<p>Here's what you can do right now to get started:</p>
+
+<ul style="padding-left: 20px; color: #4B5563; line-height: 2;">
+  <li>✅ Complete your profile so others can find you</li>
+  <li>💫 Explore potential matches curated just for you</li>
+  <li>💬 Start a conversation — the best ones begin with a single message</li>
+</ul>
+
+<div style="text-align: center;">
+  <a href="{{ctaUrl}}" class="email-btn">Complete My Profile →</a>
+</div>
+
+<p style="font-size: 14px; color: #9CA3AF; margin-top: 24px;">
+  If you didn't create a BreathAway account, you can safely ignore this email.
+</p>

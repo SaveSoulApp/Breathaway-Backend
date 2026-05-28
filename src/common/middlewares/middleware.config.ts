@@ -18,14 +18,14 @@ import { TimezoneMiddleware } from './timezone.middleware';
  */
 export function configureMiddleware(consumer: MiddlewareConsumer): void {
   const pubSubExclusions = [
-    { path: 'pubsub/(.*)', method: RequestMethod.ALL },
-    { path: 'v1/pubsub/(.*)', method: RequestMethod.ALL },
-    { path: 'api/v1/pubsub/(.*)', method: RequestMethod.ALL },
+    { path: 'pubsub/*path', method: RequestMethod.ALL },
+    { path: 'v1/pubsub/*path', method: RequestMethod.ALL },
+    { path: 'api/v1/pubsub/*path', method: RequestMethod.ALL },
   ];
 
   const swaggerExclusions = SWAGGER_PROTECTED_PATHS.flatMap((path) => [
     { path, method: RequestMethod.ALL },
-    { path: `${path}/(.*)`, method: RequestMethod.ALL },
+    { path: `${path}/*path`, method: RequestMethod.ALL },
     { path: `${path}-json`, method: RequestMethod.ALL },
     { path: `${path}-yaml`, method: RequestMethod.ALL },
   ]);

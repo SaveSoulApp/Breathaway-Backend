@@ -8,10 +8,25 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Device } from '@prisma/client';
 import { SendNotificationRequestDto } from './dto/request/send-notification.request.dto';
+import { EmailService } from './email/email.service';
+import { EmailType } from './enums/email-type.enum';
 import { NotificationChannel } from './enums/notification-channel.enum';
-import { EmailProviderService } from './providers/email.provider.service';
+import { NotificationType } from './enums/notification-type.enum';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
+
+/**
+ * Maps a push NotificationType to the corresponding EmailType for template selection.
+ * Only types that have a corresponding email template need to be listed here.
+ */
+const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
+  Record<NotificationType, EmailType>
+> = {
+  [NotificationType.NEW_MATCH]: EmailType.NEW_MATCH,
+  [NotificationType.NEW_MESSAGE]: EmailType.NEW_MESSAGE,
+  [NotificationType.CREDIT_UPDATE]: EmailType.CREDIT_UPDATE,
+  [NotificationType.SYSTEM_ALERT]: EmailType.SYSTEM_ALERT,
+};
 
 @Injectable()
 export class NotificationsService extends BaseService {
@@ -21,7 +36,7 @@ export class NotificationsService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly pubSubPublisherService: PubSubPublisherService,
     private readonly fcmProvider: FcmProviderService,
-    private readonly emailProvider: EmailProviderService,
+    private readonly emailService: EmailService,
     private readonly whatsAppProvider: WhatsAppProviderService,
   ) {
     super(loggerService);
@@ -61,7 +76,6 @@ export class NotificationsService extends BaseService {
       `Processing notification request for ${dto.userIds?.length || 0} users`,
     );
 
-    // The DTO validation ensures channels and userIds are present
     const channels = dto.channels as NotificationChannel[];
     const promises: Promise<void>[] = [];
 
@@ -77,9 +91,26 @@ export class NotificationsService extends BaseService {
       promises.push(this.fcmProvider.send(dto, devices));
     }
 
-    // 2. Route to Email provider if requested
+    // 2. Route to Email service if requested — resolves template from NotificationType mapping
     if (channels.includes(NotificationChannel.EMAIL)) {
-      promises.push(this.emailProvider.send(dto));
+      const emailType = NOTIFICATION_TYPE_TO_EMAIL_TYPE[dto.type];
+      if (emailType) {
+        promises.push(
+          this.emailService.send({
+            emailType,
+            userIds: dto.userIds,
+            templateData: {
+              ...(dto.payload ?? {}),
+              appUrl: this.configService.get<string>('APP_URL') ?? '',
+              currentYear: new Date().getFullYear(),
+            },
+          }),
+        );
+      } else {
+        this.logger.warn(
+          `No email template mapped for NotificationType: ${dto.type} — skipping email channel`,
+        );
+      }
     }
 
     // 3. Route to WhatsApp provider if requested

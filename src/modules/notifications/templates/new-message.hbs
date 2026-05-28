@@ -1,0 +1,40 @@
+{{!--
+  Template: new-message
+  Data keys:
+    - name           {string}  Recipient's first name
+    - senderName     {string}  Name of the message sender
+    - messagePreview {string}  Truncated preview of the message body
+    - chatUrl        {string}  Deep link to the conversation
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+--}}
+<p class="email-greeting">{{senderName}} sent you a message 💬</p>
+
+<p>Hey {{name}}, you have a new message waiting for you in BreathAway.</p>
+
+{{#if messagePreview}}
+<div class="email-highlight-box">
+  <p style="font-style: italic; font-size: 15px; color: #374151;">
+    "{{messagePreview}}"
+  </p>
+  <p style="font-size: 13px; color: #9CA3AF; margin-top: 8px;">
+    — {{senderName}}
+  </p>
+</div>
+{{/if}}
+
+<p>
+  Don't keep them waiting — great conversations start with a timely reply.
+</p>
+
+<div style="text-align: center;">
+  <a href="{{chatUrl}}" class="email-btn">Reply to {{senderName}} →</a>
+</div>
+
+<hr class="email-divider" />
+
+<p style="font-size: 13px; color: #9CA3AF; text-align: center;">
+  To manage your notification preferences, visit your
+  <a href="{{appUrl}}/settings/notifications">account settings</a>.
+</p>
