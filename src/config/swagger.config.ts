@@ -1,3 +1,4 @@
+import { AdminModule } from '@modules/admin/admin.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlockModule } from '@modules/blocks/blocks.module';
 import { CreditsModule } from '@modules/credits/credits.module';
@@ -107,6 +108,7 @@ function adminApiDocumentation(app: INestApplication): void {
     PubSubModule,
     IdentityWorkflowsModule,
     NotificationsModule,
+    AdminModule,
   ];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
