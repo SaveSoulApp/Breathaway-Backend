@@ -15,6 +15,7 @@ import { configureMiddleware, MiddlewareModule } from './common/middlewares';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlockModule } from './modules/blocks/blocks.module';
 import { CreditsModule } from './modules/credits/credits.module';
@@ -27,12 +28,12 @@ import { InstagramModule } from './modules/instagram/instagram.module';
 import { LikeModule } from './modules/likes/likes.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
 import { MatchModule } from './modules/matches/matches.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OtpModule } from './modules/one-time-passwords/one-time-passwords.module';
 import { ProfileModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialidentityModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     PubSubModule,
     IdentityWorkflowsModule,
     NotificationsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
