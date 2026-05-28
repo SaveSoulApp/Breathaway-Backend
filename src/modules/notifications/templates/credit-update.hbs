@@ -1,0 +1,46 @@
+{{!--
+  Template: credit-update
+  Data keys:
+    - name           {string}  Recipient's first name
+    - creditChange   {number}  Amount of credits added (+) or deducted (-)
+    - creditBalance  {number}  New total credit balance
+    - reason         {string}  Human-readable reason for the credit change
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+--}}
+<p class="email-greeting">Your credits have been updated, {{name}}</p>
+
+<p>
+  We wanted to let you know that your BreathAway credit balance has changed.
+</p>
+
+<div class="email-stat-card">
+  <p class="email-stat-card__value">
+    {{#if (gt creditChange 0)}}+{{/if}}{{creditChange}}
+  </p>
+  <p class="email-stat-card__label">Credits {{#if (gt creditChange 0)}}Earned{{else}}Used{{/if}}</p>
+</div>
+
+{{#if reason}}
+<div class="email-highlight-box">
+  <p><strong>Reason:</strong> {{reason}}</p>
+</div>
+{{/if}}
+
+<p>
+  Your new balance is <strong>{{creditBalance}} credits</strong>.
+  Credits let you unlock premium features and connect with more people on
+  BreathAway.
+</p>
+
+<div style="text-align: center;">
+  <a href="{{appUrl}}/credits" class="email-btn">View My Credits →</a>
+</div>
+
+<hr class="email-divider" />
+
+<p style="font-size: 13px; color: #9CA3AF; text-align: center;">
+  If you believe this is an error, please
+  <a href="{{appUrl}}/help">contact our support team</a>.
+</p>

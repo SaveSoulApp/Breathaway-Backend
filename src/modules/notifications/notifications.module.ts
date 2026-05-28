@@ -1,8 +1,12 @@
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
+import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
+import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
+import { EmailService } from './email/email.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
-import { EmailProviderService } from './providers/email.provider.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
 
@@ -12,9 +16,25 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
   providers: [
     NotificationsService,
     FcmProviderService,
-    EmailProviderService,
     WhatsAppProviderService,
+    // Email adapter concrete implementations
+    SendGridEmailAdapter,
+    MailgunEmailAdapter,
+    // Factory provider: selects the active adapter at runtime based on EMAIL_PROVIDER env
+    {
+      provide: EMAIL_ADAPTER_TOKEN,
+      inject: [ConfigService, SendGridEmailAdapter, MailgunEmailAdapter],
+      useFactory: (
+        config: ConfigService,
+        sendGrid: SendGridEmailAdapter,
+        mailgun: MailgunEmailAdapter,
+      ) => {
+        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'sendgrid';
+        return provider === 'mailgun' ? mailgun : sendGrid;
+      },
+    },
+    EmailService,
   ],
-  exports: [NotificationsService],
+  exports: [NotificationsService, EmailService],
 })
 export class NotificationsModule {}
