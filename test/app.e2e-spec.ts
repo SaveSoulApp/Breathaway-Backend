@@ -1,20 +1,32 @@
-import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import { ExceptionLoggingFilter, LoggerModule, LoggerService } from '@core/logger';
+import {
+  ExceptionLoggingFilter,
+  LoggerModule,
+  LoggerService,
+} from '@core/logger';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { AppController } from 'src/app.controller';
 import { AppService } from 'src/app.service';
 import request from 'supertest';
 import { App } from 'supertest/types';
 
-function getClientIdentityHeaders(app: INestApplication): Record<string, string> {
+function getClientIdentityHeaders(
+  app: INestApplication,
+): Record<string, string> {
   const config = app.get(ConfigService);
   const apiKeys = JSON.parse(config.get<string>('API_KEYS', '[]')) as string[];
-  const clientIds = JSON.parse(config.get<string>('CLIENT_IDS', '[]')) as string[];
+  const clientIds = JSON.parse(
+    config.get<string>('CLIENT_IDS', '[]'),
+  ) as string[];
   const appName = config.get<string>('APP_NAME', 'BreathAway');
   const minVersion = config.get<string>('MIN_APP_VERSION', '1.0.0');
   const platforms = JSON.parse(
@@ -64,6 +76,31 @@ describe('AppController (e2e)', () => {
 
     const logger = app.get(LoggerService);
     app.useLogger(logger);
+
+    // Suppress expected 4xx HTTP exception logs from the global filter during tests
+    const originalForContext = logger.forContext.bind(logger);
+    jest.spyOn(logger, 'forContext').mockImplementation((context: string) => {
+      const contextualLogger = originalForContext(context);
+      if (context === 'ExceptionLoggingFilter') {
+        const originalError = contextualLogger.error.bind(contextualLogger);
+        contextualLogger.error = (
+          message: unknown,
+          meta?: Record<string, unknown>,
+        ) => {
+          if (
+            meta &&
+            typeof meta.statusCode === 'number' &&
+            meta.statusCode >= 400 &&
+            meta.statusCode < 500
+          ) {
+            return;
+          }
+          originalError(message, meta);
+        };
+      }
+      return contextualLogger;
+    });
+
     app.useGlobalFilters(new ExceptionLoggingFilter(logger));
     app.useGlobalPipes(
       new ValidationPipe({
@@ -86,11 +123,9 @@ describe('AppController (e2e)', () => {
     await app.close();
   });
 
-  it('/ (GET)', async () => {
+  it('/api/v1 (GET)', async () => {
     const headers = getClientIdentityHeaders(app);
-    const res = await request(app.getHttpServer())
-      .get('/')
-      .set(headers);
+    const res = await request(app.getHttpServer()).get('/api/v1').set(headers);
 
     expect(res.status).toBe(200);
     expect(res.text).toBe('Hello World!');

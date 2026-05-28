@@ -1,10 +1,18 @@
-import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import { ExceptionLoggingFilter, LoggerModule, LoggerService } from '@core/logger';
+import {
+  ExceptionLoggingFilter,
+  LoggerModule,
+  LoggerService,
+} from '@core/logger';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -27,7 +35,10 @@ export interface AppTestContext {
  * the real .env.test configuration.
  */
 export async function createAuthTestApp(): Promise<AppTestContext> {
-  const mockFirebaseValidation = jest.fn<Promise<FirebaseValidationResult>, [string, string]>();
+  const mockFirebaseValidation = jest.fn<
+    Promise<FirebaseValidationResult>,
+    [string, string]
+  >();
 
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [
@@ -69,6 +80,31 @@ export async function createAuthTestApp(): Promise<AppTestContext> {
   // Mirror main.ts bootstrap
   const logger = app.get(LoggerService);
   app.useLogger(logger);
+
+  // Suppress expected 4xx HTTP exception logs from the global filter during tests
+  const originalForContext = logger.forContext.bind(logger);
+  jest.spyOn(logger, 'forContext').mockImplementation((context: string) => {
+    const contextualLogger = originalForContext(context);
+    if (context === 'ExceptionLoggingFilter') {
+      const originalError = contextualLogger.error.bind(contextualLogger);
+      contextualLogger.error = (
+        message: unknown,
+        meta?: Record<string, unknown>,
+      ) => {
+        if (
+          meta &&
+          typeof meta.statusCode === 'number' &&
+          meta.statusCode >= 400 &&
+          meta.statusCode < 500
+        ) {
+          return;
+        }
+        originalError(message, meta);
+      };
+    }
+    return contextualLogger;
+  });
+
   app.useGlobalFilters(new ExceptionLoggingFilter(logger));
   app.useGlobalPipes(
     new ValidationPipe({
@@ -94,7 +130,9 @@ export async function createAuthTestApp(): Promise<AppTestContext> {
 /**
  * Builds a mock FirebaseValidationResult for phone authentication.
  */
-export function mockPhoneFirebaseToken(phoneNumber: string): FirebaseValidationResult {
+export function mockPhoneFirebaseToken(
+  phoneNumber: string,
+): FirebaseValidationResult {
   return {
     decodedToken: {
       uid: 'test-firebase-uid',
@@ -112,7 +150,9 @@ export function mockPhoneFirebaseToken(phoneNumber: string): FirebaseValidationR
 /**
  * Builds a mock FirebaseValidationResult for email/password authentication.
  */
-export function mockEmailFirebaseToken(email: string): FirebaseValidationResult {
+export function mockEmailFirebaseToken(
+  email: string,
+): FirebaseValidationResult {
   return {
     decodedToken: {
       uid: 'test-firebase-uid',
@@ -131,7 +171,10 @@ export function mockEmailFirebaseToken(email: string): FirebaseValidationResult 
 /**
  * Generates a valid Basic Auth header value from username:password.
  */
-export function buildBasicAuthHeader(username: string, password: string): string {
+export function buildBasicAuthHeader(
+  username: string,
+  password: string,
+): string {
   const encoded = Buffer.from(`${username}:${password}`).toString('base64');
   return `Basic ${encoded}`;
 }
