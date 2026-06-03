@@ -2,14 +2,18 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import axios from 'axios';
+import FormData from 'form-data';
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-const mailgunTransport = require('nodemailer-mailgun-transport');
+
+/** Default to the US Mailgun API endpoint; override via MAILGUN_HOST for EU. */
+const DEFAULT_MAILGUN_HOST = 'api.mailgun.net';
 
 @Injectable()
 export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
-  private readonly transporter: nodemailer.Transporter;
+  private readonly apiKey: string;
+  private readonly domain: string;
+  private readonly apiBaseUrl: string;
   private readonly fromAddress: string;
   private readonly fromName: string;
 
@@ -19,45 +23,78 @@ export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
   ) {
     super(loggerService);
 
-    const apiKey = this.configService.get<string>('MAILGUN_API_KEY');
-    const domain = this.configService.get<string>('MAILGUN_DOMAIN');
+    this.apiKey = this.configService.get<string>('MAILGUN_API_KEY') ?? '';
+    this.domain = this.configService.get<string>('MAILGUN_DOMAIN') ?? '';
 
-    if (!apiKey || !domain) {
+    if (!this.apiKey) {
       this.logger.warn(
-        'MAILGUN_API_KEY or MAILGUN_DOMAIN is not configured — Mailgun adapter will fail at send time',
+        'MAILGUN_API_KEY is not configured — Mailgun adapter will fail at send time',
       );
     }
 
-    this.transporter = nodemailer.createTransport(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call
-      mailgunTransport({
-        auth: { api_key: apiKey ?? '', domain: domain ?? '' },
-      }),
-    );
+    if (!this.domain) {
+      this.logger.warn(
+        'MAILGUN_DOMAIN is not configured — Mailgun adapter will fail at send time',
+      );
+    }
+
+    const host =
+      this.configService.get<string>('MAILGUN_HOST') ?? DEFAULT_MAILGUN_HOST;
+
+    // Mailgun REST endpoint: POST /v3/{domain}/messages
+    this.apiBaseUrl = `https://${host}/v3/${this.domain}`;
 
     this.fromAddress =
       this.configService.get<string>('EMAIL_FROM_ADDRESS') ?? '';
+    if (!this.fromAddress) {
+      this.logger.warn(
+        'EMAIL_FROM_ADDRESS is not configured — Mailgun adapter will fall back to an empty sender',
+      );
+    }
+
     this.fromName =
       this.configService.get<string>('EMAIL_FROM_NAME') ?? 'BreathAway';
   }
 
   async send(payload: EmailPayload): Promise<void> {
-    const fromFormatted = `${payload.fromName ?? this.fromName} <${payload.from ?? this.fromAddress}>`;
+    if (!payload.to) {
+      throw new Error(
+        '[Mailgun] Cannot send email: recipient address is missing',
+      );
+    }
+
+    if (!payload.html) {
+      throw new Error(
+        '[Mailgun] Cannot send email: html body is missing or empty',
+      );
+    }
+
+    const from = `${payload.fromName ?? this.fromName} <${payload.from ?? this.fromAddress}>`;
+
+    // Mailgun's /messages endpoint accepts multipart/form-data
+    const form = new FormData();
+    form.append('from', from);
+    form.append('to', payload.to);
+    form.append('subject', payload.subject);
+    form.append('html', payload.html);
 
     try {
-      await this.transporter.sendMail({
-        from: fromFormatted,
-        to: payload.to,
-        subject: payload.subject,
-        html: payload.html,
+      await axios.post(`${this.apiBaseUrl}/messages`, form, {
+        auth: {
+          // Mailgun uses HTTP Basic Auth with literal string "api" as the username
+          username: 'api',
+          password: this.apiKey,
+        },
+        headers: form.getHeaders(),
       });
 
       this.logger.log(`[Mailgun] Email sent successfully to: ${payload.to}`);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`[Mailgun] Failed to send email to ${payload.to}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
-      throw error;
+      throw new Error(`Email delivery failed: ${message}`);
     }
   }
 }
