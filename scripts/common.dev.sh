@@ -41,6 +41,17 @@ export JWT_ISSUER='https://breathaway.app'
 export OTP_TTL='300'
 export OTP_RATE_LIMIT_TTL='120'
 
+export EMAIL_FROM_ADDRESS='no-reply@breathaway.com'
+export EMAIL_FROM_NAME='BreathAway'
+
+# Mail provider
+export EMAIL_PROVIDER='mailgun'
+
+export MAILGUN_API_KEY='some-api-key'
+export MAILGUN_DOMAIN='domain@domaincom'
+export SENDGRID_API_KEY='SG.some-api-key'
+export BREVO_API_KEY='your_brevo_api_key_here'
+
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
 export SWAGGER_ENABLED='true'

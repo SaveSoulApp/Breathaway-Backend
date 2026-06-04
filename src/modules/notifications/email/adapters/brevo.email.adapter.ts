@@ -26,11 +26,23 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
 
     this.fromAddress =
       this.configService.get<string>('EMAIL_FROM_ADDRESS') ?? '';
+    if (!this.fromAddress) {
+      this.logger.warn(
+        'EMAIL_FROM_ADDRESS is not configured — Brevo adapter will fail at send time',
+      );
+    }
+
     this.fromName =
       this.configService.get<string>('EMAIL_FROM_NAME') ?? 'BreathAway';
   }
 
   async send(payload: EmailPayload): Promise<void> {
+    if (!payload.to) {
+      throw new Error(
+        '[Brevo] Cannot send email: recipient address is missing',
+      );
+    }
+
     const sender = {
       email: payload.from ?? this.fromAddress,
       name: payload.fromName ?? this.fromName,
@@ -44,22 +56,23 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
           to: [{ email: payload.to }],
           subject: payload.subject,
           htmlContent: payload.html,
+          ...(payload.html ? { textContent: payload.html } : {}),
         },
         {
           headers: {
             'api-key': this.apiKey,
             'Content-Type': 'application/json',
-            Accept: 'application/json',
           },
         },
       );
 
       this.logger.log(`[Brevo] Email sent successfully to: ${payload.to}`);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`[Brevo] Failed to send email to ${payload.to}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
-      throw error;
+      throw new Error(`Email delivery failed: ${message}`);
     }
   }
 }
