@@ -1,10 +1,16 @@
+import { Test, TestingModule } from '@nestjs/testing';
+
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 
-describe('JwtAuthGuard', () => {
+describe(JwtAuthGuard.name, () => {
   let guard: JwtAuthGuard;
 
-  beforeEach(() => {
-    guard = new JwtAuthGuard();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [JwtAuthGuard],
+    }).compile();
+
+    guard = module.get<JwtAuthGuard>(JwtAuthGuard);
   });
 
   it('should be defined', () => {

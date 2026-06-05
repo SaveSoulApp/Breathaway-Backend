@@ -1,9 +1,20 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "rootDir": "..",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testRegex": "\\.e2e-spec\\.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(.pnpm/nanoid|nanoid))"
+  ],
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/src/$1",
+    "^@common/(.*)$": "<rootDir>/src/common/$1",
+    "^@core/(.*)$": "<rootDir>/src/core/$1",
+    "^@infrastructure/(.*)$": "<rootDir>/src/infrastructure/$1",
+    "^@modules/(.*)$": "<rootDir>/src/modules/$1"
+  },
+  "globalSetup": "<rootDir>/test/setup/global-setup.ts"
 }

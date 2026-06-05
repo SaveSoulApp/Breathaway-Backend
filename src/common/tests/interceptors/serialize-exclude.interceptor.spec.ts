@@ -19,7 +19,7 @@ class TestDto {
   unmarkedProp: string;
 }
 
-describe('SerializeExcluderInterceptor', () => {
+describe(SerializeExcluderInterceptor.name, () => {
   let interceptor: SerializeExcluderInterceptor;
 
   beforeEach(() => {

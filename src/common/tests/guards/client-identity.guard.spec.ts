@@ -1,6 +1,7 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { Test, TestingModule } from '@nestjs/testing';
 
 import { LoggerService } from '@core/logger';
 
@@ -12,13 +13,13 @@ interface MockRequest {
   clientIdentity?: unknown;
 }
 
-describe('ClientIdentityGuard', () => {
+describe(ClientIdentityGuard.name, () => {
   let guard: ClientIdentityGuard;
   let reflector: jest.Mocked<Reflector>;
   let configService: jest.Mocked<ConfigService>;
   let logger: Record<string, jest.Mock>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     reflector = {
       get: jest.fn(),
       getAllAndOverride: jest.fn(),
@@ -42,11 +43,16 @@ describe('ClientIdentityGuard', () => {
       error: jest.fn(),
     };
 
-    guard = new ClientIdentityGuard(
-      logger as unknown as LoggerService,
-      reflector,
-      configService,
-    );
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ClientIdentityGuard,
+        { provide: LoggerService, useValue: logger },
+        { provide: Reflector, useValue: reflector },
+        { provide: ConfigService, useValue: configService },
+      ],
+    }).compile();
+
+    guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
   });
 
   it('should allow bypass if SKIP_CLIENT_IDENTITY_META is true', () => {
@@ -282,7 +288,7 @@ describe('ClientIdentityGuard', () => {
   });
 
   describe('Config Errors', () => {
-    it('should handle unparseable JSON and initialize empty sets', () => {
+    it('should handle unparseable JSON and initialize empty sets', async () => {
       const badConfigService = {
         get: jest
           .fn()
@@ -293,11 +299,16 @@ describe('ClientIdentityGuard', () => {
           }),
       } as unknown as ConfigService;
 
-      new ClientIdentityGuard(
-        logger as unknown as LoggerService,
-        reflector,
-        badConfigService,
-      );
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: logger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: badConfigService },
+        ],
+      }).compile();
+
+      guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to parse API_KEYS as JSON array. Check your environment variables.',
@@ -305,7 +316,7 @@ describe('ClientIdentityGuard', () => {
       expect(logger.warn).toHaveBeenCalledWith('No valid API keys configured.');
     });
 
-    it('should handle non-array JSON and initialize empty sets', () => {
+    it('should handle non-array JSON and initialize empty sets', async () => {
       const badConfigService = {
         get: jest
           .fn()
@@ -316,11 +327,16 @@ describe('ClientIdentityGuard', () => {
           }),
       } as unknown as ConfigService;
 
-      new ClientIdentityGuard(
-        logger as unknown as LoggerService,
-        reflector,
-        badConfigService,
-      );
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: logger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: badConfigService },
+        ],
+      }).compile();
+
+      guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to parse API_KEYS as JSON array. Check your environment variables.',

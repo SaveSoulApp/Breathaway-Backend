@@ -4,7 +4,7 @@ import {
   RequiredString,
 } from '../../pipes/required-string.pipe';
 
-describe('RequiredStringPipe', () => {
+describe(RequiredStringPipe.name, () => {
   let pipe: RequiredStringPipe;
 
   describe('with custom parameter name', () => {

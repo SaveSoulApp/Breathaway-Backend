@@ -16,7 +16,7 @@ class TestDto {
   hiddenProp: string;
 }
 
-describe('SerializeExposerInterceptor', () => {
+describe(SerializeExposerInterceptor.name, () => {
   let interceptor: SerializeExposerInterceptor;
 
   beforeEach(() => {
