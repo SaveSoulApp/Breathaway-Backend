@@ -13,6 +13,15 @@ export async function cleanupTestUsers(
   if (userIds.length === 0) return;
 
   // Delete in FK dependency order: child tables first
+  await prisma.match.deleteMany({
+    where: { OR: [{ userOneId: { in: userIds } }, { userTwoId: { in: userIds } }] },
+  });
+  await prisma.block.deleteMany({
+    where: { OR: [{ blockerUserId: { in: userIds } }, { blockedUserId: { in: userIds } }] },
+  });
+  await prisma.like.deleteMany({
+    where: { OR: [{ senderUserId: { in: userIds } }, { targetUserId: { in: userIds } }] },
+  });
   await prisma.authCredential.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.identity.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
