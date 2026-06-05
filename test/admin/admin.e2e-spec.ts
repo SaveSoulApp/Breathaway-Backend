@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AdminModule } from '@modules/admin/admin.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import request from 'supertest';
+import * as crypto from 'crypto';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { DevicePlatform, GenderType, IdentityType } from '@prisma/client';
@@ -64,12 +65,12 @@ describe('AdminModule (e2e)', () => {
         },
       });
 
-      const requireCrypto = require('crypto');
+      // Crypto imported at the top
       await prisma.identity.create({
         data: {
           userId: user.id,
           type: IdentityType.EMAIL,
-          publicValueHash: requireCrypto.randomBytes(32).toString('hex'),
+          publicValueHash: crypto.randomBytes(32).toString('hex'),
           publicValueCiphertext: 'x',
           publicValueIv: 'x',
           publicValueTag: 'x',
@@ -81,7 +82,7 @@ describe('AdminModule (e2e)', () => {
       await prisma.device.create({
         data: {
           userId: user.id,
-          token: requireCrypto.randomBytes(16).toString('hex'),
+          token: crypto.randomBytes(16).toString('hex'),
           platform: DevicePlatform.IOS,
         },
       });
