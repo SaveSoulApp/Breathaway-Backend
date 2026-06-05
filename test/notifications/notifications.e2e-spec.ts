@@ -31,12 +31,17 @@ describe('NotificationsModule (e2e)', () => {
   let pubsubPublisherService: PubSubPublisherService;
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([PubSubModule, NotificationsModule]);
+    const context = await createAuthTestApp([
+      PubSubModule,
+      NotificationsModule,
+    ]);
     app = context.app;
-    
+
     // Mock publish to prevent keeping PubSub connections open
     pubsubPublisherService = app.get(PubSubPublisherService);
-    jest.spyOn(pubsubPublisherService, 'publish').mockResolvedValue('msg-id-123' as any);
+    jest
+      .spyOn(pubsubPublisherService, 'publish')
+      .mockResolvedValue('msg-id-123' as any);
   });
 
   afterAll(async () => {
@@ -58,7 +63,7 @@ describe('NotificationsModule (e2e)', () => {
       });
 
     if (res.status === 400) console.log(JSON.stringify(res.body, null, 2));
-    
+
     // The controller returns 202 ACCEPTED
     expect(res.status).toBe(202);
     expect(res.body).toHaveProperty('success', true);

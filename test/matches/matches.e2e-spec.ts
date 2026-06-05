@@ -39,12 +39,18 @@ describe('MatchController (e2e)', () => {
     // Delete matches and likes first to avoid FK constraint violations
     await prisma.match.deleteMany({
       where: {
-        OR: [{ userOneId: { in: allCreatedUserIds } }, { userTwoId: { in: allCreatedUserIds } }],
+        OR: [
+          { userOneId: { in: allCreatedUserIds } },
+          { userTwoId: { in: allCreatedUserIds } },
+        ],
       },
     });
     await prisma.like.deleteMany({
       where: {
-        OR: [{ senderUserId: { in: allCreatedUserIds } }, { targetUserId: { in: allCreatedUserIds } }],
+        OR: [
+          { senderUserId: { in: allCreatedUserIds } },
+          { targetUserId: { in: allCreatedUserIds } },
+        ],
       },
     });
     await cleanupTestUsers(prisma, allCreatedUserIds);

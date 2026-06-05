@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 
 import { RequestIdMiddleware } from '../../middlewares/request-id.middleware';
 
-describe('RequestIdMiddleware', () => {
+describe(RequestIdMiddleware.name, () => {
   let middleware: RequestIdMiddleware;
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;

@@ -51,7 +51,7 @@ describe('LikeController (e2e)', () => {
       // Seed another user and their identity to like
       const user2 = await prisma.user.create({ data: {} });
       allCreatedUserIds.push(user2.id);
-      
+
       const identity = await prisma.identity.create({
         data: {
           userId: user2.id,
@@ -130,7 +130,7 @@ describe('LikeController (e2e)', () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/likes')
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       const likeId = allRes.body.data[0].id;
 
       const res = await authedRequest(app)
@@ -145,7 +145,7 @@ describe('LikeController (e2e)', () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/likes')
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       const likeId = allRes.body.data[0].id;
 
       const res = await authedRequest(app)
@@ -158,7 +158,7 @@ describe('LikeController (e2e)', () => {
       const checkRes = await authedRequest(app)
         .get(`/api/v1/likes/${likeId}`)
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       expect(checkRes.status).toBe(404);
     });
   });

@@ -8,7 +8,7 @@ enum TestStatus {
   PENDING = 'pending',
 }
 
-describe('EnumValidationPipe', () => {
+describe(EnumValidationPipe.name, () => {
   describe('basic validation (non-optional, non-array)', () => {
     let pipe: EnumValidationPipe;
 

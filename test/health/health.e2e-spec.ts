@@ -23,7 +23,7 @@ describe('HealthModule (e2e)', () => {
       const resV1 = await authedRequest(app).get('/api/v1/health');
       if (resV1.status !== 404) {
         expect([200, 503]).toContain(resV1.status);
-        
+
         let healthData = resV1.body;
         // If ExceptionLoggingFilter intercepts it, the terminus response is stringified in 'message'
         if (resV1.status === 503 && typeof resV1.body.message === 'string') {
@@ -31,7 +31,7 @@ describe('HealthModule (e2e)', () => {
         }
 
         expect(['ok', 'error', 'down']).toContain(healthData.status);
-        
+
         const details = healthData.info || healthData.details;
         expect(details).toHaveProperty('database');
         expect(details.database.status).toBe('up');

@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 import { TimezoneUtil } from '@common/utils/timezone.utils';
 import { TimezoneMiddleware } from '../../middlewares/timezone.middleware';
 
-describe('TimezoneMiddleware', () => {
+describe(TimezoneMiddleware.name, () => {
   let middleware: TimezoneMiddleware;
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;

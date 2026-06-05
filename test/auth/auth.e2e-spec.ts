@@ -58,7 +58,9 @@ describe('AuthController (e2e)', () => {
 
     it('201 – creates a new user via phone and returns pending_verification', async () => {
       const phone = '+19995550101';
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signup')
@@ -75,7 +77,9 @@ describe('AuthController (e2e)', () => {
 
     it('201 – creates a new user via email and returns pending_verification', async () => {
       const email = 'newuser@e2e.test';
-      mockFirebaseValidation.mockResolvedValueOnce(mockEmailFirebaseToken(email));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockEmailFirebaseToken(email),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signup')
@@ -122,7 +126,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signup')
@@ -162,7 +168,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signup')
@@ -172,9 +180,7 @@ describe('AuthController (e2e)', () => {
     });
 
     it('400 – rejects missing body fields', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/signup')
-        .send({});
+      const res = await authedRequest(app).post('/api/v1/auth/signup').send({});
 
       expect(res.status).toBe(400);
     });
@@ -223,7 +229,9 @@ describe('AuthController (e2e)', () => {
     afterEach(() => mockFirebaseValidation.mockReset());
 
     it('200 – signs in a verified user and returns access_token', async () => {
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin')
@@ -266,7 +274,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(unverifiedPhone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(unverifiedPhone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin')
@@ -277,7 +287,9 @@ describe('AuthController (e2e)', () => {
 
     it('404 – not found for unknown credential', async () => {
       const unknownPhone = '+19999999999';
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(unknownPhone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(unknownPhone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin')
@@ -295,7 +307,9 @@ describe('AuthController (e2e)', () => {
 
     it('200 – auto-signs-up a brand-new user and returns access_token', async () => {
       const phone = '+19995550300';
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin-or-signup')
@@ -341,7 +355,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin-or-signup')
@@ -384,7 +400,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .post('/api/v1/auth/signin-or-signup')
@@ -401,13 +419,11 @@ describe('AuthController (e2e)', () => {
     afterEach(() => mockFirebaseValidation.mockReset());
 
     it('200 – creates a new Instagram identity and returns access_token', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/social')
-        .send({
-          type: 'INSTAGRAM',
-          platformUserId: 'ig-user-id-001',
-          handle: 'testuser_ig_001',
-        });
+      const res = await authedRequest(app).post('/api/v1/auth/social').send({
+        type: 'INSTAGRAM',
+        platformUserId: 'ig-user-id-001',
+        handle: 'testuser_ig_001',
+      });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
@@ -449,13 +465,11 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(user.id);
 
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/social')
-        .send({
-          type: 'INSTAGRAM',
-          platformUserId,
-          handle,
-        });
+      const res = await authedRequest(app).post('/api/v1/auth/social').send({
+        type: 'INSTAGRAM',
+        platformUserId,
+        handle,
+      });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
@@ -493,13 +507,11 @@ describe('AuthController (e2e)', () => {
         },
       });
 
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/social')
-        .send({
-          type: 'INSTAGRAM',
-          platformUserId,
-          handle,
-        });
+      const res = await authedRequest(app).post('/api/v1/auth/social').send({
+        type: 'INSTAGRAM',
+        platformUserId,
+        handle,
+      });
 
       expect(res.status).toBe(409);
 
@@ -508,13 +520,11 @@ describe('AuthController (e2e)', () => {
     });
 
     it('400 – rejects invalid social type', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/social')
-        .send({
-          type: 'INVALID_PLATFORM',
-          platformUserId: 'some-id',
-          handle: 'some-handle',
-        });
+      const res = await authedRequest(app).post('/api/v1/auth/social').send({
+        type: 'INVALID_PLATFORM',
+        platformUserId: 'some-id',
+        handle: 'some-handle',
+      });
 
       expect(res.status).toBe(400);
     });
@@ -629,7 +639,9 @@ describe('AuthController (e2e)', () => {
 
     it('200 – adds a new phone credential to an existing user', async () => {
       const phone = '+19995550400';
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .patch('/api/v1/auth/add-phone')
@@ -675,7 +687,9 @@ describe('AuthController (e2e)', () => {
       });
       allCreatedUserIds.push(otherUser.id);
 
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .patch('/api/v1/auth/add-phone')
@@ -706,7 +720,9 @@ describe('AuthController (e2e)', () => {
       });
 
       const phone = '+19995550402';
-      mockFirebaseValidation.mockResolvedValueOnce(mockPhoneFirebaseToken(phone));
+      mockFirebaseValidation.mockResolvedValueOnce(
+        mockPhoneFirebaseToken(phone),
+      );
 
       const res = await authedRequest(app)
         .patch('/api/v1/auth/add-phone')

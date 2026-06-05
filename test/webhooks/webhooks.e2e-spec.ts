@@ -8,8 +8,6 @@ import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import request from 'supertest';
 
-
-
 describe('WebhooksController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -19,7 +17,9 @@ describe('WebhooksController (e2e)', () => {
 
   beforeAll(async () => {
     // Prevent actual GCP PubSub calls
-    jest.spyOn(PubSubPublisherService.prototype, 'publish').mockResolvedValue('mock-message-id');
+    jest
+      .spyOn(PubSubPublisherService.prototype, 'publish')
+      .mockResolvedValue('mock-message-id');
 
     // Inject PubSubModule because Webhooks handlers depend on PubSubPublisherService
     const context = await createAuthTestApp([PubSubModule, WebhooksModule]);

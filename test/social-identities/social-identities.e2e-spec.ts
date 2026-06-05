@@ -6,7 +6,6 @@ import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-
 describe('SocialidentityController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;

@@ -1,9 +1,11 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BasicAuthGuard } from '../../guards/basic-auth.guard';
 
-describe('BasicAuthGuard', () => {
+import { BasicAuthGuard } from '../../guards/basic-auth.guard';
+import { createMockExecutionContext } from '../mocks/execution-context.mock';
+
+describe(BasicAuthGuard.name, () => {
   let guard: BasicAuthGuard;
 
   const mockConfigService = {
@@ -33,28 +35,20 @@ describe('BasicAuthGuard', () => {
   });
 
   it('should return true for valid credentials', () => {
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: {
-            authorization:
-              'Basic ' + Buffer.from('admin:password').toString('base64'),
-          },
-        }),
-      }),
-    } as ExecutionContext;
+    const context = createMockExecutionContext({
+      headers: {
+        authorization:
+          'Basic ' + Buffer.from('admin:password').toString('base64'),
+      },
+    });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
   it('should throw UnauthorizedException for missing header', () => {
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: {},
-        }),
-      }),
-    } as ExecutionContext;
+    const context = createMockExecutionContext({
+      headers: {},
+    });
 
     expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Missing Authorization Header'),
@@ -62,15 +56,11 @@ describe('BasicAuthGuard', () => {
   });
 
   it('should throw UnauthorizedException for invalid header format', () => {
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: {
-            authorization: 'Bearer token',
-          },
-        }),
-      }),
-    } as ExecutionContext;
+    const context = createMockExecutionContext({
+      headers: {
+        authorization: 'Bearer token',
+      },
+    });
 
     expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid Authorization Header'),
@@ -78,16 +68,11 @@ describe('BasicAuthGuard', () => {
   });
 
   it('should throw UnauthorizedException for invalid credentials', () => {
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: {
-            authorization:
-              'Basic ' + Buffer.from('admin:wrong').toString('base64'),
-          },
-        }),
-      }),
-    } as ExecutionContext;
+    const context = createMockExecutionContext({
+      headers: {
+        authorization: 'Basic ' + Buffer.from('admin:wrong').toString('base64'),
+      },
+    });
 
     expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid Credentials'),
@@ -96,16 +81,12 @@ describe('BasicAuthGuard', () => {
 
   it('should throw UnauthorizedException if config is missing', () => {
     mockConfigService.get.mockReturnValue(null);
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: {
-            authorization:
-              'Basic ' + Buffer.from('admin:password').toString('base64'),
-          },
-        }),
-      }),
-    } as ExecutionContext;
+    const context = createMockExecutionContext({
+      headers: {
+        authorization:
+          'Basic ' + Buffer.from('admin:password').toString('base64'),
+      },
+    });
 
     expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException('Invalid Credentials'),

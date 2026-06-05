@@ -97,7 +97,7 @@ describe('BlockController (e2e)', () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/blocks')
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       const blockId = allRes.body[0].id;
 
       const res = await authedRequest(app)
@@ -112,7 +112,7 @@ describe('BlockController (e2e)', () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/blocks')
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       const blockId = allRes.body[0].id;
 
       const res = await authedRequest(app)
@@ -125,7 +125,7 @@ describe('BlockController (e2e)', () => {
       const checkRes = await authedRequest(app)
         .get(`/api/v1/blocks/${blockId}`)
         .set('authorization', `Bearer ${validJwt}`);
-        
+
       expect(checkRes.status).toBe(404);
     });
   });
