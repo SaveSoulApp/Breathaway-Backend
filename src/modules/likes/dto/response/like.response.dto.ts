@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 import { IntentType, LikeStatus, IdentityType } from '@prisma/client';
+import { PaginationMeta } from '@common/dto';
 
 export class LikeTargetIdentityDto {
   @ApiProperty()
@@ -49,4 +50,16 @@ export class LikeResponseDto {
   @ApiPropertyOptional()
   @Expose()
   expiresAt: Date | null;
+}
+
+export class PaginatedLikeResponseDto {
+  @ApiProperty({ type: [LikeResponseDto] })
+  @Expose()
+  @Type(() => LikeResponseDto)
+  data: LikeResponseDto[];
+
+  @ApiProperty({ type: PaginationMeta })
+  @Expose()
+  @Type(() => PaginationMeta)
+  meta: PaginationMeta;
 }

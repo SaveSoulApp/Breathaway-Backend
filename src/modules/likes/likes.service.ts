@@ -13,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
+import { LikeListQueryDto } from './dto/request/like-list-query.request.dto';
 
 @Injectable()
 export class LikesService extends BaseService {
@@ -144,32 +145,55 @@ export class LikesService extends BaseService {
     return like;
   }
 
-  async findAllForUser(userId: string) {
-    const likes = await this.prisma.like.findMany({
-      where: {
-        senderUserId: userId,
-        status: LikeStatus.PENDING,
-        deletedAt: null,
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        intent: true,
-        status: true,
-        createdAt: true,
-        expiresAt: true,
-        targetIdentity: {
-          select: {
-            id: true,
-            type: true,
-            publicValueMasked: true,
-            isVerified: true,
-            verifiedAt: true,
+  async findAllForUser(userId: string, query: LikeListQueryDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      senderUserId: userId,
+      status: LikeStatus.PENDING,
+      deletedAt: null,
+    };
+
+    const [total, data] = await Promise.all([
+      this.prisma.like.count({ where }),
+      this.prisma.like.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          intent: true,
+          status: true,
+          createdAt: true,
+          expiresAt: true,
+          targetIdentity: {
+            select: {
+              id: true,
+              type: true,
+              publicValueMasked: true,
+              isVerified: true,
+              verifiedAt: true,
+            },
           },
         },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
-    });
-    return { data: likes };
+    };
   }
 
   async findOneForUser(id: string, userId: string) {

@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -22,7 +23,8 @@ import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
 import {
   CreateLikeRequestDto,
-  LikeListResponseDto,
+  LikeListQueryDto,
+  PaginatedLikeResponseDto,
   LikeResponseDto,
 } from './dto';
 import { LikesService } from './likes.service';
@@ -56,10 +58,13 @@ export class LikesController extends BaseController {
 
   @Get()
   @ApiOperation({ summary: 'Get authenticated user pending likes' })
-  @ApiResponse({ status: HttpStatus.OK, type: LikeListResponseDto })
-  @SerializeExpose(LikeListResponseDto)
-  async findAll(@CurrentUserId() userId: string) {
-    return this.likesService.findAllForUser(userId);
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedLikeResponseDto })
+  @SerializeExpose(PaginatedLikeResponseDto)
+  async findAll(
+    @CurrentUserId() userId: string,
+    @Query() query: LikeListQueryDto,
+  ) {
+    return this.likesService.findAllForUser(userId, query);
   }
 
   @Get(':id')
