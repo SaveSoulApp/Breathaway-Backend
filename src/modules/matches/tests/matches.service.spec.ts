@@ -129,6 +129,8 @@ describe('MatchesService', () => {
           OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }],
           status: MatchStatus.ACTIVE,
           deletedAt: null,
+          userOne: { deletedAt: null },
+          userTwo: { deletedAt: null },
         },
         orderBy: {
           matchedAt: 'desc',
@@ -200,6 +202,8 @@ describe('MatchesService', () => {
           id: matchId,
           OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }],
           deletedAt: null,
+          userOne: { deletedAt: null },
+          userTwo: { deletedAt: null },
         },
         select: {
           id: true,

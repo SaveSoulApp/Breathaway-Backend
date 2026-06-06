@@ -368,39 +368,65 @@ describe('ProfilesService', () => {
   });
 
   describe('deleteProfile', () => {
-    it('should delete profile if exists', async () => {
+    it('should soft delete account if user exists', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.delete.mockResolvedValue(mockUserProfile);
+      const mockUser = { id: userId, deletedAt: null };
+      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+
+      const mockTx = {
+        user: { update: jest.fn() },
+        identity: { updateMany: jest.fn() },
+        authCredential: { updateMany: jest.fn() },
+        device: { updateMany: jest.fn() },
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        return callback(mockTx as any);
+      });
 
       // Act
       await service.deleteProfile(userId);
 
       // Assert
-      expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { userId },
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userId },
       });
-      expect(prisma.userProfile.delete).toHaveBeenCalledWith({
-        where: { userId },
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(mockTx.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(mockTx.identity.updateMany).toHaveBeenCalledWith({
+        where: { userId, deletedAt: null },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(mockTx.authCredential.updateMany).toHaveBeenCalledWith({
+        where: { userId, deletedAt: null },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(mockTx.device.updateMany).toHaveBeenCalledWith({
+        where: { userId, isActive: true },
+        data: { isActive: false },
       });
     });
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should throw NotFoundException if user does not exist or already deleted', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.deleteProfile(userId)).rejects.toThrow(
         NotFoundException,
       );
-      expect(prisma.userProfile.delete).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('should log and rethrow an error if delete fails', async () => {
+    it('should log and rethrow an error if soft delete fails', async () => {
       // Arrange
+      const mockUser = { id: userId, deletedAt: null };
       const dbError = new Error('Database Error');
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.delete.mockRejectedValue(dbError);
+      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      prisma.$transaction.mockRejectedValue(dbError);
 
       // Act & Assert
       await expect(service.deleteProfile(userId)).rejects.toThrow(dbError);
