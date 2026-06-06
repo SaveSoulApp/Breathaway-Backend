@@ -4,6 +4,7 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntentType, MatchStatus } from '@prisma/client';
+import { MatchListQueryDto } from './dto';
 
 interface MatchWithUsers {
   id: string;
@@ -38,52 +39,74 @@ export class MatchesService extends BaseService {
     super(logger);
   }
 
-  async findAllForUser(userId: string) {
-    const matches = await this.prisma.match.findMany({
-      where: {
-        OR: [{ userOneId: userId }, { userTwoId: userId }],
-        status: MatchStatus.ACTIVE,
-        deletedAt: null,
-        userOne: { deletedAt: null },
-        userTwo: { deletedAt: null },
-      },
-      orderBy: {
-        matchedAt: 'desc',
-      },
-      select: {
-        id: true,
-        status: true,
-        matchedAt: true,
-        intentOne: true,
-        intentTwo: true,
-        userOneId: true,
-        userTwoId: true,
-        userOne: {
-          select: {
-            id: true,
-            profile: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-        userTwo: {
-          select: {
-            id: true,
-            profile: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-      },
-    });
+  async findAllForUser(userId: string, query: MatchListQueryDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
 
-    return matches.map((match) => this.mapToResponseDto(match, userId));
+    const where = {
+      OR: [{ userOneId: userId }, { userTwoId: userId }],
+      status: MatchStatus.ACTIVE,
+      deletedAt: null,
+      userOne: { deletedAt: null },
+      userTwo: { deletedAt: null },
+    };
+
+    const [total, matches] = await Promise.all([
+      this.prisma.match.count({ where }),
+      this.prisma.match.findMany({
+        where,
+        orderBy: {
+          matchedAt: 'desc',
+        },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          status: true,
+          matchedAt: true,
+          intentOne: true,
+          intentTwo: true,
+          userOneId: true,
+          userTwoId: true,
+          userOne: {
+            select: {
+              id: true,
+              profile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+          userTwo: {
+            select: {
+              id: true,
+              profile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: matches.map((match) => this.mapToResponseDto(match, userId)),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   async findOneForUser(matchId: string, userId: string) {

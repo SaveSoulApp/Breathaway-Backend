@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IntentType, MatchStatus } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
+import { PaginationMeta } from '@common/dto';
 
 export class MatchOtherUserDto {
   @ApiProperty({ description: 'The ID of the other user' })
@@ -56,4 +57,16 @@ export class MatchResponseDto {
   @Expose()
   @Type(() => MatchOtherUserDto)
   otherUser: MatchOtherUserDto;
+}
+
+export class PaginatedMatchResponseDto {
+  @ApiProperty({ type: [MatchResponseDto] })
+  @Expose()
+  @Type(() => MatchResponseDto)
+  data: MatchResponseDto[];
+
+  @ApiProperty({ type: PaginationMeta })
+  @Expose()
+  @Type(() => PaginationMeta)
+  meta: PaginationMeta;
 }

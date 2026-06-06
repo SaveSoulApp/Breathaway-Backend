@@ -162,10 +162,10 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBeTruthy();
-      expect(res.body.length).toBeGreaterThanOrEqual(1);
+      expect(Array.isArray(res.body.data)).toBeTruthy();
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
 
-      const matchInResponse = res.body.find((m: any) => m.id === matchId);
+      const matchInResponse = res.body.data.find((m: any) => m.id === matchId);
       expect(matchInResponse).toBeDefined();
       expect(matchInResponse.status).toBe(MatchStatus.ACTIVE);
       expect(matchInResponse.otherUser).toBeDefined();
@@ -208,7 +208,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(200);
-      let matchInResponse = res.body.find((m: any) => m.id === matchId);
+      let matchInResponse = res.body.data.find((m: any) => m.id === matchId);
       expect(matchInResponse).toBeUndefined();
 
       // Restore user2
@@ -223,7 +223,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(200);
-      matchInResponse = res.body.find((m: any) => m.id === matchId);
+      matchInResponse = res.body.data.find((m: any) => m.id === matchId);
       expect(matchInResponse).toBeDefined();
     });
 
@@ -252,8 +252,8 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBeTruthy();
-      const matchInResponse = res.body.find((m: any) => m.id === matchId);
+      expect(Array.isArray(res.body.data)).toBeTruthy();
+      const matchInResponse = res.body.data.find((m: any) => m.id === matchId);
       expect(matchInResponse).toBeUndefined();
     });
   });
