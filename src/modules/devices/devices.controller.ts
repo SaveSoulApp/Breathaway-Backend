@@ -25,7 +25,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { DeviceService } from './devices.service';
+import { DevicesService } from './devices.service';
 import {
   CreateDeviceDto,
   DeviceResponseDto,
@@ -40,10 +40,10 @@ import {
   path: 'devices',
   version: ['1'],
 })
-export class DeviceController extends BaseController {
+export class DevicesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly deviceService: DeviceService,
+    private readonly devicesService: DevicesService,
   ) {
     super(logger);
   }
@@ -77,7 +77,7 @@ export class DeviceController extends BaseController {
     if (userAgentData.platform)
       createDeviceDto.platform = userAgentData.platform;
 
-    return this.deviceService.createDevice(userId, createDeviceDto);
+    return this.devicesService.createDevice(userId, createDeviceDto);
   }
 
   @Get()
@@ -88,7 +88,7 @@ export class DeviceController extends BaseController {
     type: [DeviceResponseDto],
   })
   async getUserDevices(@CurrentUserId() userId: string) {
-    return this.deviceService.getUserDevices(userId);
+    return this.devicesService.getUserDevices(userId);
   }
 
   @Get(':id')
@@ -107,7 +107,7 @@ export class DeviceController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
   ) {
-    return this.deviceService.getDeviceById(userId, deviceId);
+    return this.devicesService.getDeviceById(userId, deviceId);
   }
 
   @Put(':id')
@@ -127,7 +127,7 @@ export class DeviceController extends BaseController {
     @Param('id') deviceId: string,
     @Body() updateDeviceDto: UpdateDeviceDto,
   ) {
-    return this.deviceService.updateDevice(userId, deviceId, updateDeviceDto);
+    return this.devicesService.updateDevice(userId, deviceId, updateDeviceDto);
   }
 
   @Patch(':id')
@@ -147,7 +147,7 @@ export class DeviceController extends BaseController {
     @Param('id') deviceId: string,
     @Body() patchDeviceDto: PatchDeviceDto,
   ) {
-    return this.deviceService.patchDevice(userId, deviceId, patchDeviceDto);
+    return this.devicesService.patchDevice(userId, deviceId, patchDeviceDto);
   }
 
   @Delete(':id')
@@ -166,6 +166,6 @@ export class DeviceController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
   ) {
-    await this.deviceService.deleteDevice(userId, deviceId);
+    await this.devicesService.deleteDevice(userId, deviceId);
   }
 }

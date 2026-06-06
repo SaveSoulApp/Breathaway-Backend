@@ -30,7 +30,7 @@ interface MatchWithUsers {
 }
 
 @Injectable()
-export class MatchService extends BaseService {
+export class MatchesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,

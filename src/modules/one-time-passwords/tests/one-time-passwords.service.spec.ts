@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { hashString } from '@core/crypto/crypto.utils';
-import { OtpService } from '../one-time-passwords.service';
+import { OneTimePasswordsService } from '../one-time-passwords.service';
 
 jest.mock('@core/crypto/crypto.utils', () => ({
   hashString: jest.fn(),
@@ -14,8 +14,8 @@ jest.mock('random-word-slugs', () => ({
   generateSlug: jest.fn().mockReturnValue('abc-def-ghi'),
 }));
 
-describe('OtpService', () => {
-  let service: OtpService;
+describe('OneTimePasswordsService', () => {
+  let service: OneTimePasswordsService;
   let redisClientMock: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
   let configServiceMock: jest.Mocked<ConfigService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
@@ -52,14 +52,14 @@ describe('OtpService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        OtpService,
+        OneTimePasswordsService,
         { provide: ConfigService, useValue: configServiceMock },
         { provide: LoggerService, useValue: loggerServiceMock },
         { provide: 'REDIS_CLIENT', useValue: redisClientMock },
       ],
     }).compile();
 
-    service = module.get<OtpService>(OtpService);
+    service = module.get<OneTimePasswordsService>(OneTimePasswordsService);
   });
 
   afterEach(() => {

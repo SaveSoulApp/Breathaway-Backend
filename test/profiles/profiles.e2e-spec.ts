@@ -2,12 +2,12 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { ProfileModule } from '@modules/profiles/profiles.module';
+import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-describe('ProfileController (e2e)', () => {
+describe('ProfilesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -16,7 +16,7 @@ describe('ProfileController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([ProfileModule]);
+    const context = await createAuthTestApp([ProfilesModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);
@@ -58,9 +58,9 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('POST /api/v1/profile - creates a new profile', async () => {
+    it('POST /api/v1/profiles - creates a new profile', async () => {
       const res = await authedRequest(app)
-        .post('/api/v1/profile')
+        .post('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           firstName: 'John',
@@ -78,9 +78,9 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('POST /api/v1/profile - conflicts when creating profile twice', async () => {
+    it('POST /api/v1/profiles - conflicts when creating profile twice', async () => {
       const res = await authedRequest(app)
-        .post('/api/v1/profile')
+        .post('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           firstName: 'Jane',
@@ -89,9 +89,9 @@ describe('ProfileController (e2e)', () => {
       expect(res.status).toBe(409);
     });
 
-    it('GET /api/v1/profile - returns my profile', async () => {
+    it('GET /api/v1/profiles - returns my profile', async () => {
       const res = await authedRequest(app)
-        .get('/api/v1/profile')
+        .get('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(200);
@@ -103,16 +103,16 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('GET /api/v1/profile/:id - returns profile by id', async () => {
+    it('GET /api/v1/profiles/:id - returns profile by id', async () => {
       // First get the profile to know its ID
       const myProfileRes = await authedRequest(app)
-        .get('/api/v1/profile')
+        .get('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
       const profileId = myProfileRes.body.id;
 
       const res = await authedRequest(app)
-        .get(`/api/v1/profile/${profileId}`)
+        .get(`/api/v1/profiles/${profileId}`)
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(200);
@@ -122,17 +122,17 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('GET /api/v1/profile/:id - 404 for unknown profile ID', async () => {
+    it('GET /api/v1/profiles/:id - 404 for unknown profile ID', async () => {
       const res = await authedRequest(app)
-        .get('/api/v1/profile/01H1V1ABCD2EF3GH4JK5LM6NP7') // Using a random ULID-like format or any string
+        .get('/api/v1/profiles/01H1V1ABCD2EF3GH4JK5LM6NP7') // Using a random ULID-like format or any string
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(404);
     });
 
-    it('PUT /api/v1/profile - fully updates profile', async () => {
+    it('PUT /api/v1/profiles - fully updates profile', async () => {
       const res = await authedRequest(app)
-        .put('/api/v1/profile')
+        .put('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           firstName: 'Johnny',
@@ -149,9 +149,9 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('PATCH /api/v1/profile - partially updates profile', async () => {
+    it('PATCH /api/v1/profiles - partially updates profile', async () => {
       const res = await authedRequest(app)
-        .patch('/api/v1/profile')
+        .patch('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`)
         .send({
           firstName: 'Jonathan',
@@ -164,24 +164,24 @@ describe('ProfileController (e2e)', () => {
       });
     });
 
-    it('GET /api/v1/profile - 404 if profile does not exist', async () => {
+    it('GET /api/v1/profiles - 404 if profile does not exist', async () => {
       const res = await authedRequest(app)
-        .get('/api/v1/profile')
+        .get('/api/v1/profiles')
         .set('authorization', `Bearer ${secondUserJwt}`);
 
       expect(res.status).toBe(404);
     });
 
-    it('DELETE /api/v1/profile - deletes the profile', async () => {
+    it('DELETE /api/v1/profiles - deletes the profile', async () => {
       const res = await authedRequest(app)
-        .delete('/api/v1/profile')
+        .delete('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(204);
 
       // Verify it's gone
       const checkRes = await authedRequest(app)
-        .get('/api/v1/profile')
+        .get('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(404);

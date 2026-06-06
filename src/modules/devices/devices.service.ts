@@ -11,7 +11,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from './dto';
 
 @Injectable()
-export class DeviceService extends BaseService {
+export class DevicesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,

@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { MatchModule } from '@modules/matches/matches.module';
+import { MatchesModule } from '@modules/matches/matches.module';
 import {
   MatchStatus,
   IntentType,
@@ -13,7 +13,7 @@ import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-describe('MatchController (e2e)', () => {
+describe('MatchesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -27,8 +27,8 @@ describe('MatchController (e2e)', () => {
   let matchId: string;
 
   beforeAll(async () => {
-    // Inject MatchModule
-    const context = await createAuthTestApp([MatchModule]);
+    // Inject MatchesModule
+    const context = await createAuthTestApp([MatchesModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);

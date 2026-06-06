@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityWorkflowsController } from '../identity-workflows.controller';
+import { LoggerService } from '@core/logger';
 
 describe('IdentityWorkflowsController', () => {
   let controller: IdentityWorkflowsController;
@@ -7,6 +8,19 @@ describe('IdentityWorkflowsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IdentityWorkflowsController],
+      providers: [
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            forContext: jest.fn().mockReturnThis(),
+          },
+        },
+      ],
     }).compile();
 
     controller = module.get<IdentityWorkflowsController>(

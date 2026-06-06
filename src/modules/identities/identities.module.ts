@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
-import { IdentityController } from './identities.controller';
-import { IdentityService } from './identities.service';
+import { IdentitiesController } from './identities.controller';
+import { IdentitiesService } from './identities.service';
 
 @Module({
   imports: [IdentityCryptoModule],
-  controllers: [IdentityController],
-  providers: [IdentityService],
-  exports: [IdentityService],
+  controllers: [IdentitiesController],
+  providers: [IdentitiesService],
+  exports: [IdentitiesService],
 })
-export class IdentityModule {}
+export class IdentitiesModule {}

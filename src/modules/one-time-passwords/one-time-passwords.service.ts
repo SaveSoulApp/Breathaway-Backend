@@ -13,7 +13,7 @@ import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
 
 @Injectable()
-export class OtpService extends BaseService {
+export class OneTimePasswordsService extends BaseService {
   private readonly otpTtl: number;
   private readonly otpRateLimitTtl: number;
   private readonly generateId: () => string;

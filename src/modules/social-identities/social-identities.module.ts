@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { SocialidentityController } from './social-identities.controller';
-import { SocialidentityService } from './social-identities.service';
+import { SocialIdentitiesController } from './social-identities.controller';
+import { SocialidentitiesService } from './social-identities.service';
 
 @Module({
-  controllers: [SocialidentityController],
-  providers: [SocialidentityService],
-  exports: [SocialidentityService],
+  controllers: [SocialIdentitiesController],
+  providers: [SocialidentitiesService],
+  exports: [SocialidentitiesService],
 })
-export class SocialidentityModule {}
+export class SocialIdentitiesModule {}

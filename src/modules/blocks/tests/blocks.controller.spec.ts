@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
-import { BlockController } from '../blocks.controller';
-import { BlockService } from '../blocks.service';
+import { BlocksController } from '../blocks.controller';
+import { BlocksService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
 
-describe('BlockController', () => {
-  let controller: BlockController;
-  let service: jest.Mocked<BlockService>;
+describe('BlocksController', () => {
+  let controller: BlocksController;
+  let service: jest.Mocked<BlocksService>;
 
   const userId = 'user-id-123';
   const blockId = 'block-id-123';
@@ -37,15 +37,15 @@ describe('BlockController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [BlockController],
+      controllers: [BlocksController],
       providers: [
-        { provide: BlockService, useValue: mockService },
+        { provide: BlocksService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    controller = module.get<BlockController>(BlockController);
-    service = module.get(BlockService);
+    controller = module.get<BlocksController>(BlocksController);
+    service = module.get(BlocksService);
   });
 
   afterEach(() => {

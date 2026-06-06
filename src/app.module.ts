@@ -17,22 +17,22 @@ import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { BlockModule } from './modules/blocks/blocks.module';
+import { BlocksModule } from './modules/blocks/blocks.module';
 import { CreditsModule } from './modules/credits/credits.module';
-import { DeviceModule } from './modules/devices/devices.module';
+import { DevicesModule } from './modules/devices/devices.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { HealthModule } from './modules/health/health.module';
-import { IdentityModule } from './modules/identities/identities.module';
+import { IdentitiesModule } from './modules/identities/identities.module';
 import { IdentityWorkflowsModule } from './modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
-import { LikeModule } from './modules/likes/likes.module';
+import { LikesModule } from './modules/likes/likes.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
-import { MatchModule } from './modules/matches/matches.module';
+import { MatchesModule } from './modules/matches/matches.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { OtpModule } from './modules/one-time-passwords/one-time-passwords.module';
-import { ProfileModule } from './modules/profiles/profiles.module';
+import { OneTimePasswordsModule } from './modules/one-time-passwords/one-time-passwords.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
-import { SocialidentityModule } from './modules/social-identities/social-identities.module';
+import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
@@ -73,16 +73,16 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     //Business Modules
     AuthModule,
     FirebaseModule,
-    SocialidentityModule,
+    SocialIdentitiesModule,
     WebhooksModule,
-    OtpModule,
+    OneTimePasswordsModule,
     InstagramModule,
-    ProfileModule,
-    DeviceModule,
-    IdentityModule,
-    LikeModule,
-    BlockModule,
-    MatchModule,
+    ProfilesModule,
+    DevicesModule,
+    IdentitiesModule,
+    LikesModule,
+    BlocksModule,
+    MatchesModule,
     MatchResolverModule,
     CreditsModule,
     HealthModule,

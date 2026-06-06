@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
-import { SocialidentityController } from '../social-identities.controller';
-import { SocialidentityService } from '../social-identities.service';
+import { SocialIdentitiesController } from '../social-identities.controller';
+import { SocialidentitiesService } from '../social-identities.service';
 import { VerifyInstagramRequestDto } from '../dto';
 
-describe('SocialidentityController', () => {
-  let controller: SocialidentityController;
-  let service: jest.Mocked<SocialidentityService>;
+describe('SocialIdentitiesController', () => {
+  let controller: SocialIdentitiesController;
+  let service: jest.Mocked<SocialidentitiesService>;
 
   beforeEach(async () => {
     const contextualLogger = {
@@ -26,15 +26,17 @@ describe('SocialidentityController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [SocialidentityController],
+      controllers: [SocialIdentitiesController],
       providers: [
-        { provide: SocialidentityService, useValue: mockService },
+        { provide: SocialidentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
     }).compile();
 
-    controller = module.get<SocialidentityController>(SocialidentityController);
-    service = module.get(SocialidentityService);
+    controller = module.get<SocialIdentitiesController>(
+      SocialIdentitiesController,
+    );
+    service = module.get(SocialidentitiesService);
   });
 
   afterEach(() => {

@@ -15,7 +15,7 @@ import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 
 @Injectable()
-export class LikeService extends BaseService {
+export class LikesService extends BaseService {
   private readonly expiryDays: number;
 
   constructor(

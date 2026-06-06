@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
 import { MatchResponseDto } from './dto';
-import { MatchService } from './matches.service';
+import { MatchesService } from './matches.service';
 
 @ApiTags('Matches')
 @ApiBearerAuth()
@@ -28,10 +28,10 @@ import { MatchService } from './matches.service';
   path: 'matches',
   version: ['1'],
 })
-export class MatchController extends BaseController {
+export class MatchesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly matchService: MatchService,
+    private readonly matchesService: MatchesService,
   ) {
     super(logger);
   }
@@ -41,7 +41,7 @@ export class MatchController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: [MatchResponseDto] })
   @SerializeExpose(MatchResponseDto)
   async findAll(@CurrentUserId() userId: string) {
-    return this.matchService.findAllForUser(userId);
+    return this.matchesService.findAllForUser(userId);
   }
 
   @Get(':id')
@@ -49,7 +49,7 @@ export class MatchController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: MatchResponseDto })
   @SerializeExpose(MatchResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.matchService.findOneForUser(id, userId);
+    return this.matchesService.findOneForUser(id, userId);
   }
 
   @Delete(':id')
@@ -57,6 +57,6 @@ export class MatchController extends BaseController {
   @ApiOperation({ summary: 'Unmatch from a user (Soft delete match)' })
   @ApiResponse({ status: HttpStatus.OK })
   async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.matchService.unmatch(id, userId);
+    return this.matchesService.unmatch(id, userId);
   }
 }

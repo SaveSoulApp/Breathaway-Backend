@@ -24,10 +24,10 @@ import {
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
-import { LikeService } from '../likes.service';
+import { LikesService } from '../likes.service';
 
-describe('LikeService', () => {
-  let service: LikeService;
+describe('LikesService', () => {
+  let service: LikesService;
   let prisma: MockPrismaService;
   let configServiceMock: jest.Mocked<ConfigService>;
   let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
@@ -104,7 +104,7 @@ describe('LikeService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        LikeService,
+        LikesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: ConfigService, useValue: configServiceMock },
         { provide: IdentityCryptoService, useValue: identityCryptoServiceMock },
@@ -113,7 +113,7 @@ describe('LikeService', () => {
       ],
     }).compile();
 
-    service = module.get<LikeService>(LikeService);
+    service = module.get<LikesService>(LikesService);
     prisma = module.get(PrismaService);
   });
 
@@ -316,7 +316,7 @@ describe('LikeService', () => {
 
       // Assert
       expect(
-        loggerServiceMock.forContext('LikeService').error,
+        loggerServiceMock.forContext('LikesService').error,
       ).toHaveBeenCalled();
     });
   });

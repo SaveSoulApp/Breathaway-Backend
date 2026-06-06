@@ -11,17 +11,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
-import { OtpService } from './one-time-passwords.service';
+import { OneTimePasswordsService } from './one-time-passwords.service';
 
-@ApiTags('OTP')
+@ApiTags('One Time Passwords')
 @Controller({
-  path: 'otp',
+  path: 'one-time-passwords',
   version: ['1'],
 })
-export class OtpController extends BaseController {
+export class OneTimePasswordsController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly otpService: OtpService,
+    private readonly oneTimePasswordsService: OneTimePasswordsService,
   ) {
     super(logger);
   }
@@ -42,7 +42,7 @@ export class OtpController extends BaseController {
   @SerializeExpose(OtpResponseDto)
   async generateOtp(@CurrentUserId() userId: string): Promise<OtpResponseDto> {
     const { otp, expiresIn } =
-      await this.otpService.generateAndStoreOtp(userId);
+      await this.oneTimePasswordsService.generateAndStoreOtp(userId);
 
     return {
       otp,
@@ -65,7 +65,9 @@ export class OtpController extends BaseController {
   })
   @SerializeExpose(VerifyOtpResponseDto)
   async verifyOtp(@Body() body: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
-    const userId = await this.otpService.verifyAndConsumeOtp(body.otp);
+    const userId = await this.oneTimePasswordsService.verifyAndConsumeOtp(
+      body.otp,
+    );
     return { userId };
   }
 }

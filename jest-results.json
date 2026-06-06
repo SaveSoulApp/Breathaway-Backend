@@ -1,0 +1,894 @@
+Datasource "db": PostgreSQL database "breathaway_test", schema "public" at "localhost:5432"
+
+2 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+[2026-06-06 07:53:57.055 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.337 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.338 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.339 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.339 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.339 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.339 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.339 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.340 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.340 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.340 +0000] [32mINFO[39m: [36mMatchesController {/matches} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.340 +0000] [32mINFO[39m: [36mMapped {/matches, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/matches/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/matches/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mBlocksController {/blocks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/blocks, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/blocks, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.341 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.425 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.109 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.351 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mDevicesController {/devices} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices/:id, PUT} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices/:id, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.360 +0000] [32mINFO[39m: [36mMapped {/devices/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.436 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.107 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.355 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.356 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.357 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMatchesController {/matches} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/matches, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/matches/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mMapped {/matches/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.358 +0000] [32mINFO[39m: [36mBlocksController {/blocks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/blocks, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/blocks, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.359 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.438 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.100 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.349 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.351 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.351 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.352 +0000] [32mINFO[39m: [36mProfilesController {/profiles} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles, PUT} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.353 +0000] [32mINFO[39m: [36mMapped {/profiles, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.489 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.194 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.153 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.412 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.415 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.416 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.416 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.416 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.416 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.417 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.417 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.417 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.601 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.394 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.396 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.397 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.398 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.398 +0000] [32mINFO[39m: [36mSocialIdentitiesController {/social-identities} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.398 +0000] [32mINFO[39m: [36mMapped {/social-identities/verify/instagram, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.548 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.140 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.391 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.401 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.402 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.402 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.402 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.402 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mBlocksController {/blocks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mMapped {/blocks, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.403 +0000] [32mINFO[39m: [36mMapped {/blocks, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.404 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.404 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.555 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.133 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.385 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.386 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.387 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.388 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.388 +0000] [32mINFO[39m: [36mOneTimePasswordsController {/one-time-passwords} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.388 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/generate, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.388 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/verify, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.505 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.917 +0000] [32mINFO[39m: [36mRegistering device for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:57.245 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.488 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.491 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.492 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.492 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.492 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.493 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.493 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.493 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.494 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.494 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.541 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.541 +0000] [32mINFO[39m: [36mIdentitiesController {/identities} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.541 +0000] [32mINFO[39m: [36mMapped {/identities, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.541 +0000] [32mINFO[39m: [36mMapped {/identities, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.541 +0000] [32mINFO[39m: [36mMapped {/identities/complete, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.542 +0000] [32mINFO[39m: [36mMapped {/identities/lookup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.542 +0000] [32mINFO[39m: [36mMapped {/identities/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.542 +0000] [32mINFO[39m: [36mMapped {/identities/:id/complete, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.542 +0000] [32mINFO[39m: [36mMapped {/identities/:id, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.543 +0000] [32mINFO[39m: [36mMapped {/identities/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.543 +0000] [32mINFO[39m: [36mMapped {/identities/:id/verify, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.851 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:57.930 +0000] [32mINFO[39m: [36mDevice registered successfully for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E (device: 01KTDYS9D15T8TYZJC61V4EBN6)[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.039 +0000] [32mINFO[39m: [36mRegistering device for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.099 +0000] [32mINFO[39m: [36mReverse like found: 01KTDYS9J97X3CYB3T6J65KRB5 for new like: 01KTDYS9JEAFN306ZYVXQG23ER.[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:58.127 +0000] [32mINFO[39m: [36mMatch created successfully between users 01KTDYS9E4R8KNWZHKD8CGYB7Z and 01KTDYS9HX5V6ZKVGXAYFJBYR9.[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:57.247 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:57.475 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.477 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.477 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.478 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.478 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.478 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.478 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.478 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mLikesController {/likes} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mMapped {/likes, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.479 +0000] [32mINFO[39m: [36mMapped {/likes, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.480 +0000] [32mINFO[39m: [36mMapped {/likes/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.480 +0000] [32mINFO[39m: [36mMapped {/likes/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.480 +0000] [32mINFO[39m: [36mMatchesController {/matches} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.481 +0000] [32mINFO[39m: [36mMapped {/matches, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.481 +0000] [32mINFO[39m: [36mMapped {/matches/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.481 +0000] [32mINFO[39m: [36mMapped {/matches/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.481 +0000] [32mINFO[39m: [36mBlocksController {/blocks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:57.481 +0000] [32mINFO[39m: [36mMapped {/blocks, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.482 +0000] [32mINFO[39m: [36mMapped {/blocks, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.482 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.482 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:57.789 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:58.179 +0000] [32mINFO[39m: [36mReverse like found: 01KTDYS9MNTKDEQWQFPACTBBN3 for new like: 01KTDYS9MWX9EYYY8JDV9NMW60.[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:58.180 +0000] [32mINFO[39m: [36mBlock exists between users 01KTDYS9M8HTH22C35M6SKVBCP and 01KTDYS9M05D18DKVGEN2H85TN. Suppressing match.[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:58.251 +0000] [32mINFO[39m: [36mCreated user 01KTDYS9PHGCP8HQYN4K4N4GYV with phone – OTP pending.[39m
+    [35mcontext[39m: "AuthService"
+[2026-06-06 07:53:58.264 +0000] [32mINFO[39m: [36mReverse like found: 01KTDYS9QAK81XQENNSPWPREH9 for new like: 01KTDYS9QEBMFAYM6HW62TFW55.[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:58.264 +0000] [32mINFO[39m: [36mIntents are incompatible between Like 01KTDYS9QEBMFAYM6HW62TFW55 (CASUAL) and Like 01KTDYS9QAK81XQENNSPWPREH9 (RELATIONSHIP).[39m
+    [35mcontext[39m: "MatchResolverService"
+[2026-06-06 07:53:58.282 +0000] [32mINFO[39m: [36mCreated user 01KTDYS9QXGBX1Q77Y67D9WW09 with password – OTP pending.[39m
+    [35mcontext[39m: "AuthService"
+[2026-06-06 07:53:58.419 +0000] [33mWARN[39m: [36mDevice token already exists: test-fcm-token-1[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.431 +0000] [32mINFO[39m: [36mFetching devices for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.480 +0000] [32mINFO[39m: [36mFetching devices for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.486 +0000] [32mINFO[39m: [36mFetching device 01KTDYS9D15T8TYZJC61V4EBN6 for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.493 +0000] [32mINFO[39m: [36mFetching devices for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.499 +0000] [32mINFO[39m: [36mUpdating device 01KTDYS9D15T8TYZJC61V4EBN6 for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.508 +0000] [32mINFO[39m: [36mDevice 01KTDYS9D15T8TYZJC61V4EBN6 updated successfully[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.512 +0000] [32mINFO[39m: [36mFetching devices for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.519 +0000] [32mINFO[39m: [36mPatching device 01KTDYS9D15T8TYZJC61V4EBN6 for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.519 +0000] [33mWARN[39m: [36mUnknown platform: undefined, defaulting to ANDROID[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.527 +0000] [32mINFO[39m: [36mDevice 01KTDYS9D15T8TYZJC61V4EBN6 patched successfully[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.530 +0000] [32mINFO[39m: [36mFetching devices for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.535 +0000] [32mINFO[39m: [36mDeleting device 01KTDYS9D15T8TYZJC61V4EBN6 for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.541 +0000] [32mINFO[39m: [36mDevice 01KTDYS9D15T8TYZJC61V4EBN6 deleted successfully[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.544 +0000] [32mINFO[39m: [36mFetching device 01KTDYS9D15T8TYZJC61V4EBN6 for user: 01KTDYS915Y1ASV1CBJ5NEWJ3E[39m
+    [35mcontext[39m: "DevicesService"
+[2026-06-06 07:53:58.546 +0000] [32mINFO[39m: [36mNew signup via signInOrSignUp for user 01KTDYSA08AFP61MZ1DCQW3WH5[39m
+    [35mcontext[39m: "AuthService"
+[2026-06-06 07:53:58.744 +0000] [32mINFO[39m: [36mNew social sign‑up (INSTAGRAM) for user 01KTDYSA681STZ4ZEC7RHYQQJ7[39m
+    [35mcontext[39m: "AuthService"
+[2026-06-06 07:53:58.186 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:58.861 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.867 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.868 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.868 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.869 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.869 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.869 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mIdentityWorkflowsController {/identity-workflows} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.873 +0000] [32mINFO[39m: [36mOneTimePasswordsController {/one-time-passwords} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.874 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/generate, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.874 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/verify, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.874 +0000] [32mINFO[39m: [36mSocialIdentitiesController {/social-identities} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.874 +0000] [32mINFO[39m: [36mMapped {/social-identities/verify/instagram, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.874 +0000] [32mINFO[39m: [36mIdentitiesController {/identities} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.882 +0000] [32mINFO[39m: [36mMapped {/identities, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.883 +0000] [32mINFO[39m: [36mMapped {/identities, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.883 +0000] [32mINFO[39m: [36mMapped {/identities/complete, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.883 +0000] [32mINFO[39m: [36mMapped {/identities/lookup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.884 +0000] [32mINFO[39m: [36mMapped {/identities/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.884 +0000] [32mINFO[39m: [36mMapped {/identities/:id/complete, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/identities/:id, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/identities/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/identities/:id/verify, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mNotificationsController {/notifications} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/notifications/send, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMatchesController {/matches} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/matches, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.885 +0000] [32mINFO[39m: [36mMapped {/matches/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mMapped {/matches/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mBlocksController {/blocks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mMapped {/blocks, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mMapped {/blocks, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:58.886 +0000] [32mINFO[39m: [36mMapped {/blocks/:id, DELETE} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.028 +0000] [32mINFO[39m: [36m[EmailService] Registered 2 Handlebars partial(s): footer.hbs, header.hbs[39m
+    [35mcontext[39m: "EmailService"
+[2026-06-06 07:53:59.028 +0000] [32mINFO[39m: [36mEmailService: templates and partials loaded successfully[39m
+    [35mcontext[39m: "EmailService"
+[2026-06-06 07:53:59.038 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.515 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-1780732439495",
+        "attributes": {
+          "eventType": "instagram.otp.received"
+        },
+        "data": "eyJvdHAiOiJjYWxtLWRlYWZlbmluZy1wcm9jZXNzb3IiLCJzZW5kZXJJZCI6ImlnLXNlbmRlci0xMjMiLCJ0aW1lc3RhbXAiOiIyMDI2LTA2LTA2VDA3OjUzOjU5LjQ5NVoifQ=="
+      },
+      "subscription": "projects/test/subscriptions/test"
+    }
+[2026-06-06 07:53:59.515 +0000] [32mINFO[39m: [36mReceived Instagram OTP event for messageId test-msg-1780732439495[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.515 +0000] [32mINFO[39m: [36mOTP extracted: calm-deafening-processor. Verifying...[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.392 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:59.468 +0000] [32mINFO[39m: [36mAppController {/} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.469 +0000] [32mINFO[39m: [36mMapped {/, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.504 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.572 +0000] [32mINFO[39m: [36mOTP verified successfully for userId: 01KTDYSAJ1CH5GX518QRHX4WTA. Fetching identity for senderId: ig-sender-123[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.573 +0000] [32mINFO[39m: [36mFound Instagram username: test_ig_user. Linking identity to user 01KTDYSAJ1CH5GX518QRHX4WTA...[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.615 +0000] [32mINFO[39m: [36mSuccessfully linked Instagram identity (test_ig_user) to user (01KTDYSAJ1CH5GX518QRHX4WTA).[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.391 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:59.686 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.687 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mNotificationsController {/notifications} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.688 +0000] [32mINFO[39m: [36mMapped {/notifications/send, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.771 +0000] [32mINFO[39m: [36m[EmailService] Registered 2 Handlebars partial(s): footer.hbs, header.hbs[39m
+    [35mcontext[39m: "EmailService"
+[2026-06-06 07:53:59.771 +0000] [32mINFO[39m: [36mEmailService: templates and partials loaded successfully[39m
+    [35mcontext[39m: "EmailService"
+[2026-06-06 07:53:59.772 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.787 +0000] [32mINFO[39m: [36mDispatched notification request for 1 users[39m
+    [35mcontext[39m: "NotificationsService"
+[2026-06-06 07:53:59.805 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-1780732439801",
+        "attributes": {
+          "eventType": "identity.claimed"
+        },
+        "data": "eyJ1c2VySWQiOiIwMUtURFlTQjVLRUo5NzZFN0I1NjM3RzRaTSJ9"
+      },
+      "subscription": "projects/test/subscriptions/test"
+    }
+[2026-06-06 07:53:59.805 +0000] [32mINFO[39m: [36m[test-msg-1780732439801] Processing identity.claimed for user 01KTDYSB5KEJ976E7B5637G4ZM[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.460 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:59.689 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.690 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.690 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.690 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.690 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.691 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.691 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.691 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.691 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.691 +0000] [32mINFO[39m: [36mHealthController {/health} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.692 +0000] [32mINFO[39m: [36mMapped {/health, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.692 +0000] [32mINFO[39m: [36mOneTimePasswordsController {/one-time-passwords} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.693 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/generate, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.693 +0000] [32mINFO[39m: [36mMapped {/one-time-passwords/verify, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.781 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.827 +0000] [32mINFO[39m: [36m[test-msg-1780732439801] Backfilled targetUserId=01KTDYSB5KEJ976E7B5637G4ZM on 1 like(s) (all statuses/expiry states).[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.851 +0000] [32mINFO[39m: [36m[test-msg-1780732439801] Running match resolution for 1 actionable like(s) targeting user 01KTDYSB5KEJ976E7B5637G4ZM.[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.867 +0000] [32mINFO[39m: [36m[test-msg-1780732439801] Match resolution complete for user 01KTDYSB5KEJ976E7B5637G4ZM.[39m
+    [35mcontext[39m: "IdentityWorkflowsService"
+[2026-06-06 07:53:59.636 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:59.894 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.895 +0000] [32mINFO[39m: [36mAdminController {/admin} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.896 +0000] [32mINFO[39m: [36mMapped {/admin/reports/total, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.896 +0000] [32mINFO[39m: [36mMapped {/admin/reports/timeframe, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.927 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.967 +0000] [31mERROR[39m: [36mHealth Check has failed! {"database":{"status":"up"},"redis":{"status":"up"},"memory_heap":{"message":"Used heap exceeded the set threshold","status":"down"},"memory_rss":{"message":"Used rss exceeded the set threshold","status":"down"}}[39m
+[2026-06-06 07:53:59.969 +0000] [31mERROR[39m: [36mRequest failed: GET /api/v1/health[39m
+    [35mcontext[39m: "ExceptionLoggingFilter"
+    [35mstatusCode[39m: 503
+    error: {
+      "message": "Service Unavailable Exception",
+      "stack":
+          ServiceUnavailableException: Service Unavailable Exception
+              at HealthCheckService.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/node_modules/.pnpm/@nestjs+terminus@11.1.1_@grpc+grpc-js@1.14.3_@grpc+proto-loader@0.8.0_@nestjs+common@11_68b0ab618d85d02304839a157714f6d1/node_modules/@nestjs/terminus/lib/health-check/health-check.service.ts:61:15)
+              at Generator.next (<anonymous>)
+              at fulfilled (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/node_modules/.pnpm/@nestjs+terminus@11.1.1_@grpc+grpc-js@1.14.3_@grpc+proto-loader@0.8.0_@nestjs+common@11_68b0ab618d85d02304839a157714f6d1/node_modules/@nestjs/terminus/dist/health-check/health-check.service.js:17:58)
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      "name": "ServiceUnavailableException"
+    }
+[2026-06-06 07:53:59.771 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:53:59.960 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:53:59.961 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:53:59.986 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:54:00.003 +0000] [33mWARN[39m: [36mUnauthorized Pub/Sub ingest attempt. Invalid or missing token.[39m
+[2026-06-06 07:54:00.028 +0000] [33mWARN[39m: [36mUnauthorized Pub/Sub ingest attempt. Invalid or missing token.[39m
+[2026-06-06 07:54:00.033 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-123",
+        "attributes": {
+          "eventType": "test.event"
+        },
+        "data": "e30="
+      },
+      "subscription": "projects/myproj/subscriptions/mysub"
+    }
+[2026-06-06 07:53:59.825 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:54:00.036 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-123",
+        "attributes": {
+          "eventType": "unregistered.event"
+        },
+        "data": "e30="
+      },
+      "subscription": "projects/myproj/subscriptions/mysub"
+    }
+[2026-06-06 07:54:00.036 +0000] [33mWARN[39m: [36mIgnored message test-msg-123: No handler registered for eventType 'unregistered.event'.[39m
+    [35mcontext[39m: "PubSubIngestionController"
+[2026-06-06 07:54:00.014 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.016 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mInstagramController {/instagram} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.017 +0000] [32mINFO[39m: [36mMapped {/instagram/refresh-token, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.018 +0000] [32mINFO[39m: [36mMapped {/instagram/refresh-env-token, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.028 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:54:00.040 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-123",
+        "attributes": {
+          "eventType": "test.event"
+        },
+        "data": "eyJmb28iOiJiYXIiLCJ2YWx1ZSI6NDJ9"
+      },
+      "subscription": "projects/myproj/subscriptions/mysub"
+    }
+[2026-06-06 07:54:00.043 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-123",
+        "attributes": {
+          "eventType": "error.event"
+        },
+        "data": "e30="
+      },
+      "subscription": "projects/myproj/subscriptions/mysub"
+    }
+[2026-06-06 07:54:00.043 +0000] [31mERROR[39m: [36mError processing event 'error.event' (messageId: test-msg-123):[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    error: "Test handler error"
+[2026-06-06 07:54:00.048 +0000] [31mERROR[39m: [36mRequest failed: POST /api/v1/pubsub/ingest?token=test-PUBSUB_VERIFICATION_TOKEN[39m
+    [35mcontext[39m: "ExceptionLoggingFilter"
+    [35mstatusCode[39m: 500
+    error: {
+      "message": "Test handler error",
+      "stack":
+          Error: Test handler error
+              at DummyPubSubHandler.handleErrorEvent (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/pubsub/pubsub.e2e-spec.ts:27:11)
+              at PubSubIngestionController.ingest (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/pubsub/pubsub-ingestion.controller.ts:99:20)
+              at /Users/mohitmalpani/Business/BreathAway/Backend/breathaway/node_modules/.pnpm/@nestjs+core@11.1.18_@nestjs+common@11.1.18_class-transformer@0.5.1_class-validator@0.1_ce47e95196415c4ec0fc409ef25d28ed/node_modules/@nestjs/core/router/router-execution-context.js:38:29
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at /Users/mohitmalpani/Business/BreathAway/Backend/breathaway/node_modules/.pnpm/@nestjs+core@11.1.18_@nestjs+common@11.1.18_class-transformer@0.5.1_class-validator@0.1_ce47e95196415c4ec0fc409ef25d28ed/node_modules/@nestjs/core/router/router-execution-context.js:46:28
+              at /Users/mohitmalpani/Business/BreathAway/Backend/breathaway/node_modules/.pnpm/@nestjs+core@11.1.18_@nestjs+common@11.1.18_class-transformer@0.5.1_class-validator@0.1_ce47e95196415c4ec0fc409ef25d28ed/node_modules/@nestjs/core/router/router-proxy.js:9:17
+      "name": "Error"
+    }
+[2026-06-06 07:54:00.051 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "somethingElse": true
+    }
+[2026-06-06 07:54:00.051 +0000] [33mWARN[39m: [36mIgnored invalid payload: missing message object[39m
+    [35mcontext[39m: "PubSubIngestionController"
+[2026-06-06 07:54:00.053 +0000] [32mINFO[39m: [36mIncoming Pub/Sub ingest payload[39m
+    [35mcontext[39m: "PubSubIngestionController"
+    [35mpayload[39m: {
+      "message": {
+        "messageId": "test-msg-123",
+        "attributes": {},
+        "data": "dGVzdA=="
+      }
+    }
+[2026-06-06 07:54:00.053 +0000] [33mWARN[39m: [36mIgnored message test-msg-123: Missing 'eventType' attribute.[39m
+    [35mcontext[39m: "PubSubIngestionController"
+[2026-06-06 07:53:59.859 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:54:00.052 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.058 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.059 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mCreditsController {/credits} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/credits/balance, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/credits/ledger, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/credits/ledger/:id, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/credits/internal/grant, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.060 +0000] [32mINFO[39m: [36mMapped {/credits/internal/consume, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.069 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:53:59.896 +0000] [32mINFO[39m: [36m📝 LoggerService initialized with level: info[39m
+[2026-06-06 07:54:00.046 +0000] [32mINFO[39m: [36mAuthController {/auth} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/signin, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/signin-or-signup, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/social, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/dev-login, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/add-phone, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/add-email, PATCH} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/auth/signout, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mPubSubIngestionController {/pubsub} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mMapped {/pubsub/ingest, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.047 +0000] [32mINFO[39m: [36mWebhooksController {/webhooks} (version: 1):[39m
+    [35mcontext[39m: "RoutesResolver"
+[2026-06-06 07:54:00.048 +0000] [32mINFO[39m: [36mMapped {/webhooks/meta, GET} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.048 +0000] [32mINFO[39m: [36mMapped {/webhooks/meta, POST} (version: 1) route[39m
+    [35mcontext[39m: "RouterExplorer"
+[2026-06-06 07:54:00.065 +0000] [32mINFO[39m: [36mNest application successfully started[39m
+    [35mcontext[39m: "NestApplication"
+[2026-06-06 07:54:00.091 +0000] [32mINFO[39m: [36mMeta webhook verified successfully[39m
+    [35mcontext[39m: "WebhooksService"
+[2026-06-06 07:54:00.102 +0000] [31mERROR[39m: [36mRequest failed: GET /api/v1/instagram/refresh-token?token=old-token[39m
+    [35mcontext[39m: "ExceptionLoggingFilter"
+    [35mstatusCode[39m: 500
+    error: {
+      "message": "API Error",
+      "stack":
+          HttpException: API Error
+              at InstagramService.refreshAccessToken (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/instagram/instagram.service.ts:47:13)
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      "name": "HttpException"
+    }
+[2026-06-06 07:54:00.127 +0000] [33mWARN[39m: [36mMeta webhook verification failed[39m
+    [35mcontext[39m: "WebhooksService"
+[2026-06-06 07:54:00.131 +0000] [33mWARN[39m: [36mMeta webhook verification failed[39m
+    [35mcontext[39m: "WebhooksService"
+[2026-06-06 07:54:00.147 +0000] [32mINFO[39m: [36mMeta webhook received[39m
+    [35mcontext[39m: "WebhooksController"
+    [35mobject[39m: "instagram"
+[2026-06-06 07:54:00.147 +0000] [32mINFO[39m: [36mInstagram message received[39m
+    [35mcontext[39m: "WebhooksService"
+    [35msenderId[39m: "sender_1"
+    [35mrecipientId[39m: "recipient_1"
+    [35mmessageId[39m: "m_123"
+    [35mtext[39m: "verify: 123456"
+[2026-06-06 07:54:00.147 +0000] [32mINFO[39m: [36mPublished OTP verification event for sender sender_1[39m
+    [35mcontext[39m: "OtpVerificationHandler"
+[2026-06-06 07:54:00.155 +0000] [32mINFO[39m: [36mMeta webhook received[39m
+    [35mcontext[39m: "WebhooksController"
+    [35mobject[39m: "instagram"
+[2026-06-06 07:54:00.160 +0000] [32mINFO[39m: [36mMeta webhook received[39m
+    [35mcontext[39m: "WebhooksController"
+    [35mobject[39m: "instagram"
+[2026-06-06 07:54:00.160 +0000] [33mWARN[39m: [36mUnhandled webhook intent[39m
+    [35mcontext[39m: "WebhooksService"
+    [35mintent[39m: "UNKNOWN"
+    [35mentryId[39m: "12345"
+{"numFailedTestSuites":3,"numFailedTests":15,"numPassedTestSuites":16,"numPassedTests":106,"numPendingTestSuites":0,"numPendingTests":0,"numRuntimeErrorTestSuites":0,"numTodoTests":0,"numTotalTestSuites":19,"numTotalTests":121,"openHandles":[],"snapshot":{"added":0,"didUpdate":false,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0},"startTime":1780732434998,"success":false,"testResults":[{"assertionResults":[{"ancestorTitles":["SocialIdentitiesController (e2e)","POST /api/v1/social-identity/verify/instagram"],"duration":415,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":201,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/social-identities/social-identities.e2e-spec.ts:53:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"SocialIdentitiesController (e2e) POST /api/v1/social-identity/verify/instagram should verify a valid instagram identity","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437555,"status":"failed","title":"should verify a valid instagram identity"},{"ancestorTitles":["SocialIdentitiesController (e2e)","POST /api/v1/social-identity/verify/instagram"],"duration":4,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":400,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 400\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 400\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/social-identities/social-identities.e2e-spec.ts:83:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"SocialIdentitiesController (e2e) POST /api/v1/social-identity/verify/instagram should handle Instagram API errors gracefully","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437977,"status":"failed","title":"should handle Instagram API errors gracefully"},{"ancestorTitles":["SocialIdentitiesController (e2e)","POST /api/v1/social-identity/verify/instagram"],"duration":3,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":500,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 500\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 500\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/social-identities/social-identities.e2e-spec.ts:100:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"SocialIdentitiesController (e2e) POST /api/v1/social-identity/verify/instagram should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is missing","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437982,"status":"failed","title":"should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is missing"}],"endTime":1780732438147,"message":"  ● SocialIdentitiesController (e2e) › POST /api/v1/social-identity/verify/instagram › should verify a valid instagram identity\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 404\n\n      51 |         .send({ instagramId: 'test_ig_123' });\n      52 |\n    > 53 |       expect(res.status).toBe(201);\n         |                          ^\n      54 |       expect(res.body).toEqual({\n      55 |         id: 'test_ig_123',\n      56 |         name: 'Test User',\n\n      at Object.<anonymous> (test/social-identities/social-identities.e2e-spec.ts:53:26)\n\n  ● SocialIdentitiesController (e2e) › POST /api/v1/social-identity/verify/instagram › should handle Instagram API errors gracefully\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 400\n    Received: 404\n\n      81 |         .send({ instagramId: 'invalid_ig_id' });\n      82 |\n    > 83 |       expect(res.status).toBe(400);\n         |                          ^\n      84 |       expect(res.body.message).toContain(\n      85 |         'Instagram API Error: Invalid user id',\n      86 |       );\n\n      at Object.<anonymous> (test/social-identities/social-identities.e2e-spec.ts:83:26)\n\n  ● SocialIdentitiesController (e2e) › POST /api/v1/social-identity/verify/instagram › should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is missing\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 500\n    Received: 404\n\n       98 |         .send({ instagramId: 'test_ig_123' });\n       99 |\n    > 100 |       expect(res.status).toBe(500);\n          |                          ^\n      101 |       expect(res.body.message).toBe(\n      102 |         'Instagram verification is currently unavailable.',\n      103 |       );\n\n      at Object.<anonymous> (test/social-identities/social-identities.e2e-spec.ts:100:26)\n","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/social-identities/social-identities.e2e-spec.ts","startTime":1780732435476,"status":"failed","summary":""},{"assertionResults":[{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":77,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":201,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:72:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints POST /api/v1/profile - creates a new profile","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437896,"status":"failed","title":"POST /api/v1/profile - creates a new profile"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":7,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":409,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 409\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 409\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:89:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints POST /api/v1/profile - conflicts when creating profile twice","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437977,"status":"failed","title":"POST /api/v1/profile - conflicts when creating profile twice"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":3,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":200,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:97:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints GET /api/v1/profile - returns my profile","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437984,"status":"failed","title":"GET /api/v1/profile - returns my profile"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":10,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":200,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:118:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints GET /api/v1/profile/:id - returns profile by id","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437987,"status":"failed","title":"GET /api/v1/profile/:id - returns profile by id"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":4,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"ProfilesController (e2e) Profile Endpoints GET /api/v1/profile/:id - 404 for unknown profile ID","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732437997,"status":"passed","title":"GET /api/v1/profile/:id - 404 for unknown profile ID"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":5,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":200,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:144:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints PUT /api/v1/profile - fully updates profile","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438001,"status":"failed","title":"PUT /api/v1/profile - fully updates profile"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":5,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":200,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:160:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints PATCH /api/v1/profile - partially updates profile","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438006,"status":"failed","title":"PATCH /api/v1/profile - partially updates profile"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":2,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"ProfilesController (e2e) Profile Endpoints GET /api/v1/profile - 404 if profile does not exist","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438012,"status":"passed","title":"GET /api/v1/profile - 404 if profile does not exist"},{"ancestorTitles":["ProfilesController (e2e)","Profile Endpoints"],"duration":5,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":204,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 204\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 204\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts:180:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"ProfilesController (e2e) Profile Endpoints DELETE /api/v1/profile - deletes the profile","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438015,"status":"failed","title":"DELETE /api/v1/profile - deletes the profile"}],"endTime":1780732438222,"message":"  ● ProfilesController (e2e) › Profile Endpoints › POST /api/v1/profile - creates a new profile\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 404\n\n      70 |         });\n      71 |\n    > 72 |       expect(res.status).toBe(201);\n         |                          ^\n      73 |       expect(res.body).toMatchObject({\n      74 |         firstName: 'John',\n      75 |         lastName: 'Doe',\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:72:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › POST /api/v1/profile - conflicts when creating profile twice\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 409\n    Received: 404\n\n      87 |         });\n      88 |\n    > 89 |       expect(res.status).toBe(409);\n         |                          ^\n      90 |     });\n      91 |\n      92 |     it('GET /api/v1/profile - returns my profile', async () => {\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:89:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › GET /api/v1/profile - returns my profile\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 404\n\n       95 |         .set('authorization', `Bearer ${validJwt}`);\n       96 |\n    >  97 |       expect(res.status).toBe(200);\n          |                          ^\n       98 |       expect(res.body).toMatchObject({\n       99 |         firstName: 'John',\n      100 |         lastName: 'Doe',\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:97:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › GET /api/v1/profile/:id - returns profile by id\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 404\n\n      116 |         .set('authorization', `Bearer ${validJwt}`);\n      117 |\n    > 118 |       expect(res.status).toBe(200);\n          |                          ^\n      119 |       expect(res.body).toMatchObject({\n      120 |         id: profileId,\n      121 |         firstName: 'John',\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:118:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › PUT /api/v1/profile - fully updates profile\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 404\n\n      142 |         });\n      143 |\n    > 144 |       expect(res.status).toBe(200);\n          |                          ^\n      145 |       expect(res.body).toMatchObject({\n      146 |         firstName: 'Johnny',\n      147 |         lastName: 'Smith',\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:144:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › PATCH /api/v1/profile - partially updates profile\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 404\n\n      158 |         });\n      159 |\n    > 160 |       expect(res.status).toBe(200);\n          |                          ^\n      161 |       expect(res.body).toMatchObject({\n      162 |         firstName: 'Jonathan',\n      163 |         lastName: 'Smith', // Should remain unchanged\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:160:26)\n\n  ● ProfilesController (e2e) › Profile Endpoints › DELETE /api/v1/profile - deletes the profile\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 204\n    Received: 404\n\n      178 |         .set('authorization', `Bearer ${validJwt}`);\n      179 |\n    > 180 |       expect(res.status).toBe(204);\n          |                          ^\n      181 |\n      182 |       // Verify it's gone\n      183 |       const checkRes = await authedRequest(app)\n\n      at Object.<anonymous> (test/profiles/profiles.e2e-spec.ts:180:26)\n","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/profiles/profiles.e2e-spec.ts","startTime":1780732435444,"status":"failed","summary":""},{"assertionResults":[{"ancestorTitles":["MatchResolverService (e2e)","resolveFromLike"],"duration":370,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchResolverService (e2e) resolveFromLike should skip if newLike has no targetUserId","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732437425,"status":"passed","title":"should skip if newLike has no targetUserId"},{"ancestorTitles":["MatchResolverService (e2e)","resolveFromLike"],"duration":151,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchResolverService (e2e) resolveFromLike should skip if no reverse like is found","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732437796,"status":"passed","title":"should skip if no reverse like is found"},{"ancestorTitles":["MatchResolverService (e2e)","resolveFromLike"],"duration":194,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchResolverService (e2e) resolveFromLike should create a match when a valid reverse like exists","invocations":1,"location":null,"numPassingAsserts":6,"retryReasons":[],"startAt":1780732437947,"status":"passed","title":"should create a match when a valid reverse like exists"},{"ancestorTitles":["MatchResolverService (e2e)","resolveFromLike"],"duration":47,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchResolverService (e2e) resolveFromLike should prevent match if users are blocked","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438142,"status":"passed","title":"should prevent match if users are blocked"},{"ancestorTitles":["MatchResolverService (e2e)","resolveFromLike"],"duration":77,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchResolverService (e2e) resolveFromLike should prevent match if intents are incompatible","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438189,"status":"passed","title":"should prevent match if intents are incompatible"}],"endTime":1780732438307,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/match-resolver/match-resolver.e2e-spec.ts","startTime":1780732435460,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["OneTimePasswordsController (e2e)","OTP Endpoints"],"duration":526,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":201,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts:50:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"OneTimePasswordsController (e2e) OTP Endpoints POST /api/v1/otp/generate - generates a new OTP","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732437505,"status":"failed","title":"POST /api/v1/otp/generate - generates a new OTP"},{"ancestorTitles":["OneTimePasswordsController (e2e)","OTP Endpoints"],"duration":15,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":201,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts:74:32)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"OneTimePasswordsController (e2e) OTP Endpoints POST /api/v1/otp/verify - verifies a generated OTP","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438039,"status":"failed","title":"POST /api/v1/otp/verify - verifies a generated OTP"},{"ancestorTitles":["OneTimePasswordsController (e2e)","OTP Endpoints"],"duration":5,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":400,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 400\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 400\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts:87:32)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"OneTimePasswordsController (e2e) OTP Endpoints POST /api/v1/otp/verify - fails with invalid OTP","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438055,"status":"failed","title":"POST /api/v1/otp/verify - fails with invalid OTP"},{"ancestorTitles":["OneTimePasswordsController (e2e)","OTP Endpoints"],"duration":12,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":201,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts:108:33)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"OneTimePasswordsController (e2e) OTP Endpoints POST /api/v1/otp/verify - fails to verify the same OTP twice","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438060,"status":"failed","title":"POST /api/v1/otp/verify - fails to verify the same OTP twice"},{"ancestorTitles":["OneTimePasswordsController (e2e)","OTP Endpoints"],"duration":152,"failing":false,"failureDetails":[{"matcherResult":{"actual":404,"expected":429,"message":"expect(received).toBe(expected) // Object.is equality\n\nExpected: 429\nReceived: 404","name":"toBe","pass":false}}],"failureMessages":["Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 429\nReceived: 404\n    at Object.<anonymous> (/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts:135:26)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"],"fullName":"OneTimePasswordsController (e2e) OTP Endpoints POST /api/v1/otp/generate - enforces rate limiting","invocations":1,"location":null,"numPassingAsserts":0,"retryReasons":[],"startAt":1780732438072,"status":"failed","title":"POST /api/v1/otp/generate - enforces rate limiting"}],"endTime":1780732438400,"message":"  ● OneTimePasswordsController (e2e) › OTP Endpoints › POST /api/v1/otp/generate - generates a new OTP\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 404\n\n      48 |         .send();\n      49 |\n    > 50 |       expect(res.status).toBe(201);\n         |                          ^\n      51 |       expect(res.body).toHaveProperty('otp');\n      52 |       expect(res.body).toHaveProperty('expiresIn');\n      53 |       expect(typeof res.body.otp).toBe('string');\n\n      at Object.<anonymous> (test/one-time-passwords/one-time-passwords.e2e-spec.ts:50:26)\n\n  ● OneTimePasswordsController (e2e) › OTP Endpoints › POST /api/v1/otp/verify - verifies a generated OTP\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 404\n\n      72 |         .send({ otp });\n      73 |\n    > 74 |       expect(verifyRes.status).toBe(201);\n         |                                ^\n      75 |       expect(verifyRes.body).toHaveProperty('userId');\n      76 |       expect(verifyRes.body.userId).toBe(user.id);\n      77 |     });\n\n      at Object.<anonymous> (test/one-time-passwords/one-time-passwords.e2e-spec.ts:74:32)\n\n  ● OneTimePasswordsController (e2e) › OTP Endpoints › POST /api/v1/otp/verify - fails with invalid OTP\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 400\n    Received: 404\n\n      85 |         .send({ otp: 'invalid-otp-value' });\n      86 |\n    > 87 |       expect(verifyRes.status).toBe(400); // BadRequest\n         |                                ^\n      88 |       expect(verifyRes.body.message).toBe('Invalid or expired OTP');\n      89 |     });\n      90 |\n\n      at Object.<anonymous> (test/one-time-passwords/one-time-passwords.e2e-spec.ts:87:32)\n\n  ● OneTimePasswordsController (e2e) › OTP Endpoints › POST /api/v1/otp/verify - fails to verify the same OTP twice\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 404\n\n      106 |         .send({ otp });\n      107 |\n    > 108 |       expect(verifyRes1.status).toBe(201);\n          |                                 ^\n      109 |\n      110 |       // Verify second time\n      111 |       const verifyRes2 = await authedRequest(app)\n\n      at Object.<anonymous> (test/one-time-passwords/one-time-passwords.e2e-spec.ts:108:33)\n\n  ● OneTimePasswordsController (e2e) › OTP Endpoints › POST /api/v1/otp/generate - enforces rate limiting\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 429\n    Received: 404\n\n      133 |         .send();\n      134 |\n    > 135 |       expect(res.status).toBe(429); // TOO_MANY_REQUESTS\n          |                          ^\n      136 |       expect(res.body.message).toBe('Please wait before requesting a new OTP');\n      137 |     });\n      138 |   });\n\n      at Object.<anonymous> (test/one-time-passwords/one-time-passwords.e2e-spec.ts:135:26)\n","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/one-time-passwords/one-time-passwords.e2e-spec.ts","startTime":1780732435450,"status":"failed","summary":""},{"assertionResults":[{"ancestorTitles":["BlocksController (e2e)","Block Endpoints"],"duration":259,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"BlocksController (e2e) Block Endpoints POST /api/v1/blocks - creates a block","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732437905,"status":"passed","title":"POST /api/v1/blocks - creates a block"},{"ancestorTitles":["BlocksController (e2e)","Block Endpoints"],"duration":165,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"BlocksController (e2e) Block Endpoints POST /api/v1/blocks - fails if block already exists","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438165,"status":"passed","title":"POST /api/v1/blocks - fails if block already exists"},{"ancestorTitles":["BlocksController (e2e)","Block Endpoints"],"duration":69,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"BlocksController (e2e) Block Endpoints GET /api/v1/blocks - returns all active blocks for user","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732438331,"status":"passed","title":"GET /api/v1/blocks - returns all active blocks for user"},{"ancestorTitles":["BlocksController (e2e)","Block Endpoints"],"duration":43,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"BlocksController (e2e) Block Endpoints GET /api/v1/blocks/:id - returns block by ID","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438401,"status":"passed","title":"GET /api/v1/blocks/:id - returns block by ID"},{"ancestorTitles":["BlocksController (e2e)","Block Endpoints"],"duration":34,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"BlocksController (e2e) Block Endpoints DELETE /api/v1/blocks/:id - removes (unblocks)","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438444,"status":"passed","title":"DELETE /api/v1/blocks/:id - removes (unblocks)"}],"endTime":1780732438550,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/blocks/blocks.e2e-spec.ts","startTime":1780732435487,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":253,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints GET /api/v1/matches - should return active matches for user","invocations":1,"location":null,"numPassingAsserts":8,"retryReasons":[],"startAt":1780732438108,"status":"passed","title":"GET /api/v1/matches - should return active matches for user"},{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":51,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints GET /api/v1/matches/:id - should return specific match details","invocations":1,"location":null,"numPassingAsserts":5,"retryReasons":[],"startAt":1780732438367,"status":"passed","title":"GET /api/v1/matches/:id - should return specific match details"},{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":35,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints GET /api/v1/matches/:id - should return 404 for non-existent match","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438418,"status":"passed","title":"GET /api/v1/matches/:id - should return 404 for non-existent match"},{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":14,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints DELETE /api/v1/matches/:id - should unmatch (soft delete) the match","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438453,"status":"passed","title":"DELETE /api/v1/matches/:id - should unmatch (soft delete) the match"},{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":9,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints GET /api/v1/matches/:id - should return 404 after unmatching","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438467,"status":"passed","title":"GET /api/v1/matches/:id - should return 404 after unmatching"},{"ancestorTitles":["MatchesController (e2e)","Matches Endpoints"],"duration":8,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"MatchesController (e2e) Matches Endpoints GET /api/v1/matches - should not include the unmatched match","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732438477,"status":"passed","title":"GET /api/v1/matches - should not include the unmatched match"}],"endTime":1780732438572,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/matches/matches.e2e-spec.ts","startTime":1780732435458,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":188,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints POST /api/v1/devices - registers a device","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732437846,"status":"passed","title":"POST /api/v1/devices - registers a device"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":390,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints POST /api/v1/devices - fails if token already registered for the same user","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438034,"status":"passed","title":"POST /api/v1/devices - fails if token already registered for the same user"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":53,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints GET /api/v1/devices - returns all devices for user","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732438424,"status":"passed","title":"GET /api/v1/devices - returns all devices for user"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":15,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints GET /api/v1/devices/:id - returns device by ID","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438477,"status":"passed","title":"GET /api/v1/devices/:id - returns device by ID"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":17,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints PUT /api/v1/devices/:id - updates device completely","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438492,"status":"passed","title":"PUT /api/v1/devices/:id - updates device completely"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":18,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints PATCH /api/v1/devices/:id - partially updates device","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732438510,"status":"passed","title":"PATCH /api/v1/devices/:id - partially updates device"},{"ancestorTitles":["DevicesController (e2e)","Device Endpoints"],"duration":19,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"DevicesController (e2e) Device Endpoints DELETE /api/v1/devices/:id - deletes device","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438528,"status":"passed","title":"DELETE /api/v1/devices/:id - deletes device"}],"endTime":1780732438584,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/devices/devices.e2e-spec.ts","startTime":1780732435475,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":189,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints POST /api/v1/likes - creates a like using existing targetIdentityId","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438322,"status":"passed","title":"POST /api/v1/likes - creates a like using existing targetIdentityId"},{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":145,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints POST /api/v1/likes - fails to like the same identity again","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438511,"status":"passed","title":"POST /api/v1/likes - fails to like the same identity again"},{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":56,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints POST /api/v1/likes - creates a like by resolving a raw identity input","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732438657,"status":"passed","title":"POST /api/v1/likes - creates a like by resolving a raw identity input"},{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":29,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints GET /api/v1/likes - returns all pending likes for user","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438713,"status":"passed","title":"GET /api/v1/likes - returns all pending likes for user"},{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":38,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints GET /api/v1/likes/:id - returns like by ID","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438742,"status":"passed","title":"GET /api/v1/likes/:id - returns like by ID"},{"ancestorTitles":["LikesController (e2e)","Like Endpoints"],"duration":79,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"LikesController (e2e) Like Endpoints DELETE /api/v1/likes/:id - soft deletes a like","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438780,"status":"passed","title":"DELETE /api/v1/likes/:id - soft deletes a like"}],"endTime":1780732438916,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/likes/likes.e2e-spec.ts","startTime":1780732435450,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":285,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints POST /api/v1/identities - creates a new identity","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732438162,"status":"passed","title":"POST /api/v1/identities - creates a new identity"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":57,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints POST /api/v1/identities - fails with duplicate public value for same type","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438447,"status":"passed","title":"POST /api/v1/identities - fails with duplicate public value for same type"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":13,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints GET /api/v1/identities - returns all identities for the user","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732438504,"status":"passed","title":"GET /api/v1/identities - returns all identities for the user"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":9,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints GET /api/v1/identities/complete - returns complete identities including raw values","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732438517,"status":"passed","title":"GET /api/v1/identities/complete - returns complete identities including raw values"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":111,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints POST /api/v1/identities/lookup - finds identity by public value","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438526,"status":"passed","title":"POST /api/v1/identities/lookup - finds identity by public value"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":18,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints POST /api/v1/identities/lookup - 404 for unknown public value","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438637,"status":"passed","title":"POST /api/v1/identities/lookup - 404 for unknown public value"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":26,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints GET /api/v1/identities/:id - returns identity by ID","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732438655,"status":"passed","title":"GET /api/v1/identities/:id - returns identity by ID"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":100,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints GET /api/v1/identities/:id/complete - returns complete identity by ID","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438682,"status":"passed","title":"GET /api/v1/identities/:id/complete - returns complete identity by ID"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":18,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints GET /api/v1/identities/:id - 404 if accessed by another user","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438782,"status":"passed","title":"GET /api/v1/identities/:id - 404 if accessed by another user"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":94,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints PATCH /api/v1/identities/:id - updates the identity","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438800,"status":"passed","title":"PATCH /api/v1/identities/:id - updates the identity"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":26,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints POST /api/v1/identities/:id/verify - marks identity as verified","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438894,"status":"passed","title":"POST /api/v1/identities/:id/verify - marks identity as verified"},{"ancestorTitles":["IdentitiesController (e2e)","Identity Endpoints"],"duration":53,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentitiesController (e2e) Identity Endpoints DELETE /api/v1/identities/:id - deletes the identity","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438920,"status":"passed","title":"DELETE /api/v1/identities/:id - deletes the identity"}],"endTime":1780732439024,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/identities/identities.e2e-spec.ts","startTime":1780732435463,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signup"],"duration":655,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signup 201 – creates a new user via phone and returns pending_verification","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732437604,"status":"passed","title":"201 – creates a new user via phone and returns pending_verification"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signup"],"duration":26,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signup 201 – creates a new user via email and returns pending_verification","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438259,"status":"passed","title":"201 – creates a new user via email and returns pending_verification"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signup"],"duration":36,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signup 409 – conflicts when credential is already verified","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438285,"status":"passed","title":"409 – conflicts when credential is already verified"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signup"],"duration":99,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signup 409 – conflicts when credential is unverified (pending verification)","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438321,"status":"passed","title":"409 – conflicts when credential is unverified (pending verification)"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signup"],"duration":8,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signup 400 – rejects missing body fields","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438420,"status":"passed","title":"400 – rejects missing body fields"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin"],"duration":54,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin 200 – signs in a verified user and returns access_token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438447,"status":"passed","title":"200 – signs in a verified user and returns access_token"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin"],"duration":16,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin 401 – rejects signin for unverified user","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438501,"status":"passed","title":"401 – rejects signin for unverified user"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin"],"duration":9,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin 404 – not found for unknown credential","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438517,"status":"passed","title":"404 – not found for unknown credential"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin-or-signup"],"duration":21,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin-or-signup 200 – auto-signs-up a brand-new user and returns access_token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438527,"status":"passed","title":"200 – auto-signs-up a brand-new user and returns access_token"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin-or-signup"],"duration":19,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin-or-signup 200 – auto-signs-in an existing verified user","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438548,"status":"passed","title":"200 – auto-signs-in an existing verified user"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signin-or-signup"],"duration":94,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signin-or-signup 401 – rejects existing but unverified user","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438567,"status":"passed","title":"401 – rejects existing but unverified user"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/social"],"duration":66,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/social 200 – creates a new Instagram identity and returns access_token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438680,"status":"passed","title":"200 – creates a new Instagram identity and returns access_token"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/social"],"duration":73,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/social 200 – signs in existing social identity","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438746,"status":"passed","title":"200 – signs in existing social identity"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/social"],"duration":52,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/social 409 – conflicts when social identity has null userId (deleted account)","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438823,"status":"passed","title":"409 – conflicts when social identity has null userId (deleted account)"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/social"],"duration":35,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/social 400 – rejects invalid social type","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438875,"status":"passed","title":"400 – rejects invalid social type"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/dev-login"],"duration":18,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/dev-login 200 – returns access_token for known dev identifier","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438926,"status":"passed","title":"200 – returns access_token for known dev identifier"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/dev-login"],"duration":20,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/dev-login 404 – not found for unknown identifier","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438944,"status":"passed","title":"404 – not found for unknown identifier"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/dev-login"],"duration":17,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/dev-login 401 – missing Basic Auth header","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438964,"status":"passed","title":"401 – missing Basic Auth header"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/dev-login"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/dev-login 401 – wrong credentials in Basic Auth header","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732438981,"status":"passed","title":"401 – wrong credentials in Basic Auth header"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-phone"],"duration":53,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-phone 200 – adds a new phone credential to an existing user","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732438988,"status":"passed","title":"200 – adds a new phone credential to an existing user"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-phone"],"duration":47,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-phone 409 – conflicts when phone is already in use","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439041,"status":"passed","title":"409 – conflicts when phone is already in use"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-phone"],"duration":8,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-phone 409 – conflicts when Firebase token is for email, not phone","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439088,"status":"passed","title":"409 – conflicts when Firebase token is for email, not phone"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-phone"],"duration":29,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-phone 404 – user not found for an expired/invalid JWT sub","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439096,"status":"passed","title":"404 – user not found for an expired/invalid JWT sub"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-phone"],"duration":9,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-phone 401 – missing JWT header","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439125,"status":"passed","title":"401 – missing JWT header"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-email"],"duration":60,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-email 200 – adds a new email credential to an existing user","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732439142,"status":"passed","title":"200 – adds a new email credential to an existing user"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-email"],"duration":6,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-email 409 – conflicts when Firebase token is for phone, not email","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439202,"status":"passed","title":"409 – conflicts when Firebase token is for phone, not email"},{"ancestorTitles":["AuthController (e2e)","PATCH /api/v1/auth/add-email"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) PATCH /api/v1/auth/add-email 401 – missing JWT header","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439208,"status":"passed","title":"401 – missing JWT header"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signout"],"duration":4,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signout 204 – signs out an authenticated user","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439214,"status":"passed","title":"204 – signs out an authenticated user"},{"ancestorTitles":["AuthController (e2e)","POST /api/v1/auth/signout"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AuthController (e2e) POST /api/v1/auth/signout 401 – rejects signout without a JWT","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439218,"status":"passed","title":"401 – rejects signout without a JWT"}],"endTime":1780732439281,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/auth/auth.e2e-spec.ts","startTime":1780732435463,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["AppController (e2e)"],"duration":14,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AppController (e2e) /api/v1 (GET)","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732439504,"status":"passed","title":"/api/v1 (GET)"}],"endTime":1780732439534,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/app.e2e-spec.ts","startTime":1780732438958,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["NotificationsModule (e2e)"],"duration":70,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"NotificationsModule (e2e) POST /api/v1/notifications/send - enqueues a notification successfully","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732439772,"status":"passed","title":"POST /api/v1/notifications/send - enqueues a notification successfully"},{"ancestorTitles":["NotificationsModule (e2e)"],"duration":20,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"NotificationsModule (e2e) POST /api/v1/notifications/send - fails on bad request","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439843,"status":"passed","title":"POST /api/v1/notifications/send - fails on bad request"}],"endTime":1780732439872,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/notifications/notifications.e2e-spec.ts","startTime":1780732438180,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["IdentityWorkflows (e2e)","handleInstagramOtpReceived"],"duration":688,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentityWorkflows (e2e) handleInstagramOtpReceived should verify OTP, claim identity, and dispatch notification","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732439041,"status":"passed","title":"should verify OTP, claim identity, and dispatch notification"},{"ancestorTitles":["IdentityWorkflows (e2e)","handleIdentityClaimed"],"duration":150,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"IdentityWorkflows (e2e) handleIdentityClaimed should backfill targetUserId on pending likes and resolve matches","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732439730,"status":"passed","title":"should backfill targetUserId on pending likes and resolve matches"}],"endTime":1780732439924,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/identity-workflows/identity-workflows.e2e-spec.ts","startTime":1780732435478,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["HealthModule (e2e)"],"duration":190,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"HealthModule (e2e) GET /api/v1/health - returns system health status","invocations":1,"location":null,"numPassingAsserts":5,"retryReasons":[],"startAt":1780732439781,"status":"passed","title":"GET /api/v1/health - returns system health status"}],"endTime":1780732439973,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/health/health.e2e-spec.ts","startTime":1780732438245,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["PubSubIngestionController (e2e)","Authentication (PubSubAuthGuard)"],"duration":39,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Authentication (PubSubAuthGuard) should reject requests without a token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732439986,"status":"passed","title":"should reject requests without a token"},{"ancestorTitles":["PubSubIngestionController (e2e)","Authentication (PubSubAuthGuard)"],"duration":5,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Authentication (PubSubAuthGuard) should reject requests with an invalid token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440025,"status":"passed","title":"should reject requests with an invalid token"},{"ancestorTitles":["PubSubIngestionController (e2e)","Authentication (PubSubAuthGuard)"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Authentication (PubSubAuthGuard) should allow requests with a valid token","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732440031,"status":"passed","title":"should allow requests with a valid token"},{"ancestorTitles":["PubSubIngestionController (e2e)","Event Routing and Execution"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Event Routing and Execution should return 200 OK for an unregistered event type and log a warning","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440034,"status":"passed","title":"should return 200 OK for an unregistered event type and log a warning"},{"ancestorTitles":["PubSubIngestionController (e2e)","Event Routing and Execution"],"duration":4,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Event Routing and Execution should successfully execute the registered handler","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732440037,"status":"passed","title":"should successfully execute the registered handler"},{"ancestorTitles":["PubSubIngestionController (e2e)","Event Routing and Execution"],"duration":8,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Event Routing and Execution should return 500 if the handler throws an error (to trigger Pub/Sub retry)","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440041,"status":"passed","title":"should return 500 if the handler throws an error (to trigger Pub/Sub retry)"},{"ancestorTitles":["PubSubIngestionController (e2e)","Event Routing and Execution"],"duration":2,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Event Routing and Execution should ignore and return 200 for payloads with missing message objects","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732440049,"status":"passed","title":"should ignore and return 200 for payloads with missing message objects"},{"ancestorTitles":["PubSubIngestionController (e2e)","Event Routing and Execution"],"duration":2,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"PubSubIngestionController (e2e) Event Routing and Execution should ignore and return 200 for payloads with missing eventType attribute","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732440052,"status":"passed","title":"should ignore and return 200 for payloads with missing eventType attribute"}],"endTime":1780732440057,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/pubsub/pubsub.e2e-spec.ts","startTime":1780732438599,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["InstagramController (e2e)","GET /api/v1/instagram/refresh-token"],"duration":63,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"InstagramController (e2e) GET /api/v1/instagram/refresh-token 200 – refreshes access token and saves to secret manager","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732440028,"status":"passed","title":"200 – refreshes access token and saves to secret manager"},{"ancestorTitles":["InstagramController (e2e)","GET /api/v1/instagram/refresh-token"],"duration":6,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"InstagramController (e2e) GET /api/v1/instagram/refresh-token 401 – unauthorized if basic auth missing","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732440092,"status":"passed","title":"401 – unauthorized if basic auth missing"},{"ancestorTitles":["InstagramController (e2e)","GET /api/v1/instagram/refresh-token"],"duration":5,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"InstagramController (e2e) GET /api/v1/instagram/refresh-token 500 – handles instagram api failure","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732440098,"status":"passed","title":"500 – handles instagram api failure"},{"ancestorTitles":["InstagramController (e2e)","GET /api/v1/instagram/refresh-env-token"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"InstagramController (e2e) GET /api/v1/instagram/refresh-env-token 200 – refreshes system access token using config","invocations":1,"location":null,"numPassingAsserts":4,"retryReasons":[],"startAt":1780732440103,"status":"passed","title":"200 – refreshes system access token using config"}],"endTime":1780732440108,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/instagram/instagram.e2e-spec.ts","startTime":1780732438639,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["WebhooksController (e2e)","GET /api/v1/webhooks/meta (Verification)"],"duration":47,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) GET /api/v1/webhooks/meta (Verification) should successfully verify the webhook with correct token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440065,"status":"passed","title":"should successfully verify the webhook with correct token"},{"ancestorTitles":["WebhooksController (e2e)","GET /api/v1/webhooks/meta (Verification)"],"duration":16,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) GET /api/v1/webhooks/meta (Verification) should fail to verify the webhook with incorrect token","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440112,"status":"passed","title":"should fail to verify the webhook with incorrect token"},{"ancestorTitles":["WebhooksController (e2e)","GET /api/v1/webhooks/meta (Verification)"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) GET /api/v1/webhooks/meta (Verification) should fail to verify the webhook with incorrect mode","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440128,"status":"passed","title":"should fail to verify the webhook with incorrect mode"},{"ancestorTitles":["WebhooksController (e2e)","POST /api/v1/webhooks/meta (Event Handling)"],"duration":19,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) POST /api/v1/webhooks/meta (Event Handling) should successfully receive and process a Meta webhook event","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440131,"status":"passed","title":"should successfully receive and process a Meta webhook event"},{"ancestorTitles":["WebhooksController (e2e)","POST /api/v1/webhooks/meta (Event Handling)"],"duration":7,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) POST /api/v1/webhooks/meta (Event Handling) should gracefully handle webhook events without message text","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440150,"status":"passed","title":"should gracefully handle webhook events without message text"},{"ancestorTitles":["WebhooksController (e2e)","POST /api/v1/webhooks/meta (Event Handling)"],"duration":3,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"WebhooksController (e2e) POST /api/v1/webhooks/meta (Event Handling) should gracefully handle webhook events with unknown intent","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440157,"status":"passed","title":"should gracefully handle webhook events with unknown intent"}],"endTime":1780732440162,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/webhooks/webhooks.e2e-spec.ts","startTime":1780732438326,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["AdminModule (e2e)","GET /api/v1/admin/reports/total"],"duration":49,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AdminModule (e2e) GET /api/v1/admin/reports/total should reject unauthorized requests","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439927,"status":"passed","title":"should reject unauthorized requests"},{"ancestorTitles":["AdminModule (e2e)","GET /api/v1/admin/reports/total"],"duration":8,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AdminModule (e2e) GET /api/v1/admin/reports/total should reject requests with invalid credentials","invocations":1,"location":null,"numPassingAsserts":1,"retryReasons":[],"startAt":1780732439977,"status":"passed","title":"should reject requests with invalid credentials"},{"ancestorTitles":["AdminModule (e2e)","GET /api/v1/admin/reports/total"],"duration":132,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AdminModule (e2e) GET /api/v1/admin/reports/total should return the total report for authorized admin","invocations":1,"location":null,"numPassingAsserts":6,"retryReasons":[],"startAt":1780732439986,"status":"passed","title":"should return the total report for authorized admin"},{"ancestorTitles":["AdminModule (e2e)","GET /api/v1/admin/reports/timeframe"],"duration":49,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"AdminModule (e2e) GET /api/v1/admin/reports/timeframe should return timeframe report for given dates","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732440118,"status":"passed","title":"should return timeframe report for given dates"}],"endTime":1780732440189,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/admin/admin.e2e-spec.ts","startTime":1780732438453,"status":"passed","summary":""},{"assertionResults":[{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":23,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints GET /api/v1/credits/balance - returns initial 0 balance","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440112,"status":"passed","title":"GET /api/v1/credits/balance - returns initial 0 balance"},{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":17,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints POST /api/v1/credits/internal/grant - grants credits","invocations":1,"location":null,"numPassingAsserts":5,"retryReasons":[],"startAt":1780732440135,"status":"passed","title":"POST /api/v1/credits/internal/grant - grants credits"},{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":15,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints POST /api/v1/credits/internal/consume - consumes credits","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732440152,"status":"passed","title":"POST /api/v1/credits/internal/consume - consumes credits"},{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":18,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints GET /api/v1/credits/ledger - returns ledger history","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732440167,"status":"passed","title":"GET /api/v1/credits/ledger - returns ledger history"},{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":9,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints GET /api/v1/credits/ledger/:id - returns single ledger entry","invocations":1,"location":null,"numPassingAsserts":3,"retryReasons":[],"startAt":1780732440185,"status":"passed","title":"GET /api/v1/credits/ledger/:id - returns single ledger entry"},{"ancestorTitles":["CreditsModule (e2e)","Credits Endpoints"],"duration":12,"failing":false,"failureDetails":[],"failureMessages":[],"fullName":"CreditsModule (e2e) Credits Endpoints POST /api/v1/credits/internal/consume - fails when insufficient balance","invocations":1,"location":null,"numPassingAsserts":2,"retryReasons":[],"startAt":1780732440194,"status":"passed","title":"POST /api/v1/credits/internal/consume - fails when insufficient balance"}],"endTime":1780732440232,"message":"","name":"/Users/mohitmalpani/Business/BreathAway/Backend/breathaway/test/credits/credits.e2e-spec.ts","startTime":1780732438572,"status":"passed","summary":""}],"wasInterrupted":false}

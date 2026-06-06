@@ -2,14 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { IdentityModule } from '@modules/identities/identities.module';
+import { IdentitiesModule } from '@modules/identities/identities.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 import { IdentityType } from '@prisma/client';
 
-describe('IdentityController (e2e)', () => {
+describe('IdentitiesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -18,7 +18,7 @@ describe('IdentityController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([PubSubModule, IdentityModule]);
+    const context = await createAuthTestApp([PubSubModule, IdentitiesModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);

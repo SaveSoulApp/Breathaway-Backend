@@ -10,7 +10,7 @@ import { LoggerService } from '@core/logger';
 import { SocialIdentityResponseDto } from './dto';
 
 @Injectable()
-export class SocialidentityService extends BaseService {
+export class SocialidentitiesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,

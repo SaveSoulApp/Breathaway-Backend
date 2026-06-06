@@ -20,7 +20,7 @@ import { CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
-import { BlockService } from './blocks.service';
+import { BlocksService } from './blocks.service';
 import { BlockResponseDto, CreateBlockDto } from './dto';
 
 @ApiTags('Blocks')
@@ -30,10 +30,10 @@ import { BlockResponseDto, CreateBlockDto } from './dto';
   path: 'blocks',
   version: ['1'],
 })
-export class BlockController extends BaseController {
+export class BlocksController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly blockService: BlockService,
+    private readonly blocksService: BlocksService,
   ) {
     super(logger);
   }
@@ -44,7 +44,7 @@ export class BlockController extends BaseController {
   @ApiResponse({ status: HttpStatus.CREATED, type: BlockResponseDto })
   @SerializeExpose(BlockResponseDto)
   async create(@CurrentUserId() userId: string, @Body() dto: CreateBlockDto) {
-    return this.blockService.create(userId, dto);
+    return this.blocksService.create(userId, dto);
   }
 
   @Get()
@@ -52,7 +52,7 @@ export class BlockController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: [BlockResponseDto] })
   @SerializeExpose(BlockResponseDto)
   async findAll(@CurrentUserId() userId: string) {
-    return this.blockService.findAllForUser(userId);
+    return this.blocksService.findAllForUser(userId);
   }
 
   @Get(':id')
@@ -60,7 +60,7 @@ export class BlockController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: BlockResponseDto })
   @SerializeExpose(BlockResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.blockService.findOneForUser(id, userId);
+    return this.blocksService.findOneForUser(id, userId);
   }
 
   @Delete(':id')
@@ -68,6 +68,6 @@ export class BlockController extends BaseController {
   @ApiOperation({ summary: 'Unblock a user (Soft delete block)' })
   @ApiResponse({ status: HttpStatus.OK })
   async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.blockService.delete(id, userId);
+    return this.blocksService.delete(id, userId);
   }
 }

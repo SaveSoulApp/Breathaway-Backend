@@ -2,13 +2,13 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { DeviceModule } from '@modules/devices/devices.module';
+import { DevicesModule } from '@modules/devices/devices.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 import { Platform } from '@common/interfaces';
 
-describe('DeviceController (e2e)', () => {
+describe('DevicesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -17,7 +17,7 @@ describe('DeviceController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([DeviceModule]);
+    const context = await createAuthTestApp([DevicesModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);
