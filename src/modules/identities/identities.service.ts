@@ -18,7 +18,7 @@ import {
 } from './dto';
 
 @Injectable()
-export class IdentityService extends BaseService {
+export class IdentitiesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,

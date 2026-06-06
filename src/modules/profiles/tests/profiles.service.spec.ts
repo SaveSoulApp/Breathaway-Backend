@@ -11,10 +11,10 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
-import { ProfileService } from '../profiles.service';
+import { ProfilesService } from '../profiles.service';
 
-describe('ProfileService', () => {
-  let service: ProfileService;
+describe('ProfilesService', () => {
+  let service: ProfilesService;
   let prisma: MockPrismaService;
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
@@ -45,13 +45,13 @@ describe('ProfileService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        ProfileService,
+        ProfilesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    service = module.get<ProfileService>(ProfileService);
+    service = module.get<ProfilesService>(ProfilesService);
     prisma = module.get(PrismaService);
   });
 
@@ -138,7 +138,7 @@ describe('ProfileService', () => {
         dbError,
       );
       expect(
-        loggerServiceMock.forContext('ProfileService').error,
+        loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
     });
   });
@@ -285,7 +285,7 @@ describe('ProfileService', () => {
         dbError,
       );
       expect(
-        loggerServiceMock.forContext('ProfileService').error,
+        loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
     });
   });
@@ -362,7 +362,7 @@ describe('ProfileService', () => {
         dbError,
       );
       expect(
-        loggerServiceMock.forContext('ProfileService').error,
+        loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
     });
   });
@@ -405,7 +405,7 @@ describe('ProfileService', () => {
       // Act & Assert
       await expect(service.deleteProfile(userId)).rejects.toThrow(dbError);
       expect(
-        loggerServiceMock.forContext('ProfileService').error,
+        loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
     });
   });

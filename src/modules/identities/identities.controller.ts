@@ -28,7 +28,7 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityDto,
 } from './dto';
-import { IdentityService } from './identities.service';
+import { IdentitiesService } from './identities.service';
 
 @ApiTags('Identities')
 @ApiBearerAuth()
@@ -37,10 +37,10 @@ import { IdentityService } from './identities.service';
   path: 'identities',
   version: ['1'],
 })
-export class IdentityController extends BaseController {
+export class IdentitiesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly identityService: IdentityService,
+    private readonly identitiesService: IdentitiesService,
   ) {
     super(logger);
   }
@@ -54,7 +54,7 @@ export class IdentityController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: CreateIdentityDto,
   ) {
-    return this.identityService.create(userId, dto);
+    return this.identitiesService.create(userId, dto);
   }
 
   @Get()
@@ -62,7 +62,7 @@ export class IdentityController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: [IdentityResponseDto] })
   @SerializeExpose(IdentityResponseDto)
   async findAll(@CurrentUserId() userId: string) {
-    return this.identityService.findAllByUser(userId);
+    return this.identitiesService.findAllByUser(userId);
   }
 
   @Get('complete')
@@ -73,7 +73,7 @@ export class IdentityController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: [IdentityCompleteResponseDto] })
   @SerializeExpose(IdentityCompleteResponseDto)
   async findAllComplete(@CurrentUserId() userId: string) {
-    return this.identityService.findAllCompleteByUser(userId);
+    return this.identitiesService.findAllCompleteByUser(userId);
   }
 
   @Post('lookup')
@@ -95,7 +95,7 @@ export class IdentityController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: LookupIdentityRequestDto,
   ) {
-    return this.identityService.findByPublicValue(userId, dto);
+    return this.identitiesService.findByPublicValue(userId, dto);
   }
 
   @Get(':id')
@@ -103,7 +103,7 @@ export class IdentityController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: IdentityResponseDto })
   @SerializeExpose(IdentityResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.identityService.findOne(id, userId);
+    return this.identitiesService.findOne(id, userId);
   }
 
   @Get(':id/complete')
@@ -117,7 +117,7 @@ export class IdentityController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') id: string,
   ) {
-    return this.identityService.findOneComplete(id, userId);
+    return this.identitiesService.findOneComplete(id, userId);
   }
 
   @Patch(':id')
@@ -129,7 +129,7 @@ export class IdentityController extends BaseController {
     @Param('id') id: string,
     @Body() dto: UpdateIdentityDto,
   ) {
-    return this.identityService.update(id, userId, dto);
+    return this.identitiesService.update(id, userId, dto);
   }
 
   @Delete(':id')
@@ -140,7 +140,7 @@ export class IdentityController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.identityService.delete(id, userId);
+    await this.identitiesService.delete(id, userId);
   }
 
   @Post(':id/verify')
@@ -149,6 +149,6 @@ export class IdentityController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: IdentityResponseDto })
   @SerializeExpose(IdentityResponseDto)
   async verify(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.identityService.verify(id, userId);
+    return this.identitiesService.verify(id, userId);
   }
 }

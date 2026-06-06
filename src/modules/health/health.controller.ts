@@ -8,17 +8,25 @@ import {
   PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { RedisHealthIndicator } from './indicators/redis.health';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 
 @ApiTags('Health')
-@Controller('health')
-export class HealthController {
+@Controller({
+  path: 'health',
+  version: ['1'],
+})
+export class HealthController extends BaseController {
   constructor(
+    logger: LoggerService,
     private readonly health: HealthCheckService,
     private readonly memory: MemoryHealthIndicator,
     private readonly prismaHealthIndicator: PrismaHealthIndicator,
     private readonly prismaService: PrismaService,
     private readonly redisHealthIndicator: RedisHealthIndicator,
-  ) {}
+  ) {
+    super(logger);
+  }
 
   @Get()
   @HealthCheck()

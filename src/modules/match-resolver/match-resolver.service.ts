@@ -2,8 +2,8 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { BlockService } from '@modules/blocks/blocks.service';
-import { MatchService } from '@modules/matches/matches.service';
+import { BlocksService } from '@modules/blocks/blocks.service';
+import { MatchesService } from '@modules/matches/matches.service';
 import { Injectable } from '@nestjs/common';
 import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 
@@ -17,8 +17,8 @@ export class MatchResolverService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly matchService: MatchService,
-    private readonly blockService: BlockService,
+    private readonly matchesService: MatchesService,
+    private readonly blocksService: BlocksService,
   ) {
     super(logger);
   }
@@ -115,7 +115,10 @@ export class MatchResolverService extends BaseService {
     userTwoId: string,
   ): Promise<{ valid: boolean; existingMatch: Match | null }> {
     if (
-      !this.matchService.isIntentCompatible(newLike.intent, reverseLike.intent)
+      !this.matchesService.isIntentCompatible(
+        newLike.intent,
+        reverseLike.intent,
+      )
     ) {
       this.logger.log(
         `Intents are incompatible between Like ${newLike.id} (${newLike.intent}) and Like ${reverseLike.id} (${reverseLike.intent}).`,
@@ -123,7 +126,7 @@ export class MatchResolverService extends BaseService {
       return { valid: false, existingMatch: null };
     }
 
-    const isBlocked = await this.blockService.isBlocked(
+    const isBlocked = await this.blocksService.isBlocked(
       newLike.senderUserId,
       newLike.targetUserId!,
     );

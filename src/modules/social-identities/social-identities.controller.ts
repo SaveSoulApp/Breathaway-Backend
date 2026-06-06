@@ -4,17 +4,17 @@ import { BaseController } from '@core/base';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
-import { SocialidentityService } from './social-identities.service';
+import { SocialidentitiesService } from './social-identities.service';
 
-@ApiTags('Social Identity')
+@ApiTags('Social Identities')
 @Controller({
-  path: 'social-identity',
+  path: 'social-identities',
   version: ['1'],
 })
-export class SocialidentityController extends BaseController {
+export class SocialIdentitiesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly socialidentityService: SocialidentityService,
+    private readonly socialidentitiesService: SocialidentitiesService,
   ) {
     super(logger);
   }
@@ -38,7 +38,7 @@ export class SocialidentityController extends BaseController {
   async verifyInstagram(
     @Body() verifyInstagramDto: VerifyInstagramRequestDto,
   ): Promise<SocialIdentityResponseDto> {
-    return this.socialidentityService.verifyInstagramIdentity(
+    return this.socialidentitiesService.verifyInstagramIdentity(
       verifyInstagramDto.instagramId,
     );
   }

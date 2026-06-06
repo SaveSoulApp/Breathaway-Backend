@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
-import { MatchController } from '../matches.controller';
-import { MatchService } from '../matches.service';
+import { MatchesController } from '../matches.controller';
+import { MatchesService } from '../matches.service';
 import { IntentType, MatchStatus } from '@prisma/client';
 
-describe('MatchController', () => {
-  let controller: MatchController;
-  let service: jest.Mocked<MatchService>;
+describe('MatchesController', () => {
+  let controller: MatchesController;
+  let service: jest.Mocked<MatchesService>;
 
   const userId = 'user-id-123';
   const matchId = 'match-id-123';
@@ -39,15 +39,15 @@ describe('MatchController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [MatchController],
+      controllers: [MatchesController],
       providers: [
-        { provide: MatchService, useValue: mockService },
+        { provide: MatchesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    controller = module.get<MatchController>(MatchController);
-    service = module.get(MatchService);
+    controller = module.get<MatchesController>(MatchesController);
+    service = module.get(MatchesService);
   });
 
   afterEach(() => {

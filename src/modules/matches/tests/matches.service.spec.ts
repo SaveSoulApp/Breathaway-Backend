@@ -10,10 +10,10 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
-import { MatchService } from '../matches.service';
+import { MatchesService } from '../matches.service';
 
-describe('MatchService', () => {
-  let service: MatchService;
+describe('MatchesService', () => {
+  let service: MatchesService;
   let prisma: MockPrismaService;
 
   const currentUserId = 'user-id-123';
@@ -99,13 +99,13 @@ describe('MatchService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        MatchService,
+        MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    service = module.get<MatchService>(MatchService);
+    service = module.get<MatchesService>(MatchesService);
     prisma = module.get(PrismaService);
   });
 

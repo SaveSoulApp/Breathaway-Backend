@@ -14,16 +14,16 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { BlockService } from '@modules/blocks/blocks.service';
-import { MatchService } from '@modules/matches/matches.service';
+import { BlocksService } from '@modules/blocks/blocks.service';
+import { MatchesService } from '@modules/matches/matches.service';
 
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 
 describe('MatchResolverService', () => {
   let service: MatchResolverService;
   let prisma: MockPrismaService;
-  let matchService: jest.Mocked<MatchService>;
-  let blockService: jest.Mocked<BlockService>;
+  let matchesService: jest.Mocked<MatchesService>;
+  let blocksService: jest.Mocked<BlocksService>;
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
     log: jest.Mock;
@@ -67,13 +67,13 @@ describe('MatchResolverService', () => {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     } as unknown as jest.Mocked<LoggerService>;
 
-    matchService = {
+    matchesService = {
       isIntentCompatible: jest.fn().mockReturnValue(true),
-    } as unknown as jest.Mocked<MatchService>;
+    } as unknown as jest.Mocked<MatchesService>;
 
-    blockService = {
+    blocksService = {
       isBlocked: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<BlockService>;
+    } as unknown as jest.Mocked<BlocksService>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -87,12 +87,12 @@ describe('MatchResolverService', () => {
           useValue: createPrismaMock(),
         },
         {
-          provide: MatchService,
-          useValue: matchService,
+          provide: MatchesService,
+          useValue: matchesService,
         },
         {
-          provide: BlockService,
-          useValue: blockService,
+          provide: BlocksService,
+          useValue: blocksService,
         },
       ],
     }).compile();
@@ -154,11 +154,11 @@ describe('MatchResolverService', () => {
     });
 
     it('should return early if intents are incompatible', async () => {
-      matchService.isIntentCompatible.mockReturnValue(false);
+      matchesService.isIntentCompatible.mockReturnValue(false);
 
       await service.resolveFromLike(mockNewLike);
 
-      expect(matchService.isIntentCompatible).toHaveBeenCalledWith(
+      expect(matchesService.isIntentCompatible).toHaveBeenCalledWith(
         mockNewLike.intent,
         mockReverseLike.intent,
       );
@@ -169,11 +169,11 @@ describe('MatchResolverService', () => {
     });
 
     it('should return early if a block exists between users', async () => {
-      blockService.isBlocked.mockResolvedValue(true);
+      blocksService.isBlocked.mockResolvedValue(true);
 
       await service.resolveFromLike(mockNewLike);
 
-      expect(blockService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
+      expect(blocksService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
       expect(contextualLogger.log).toHaveBeenCalledWith(
         expect.stringContaining(
           'Block exists between users user-1 and user-2. Suppressing match.',

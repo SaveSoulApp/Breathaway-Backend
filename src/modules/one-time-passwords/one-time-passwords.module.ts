@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { OtpController } from './one-time-passwords.controller';
-import { OtpService } from './one-time-passwords.service';
+import { OneTimePasswordsController } from './one-time-passwords.controller';
+import { OneTimePasswordsService } from './one-time-passwords.service';
 
 @Module({
-  controllers: [OtpController],
+  controllers: [OneTimePasswordsController],
   providers: [
     {
       provide: 'REDIS_CLIENT',
@@ -18,8 +18,8 @@ import { OtpService } from './one-time-passwords.service';
         return new Redis(redisUrl);
       },
     },
-    OtpService,
+    OneTimePasswordsService,
   ],
-  exports: [OtpService, 'REDIS_CLIENT'],
+  exports: [OneTimePasswordsService, 'REDIS_CLIENT'],
 })
-export class OtpModule {}
+export class OneTimePasswordsModule {}

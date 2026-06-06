@@ -6,8 +6,8 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityDto,
 } from '../dto';
-import { IdentityController } from '../identities.controller';
-import { IdentityService } from '../identities.service';
+import { IdentitiesController } from '../identities.controller';
+import { IdentitiesService } from '../identities.service';
 import {
   mockCreateIdentityDto,
   mockIdentityCompleteResponse,
@@ -18,9 +18,9 @@ import {
   mockUserId,
 } from './mocks/identities.mock';
 
-describe('IdentityController', () => {
-  let controller: IdentityController;
-  let service: jest.Mocked<IdentityService>;
+describe('IdentitiesController', () => {
+  let controller: IdentitiesController;
+  let service: jest.Mocked<IdentitiesService>;
 
   beforeEach(async () => {
     const mockService = {
@@ -45,16 +45,16 @@ describe('IdentityController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [IdentityController],
+      controllers: [IdentitiesController],
       providers: [
-        { provide: IdentityService, useValue: mockService },
+        { provide: IdentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
 
-    controller = module.get<IdentityController>(IdentityController);
+    controller = module.get<IdentitiesController>(IdentitiesController);
 
-    service = module.get(IdentityService);
+    service = module.get(IdentitiesService);
   });
 
   afterEach(() => {
@@ -110,7 +110,7 @@ describe('IdentityController', () => {
 
       service.findAllCompleteByUser.mockResolvedValue([
         mockIdentityCompleteResponse as Awaited<
-          ReturnType<IdentityService['findAllCompleteByUser']>
+          ReturnType<IdentitiesService['findAllCompleteByUser']>
         >[number],
       ]);
 
@@ -148,7 +148,7 @@ describe('IdentityController', () => {
 
       service.findOneComplete.mockResolvedValue(
         mockIdentityCompleteResponse as Awaited<
-          ReturnType<IdentityService['findOneComplete']>
+          ReturnType<IdentitiesService['findOneComplete']>
         >,
       );
 
@@ -229,11 +229,11 @@ describe('IdentityController', () => {
   });
 
   describe('lookup', () => {
-    it('should delegate to identityService.findByPublicValue with correct args', async () => {
+    it('should delegate to identitiesService.findByPublicValue with correct args', async () => {
       // Arrange
       service.findByPublicValue.mockResolvedValue(
         mockIdentityCompleteResponse as Awaited<
-          ReturnType<IdentityService['findByPublicValue']>
+          ReturnType<IdentitiesService['findByPublicValue']>
         >,
       );
 

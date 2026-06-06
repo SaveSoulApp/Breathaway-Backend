@@ -2,7 +2,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { IdentityService } from '@modules/identities/identities.service';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import {
   LikeSummary,
   MatchResolverService,
@@ -12,10 +12,10 @@ import { NotificationChannel } from '@modules/notifications/enums/notification-c
 import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
 import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
-import { SocialidentityService } from '@modules/social-identities/social-identities.service';
+import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { Injectable } from '@nestjs/common';
 import { IdentityType, LikeStatus } from '@prisma/client';
 
@@ -24,9 +24,9 @@ export class IdentityWorkflowsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly otpService: OtpService,
-    private readonly socialidentityService: SocialidentityService,
-    private readonly identityService: IdentityService,
+    private readonly oneTimePasswordsService: OneTimePasswordsService,
+    private readonly socialidentitiesService: SocialidentitiesService,
+    private readonly identitiesService: IdentitiesService,
     private readonly notificationsService: NotificationsService,
     private readonly matchResolverService: MatchResolverService,
   ) {
@@ -45,13 +45,14 @@ export class IdentityWorkflowsService extends BaseService {
     try {
       this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
       // Note: verifyAndConsumeOtp automatically handles hashing the OTP
-      const userId = await this.otpService.verifyAndConsumeOtp(extractedOtp);
+      const userId =
+        await this.oneTimePasswordsService.verifyAndConsumeOtp(extractedOtp);
 
       this.logger.log(
         `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${senderId}`,
       );
       const identity =
-        await this.socialidentityService.verifyInstagramIdentity(senderId);
+        await this.socialidentitiesService.verifyInstagramIdentity(senderId);
 
       const username = identity.username;
 
@@ -59,7 +60,7 @@ export class IdentityWorkflowsService extends BaseService {
         this.logger.log(
           `Found Instagram username: ${username}. Linking identity to user ${userId}...`,
         );
-        await this.identityService.claimOrCreateIdentity(
+        await this.identitiesService.claimOrCreateIdentity(
           IdentityType.INSTAGRAM,
           username,
           senderId,

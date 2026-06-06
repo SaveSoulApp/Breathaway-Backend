@@ -1,17 +1,17 @@
-import { IdentityModule } from '@modules/identities/identities.module';
+import { IdentitiesModule } from '@modules/identities/identities.module';
 import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
-import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module';
-import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
+import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
+import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 import { Module } from '@nestjs/common';
 import { IdentityWorkflowsController } from './identity-workflows.controller';
 import { IdentityWorkflowsService } from './identity-workflows.service';
 
 @Module({
   imports: [
-    OtpModule,
-    SocialidentityModule,
-    IdentityModule,
+    OneTimePasswordsModule,
+    SocialIdentitiesModule,
+    IdentitiesModule,
     NotificationsModule,
     MatchResolverModule,
   ],

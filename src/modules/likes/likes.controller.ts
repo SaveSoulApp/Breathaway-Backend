@@ -25,7 +25,7 @@ import {
   LikeListResponseDto,
   LikeResponseDto,
 } from './dto';
-import { LikeService } from './likes.service';
+import { LikesService } from './likes.service';
 
 @ApiTags('Likes')
 @ApiBearerAuth()
@@ -34,10 +34,10 @@ import { LikeService } from './likes.service';
   path: 'likes',
   version: ['1'],
 })
-export class LikeController extends BaseController {
+export class LikesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly likeService: LikeService,
+    private readonly likesService: LikesService,
   ) {
     super(logger);
   }
@@ -51,7 +51,7 @@ export class LikeController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: CreateLikeRequestDto,
   ) {
-    return this.likeService.create(userId, dto);
+    return this.likesService.create(userId, dto);
   }
 
   @Get()
@@ -59,7 +59,7 @@ export class LikeController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: LikeListResponseDto })
   @SerializeExpose(LikeListResponseDto)
   async findAll(@CurrentUserId() userId: string) {
-    return this.likeService.findAllForUser(userId);
+    return this.likesService.findAllForUser(userId);
   }
 
   @Get(':id')
@@ -67,7 +67,7 @@ export class LikeController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: LikeResponseDto })
   @SerializeExpose(LikeResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.likeService.findOneForUser(id, userId);
+    return this.likesService.findOneForUser(id, userId);
   }
 
   @Delete(':id')
@@ -75,6 +75,6 @@ export class LikeController extends BaseController {
   @ApiOperation({ summary: 'Soft delete a pending like' })
   @ApiResponse({ status: HttpStatus.OK })
   async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.likeService.delete(id, userId);
+    return this.likesService.delete(id, userId);
   }
 }

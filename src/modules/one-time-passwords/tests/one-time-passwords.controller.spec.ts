@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
-import { OtpController } from '../one-time-passwords.controller';
-import { OtpService } from '../one-time-passwords.service';
+import { OneTimePasswordsController } from '../one-time-passwords.controller';
+import { OneTimePasswordsService } from '../one-time-passwords.service';
 import { VerifyOtpDto } from '../dto';
 
-describe('OtpController', () => {
-  let controller: OtpController;
-  let service: jest.Mocked<OtpService>;
+describe('OneTimePasswordsController', () => {
+  let controller: OneTimePasswordsController;
+  let service: jest.Mocked<OneTimePasswordsService>;
 
   const userId = 'user-id-123';
 
@@ -23,15 +23,17 @@ describe('OtpController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [OtpController],
+      controllers: [OneTimePasswordsController],
       providers: [
-        { provide: OtpService, useValue: mockService },
+        { provide: OneTimePasswordsService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    controller = module.get<OtpController>(OtpController);
-    service = module.get(OtpService);
+    controller = module.get<OneTimePasswordsController>(
+      OneTimePasswordsController,
+    );
+    service = module.get(OneTimePasswordsService);
   });
 
   afterEach(() => {

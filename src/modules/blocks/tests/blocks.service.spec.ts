@@ -14,11 +14,11 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
-import { BlockService } from '../blocks.service';
+import { BlocksService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
 
-describe('BlockService', () => {
-  let service: BlockService;
+describe('BlocksService', () => {
+  let service: BlocksService;
   let prisma: MockPrismaService;
 
   const userId = 'user-id-123';
@@ -63,13 +63,13 @@ describe('BlockService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        BlockService,
+        BlocksService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    service = module.get<BlockService>(BlockService);
+    service = module.get<BlocksService>(BlocksService);
     prisma = module.get(PrismaService);
   });
 

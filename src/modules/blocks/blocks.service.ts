@@ -23,7 +23,7 @@ interface BlockWithProfile {
 }
 
 @Injectable()
-export class BlockService extends BaseService {
+export class BlocksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,

@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '@core/logger';
-import { SocialidentityService } from '../social-identities.service';
+import { SocialidentitiesService } from '../social-identities.service';
 
-describe('SocialidentityService', () => {
-  let service: SocialidentityService;
+describe('SocialidentitiesService', () => {
+  let service: SocialidentitiesService;
   let configService: jest.Mocked<ConfigService>;
   let contextualLogger: any;
   let logger: any;
@@ -33,13 +33,13 @@ describe('SocialidentityService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        SocialidentityService,
+        SocialidentitiesService,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: LoggerService, useValue: logger },
       ],
     }).compile();
 
-    service = module.get<SocialidentityService>(SocialidentityService);
+    service = module.get<SocialidentitiesService>(SocialidentitiesService);
     configService = module.get(ConfigService);
 
     global.fetch = jest.fn();

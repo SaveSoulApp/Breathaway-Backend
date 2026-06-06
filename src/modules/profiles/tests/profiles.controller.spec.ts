@@ -2,13 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { UserProfile } from '@prisma/client';
-import { ProfileController } from '../profiles.controller';
-import { ProfileService } from '../profiles.service';
+import { ProfilesController } from '../profiles.controller';
+import { ProfilesService } from '../profiles.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 
-describe('ProfileController', () => {
-  let controller: ProfileController;
-  let service: jest.Mocked<ProfileService>;
+describe('ProfilesController', () => {
+  let controller: ProfilesController;
+  let service: jest.Mocked<ProfilesService>;
 
   const userId = 'user-id-123';
   const profileId = 'profile-id-123';
@@ -41,15 +41,15 @@ describe('ProfileController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [ProfileController],
+      controllers: [ProfilesController],
       providers: [
-        { provide: ProfileService, useValue: mockService },
+        { provide: ProfilesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    controller = module.get<ProfileController>(ProfileController);
-    service = module.get(ProfileService);
+    controller = module.get<ProfilesController>(ProfilesController);
+    service = module.get(ProfilesService);
   });
 
   afterEach(() => {

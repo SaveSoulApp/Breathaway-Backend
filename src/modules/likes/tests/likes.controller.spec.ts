@@ -9,12 +9,12 @@ import {
   LikeListResponseDto,
   LikeResponseDto,
 } from '../dto';
-import { LikeController } from '../likes.controller';
-import { LikeService } from '../likes.service';
+import { LikesController } from '../likes.controller';
+import { LikesService } from '../likes.service';
 
-describe('LikeController', () => {
-  let controller: LikeController;
-  let service: jest.Mocked<LikeService>;
+describe('LikesController', () => {
+  let controller: LikesController;
+  let service: jest.Mocked<LikesService>;
 
   const userId = 'user-id-123';
   const likeId = 'like-id-123';
@@ -51,15 +51,15 @@ describe('LikeController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [LikeController],
+      controllers: [LikesController],
       providers: [
-        { provide: LikeService, useValue: mockService },
+        { provide: LikesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 
-    controller = module.get<LikeController>(LikeController);
-    service = module.get(LikeService);
+    controller = module.get<LikesController>(LikesController);
+    service = module.get(LikesService);
   });
 
   afterEach(() => {
@@ -74,7 +74,7 @@ describe('LikeController', () => {
         intent: IntentType.RELATIONSHIP,
       };
       service.create.mockResolvedValue(
-        mockLikeResponse as Awaited<ReturnType<LikeService['create']>>,
+        mockLikeResponse as Awaited<ReturnType<LikesService['create']>>,
       );
 
       // Act

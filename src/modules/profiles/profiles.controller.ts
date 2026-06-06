@@ -28,19 +28,19 @@ import {
   ProfileResponseDto,
   UpdateProfileDto,
 } from './dto';
-import { ProfileService } from './profiles.service';
+import { ProfilesService } from './profiles.service';
 
-@ApiTags('Profile')
+@ApiTags('Profiles')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller({
-  path: 'profile',
+  path: 'profiles',
   version: ['1'],
 })
-export class ProfileController extends BaseController {
+export class ProfilesController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly profileService: ProfileService,
+    private readonly profilesService: ProfilesService,
   ) {
     super(logger);
   }
@@ -64,7 +64,7 @@ export class ProfileController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() createProfileDto: CreateProfileDto,
   ) {
-    const profile = await this.profileService.createProfile(
+    const profile = await this.profilesService.createProfile(
       userId,
       createProfileDto,
     );
@@ -83,7 +83,7 @@ export class ProfileController extends BaseController {
     description: 'Profile not found',
   })
   async getMyProfile(@CurrentUserId() userId: string) {
-    const profile = await this.profileService.getProfileByUserId(userId);
+    const profile = await this.profilesService.getProfileByUserId(userId);
     return profile;
   }
 
@@ -100,7 +100,7 @@ export class ProfileController extends BaseController {
     description: 'Profile not found',
   })
   async getProfileById(@Param('id') id: string) {
-    const profile = await this.profileService.getProfileById(id);
+    const profile = await this.profilesService.getProfileById(id);
     return profile;
   }
 
@@ -119,7 +119,7 @@ export class ProfileController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
-    const profile = await this.profileService.updateProfile(
+    const profile = await this.profilesService.updateProfile(
       userId,
       updateProfileDto,
     );
@@ -141,7 +141,7 @@ export class ProfileController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() patchProfileDto: PatchProfileDto,
   ) {
-    const profile = await this.profileService.patchProfile(
+    const profile = await this.profilesService.patchProfile(
       userId,
       patchProfileDto,
     );
@@ -160,6 +160,6 @@ export class ProfileController extends BaseController {
     description: 'Profile not found',
   })
   async deleteProfile(@CurrentUserId() userId: string) {
-    await this.profileService.deleteProfile(userId);
+    await this.profilesService.deleteProfile(userId);
   }
 }

@@ -11,11 +11,11 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
-import { DeviceService } from '../devices.service';
+import { DevicesService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
 
-describe('DeviceService', () => {
-  let service: DeviceService;
+describe('DevicesService', () => {
+  let service: DevicesService;
   let prisma: MockPrismaService;
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
@@ -41,13 +41,13 @@ describe('DeviceService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        DeviceService,
+        DevicesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: logger },
       ],
     }).compile();
 
-    service = module.get<DeviceService>(DeviceService);
+    service = module.get<DevicesService>(DevicesService);
     prisma = module.get(PrismaService);
   });
 

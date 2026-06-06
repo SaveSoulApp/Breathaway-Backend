@@ -5,13 +5,13 @@ import { Platform, UserAgentData } from '@common/interfaces';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 
-import { DeviceController } from '../devices.controller';
-import { DeviceService } from '../devices.service';
+import { DevicesController } from '../devices.controller';
+import { DevicesService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
 
-describe('DeviceController', () => {
-  let controller: DeviceController;
-  let service: jest.Mocked<DeviceService>;
+describe('DevicesController', () => {
+  let controller: DevicesController;
+  let service: jest.Mocked<DevicesService>;
 
   beforeEach(async () => {
     const contextualLogger = {
@@ -36,15 +36,15 @@ describe('DeviceController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [DeviceController],
+      controllers: [DevicesController],
       providers: [
-        { provide: DeviceService, useValue: mockService },
+        { provide: DevicesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
     }).compile();
 
-    controller = module.get<DeviceController>(DeviceController);
-    service = module.get(DeviceService);
+    controller = module.get<DevicesController>(DevicesController);
+    service = module.get(DevicesService);
   });
 
   afterEach(() => {

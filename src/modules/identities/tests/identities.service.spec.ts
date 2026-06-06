@@ -15,7 +15,7 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityDto,
 } from '../dto';
-import { IdentityService } from '../identities.service';
+import { IdentitiesService } from '../identities.service';
 import {
   mockCreateIdentityDto,
   mockEncryptedData,
@@ -27,8 +27,8 @@ import {
   mockUserId,
 } from './mocks/identities.mock';
 
-describe('IdentityService', () => {
-  let service: IdentityService;
+describe('IdentitiesService', () => {
+  let service: IdentitiesService;
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
   let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
@@ -64,7 +64,7 @@ describe('IdentityService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        IdentityService,
+        IdentitiesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
@@ -75,7 +75,7 @@ describe('IdentityService', () => {
       ],
     }).compile();
 
-    service = module.get<IdentityService>(IdentityService);
+    service = module.get<IdentitiesService>(IdentitiesService);
 
     prisma = module.get(PrismaService);
     encryption = module.get(IdentityCryptoService);

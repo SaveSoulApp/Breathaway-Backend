@@ -12,20 +12,20 @@ import {
   MockPrismaService,
   createPrismaMock,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { IdentityService } from '@modules/identities/identities.service';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
-import { SocialidentityService } from '@modules/social-identities/social-identities.service';
+import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
 
 describe('IdentityWorkflowsService', () => {
   let service: IdentityWorkflowsService;
   let prisma: MockPrismaService;
-  let otpService: jest.Mocked<OtpService>;
-  let socialidentityService: jest.Mocked<SocialidentityService>;
-  let identityService: jest.Mocked<IdentityService>;
+  let oneTimePasswordsService: jest.Mocked<OneTimePasswordsService>;
+  let socialidentitiesService: jest.Mocked<SocialidentitiesService>;
+  let identitiesService: jest.Mocked<IdentitiesService>;
   let notificationsService: jest.Mocked<NotificationsService>;
   let matchResolverService: jest.Mocked<MatchResolverService>;
   let contextualLogger: {
@@ -49,15 +49,15 @@ describe('IdentityWorkflowsService', () => {
       forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 
-    const mockOtpService = {
+    const mockOneTimePasswordsService = {
       verifyAndConsumeOtp: jest.fn(),
     };
 
-    const mockSocialidentityService = {
+    const mockSocialidentitiesService = {
       verifyInstagramIdentity: jest.fn(),
     };
 
-    const mockIdentityService = {
+    const mockIdentitiesService = {
       claimOrCreateIdentity: jest.fn(),
     };
 
@@ -74,9 +74,15 @@ describe('IdentityWorkflowsService', () => {
         IdentityWorkflowsService,
         { provide: LoggerService, useValue: logger },
         { provide: PrismaService, useValue: createPrismaMock() },
-        { provide: OtpService, useValue: mockOtpService },
-        { provide: SocialidentityService, useValue: mockSocialidentityService },
-        { provide: IdentityService, useValue: mockIdentityService },
+        {
+          provide: OneTimePasswordsService,
+          useValue: mockOneTimePasswordsService,
+        },
+        {
+          provide: SocialidentitiesService,
+          useValue: mockSocialidentitiesService,
+        },
+        { provide: IdentitiesService, useValue: mockIdentitiesService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: MatchResolverService, useValue: mockMatchResolverService },
       ],
@@ -84,9 +90,9 @@ describe('IdentityWorkflowsService', () => {
 
     service = module.get<IdentityWorkflowsService>(IdentityWorkflowsService);
     prisma = module.get(PrismaService);
-    otpService = module.get(OtpService);
-    socialidentityService = module.get(SocialidentityService);
-    identityService = module.get(IdentityService);
+    oneTimePasswordsService = module.get(OneTimePasswordsService);
+    socialidentitiesService = module.get(SocialidentitiesService);
+    identitiesService = module.get(IdentitiesService);
     notificationsService = module.get(NotificationsService);
     matchResolverService = module.get(MatchResolverService);
   });
@@ -108,11 +114,11 @@ describe('IdentityWorkflowsService', () => {
     const defaultMessageId = 'msg_1';
 
     it('should successfully link an identity when OTP is valid and identity has a username', async () => {
-      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
-      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
         username: 'test_user',
       } as unknown as SocialIdentityResponseDto);
-      identityService.claimOrCreateIdentity.mockResolvedValue(
+      identitiesService.claimOrCreateIdentity.mockResolvedValue(
         {} as unknown as Identity,
       );
 
@@ -121,11 +127,13 @@ describe('IdentityWorkflowsService', () => {
       expect(contextualLogger.info).toHaveBeenCalledWith(
         'Received Instagram OTP event for messageId msg_1',
       );
-      expect(otpService.verifyAndConsumeOtp).toHaveBeenCalledWith('123456');
+      expect(oneTimePasswordsService.verifyAndConsumeOtp).toHaveBeenCalledWith(
+        '123456',
+      );
       expect(
-        socialidentityService.verifyInstagramIdentity,
+        socialidentitiesService.verifyInstagramIdentity,
       ).toHaveBeenCalledWith('sender_1');
-      expect(identityService.claimOrCreateIdentity).toHaveBeenCalledWith(
+      expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
         IdentityType.INSTAGRAM,
         'test_user',
         'sender_1',
@@ -143,14 +151,14 @@ describe('IdentityWorkflowsService', () => {
     });
 
     it('should warn when the instagram identity has no username', async () => {
-      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
-      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
         username: null,
       } as unknown as SocialIdentityResponseDto);
 
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
-      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Could not extract a valid username from Instagram identity payload.',
       );
@@ -158,38 +166,40 @@ describe('IdentityWorkflowsService', () => {
 
     it('should catch and log errors during the flow', async () => {
       const error = new Error('OTP verification failed');
-      otpService.verifyAndConsumeOtp.mockRejectedValue(error);
+      oneTimePasswordsService.verifyAndConsumeOtp.mockRejectedValue(error);
 
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(
-        socialidentityService.verifyInstagramIdentity,
+        socialidentitiesService.verifyInstagramIdentity,
       ).not.toHaveBeenCalled();
-      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Error during OTP verification flow for sender sender_1: OTP verification failed',
       );
     });
 
     it('should handle non-Error objects thrown during the flow', async () => {
-      otpService.verifyAndConsumeOtp.mockRejectedValue('String error');
+      oneTimePasswordsService.verifyAndConsumeOtp.mockRejectedValue(
+        'String error',
+      );
 
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(
-        socialidentityService.verifyInstagramIdentity,
+        socialidentitiesService.verifyInstagramIdentity,
       ).not.toHaveBeenCalled();
-      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalled();
     });
 
     it('should silently log when notification dispatch fails after identity is linked', async () => {
       // Arrange
-      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
-      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
         username: 'test_user',
       } as unknown as SocialIdentityResponseDto);
-      identityService.claimOrCreateIdentity.mockResolvedValue(
+      identitiesService.claimOrCreateIdentity.mockResolvedValue(
         {} as unknown as Identity,
       );
       const dispatchError = new Error('Push service unavailable');
@@ -202,7 +212,7 @@ describe('IdentityWorkflowsService', () => {
       await Promise.resolve();
 
       // Assert — identity still linked, error logged via .catch
-      expect(identityService.claimOrCreateIdentity).toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         expect.stringContaining(
           'Failed to dispatch identity claimed notification',
@@ -213,8 +223,8 @@ describe('IdentityWorkflowsService', () => {
 
     it('should warn and skip linking when username is an empty string (falsy)', async () => {
       // Arrange — empty string is falsy, so if (username) is false
-      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
-      socialidentityService.verifyInstagramIdentity.mockResolvedValue({
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
         username: '',
       } as unknown as SocialIdentityResponseDto);
 
@@ -222,7 +232,7 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       // Assert
-      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(notificationsService.dispatch).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Could not extract a valid username from Instagram identity payload.',
@@ -231,9 +241,9 @@ describe('IdentityWorkflowsService', () => {
 
     it('should catch errors thrown by verifyInstagramIdentity after OTP is consumed', async () => {
       // Arrange
-      otpService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
       const socialError = new Error('Instagram API error');
-      socialidentityService.verifyInstagramIdentity.mockRejectedValue(
+      socialidentitiesService.verifyInstagramIdentity.mockRejectedValue(
         socialError,
       );
 
@@ -241,7 +251,7 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       // Assert
-      expect(identityService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         `Error during OTP verification flow for sender ${defaultData.senderId}: ${socialError.message}`,
       );

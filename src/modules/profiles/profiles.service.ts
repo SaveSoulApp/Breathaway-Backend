@@ -11,7 +11,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 
 @Injectable()
-export class ProfileService extends BaseService {
+export class ProfilesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
