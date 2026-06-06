@@ -73,7 +73,9 @@ describe('IdentityWorkflows (e2e)', () => {
       const user = await prisma.user.create({ data: {} });
       allCreatedUserIds.push(user.id);
 
-      const { otp } = await oneTimePasswordsService.generateAndStoreOtp(user.id);
+      const { otp } = await oneTimePasswordsService.generateAndStoreOtp(
+        user.id,
+      );
 
       const senderId = 'ig-sender-123';
       const username = 'test_ig_user';

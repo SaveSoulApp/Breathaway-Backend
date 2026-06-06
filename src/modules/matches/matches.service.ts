@@ -44,6 +44,8 @@ export class MatchesService extends BaseService {
         OR: [{ userOneId: userId }, { userTwoId: userId }],
         status: MatchStatus.ACTIVE,
         deletedAt: null,
+        userOne: { deletedAt: null },
+        userTwo: { deletedAt: null },
       },
       orderBy: {
         matchedAt: 'desc',
@@ -90,6 +92,8 @@ export class MatchesService extends BaseService {
         id: matchId,
         OR: [{ userOneId: userId }, { userTwoId: userId }],
         deletedAt: null,
+        userOne: { deletedAt: null },
+        userTwo: { deletedAt: null },
       },
       select: {
         id: true,

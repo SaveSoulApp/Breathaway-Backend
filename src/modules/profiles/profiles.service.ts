@@ -173,28 +173,54 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Delete profile
+   * Delete profile (Soft Delete Account)
    */
   async deleteProfile(userId: string): Promise<void> {
-    this.logger.log(`Deleting profile for user: ${userId}`);
+    this.logger.log(`Soft-deleting account for user: ${userId}`);
 
-    const existingProfile = await this.prisma.userProfile.findUnique({
-      where: { userId },
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: userId },
     });
 
-    if (!existingProfile) {
-      throw new NotFoundException(`Profile not found for user: ${userId}`);
+    if (!existingUser || existingUser.deletedAt) {
+      throw new NotFoundException(
+        `User not found or already deleted: ${userId}`,
+      );
     }
 
     try {
-      await this.prisma.userProfile.delete({
-        where: { userId },
+      const now = new Date();
+
+      await this.prisma.$transaction(async (tx) => {
+        // Soft delete the user
+        await tx.user.update({
+          where: { id: userId },
+          data: { deletedAt: now },
+        });
+
+        // Soft delete identities
+        await tx.identity.updateMany({
+          where: { userId, deletedAt: null },
+          data: { deletedAt: now },
+        });
+
+        // Soft delete auth credentials
+        await tx.authCredential.updateMany({
+          where: { userId, deletedAt: null },
+          data: { deletedAt: now },
+        });
+
+        // Deactivate all devices
+        await tx.device.updateMany({
+          where: { userId, isActive: true },
+          data: { isActive: false },
+        });
       });
 
-      this.logger.log(`Profile deleted successfully for user: ${userId}`);
+      this.logger.log(`Account soft-deleted successfully for user: ${userId}`);
     } catch (error) {
       const err = error as { stack?: string };
-      this.logger.error(`Failed to delete profile for user ${userId}`, {
+      this.logger.error(`Failed to soft-delete account for user ${userId}`, {
         stack: err.stack,
       });
       throw error;

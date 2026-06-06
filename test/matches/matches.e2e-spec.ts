@@ -195,6 +195,38 @@ describe('MatchesController (e2e)', () => {
       expect(res.body.message).toBe('Match not found');
     });
 
+    it('GET /api/v1/matches - should hide match if the other user soft deletes their account', async () => {
+      // Soft delete user2
+      await prisma.user.update({
+        where: { id: user2Id },
+        data: { deletedAt: new Date() },
+      });
+
+      // User 1 gets matches, should not see the match
+      let res = await authedRequest(app)
+        .get('/api/v1/matches')
+        .set('authorization', `Bearer ${user1Jwt}`);
+
+      expect(res.status).toBe(200);
+      let matchInResponse = res.body.find((m: any) => m.id === matchId);
+      expect(matchInResponse).toBeUndefined();
+
+      // Restore user2
+      await prisma.user.update({
+        where: { id: user2Id },
+        data: { deletedAt: null },
+      });
+
+      // User 1 gets matches, should see the match again
+      res = await authedRequest(app)
+        .get('/api/v1/matches')
+        .set('authorization', `Bearer ${user1Jwt}`);
+
+      expect(res.status).toBe(200);
+      matchInResponse = res.body.find((m: any) => m.id === matchId);
+      expect(matchInResponse).toBeDefined();
+    });
+
     it('DELETE /api/v1/matches/:id - should unmatch (soft delete) the match', async () => {
       const res = await authedRequest(app)
         .delete(`/api/v1/matches/${matchId}`)

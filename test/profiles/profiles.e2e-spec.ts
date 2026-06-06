@@ -172,19 +172,26 @@ describe('ProfilesController (e2e)', () => {
       expect(res.status).toBe(404);
     });
 
-    it('DELETE /api/v1/profiles - deletes the profile', async () => {
+    it('DELETE /api/v1/profiles - soft deletes the user account', async () => {
       const res = await authedRequest(app)
         .delete('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(204);
 
-      // Verify it's gone
+      // Verify user is soft-deleted
+      const deletedUser = await prisma.user.findUnique({
+        where: { id: seededUserId },
+      });
+
+      expect(deletedUser?.deletedAt).not.toBeNull();
+
+      // Verify profile still exists
       const checkRes = await authedRequest(app)
         .get('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(checkRes.status).toBe(404);
+      expect(checkRes.status).toBe(200);
     });
   });
 });
