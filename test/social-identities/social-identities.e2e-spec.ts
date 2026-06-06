@@ -1,12 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { SocialidentityModule } from '@modules/social-identities/social-identities.module';
+import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-describe('SocialidentityController (e2e)', () => {
+describe('SocialIdentitiesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let configService: ConfigService;
@@ -17,7 +17,7 @@ describe('SocialidentityController (e2e)', () => {
   beforeAll(async () => {
     originalFetch = global.fetch;
 
-    const context = await createAuthTestApp([SocialidentityModule]);
+    const context = await createAuthTestApp([SocialIdentitiesModule]);
     app = context.app;
     prisma = context.prisma;
     configService = app.get(ConfigService);
@@ -29,7 +29,7 @@ describe('SocialidentityController (e2e)', () => {
     await app.close();
   });
 
-  describe('POST /api/v1/social-identity/verify/instagram', () => {
+  describe('POST /api/v1/social-identities/verify/instagram', () => {
     it('should verify a valid instagram identity', async () => {
       // Mock global fetch for success
       global.fetch = jest.fn().mockResolvedValue({
@@ -47,7 +47,7 @@ describe('SocialidentityController (e2e)', () => {
       });
 
       const res = await authedRequest(app)
-        .post('/api/v1/social-identity/verify/instagram')
+        .post('/api/v1/social-identities/verify/instagram')
         .send({ instagramId: 'test_ig_123' });
 
       expect(res.status).toBe(201);
@@ -77,7 +77,7 @@ describe('SocialidentityController (e2e)', () => {
       });
 
       const res = await authedRequest(app)
-        .post('/api/v1/social-identity/verify/instagram')
+        .post('/api/v1/social-identities/verify/instagram')
         .send({ instagramId: 'invalid_ig_id' });
 
       expect(res.status).toBe(400);
@@ -94,7 +94,7 @@ describe('SocialidentityController (e2e)', () => {
       });
 
       const res = await authedRequest(app)
-        .post('/api/v1/social-identity/verify/instagram')
+        .post('/api/v1/social-identities/verify/instagram')
         .send({ instagramId: 'test_ig_123' });
 
       expect(res.status).toBe(500);

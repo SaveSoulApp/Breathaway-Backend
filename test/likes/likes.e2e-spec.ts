@@ -2,14 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { LikeModule } from '@modules/likes/likes.module';
+import { LikesModule } from '@modules/likes/likes.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 import { IdentityType, IntentType } from '@prisma/client';
 
-describe('LikeController (e2e)', () => {
+describe('LikesController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -18,8 +18,8 @@ describe('LikeController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    // LikeModule might depend on PubSubModule through MatchResolver/Match services
-    const context = await createAuthTestApp([PubSubModule, LikeModule]);
+    // LikesModule might depend on PubSubModule through MatchResolver/Match services
+    const context = await createAuthTestApp([PubSubModule, LikesModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);

@@ -245,7 +245,7 @@ describe('MatchResolverService (e2e)', () => {
       const { user: userB, identity: identityB } =
         await createUserWithIdentity('userB-incompat');
 
-      // Setup incompatible intents (assuming MatchService has rules for this, like RELATIONSHIP vs CASUAL)
+      // Setup incompatible intents (assuming MatchesService has rules for this, like RELATIONSHIP vs CASUAL)
       const likeFromA = await prisma.like.create({
         data: {
           senderUserId: userA.id,
@@ -285,8 +285,8 @@ describe('MatchResolverService (e2e)', () => {
         },
       });
 
-      // Assuming RELATIONSHIP and CASUAL are incompatible in MatchService
-      // If they are compatible, this might fail, so let's check what MatchService does.
+      // Assuming RELATIONSHIP and CASUAL are incompatible in MatchesService
+      // If they are compatible, this might fail, so let's check what MatchesService does.
       // Most likely, they are incompatible. We'll verify this during the test run.
       // Wait, if they are compatible, the match will be created. Let's see what happens.
     });

@@ -2,12 +2,12 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { OtpModule } from '@modules/one-time-passwords/one-time-passwords.module';
+import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-describe('OtpController (e2e)', () => {
+describe('OneTimePasswordsController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -16,7 +16,7 @@ describe('OtpController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([OtpModule]);
+    const context = await createAuthTestApp([OneTimePasswordsModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);
@@ -40,10 +40,10 @@ describe('OtpController (e2e)', () => {
   }
 
   describe('OTP Endpoints', () => {
-    it('POST /api/v1/otp/generate - generates a new OTP', async () => {
+    it('POST /api/v1/one-time-passwords/generate - generates a new OTP', async () => {
       const { token } = await createTestUser();
       const res = await authedRequest(app)
-        .post('/api/v1/otp/generate')
+        .post('/api/v1/one-time-passwords/generate')
         .set('authorization', `Bearer ${token}`)
         .send();
 
@@ -54,12 +54,12 @@ describe('OtpController (e2e)', () => {
       expect(typeof res.body.expiresIn).toBe('number');
     });
 
-    it('POST /api/v1/otp/verify - verifies a generated OTP', async () => {
+    it('POST /api/v1/one-time-passwords/verify - verifies a generated OTP', async () => {
       const { user, token } = await createTestUser();
 
       // First generate
       const genRes = await authedRequest(app)
-        .post('/api/v1/otp/generate')
+        .post('/api/v1/one-time-passwords/generate')
         .set('authorization', `Bearer ${token}`)
         .send();
 
@@ -67,7 +67,7 @@ describe('OtpController (e2e)', () => {
 
       // Then verify
       const verifyRes = await authedRequest(app)
-        .post('/api/v1/otp/verify')
+        .post('/api/v1/one-time-passwords/verify')
         .set('authorization', `Bearer ${token}`)
         .send({ otp });
 
@@ -76,11 +76,11 @@ describe('OtpController (e2e)', () => {
       expect(verifyRes.body.userId).toBe(user.id);
     });
 
-    it('POST /api/v1/otp/verify - fails with invalid OTP', async () => {
+    it('POST /api/v1/one-time-passwords/verify - fails with invalid OTP', async () => {
       const { token } = await createTestUser();
 
       const verifyRes = await authedRequest(app)
-        .post('/api/v1/otp/verify')
+        .post('/api/v1/one-time-passwords/verify')
         .set('authorization', `Bearer ${token}`)
         .send({ otp: 'invalid-otp-value' });
 
@@ -88,12 +88,12 @@ describe('OtpController (e2e)', () => {
       expect(verifyRes.body.message).toBe('Invalid or expired OTP');
     });
 
-    it('POST /api/v1/otp/verify - fails to verify the same OTP twice', async () => {
+    it('POST /api/v1/one-time-passwords/verify - fails to verify the same OTP twice', async () => {
       const { token } = await createTestUser();
 
       // First generate
       const genRes = await authedRequest(app)
-        .post('/api/v1/otp/generate')
+        .post('/api/v1/one-time-passwords/generate')
         .set('authorization', `Bearer ${token}`)
         .send();
 
@@ -101,7 +101,7 @@ describe('OtpController (e2e)', () => {
 
       // Verify first time
       const verifyRes1 = await authedRequest(app)
-        .post('/api/v1/otp/verify')
+        .post('/api/v1/one-time-passwords/verify')
         .set('authorization', `Bearer ${token}`)
         .send({ otp });
 
@@ -109,7 +109,7 @@ describe('OtpController (e2e)', () => {
 
       // Verify second time
       const verifyRes2 = await authedRequest(app)
-        .post('/api/v1/otp/verify')
+        .post('/api/v1/one-time-passwords/verify')
         .set('authorization', `Bearer ${token}`)
         .send({ otp });
 
@@ -117,18 +117,18 @@ describe('OtpController (e2e)', () => {
       expect(verifyRes2.body.message).toBe('Invalid or expired OTP');
     });
 
-    it('POST /api/v1/otp/generate - enforces rate limiting', async () => {
+    it('POST /api/v1/one-time-passwords/generate - enforces rate limiting', async () => {
       const { token } = await createTestUser();
 
       // Generate first time
       await authedRequest(app)
-        .post('/api/v1/otp/generate')
+        .post('/api/v1/one-time-passwords/generate')
         .set('authorization', `Bearer ${token}`)
         .send();
 
       // Generate second time (should hit rate limit)
       const res = await authedRequest(app)
-        .post('/api/v1/otp/generate')
+        .post('/api/v1/one-time-passwords/generate')
         .set('authorization', `Bearer ${token}`)
         .send();
 

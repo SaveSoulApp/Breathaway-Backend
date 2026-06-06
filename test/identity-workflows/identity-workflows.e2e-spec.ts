@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
-import { OtpService } from '@modules/one-time-passwords/one-time-passwords.service';
-import { SocialidentityService } from '@modules/social-identities/social-identities.service';
+import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
+import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import request from 'supertest';
@@ -17,8 +17,8 @@ describe('IdentityWorkflows (e2e)', () => {
   let app: INestApplication;
   let configService: ConfigService;
   let prisma: PrismaService;
-  let otpService: OtpService;
-  let socialidentityService: SocialidentityService;
+  let oneTimePasswordsService: OneTimePasswordsService;
+  let socialidentitiesService: SocialidentitiesService;
   let notificationsService: NotificationsService;
   let crypto: IdentityCryptoService;
   let validToken: string;
@@ -33,8 +33,8 @@ describe('IdentityWorkflows (e2e)', () => {
     app = context.app;
     configService = app.get(ConfigService);
     prisma = context.prisma;
-    otpService = app.get(OtpService);
-    socialidentityService = app.get(SocialidentityService);
+    oneTimePasswordsService = app.get(OneTimePasswordsService);
+    socialidentitiesService = app.get(SocialidentitiesService);
     notificationsService = app.get(NotificationsService);
     crypto = app.get(IdentityCryptoService);
 
@@ -73,12 +73,12 @@ describe('IdentityWorkflows (e2e)', () => {
       const user = await prisma.user.create({ data: {} });
       allCreatedUserIds.push(user.id);
 
-      const { otp } = await otpService.generateAndStoreOtp(user.id);
+      const { otp } = await oneTimePasswordsService.generateAndStoreOtp(user.id);
 
       const senderId = 'ig-sender-123';
       const username = 'test_ig_user';
       jest
-        .spyOn(socialidentityService, 'verifyInstagramIdentity')
+        .spyOn(socialidentitiesService, 'verifyInstagramIdentity')
         .mockResolvedValueOnce({
           id: senderId,
           username,

@@ -2,12 +2,12 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { BlockModule } from '@modules/blocks/blocks.module';
+import { BlocksModule } from '@modules/blocks/blocks.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
-describe('BlockController (e2e)', () => {
+describe('BlocksController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -16,7 +16,7 @@ describe('BlockController (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([BlockModule]);
+    const context = await createAuthTestApp([BlocksModule]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);
