@@ -12,6 +12,13 @@ fi
 
 source "${SCRIPT_DIR}/common.dev.sh"
 
+FORCE_BUILD="false"
+for arg in "$@"; do
+    if [[ "$arg" == "--force" ]]; then
+        FORCE_BUILD="true"
+    fi
+done
+
 # Validate required variables
 : "${PROJECT_ID:?Variable PROJECT_ID is not set}"
 : "${IMAGE_BASE_URL:?Variable IMAGE_BASE_URL is not set}"
@@ -29,9 +36,13 @@ print_error() { echo -e "\033[0;31m❌ $1\033[0m"; exit 1; }
 build_image() {
     print_status "Checking Artifact Registry for existing image: ${IMAGE_TAG_WITH_COMMIT}"
     
-    if gcloud artifacts docker images describe "${IMAGE_TAG_WITH_COMMIT}" --project="${PROJECT_ID}" --quiet >/dev/null 2>&1; then
-        print_success "Image already exists! Skipping build phase."
-        return 0
+    if [[ "${FORCE_BUILD}" == "false" ]]; then
+        if gcloud artifacts docker images describe "${IMAGE_TAG_WITH_COMMIT}" --project="${PROJECT_ID}" --quiet >/dev/null 2>&1; then
+            print_success "Image already exists! Skipping build phase."
+            return 0
+        fi
+    else
+        print_status "Force flag provided! Rebuilding image even if it exists."
     fi
 
     print_status "Building new Docker image..."
@@ -107,6 +118,7 @@ deploy_service() {
         "SENDGRID_API_KEY=${SENDGRID_API_KEY}"
         "BREVO_API_KEY=${BREVO_API_KEY}"
         "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
+        "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)

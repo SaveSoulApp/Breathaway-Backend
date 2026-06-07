@@ -36,8 +36,19 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
     { path: 'apple-touch-icon-precomposed.png', method: RequestMethod.GET },
   ];
 
+  const internalJobExclusions = [
+    { path: 'internal/jobs/*path', method: RequestMethod.ALL },
+    { path: 'v1/internal/jobs/*path', method: RequestMethod.ALL },
+    { path: 'api/v1/internal/jobs/*path', method: RequestMethod.ALL },
+  ];
+
   consumer
     .apply(RequestIdMiddleware, TimezoneMiddleware)
-    .exclude(...pubSubExclusions, ...swaggerExclusions, ...browserExclusions)
+    .exclude(
+      ...pubSubExclusions,
+      ...swaggerExclusions,
+      ...browserExclusions,
+      ...internalJobExclusions,
+    )
     .forRoutes('*');
 }

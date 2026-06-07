@@ -8,9 +8,11 @@ import { IdentitiesModule } from '@modules/identities/identities.module';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { LikesModule } from '@modules/likes/likes.module';
+import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 import { MatchesModule } from '@modules/matches/matches.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
+import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
@@ -59,6 +61,7 @@ function publicApiDocumentation(app: INestApplication): void {
     OneTimePasswordsModule,
     ProfilesModule,
     SocialIdentitiesModule,
+    PreferencesModule,
   ];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')
@@ -109,6 +112,7 @@ function adminApiDocumentation(app: INestApplication): void {
     IdentityWorkflowsModule,
     NotificationsModule,
     AdminModule,
+    MaintenanceModule,
   ];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')

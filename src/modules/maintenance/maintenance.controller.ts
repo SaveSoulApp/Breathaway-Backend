@@ -1,7 +1,7 @@
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { GcpOidcAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 import {
   Controller,
   HttpCode,
@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -19,8 +19,8 @@ import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
 @SkipClientIdentity()
-@ApiBasicAuth()
-@UseGuards(AdminBasicAuthGuard)
+@ApiBearerAuth()
+@UseGuards(GcpOidcAuthGuard)
 @Controller({
   path: 'internal/jobs',
   version: ['1'],
