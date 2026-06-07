@@ -96,4 +96,12 @@ export class CreditsController extends BaseController {
   ): Promise<CreditLedgerResponseDto> {
     return this.creditsService.consumeCredits(dto);
   }
+
+  @Post('jobs/expire-bundles')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Run expiration job for credit bundles' })
+  @ApiResponse({ status: HttpStatus.OK })
+  async expireCreditBundles() {
+    return this.creditsService.expireCreditBundles();
+  }
 }

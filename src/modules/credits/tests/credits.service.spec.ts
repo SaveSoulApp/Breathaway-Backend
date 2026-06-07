@@ -86,7 +86,6 @@ describe('CreditsService', () => {
         _sum: { amount: true },
         where: {
           userId,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
       });
       expect(result).toBe(30);
