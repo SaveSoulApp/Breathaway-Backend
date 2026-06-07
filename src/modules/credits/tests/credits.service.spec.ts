@@ -365,7 +365,7 @@ describe('CreditsService', () => {
       const pastExpiry = new Date(now.getTime() - 1000); // Expired
 
       prisma.creditLedger.findMany
-        .mockResolvedValueOnce([{ userId }])
+        .mockResolvedValueOnce([{ userId }] as any)
         .mockResolvedValueOnce([
           {
             id: 'admin-credit',
@@ -413,7 +413,7 @@ describe('CreditsService', () => {
       const pastExpiry = new Date(now.getTime() - 1000); // Expired
 
       prisma.creditLedger.findMany
-        .mockResolvedValueOnce([{ userId }])
+        .mockResolvedValueOnce([{ userId }] as any)
         .mockResolvedValueOnce([
           {
             id: 'referral-credit',
