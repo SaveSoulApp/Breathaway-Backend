@@ -1,3 +1,4 @@
+import { LoggerService } from '@core/logger';
 import {
   CanActivate,
   ExecutionContext,
@@ -6,9 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { OAuth2Client } from 'google-auth-library';
-
-import { LoggerService } from '@core/logger';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 
 @Injectable()
 export class GcpOidcAuthGuard implements CanActivate {
@@ -67,12 +66,15 @@ export class GcpOidcAuthGuard implements CanActivate {
       }
 
       // Attach the payload to the request if needed by controllers later
-      (request as any).oidcPayload = payload;
+      (request as Request & { oidcPayload?: TokenPayload }).oidcPayload =
+        payload;
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `OIDC verification failed: ${error.message}`,
+        `OIDC verification failed: ${errorMessage}`,
         GcpOidcAuthGuard.name,
       );
       throw new UnauthorizedException('Invalid OIDC token');
