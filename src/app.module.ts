@@ -35,6 +35,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     NotificationsModule,
     AdminModule,
     PreferencesModule,
+    MaintenanceModule,
   ],
   controllers: [AppController],
   providers: [
