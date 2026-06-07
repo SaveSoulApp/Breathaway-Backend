@@ -29,7 +29,6 @@ export class CreditsService extends BaseService {
     userId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<number> {
-    const now = DateUtil.now();
     const client = tx ?? this.prisma;
 
     const groups = await client.creditLedger.groupBy({
@@ -39,7 +38,6 @@ export class CreditsService extends BaseService {
       },
       where: {
         userId,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
     });
 
@@ -244,5 +242,90 @@ export class CreditsService extends BaseService {
   ): Promise<boolean> {
     const balance = await this.getBalance(userId, tx);
     return balance >= requiredAmount;
+  }
+
+  async expireCreditBundles(): Promise<{
+    processedUsers: number;
+    totalExpiredDebitsInserted: number;
+  }> {
+    const now = DateUtil.now();
+
+    const usersWithPotentiallyExpiredCredits =
+      await this.prisma.creditLedger.findMany({
+        where: {
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: { lte: now },
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+
+    let processedUsers = 0;
+    let totalExpiredDebitsInserted = 0;
+
+    for (const { userId } of usersWithPotentiallyExpiredCredits) {
+      const ledger = await this.prisma.creditLedger.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      let totalDebits = ledger
+        .filter((l) => l.transactionType === CreditTransactionType.DEBIT)
+        .reduce((sum, l) => sum + l.amount, 0);
+
+      const credits = ledger
+        .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
+        .sort((a, b) => {
+          if (a.expiresAt && b.expiresAt) {
+            if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
+              return a.createdAt.getTime() - b.createdAt.getTime();
+            }
+            return a.expiresAt.getTime() - b.expiresAt.getTime();
+          }
+          if (a.expiresAt && !b.expiresAt) return -1;
+          if (!a.expiresAt && b.expiresAt) return 1;
+          return a.createdAt.getTime() - b.createdAt.getTime();
+        });
+
+      const expirationsToInsert: Prisma.CreditLedgerCreateManyInput[] = [];
+
+      for (const credit of credits) {
+        let usedFromThisCredit = 0;
+        if (totalDebits >= credit.amount) {
+          usedFromThisCredit = credit.amount;
+          totalDebits -= credit.amount;
+        } else {
+          usedFromThisCredit = totalDebits;
+          totalDebits = 0;
+        }
+
+        const unusedAmount = credit.amount - usedFromThisCredit;
+
+        if (credit.expiresAt && credit.expiresAt <= now && unusedAmount > 0) {
+          expirationsToInsert.push({
+            userId,
+            transactionType: CreditTransactionType.DEBIT,
+            amount: unusedAmount,
+            source: CreditSource.EXPIRED,
+            referenceId: credit.id,
+            createdAt: now,
+          });
+        }
+      }
+
+      if (expirationsToInsert.length > 0) {
+        await this.prisma.creditLedger.createMany({
+          data: expirationsToInsert,
+        });
+        totalExpiredDebitsInserted += expirationsToInsert.length;
+      }
+      processedUsers++;
+    }
+
+    this.logger.log(
+      `Expiration job complete. Processed ${processedUsers} users. Inserted ${totalExpiredDebitsInserted} expiration debits.`,
+    );
+
+    return { processedUsers, totalExpiredDebitsInserted };
   }
 }

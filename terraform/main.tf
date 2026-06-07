@@ -11,7 +11,7 @@ resource "google_artifact_registry_repository" "breathaway_backend_nestjs_repo" 
   repository_id = "breathaway-backend"
   description   = "Docker repository for NestJS app"
   format        = "DOCKER"
-  
+
   # CRITICAL: This must be false to actively delete images. 
   # If true, Artifact Registry only logs a simulation (dry run).
   cleanup_policy_dry_run = false

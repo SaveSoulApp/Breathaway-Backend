@@ -132,5 +132,66 @@ describe('CreditsModule (e2e)', () => {
       expect(res.status).toBe(400);
       expect(res.body.message).toContain('Insufficient');
     });
+    it('POST /api/v1/credits/jobs/expire-bundles - expires credits that are past their expiry date using First-to-Expire logic', async () => {
+      // Current state from previous tests:
+      // Granted: 100 (no expiry)
+      // Consumed: 25
+
+      // Grant a credit that expired in the past
+      await authedRequest(app)
+        .post('/api/v1/credits/internal/grant')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          userId: seededUserId,
+          amount: 50,
+          source: CreditSource.ADMIN,
+          referenceId: 'expired-grant-1',
+          expiresAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        });
+
+      // Grant a credit that expires in the future
+      await authedRequest(app)
+        .post('/api/v1/credits/internal/grant')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          userId: seededUserId,
+          amount: 50,
+          source: CreditSource.ADMIN,
+          referenceId: 'future-grant-1',
+          expiresAt: new Date(Date.now() + 86400000).toISOString(), // 1 day future
+        });
+
+      // Consume more credits
+      await authedRequest(app)
+        .post('/api/v1/credits/internal/consume')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          userId: seededUserId,
+          amount: 10,
+          referenceId: 'test-usage-expiring',
+        });
+
+      // Total Debits = 25 + 10 = 35.
+      // Credits available: 100 (null), 50 (past), 50 (future).
+      // First-to-Expire sorting: 50 (past), 50 (future), 100 (null).
+      // 35 debits apply to 50 (past), leaving 15 unused.
+      // 15 unused past credit will expire.
+      // Expected Final Balance = 200 (Total Granted) - 35 (Usage) - 15 (Expired) = 150.
+
+      // Run expire job
+      const res = await authedRequest(app)
+        .post('/api/v1/credits/jobs/expire-bundles')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.processedUsers).toBeGreaterThanOrEqual(1);
+
+      // Verify the remaining balance
+      const balRes = await authedRequest(app)
+        .get('/api/v1/credits/balance')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      expect(balRes.body.balance).toBe(150);
+    });
   });
 });

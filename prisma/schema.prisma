@@ -50,6 +50,7 @@ enum CreditSource {
   REFERRAL
   LIKE_USAGE
   ADMIN
+  EXPIRED
 }
 
 enum DevicePlatform {

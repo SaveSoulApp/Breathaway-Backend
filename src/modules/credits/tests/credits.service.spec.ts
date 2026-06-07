@@ -86,7 +86,6 @@ describe('CreditsService', () => {
         _sum: { amount: true },
         where: {
           userId,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
       });
       expect(result).toBe(30);
@@ -356,6 +355,91 @@ describe('CreditsService', () => {
 
       // Assert
       expect(result).toBe(false);
+    });
+  });
+  describe('expireCreditBundles', () => {
+    it('should consume closest expiring credits first, saving them from expiration', async () => {
+      const now = new Date();
+      const past = new Date(now.getTime() - 100000);
+      const soon = new Date(now.getTime() + 100000); // Expires in future
+      const pastExpiry = new Date(now.getTime() - 1000); // Expired
+
+      prisma.creditLedger.findMany
+        .mockResolvedValueOnce([{ userId }] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'admin-credit',
+            transactionType: CreditTransactionType.CREDIT,
+            amount: 10,
+            expiresAt: soon,
+            createdAt: past, // Admin created earlier
+          },
+          {
+            id: 'purchase-credit',
+            transactionType: CreditTransactionType.CREDIT,
+            amount: 10,
+            expiresAt: pastExpiry, // Expired
+            createdAt: now, // Purchase created later
+          },
+          {
+            id: 'usage-debit',
+            transactionType: CreditTransactionType.DEBIT,
+            amount: 5,
+          },
+        ] as any);
+
+      await service.expireCreditBundles();
+
+      expect(prisma.creditLedger.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            referenceId: 'purchase-credit',
+            amount: 5, // Only 5 expires, because 5 was consumed!
+          }),
+        ]),
+      });
+
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock
+        .calls[0][0];
+      const adminExp = call.data.find(
+        (d: any) => d.referenceId === 'admin-credit',
+      );
+      expect(adminExp).toBeUndefined();
+    });
+
+    it('should consume credits with expiry before non-expiring credits', async () => {
+      const now = new Date();
+      const past = new Date(now.getTime() - 100000);
+      const pastExpiry = new Date(now.getTime() - 1000); // Expired
+
+      prisma.creditLedger.findMany
+        .mockResolvedValueOnce([{ userId }] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'referral-credit',
+            transactionType: CreditTransactionType.CREDIT,
+            amount: 10,
+            expiresAt: null, // No expiry
+            createdAt: past, // Created earlier
+          },
+          {
+            id: 'purchase-credit',
+            transactionType: CreditTransactionType.CREDIT,
+            amount: 10,
+            expiresAt: pastExpiry, // Expired
+            createdAt: now, // Created later
+          },
+          {
+            id: 'usage-debit',
+            transactionType: CreditTransactionType.DEBIT,
+            amount: 12,
+          },
+        ] as any);
+
+      const result = await service.expireCreditBundles();
+
+      expect(prisma.creditLedger.createMany).not.toHaveBeenCalled();
+      expect(result.totalExpiredDebitsInserted).toBe(0);
     });
   });
 });
