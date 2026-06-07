@@ -273,9 +273,19 @@ export class CreditsService extends BaseService {
         .filter((l) => l.transactionType === CreditTransactionType.DEBIT)
         .reduce((sum, l) => sum + l.amount, 0);
 
-      const credits = ledger.filter(
-        (l) => l.transactionType === CreditTransactionType.CREDIT,
-      );
+      const credits = ledger
+        .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
+        .sort((a, b) => {
+          if (a.expiresAt && b.expiresAt) {
+            if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
+              return a.createdAt.getTime() - b.createdAt.getTime();
+            }
+            return a.expiresAt.getTime() - b.expiresAt.getTime();
+          }
+          if (a.expiresAt && !b.expiresAt) return -1;
+          if (!a.expiresAt && b.expiresAt) return 1;
+          return a.createdAt.getTime() - b.createdAt.getTime();
+        });
 
       const expirationsToInsert: Prisma.CreditLedgerCreateManyInput[] = [];
 
