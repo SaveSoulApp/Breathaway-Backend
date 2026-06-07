@@ -8,12 +8,12 @@ describe('PreferencesController', () => {
   let controller: PreferencesController;
   let service: PreferencesService;
 
-  const mockPreferencesResponse = new PreferencesResponseDto({
+  const mockPreferencesResponse: PreferencesResponseDto = {
     pushEnabled: true,
     whatsappEnabled: true,
     smsEnabled: true,
     emailEnabled: true,
-  });
+  };
 
   beforeEach(async () => {
     const loggerServiceMock = {
