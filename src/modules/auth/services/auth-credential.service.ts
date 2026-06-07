@@ -30,7 +30,13 @@ export class AuthCredentialService extends BaseService {
     );
 
     return this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({ data: {} });
+      const newUser = await tx.user.create({
+        data: {
+          notificationPreference: {
+            create: {},
+          },
+        },
+      });
 
       const newIdentity = await tx.identity.create({
         data: {

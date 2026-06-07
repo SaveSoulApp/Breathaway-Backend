@@ -67,7 +67,8 @@ enum GenderType {
 model User {
   id               String           @id @default(ulid())
 
-  profile          UserProfile?
+  profile                UserProfile?
+  notificationPreference NotificationPreference?
 
   identities       Identity[]
   authCredentials  AuthCredential[]
@@ -279,4 +280,19 @@ model CreditLedger {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model NotificationPreference {
+  id              String   @id @default(ulid())
+
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pushEnabled     Boolean  @default(true)
+  whatsappEnabled Boolean  @default(true)
+  smsEnabled      Boolean  @default(true)
+  emailEnabled    Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
