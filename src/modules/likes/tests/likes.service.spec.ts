@@ -322,14 +322,25 @@ describe('LikesService', () => {
   });
 
   describe('findAllForUser', () => {
-    it('should return pending likes', async () => {
+    it('should return pending likes with pagination meta', async () => {
       // Arrange
       prisma.like.findMany.mockResolvedValue([mockLikeData]);
+      prisma.like.count.mockResolvedValue(1);
 
       // Act
-      const result = await service.findAllForUser(userId);
+      const result = await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+      });
 
       // Assert
+      expect(prisma.like.count).toHaveBeenCalledWith({
+        where: {
+          senderUserId: userId,
+          status: LikeStatus.PENDING,
+          deletedAt: null,
+        },
+      });
       expect(prisma.like.findMany).toHaveBeenCalledWith({
         where: {
           senderUserId: userId,
@@ -337,9 +348,21 @@ describe('LikesService', () => {
           deletedAt: null,
         },
         orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 20,
         select: expect.any(Object),
       });
-      expect(result).toEqual({ data: [mockLikeData] });
+      expect(result).toEqual({
+        data: [mockLikeData],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      });
     });
   });
 

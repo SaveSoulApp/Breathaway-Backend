@@ -57,14 +57,26 @@ describe('MatchesController', () => {
   describe('findAll', () => {
     it('should return a list of active matches for the user', async () => {
       // Arrange
-      service.findAllForUser.mockResolvedValue([mockMatchResponse]);
+      const query = { page: 1, limit: 20 };
+      const paginatedResponse = {
+        data: [mockMatchResponse],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      } as any;
+      service.findAllForUser.mockResolvedValue(paginatedResponse);
 
       // Act
-      const result = await controller.findAll(userId);
+      const result = await controller.findAll(userId, query);
 
       // Assert
-      expect(service.findAllForUser).toHaveBeenCalledWith(userId);
-      expect(result).toEqual([mockMatchResponse]);
+      expect(service.findAllForUser).toHaveBeenCalledWith(userId, query);
+      expect(result).toEqual(paginatedResponse);
     });
   });
 

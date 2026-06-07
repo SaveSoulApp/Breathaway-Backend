@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -18,7 +19,11 @@ import { CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
-import { MatchResponseDto } from './dto';
+import {
+  MatchListQueryDto,
+  MatchResponseDto,
+  PaginatedMatchResponseDto,
+} from './dto';
 import { MatchesService } from './matches.service';
 
 @ApiTags('Matches')
@@ -38,10 +43,13 @@ export class MatchesController extends BaseController {
 
   @Get()
   @ApiOperation({ summary: 'Get authenticated user active matches' })
-  @ApiResponse({ status: HttpStatus.OK, type: [MatchResponseDto] })
-  @SerializeExpose(MatchResponseDto)
-  async findAll(@CurrentUserId() userId: string) {
-    return this.matchesService.findAllForUser(userId);
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedMatchResponseDto })
+  @SerializeExpose(PaginatedMatchResponseDto)
+  async findAll(
+    @CurrentUserId() userId: string,
+    @Query() query: MatchListQueryDto,
+  ) {
+    return this.matchesService.findAllForUser(userId, query);
   }
 
   @Get(':id')

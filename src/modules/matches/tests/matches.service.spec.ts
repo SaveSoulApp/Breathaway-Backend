@@ -119,11 +119,24 @@ describe('MatchesService', () => {
       prisma.match.findMany.mockResolvedValue([
         mockMatchDataUserOne,
       ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
 
       // Act
-      const result = await service.findAllForUser(currentUserId);
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
 
       // Assert
+      expect(prisma.match.count).toHaveBeenCalledWith({
+        where: {
+          OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }],
+          status: MatchStatus.ACTIVE,
+          deletedAt: null,
+          userOne: { deletedAt: null },
+          userTwo: { deletedAt: null },
+        },
+      });
       expect(prisma.match.findMany).toHaveBeenCalledWith({
         where: {
           OR: [{ userOneId: currentUserId }, { userTwoId: currentUserId }],
@@ -135,6 +148,8 @@ describe('MatchesService', () => {
         orderBy: {
           matchedAt: 'desc',
         },
+        skip: 0,
+        take: 20,
         select: {
           id: true,
           status: true,
@@ -167,7 +182,17 @@ describe('MatchesService', () => {
           },
         },
       });
-      expect(result).toEqual([expectedResponseDataUserOne]);
+      expect(result).toEqual({
+        data: [expectedResponseDataUserOne],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      });
     });
 
     it('should return matched response dtos when user is userTwo', async () => {
@@ -175,12 +200,26 @@ describe('MatchesService', () => {
       prisma.match.findMany.mockResolvedValue([
         mockMatchDataUserTwo,
       ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
 
       // Act
-      const result = await service.findAllForUser(currentUserId);
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
 
       // Assert
-      expect(result).toEqual([expectedResponseDataUserTwo]);
+      expect(result).toEqual({
+        data: [expectedResponseDataUserTwo],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      });
     });
   });
 

@@ -6,7 +6,8 @@ import { LoggerService } from '@core/logger';
 
 import {
   CreateLikeRequestDto,
-  LikeListResponseDto,
+  LikeListQueryDto,
+  PaginatedLikeResponseDto,
   LikeResponseDto,
 } from '../dto';
 import { LikesController } from '../likes.controller';
@@ -89,16 +90,26 @@ describe('LikesController', () => {
   describe('findAll', () => {
     it('should return pending likes list', async () => {
       // Arrange
-      service.findAllForUser.mockResolvedValue({
+      const query: LikeListQueryDto = { page: 1, limit: 20 };
+      const paginatedResponse = {
         data: [mockLikeResponse as LikeResponseDto],
-      } as LikeListResponseDto);
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      } as PaginatedLikeResponseDto;
+      service.findAllForUser.mockResolvedValue(paginatedResponse);
 
       // Act
-      const result = await controller.findAll(userId);
+      const result = await controller.findAll(userId, query);
 
       // Assert
-      expect(service.findAllForUser).toHaveBeenCalledWith(userId);
-      expect(result).toEqual({ data: [mockLikeResponse] });
+      expect(service.findAllForUser).toHaveBeenCalledWith(userId, query);
+      expect(result).toEqual(paginatedResponse);
     });
   });
 
