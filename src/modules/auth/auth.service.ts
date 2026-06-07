@@ -216,7 +216,13 @@ export class AuthService extends BaseService {
 
     const user = await this.prisma.$transaction(async (tx) => {
       // New social identity
-      const newUser = await tx.user.create({ data: {} });
+      const newUser = await tx.user.create({
+        data: {
+          notificationPreference: {
+            create: {},
+          },
+        },
+      });
 
       await tx.identity.create({
         data: {
