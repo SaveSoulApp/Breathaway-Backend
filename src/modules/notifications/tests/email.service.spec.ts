@@ -15,6 +15,7 @@ import {
 } from '@modules/notifications/email/adapters/email-adapter.interface';
 import { EmailType } from '@modules/notifications/enums/email-type.enum';
 import { EMAIL_TEMPLATE_MAP } from '@modules/notifications/email/email-template.registry';
+import { ClsService } from 'nestjs-cls';
 
 // Mock fs to avoid actual file reads in unit tests
 jest.mock('fs');
@@ -55,6 +56,7 @@ describe('EmailService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         EmailService,
         { provide: LoggerService, useValue: mockLogger },

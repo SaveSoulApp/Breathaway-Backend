@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '@core/logger';
 import { SocialidentitiesService } from '../social-identities.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('SocialidentitiesService', () => {
   let service: SocialidentitiesService;
@@ -34,6 +35,7 @@ describe('SocialidentitiesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         SocialidentitiesService,
         { provide: ConfigService, useValue: mockConfigService },

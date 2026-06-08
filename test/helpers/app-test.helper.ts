@@ -14,6 +14,7 @@ import {
   LoggerModule,
   LoggerService,
 } from '@core/logger';
+import { ClsModule } from 'nestjs-cls';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -62,6 +63,7 @@ export async function createAuthTestApp(
       PrismaModule,
       FirebaseModule,
       AuthModule,
+      ClsModule.forRoot({ global: true }),
       EventEmitterModule.forRoot(),
       ...extraModules,
     ],

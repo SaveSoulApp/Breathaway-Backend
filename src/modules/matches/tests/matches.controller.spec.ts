@@ -5,6 +5,7 @@ import { LoggerService } from '@core/logger';
 import { MatchesController } from '../matches.controller';
 import { MatchesService } from '../matches.service';
 import { IntentType, MatchStatus } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 describe('MatchesController', () => {
   let controller: MatchesController;
@@ -42,6 +43,7 @@ describe('MatchesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MatchesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MatchesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },

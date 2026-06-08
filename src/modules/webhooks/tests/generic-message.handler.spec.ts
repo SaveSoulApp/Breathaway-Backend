@@ -5,6 +5,7 @@ import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service
 import { Test, TestingModule } from '@nestjs/testing';
 import { GenericMessageHandler } from '../handlers/generic-message.handler';
 import { ParsedInstagramMessage } from '../interfaces/meta-webhook-result.interface';
+import { ClsService } from 'nestjs-cls';
 
 describe('GenericMessageHandler', () => {
   let handler: GenericMessageHandler;
@@ -36,6 +37,7 @@ describe('GenericMessageHandler', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         GenericMessageHandler,
         { provide: LoggerService, useValue: logger },

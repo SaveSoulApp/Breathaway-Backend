@@ -6,6 +6,7 @@ import { UserProfile } from '@prisma/client';
 import { ProfilesController } from '../profiles.controller';
 import { ProfilesService } from '../profiles.service';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesController', () => {
   let controller: ProfilesController;
@@ -44,6 +45,7 @@ describe('ProfilesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProfilesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: ProfilesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },

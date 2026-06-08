@@ -7,6 +7,7 @@ import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsController } from '../notifications.controller';
 import { NotificationsService } from '../notifications.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('NotificationsController', () => {
   let controller: NotificationsController;
@@ -32,6 +33,7 @@ describe('NotificationsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NotificationsController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: NotificationsService, useValue: mockService },
         { provide: LoggerService, useValue: logger },

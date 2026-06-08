@@ -13,6 +13,7 @@ import {
 
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 import { ProfilesService } from '../profiles.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesService', () => {
   let service: ProfilesService;
@@ -46,6 +47,7 @@ describe('ProfilesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         ProfilesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

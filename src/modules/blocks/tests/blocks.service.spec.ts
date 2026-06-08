@@ -17,6 +17,7 @@ import {
 
 import { BlocksService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('BlocksService', () => {
   let service: BlocksService;
@@ -64,6 +65,7 @@ describe('BlocksService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         BlocksService,
         { provide: PrismaService, useValue: createPrismaMock() },

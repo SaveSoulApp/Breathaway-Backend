@@ -8,6 +8,7 @@ import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { MetaWebhookResult } from '../interfaces/meta-webhook-result.interface';
 import { WebhooksController } from '../webhooks.controller';
 import { WebhooksService } from '../webhooks.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('WebhooksController', () => {
   let controller: WebhooksController;
@@ -42,6 +43,7 @@ describe('WebhooksController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WebhooksService, useValue: mockService },
         { provide: LoggerService, useValue: logger },

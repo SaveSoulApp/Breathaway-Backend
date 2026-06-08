@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { BasicAuthGuard } from '../../guards/basic-auth.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
+import { ClsService } from 'nestjs-cls';
 
 describe(BasicAuthGuard.name, () => {
   let guard: BasicAuthGuard;
@@ -19,6 +20,7 @@ describe(BasicAuthGuard.name, () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         BasicAuthGuard,
         {
           provide: ConfigService,

@@ -5,6 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { hashString } from '@core/crypto/crypto.utils';
 import { OneTimePasswordsService } from '../one-time-passwords.service';
+import { ClsService } from 'nestjs-cls';
 
 jest.mock('@core/crypto/crypto.utils', () => ({
   hashString: jest.fn(),
@@ -53,6 +54,7 @@ describe('OneTimePasswordsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         OneTimePasswordsService,
         { provide: ConfigService, useValue: configServiceMock },

@@ -2,6 +2,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityWorkflowsController } from '../identity-workflows.controller';
 import { LoggerService } from '@core/logger';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentityWorkflowsController', () => {
   let controller: IdentityWorkflowsController;
@@ -10,6 +11,7 @@ describe('IdentityWorkflowsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IdentityWorkflowsController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: LoggerService,

@@ -5,6 +5,7 @@ import { SendNotificationRequestDto } from '../../dto/request/send-notification.
 import { NotificationCategory } from '../../enums/notification-category.enum';
 import { NotificationType } from '../../enums/notification-type.enum';
 import { WhatsAppProviderService } from '../../providers/whatsapp.provider.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('WhatsAppProviderService', () => {
   let service: WhatsAppProviderService;
@@ -25,6 +26,7 @@ describe('WhatsAppProviderService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         WhatsAppProviderService,
         { provide: LoggerService, useValue: logger },

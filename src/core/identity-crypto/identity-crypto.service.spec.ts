@@ -4,6 +4,7 @@ import { LoggerService } from '@core/logger';
 import { IKeyManager } from '@core/kms/key-manager.interface';
 import { IdentityType } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
 import * as cryptoUtils from '@core/crypto/crypto.utils';
 
 jest.mock('@core/crypto/crypto.utils', () => ({
@@ -36,6 +37,7 @@ describe('IdentityCryptoService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         IdentityCryptoService,
         { provide: LoggerService, useValue: loggerService },

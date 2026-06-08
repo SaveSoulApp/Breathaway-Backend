@@ -4,6 +4,7 @@ import { LoggerService } from '@core/logger';
 import { SocialIdentitiesController } from '../social-identities.controller';
 import { SocialidentitiesService } from '../social-identities.service';
 import { VerifyInstagramRequestDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('SocialIdentitiesController', () => {
   let controller: SocialIdentitiesController;
@@ -29,6 +30,7 @@ describe('SocialIdentitiesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SocialIdentitiesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: SocialidentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },

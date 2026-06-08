@@ -27,6 +27,7 @@ import {
   mockPlatformIdData,
   mockUserId,
 } from './mocks/identities.mock';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentitiesService', () => {
   let service: IdentitiesService;
@@ -65,6 +66,7 @@ describe('IdentitiesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         IdentitiesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },

@@ -9,6 +9,7 @@ import { NotificationCategory } from '../../enums/notification-category.enum';
 import { NotificationType } from '../../enums/notification-type.enum';
 import { FcmProviderService } from '../../providers/fcm.provider.service';
 import { NotificationPriority } from '../../enums/notification-priority.enum';
+import { ClsService } from 'nestjs-cls';
 
 describe('FcmProviderService', () => {
   let service: FcmProviderService;
@@ -37,6 +38,7 @@ describe('FcmProviderService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         FcmProviderService,
         { provide: LoggerService, useValue: logger },

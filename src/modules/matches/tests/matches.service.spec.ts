@@ -12,6 +12,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import { MatchesService } from '../matches.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('MatchesService', () => {
   let service: MatchesService;
@@ -100,6 +101,7 @@ describe('MatchesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },

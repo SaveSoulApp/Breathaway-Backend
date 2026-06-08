@@ -13,6 +13,7 @@ import {
 } from '../dto';
 import { LikesController } from '../likes.controller';
 import { LikesService } from '../likes.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('LikesController', () => {
   let controller: LikesController;
@@ -55,6 +56,7 @@ describe('LikesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LikesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LikesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },

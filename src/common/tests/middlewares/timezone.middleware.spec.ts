@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NextFunction, Request, Response } from 'express';
 import { TimezoneUtil } from '@common/utils/timezone.utils';
 import { TimezoneMiddleware } from '../../middlewares/timezone.middleware';
+import { ClsService } from 'nestjs-cls';
 
 describe(TimezoneMiddleware.name, () => {
   let middleware: TimezoneMiddleware;
@@ -12,7 +13,10 @@ describe(TimezoneMiddleware.name, () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TimezoneMiddleware],
+      providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        TimezoneMiddleware,
+      ],
     }).compile();
 
     middleware = module.get<TimezoneMiddleware>(TimezoneMiddleware);

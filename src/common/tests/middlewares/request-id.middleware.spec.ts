@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NextFunction, Request, Response } from 'express';
 
 import { RequestIdMiddleware } from '../../middlewares/request-id.middleware';
+import { ClsService } from 'nestjs-cls';
 
 describe(RequestIdMiddleware.name, () => {
   let middleware: RequestIdMiddleware;
@@ -12,7 +13,10 @@ describe(RequestIdMiddleware.name, () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [RequestIdMiddleware],
+      providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        RequestIdMiddleware,
+      ],
     }).compile();
 
     middleware = module.get<RequestIdMiddleware>(RequestIdMiddleware);

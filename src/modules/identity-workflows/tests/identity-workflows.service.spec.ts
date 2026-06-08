@@ -20,6 +20,7 @@ import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-pa
 import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentityWorkflowsService', () => {
   let service: IdentityWorkflowsService;
@@ -72,6 +73,7 @@ describe('IdentityWorkflowsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         IdentityWorkflowsService,
         { provide: LoggerService, useValue: logger },

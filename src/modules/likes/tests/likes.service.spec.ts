@@ -26,6 +26,7 @@ import { MatchResolverService } from '@modules/match-resolver/match-resolver.ser
 
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikesService } from '../likes.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('LikesService', () => {
   let service: LikesService;
@@ -105,6 +106,7 @@ describe('LikesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         LikesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: ConfigService, useValue: configServiceMock },

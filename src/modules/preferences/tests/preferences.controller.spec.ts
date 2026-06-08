@@ -4,6 +4,7 @@ import { PreferencesController } from '../preferences.controller';
 import { PreferencesService } from '../preferences.service';
 import { PreferencesResponseDto, UpdatePreferencesRequestDto } from '../dto';
 import { LoggerService } from '@core/logger';
+import { ClsService } from 'nestjs-cls';
 
 describe('PreferencesController', () => {
   let controller: PreferencesController;
@@ -31,6 +32,7 @@ describe('PreferencesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PreferencesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: PreferencesService, useValue: mockPreferencesService },
         { provide: LoggerService, useValue: loggerServiceMock },

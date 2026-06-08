@@ -22,8 +22,8 @@ export abstract class BaseService {
    * Helper method to emit audit logs consistently across all services.
    */
   protected emitAuditLog(payload: AuditEventDto): void {
-    const ipAddress = this.cls.get('ipAddress');
-    const userAgent = this.cls.get('userAgent');
+    const ipAddress = this.cls.get<string | undefined>('ipAddress');
+    const userAgent = this.cls.get<string | undefined>('userAgent');
 
     const enrichedPayload: AuditEventDto = {
       ...payload,

@@ -4,6 +4,7 @@ import { LoggerService } from '@core/logger';
 import { OneTimePasswordsController } from '../one-time-passwords.controller';
 import { OneTimePasswordsService } from '../one-time-passwords.service';
 import { VerifyOtpDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('OneTimePasswordsController', () => {
   let controller: OneTimePasswordsController;
@@ -26,6 +27,7 @@ describe('OneTimePasswordsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OneTimePasswordsController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: OneTimePasswordsService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },

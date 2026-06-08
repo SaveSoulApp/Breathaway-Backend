@@ -15,6 +15,7 @@ import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsService } from '../notifications.service';
 import { FcmProviderService } from '../providers/fcm.provider.service';
 import { WhatsAppProviderService } from '../providers/whatsapp.provider.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -57,6 +58,7 @@ describe('NotificationsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         NotificationsService,
         { provide: LoggerService, useValue: logger },
