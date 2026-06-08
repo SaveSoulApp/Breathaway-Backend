@@ -4,9 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
-import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { nanoid } from 'nanoid';
 
 @Injectable()
@@ -15,7 +13,6 @@ export class AuthTokenService extends BaseService {
     logger: LoggerService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
   }
@@ -30,7 +27,7 @@ export class AuthTokenService extends BaseService {
 
     const accessToken = this.jwtService.sign(payload);
 
-    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+    this.emitAuditLog({
       actionType: AuditActionType.USER_LOGIN,
       userId: user.id,
       ...(metadata && { metadata }),

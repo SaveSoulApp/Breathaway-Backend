@@ -21,9 +21,7 @@ import {
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
-import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class AuthService extends BaseService {
@@ -34,7 +32,6 @@ export class AuthService extends BaseService {
     private readonly encryptionService: IdentityCryptoService,
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
-    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
   }
@@ -409,7 +406,7 @@ export class AuthService extends BaseService {
 
   signout(userId: string) {
     // Token revocation can be implemented later
-    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+    this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,
     });

@@ -1,16 +1,14 @@
-import { DateUtil } from '@common/utils/date.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, UserProfile } from '@prisma/client';
+import { DateUtil } from '@common/utils/date.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 
 @Injectable()
@@ -18,7 +16,6 @@ export class ProfilesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
   }
@@ -125,7 +122,7 @@ export class ProfilesService extends BaseService {
         },
       });
 
-      this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      this.emitAuditLog({
         actionType: AuditActionType.PROFILE_UPDATED,
         userId: userId,
       });
@@ -170,7 +167,7 @@ export class ProfilesService extends BaseService {
         data,
       });
 
-      this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      this.emitAuditLog({
         actionType: AuditActionType.PROFILE_UPDATED,
         userId: userId,
       });
