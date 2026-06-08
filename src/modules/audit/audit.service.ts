@@ -1,11 +1,9 @@
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 import { PubSub } from '@google-cloud/pubsub';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
-
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-
 import { AUDIT_LOG_EVENT } from './constants';
 import { AuditEventDto } from './dto/audit-event.dto';
 
