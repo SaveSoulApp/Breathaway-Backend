@@ -8,6 +8,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
 import {
@@ -68,6 +69,7 @@ describe('IdentitiesService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,

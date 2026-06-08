@@ -5,6 +5,9 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ConflictException,
   Injectable,
@@ -24,6 +27,7 @@ export class IdentitiesService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
   }
@@ -69,6 +73,17 @@ export class IdentitiesService extends BaseService {
         isVerified: false,
         ...publicValueData,
         ...platformIdData,
+      },
+    });
+
+    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      actionType: AuditActionType.IDENTITY_CREATED,
+      userId: userId,
+      resourceId: identity.id,
+      metadata: {
+        identityType: identity.type,
+        maskedValue: identity.publicValueMasked,
+        publicValueHash: identity.publicValueHash,
       },
     });
 
@@ -236,6 +251,18 @@ export class IdentitiesService extends BaseService {
         verifiedAt: DateUtil.now(),
       },
     });
+
+    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      actionType: AuditActionType.IDENTITY_VERIFIED,
+      userId: userId,
+      resourceId: updated.id,
+      metadata: {
+        identityType: updated.type,
+        maskedValue: updated.publicValueMasked,
+        publicValueHash: updated.publicValueHash,
+      },
+    });
+
     return this.toMaskedResponse(updated);
   }
 
@@ -275,6 +302,18 @@ export class IdentitiesService extends BaseService {
       });
 
       this.publishIdentityClaimedEvent(userId);
+
+      this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+        actionType: AuditActionType.IDENTITY_VERIFIED,
+        userId: userId,
+        resourceId: updated.id,
+        metadata: {
+          identityType: updated.type,
+          maskedValue: updated.publicValueMasked,
+          publicValueHash: updated.publicValueHash,
+        },
+      });
+
       return this.toMaskedResponse(updated);
     }
 
@@ -290,6 +329,18 @@ export class IdentitiesService extends BaseService {
     });
 
     this.publishIdentityClaimedEvent(userId);
+
+    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      actionType: AuditActionType.IDENTITY_VERIFIED,
+      userId: userId,
+      resourceId: identity.id,
+      metadata: {
+        identityType: identity.type,
+        maskedValue: identity.publicValueMasked,
+        publicValueHash: identity.publicValueHash,
+      },
+    });
+
     return this.toMaskedResponse(identity);
   }
 

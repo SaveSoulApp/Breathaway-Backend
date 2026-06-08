@@ -3,6 +3,8 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import {
   BadRequestException,
@@ -11,6 +13,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LikeStatus } from '@prisma/client';
 import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
 import { LikeListQueryDto } from './dto/request/like-list-query.request.dto';
@@ -25,6 +28,7 @@ export class LikesService extends BaseService {
     private readonly configService: ConfigService,
     private readonly identityCryptoService: IdentityCryptoService,
     private readonly matchResolverService: MatchResolverService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -140,6 +144,18 @@ export class LikesService extends BaseService {
       this.logger.error(`Match resolution failed for Like ${like.id}`, {
         stack: (err as { stack?: string }).stack,
       });
+    });
+
+    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      actionType: AuditActionType.LIKE_CREATED,
+      userId: userId,
+      resourceId: like.id,
+      metadata: {
+        targetIdentityId: targetIdentity.id,
+        targetIdentityType: targetIdentity.type,
+        maskedValue: targetIdentity.publicValueMasked,
+        publicValueHash: targetIdentity.publicValueHash,
+      },
     });
 
     return like;

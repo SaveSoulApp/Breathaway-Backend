@@ -35,10 +35,13 @@ export class AuditService extends BaseService {
       this.logger.debug(
         `Audit event published: ${payload.actionType} for user ${payload.userId}`,
       );
-    } catch (error: any) {
-      this.logger.error(`Failed to publish audit event: ${error?.message}`, {
-        stack: error?.stack,
-      });
+    } catch (error: unknown) {
+      this.logger.error(
+        `Failed to publish audit event: ${(error as Error)?.message}`,
+        {
+          stack: (error as Error)?.stack,
+        },
+      );
     }
   }
 }

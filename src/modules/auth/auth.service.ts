@@ -21,6 +21,9 @@ import {
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class AuthService extends BaseService {
@@ -31,6 +34,7 @@ export class AuthService extends BaseService {
     private readonly encryptionService: IdentityCryptoService,
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     super(logger);
   }
@@ -126,7 +130,10 @@ export class AuthService extends BaseService {
       where: { id: credential.userId },
     });
 
-    return this.authTokenService.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user, {
+      authMethod: authMethod.method,
+      publicValueHash: valueHash,
+    });
   }
 
   // ---------- Sign‑in or Sign‑up (phone/email) ----------
@@ -161,7 +168,11 @@ export class AuthService extends BaseService {
       );
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
-      return this.authTokenService.generateAuthResponse(user);
+      return this.authTokenService.generateAuthResponse(user, {
+        authMethod: authMethod.method,
+        publicValueHash: valueHash,
+        isNewUser: true,
+      });
     }
 
     // Existing credential
@@ -174,7 +185,11 @@ export class AuthService extends BaseService {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: credential.userId },
     });
-    return this.authTokenService.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user, {
+      authMethod: authMethod.method,
+      publicValueHash: valueHash,
+      isNewUser: false,
+    });
   }
 
   // ---------- Social Sign‑up / Sign‑in ----------
@@ -200,7 +215,11 @@ export class AuthService extends BaseService {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: identity.userId },
       });
-      return this.authTokenService.generateAuthResponse(user);
+      return this.authTokenService.generateAuthResponse(user, {
+        authMethod: type,
+        platformIdHash: platformIdHash,
+        isNewUser: false,
+      });
     }
 
     // Encrypt handle (public value) and platformUserId (platformId)
@@ -254,7 +273,11 @@ export class AuthService extends BaseService {
     // No AuthCredential for social types.
 
     this.logger.log(`New social sign‑up (${type}) for user ${user.id}`);
-    return this.authTokenService.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user, {
+      authMethod: type,
+      platformIdHash: platformIdHash,
+      isNewUser: true,
+    });
   }
 
   // ---------- Add Secondary Phone / Email ----------
@@ -342,7 +365,11 @@ export class AuthService extends BaseService {
     });
 
     // TODO: Send verification code to the new value
-    return this.authTokenService.generateAuthResponse(user);
+    return this.authTokenService.generateAuthResponse(user, {
+      authMethod: authType,
+      publicValueHash: valueHash,
+      isSecondaryAuth: true,
+    });
   }
 
   // ---------- Dev Login ----------
@@ -359,7 +386,10 @@ export class AuthService extends BaseService {
       throw new NotFoundException('User not found');
     }
 
-    return this.authTokenService.generateAuthResponse(credential.user);
+    return this.authTokenService.generateAuthResponse(credential.user, {
+      authMethod: 'DEV_LOGIN',
+      publicValueHash: valueHash,
+    });
   }
 
   // ---------- Common Helpers ----------
@@ -377,8 +407,12 @@ export class AuthService extends BaseService {
     }
   }
 
-  signout() {
+  signout(userId: string) {
     // Token revocation can be implemented later
+    this.eventEmitter.emit(AUDIT_LOG_EVENT, {
+      actionType: AuditActionType.USER_LOGOUT,
+      userId: userId,
+    });
     return { message: 'Signout successful' };
   }
 }

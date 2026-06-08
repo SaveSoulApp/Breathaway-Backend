@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   BadRequestException,
   ConflictException,
@@ -109,6 +110,7 @@ describe('LikesService', () => {
         { provide: ConfigService, useValue: configServiceMock },
         { provide: IdentityCryptoService, useValue: identityCryptoServiceMock },
         { provide: MatchResolverService, useValue: matchResolverServiceMock },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
