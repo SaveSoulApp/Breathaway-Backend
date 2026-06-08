@@ -8,6 +8,7 @@ import { BaseService } from '@core/base';
 import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from './dto';
 
 @Injectable()
@@ -42,6 +43,18 @@ export class DevicesService extends BaseService {
       this.logger.log(
         `Device registered successfully for user: ${userId} (device: ${device.id})`,
       );
+
+      this.emitAuditLog({
+        actionType: AuditActionType.DEVICE_REGISTERED,
+        userId: userId,
+        resourceId: device.id,
+        metadata: {
+          deviceId: device.deviceId,
+          platform: device.platform,
+          appVersion: device.appVersion,
+        },
+      });
+
       return device;
     } catch (error) {
       const err = error as { code?: string; stack?: string };
@@ -207,6 +220,12 @@ export class DevicesService extends BaseService {
     });
 
     this.logger.log(`Device ${deviceId} deleted successfully`);
+
+    this.emitAuditLog({
+      actionType: AuditActionType.DEVICE_DELETED,
+      userId: userId,
+      resourceId: deviceId,
+    });
   }
 
   private mapPlatformToDevicePlatform(

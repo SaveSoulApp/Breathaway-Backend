@@ -1,9 +1,11 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OtpVerificationHandler } from '../handlers/otp-verification.handler';
 import { ParsedInstagramMessage } from '../interfaces/meta-webhook-result.interface';
+import { ClsService } from 'nestjs-cls';
 
 describe('OtpVerificationHandler', () => {
   let handler: OtpVerificationHandler;
@@ -35,6 +37,8 @@ describe('OtpVerificationHandler', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         OtpVerificationHandler,
         { provide: LoggerService, useValue: logger },
         { provide: PubSubPublisherService, useValue: mockPubsubPublisher },

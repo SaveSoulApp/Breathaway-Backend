@@ -10,4 +10,7 @@ export enum PubSubEvent {
   // Events flowing through the NOTIFICATIONS topic
   NOTIFICATION_SEND_REQUESTED = 'notification.send_requested',
   OTP_SMS_SENT = 'otp.sms.sent',
+
+  // Events flowing through the AUDIT_LOGS topic
+  SYSTEM_AUDIT_LOG = 'system.audit.log',
 }

@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
@@ -13,6 +14,7 @@ import {
 
 import { DevicesService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('DevicesService', () => {
   let service: DevicesService;
@@ -41,6 +43,8 @@ describe('DevicesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         DevicesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: logger },

@@ -7,6 +7,7 @@ import { LoggerService } from '@core/logger';
 
 import { ClientIdentityGuard } from '../../guards/client-identity.guard';
 import { createMockExecutionContext } from '../mocks/execution-context.mock';
+import { ClsService } from 'nestjs-cls';
 
 interface MockRequest {
   headers: Record<string, string | string[]>;
@@ -45,6 +46,7 @@ describe(ClientIdentityGuard.name, () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         ClientIdentityGuard,
         { provide: LoggerService, useValue: logger },
         { provide: Reflector, useValue: reflector },

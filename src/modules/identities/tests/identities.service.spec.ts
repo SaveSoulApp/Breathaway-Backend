@@ -8,6 +8,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
 import {
@@ -26,6 +27,7 @@ import {
   mockPlatformIdData,
   mockUserId,
 } from './mocks/identities.mock';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentitiesService', () => {
   let service: IdentitiesService;
@@ -64,10 +66,12 @@ describe('IdentitiesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         IdentitiesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,

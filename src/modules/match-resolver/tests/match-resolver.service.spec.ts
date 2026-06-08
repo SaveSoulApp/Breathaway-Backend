@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   IntentType,
@@ -18,6 +19,7 @@ import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
 
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('MatchResolverService', () => {
   let service: MatchResolverService;
@@ -77,6 +79,8 @@ describe('MatchResolverService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchResolverService,
         {
           provide: LoggerService,

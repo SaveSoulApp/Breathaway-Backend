@@ -1,8 +1,10 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PubSubAuthGuard } from '../guards/pubsub-auth.guard';
+import { ClsService } from 'nestjs-cls';
 
 describe('PubSubAuthGuard', () => {
   let guard: PubSubAuthGuard;
@@ -30,6 +32,8 @@ describe('PubSubAuthGuard', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         PubSubAuthGuard,
         { provide: LoggerService, useValue: logger },
         { provide: ConfigService, useValue: mockConfigService },

@@ -3,6 +3,7 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import {
   BadRequestException,
@@ -142,6 +143,18 @@ export class LikesService extends BaseService {
       });
     });
 
+    this.emitAuditLog({
+      actionType: AuditActionType.LIKE_CREATED,
+      userId: userId,
+      resourceId: like.id,
+      metadata: {
+        targetIdentityId: targetIdentity.id,
+        targetIdentityType: targetIdentity.type,
+        maskedValue: targetIdentity.publicValueMasked,
+        publicValueHash: targetIdentity.publicValueHash,
+      },
+    });
+
     return like;
   }
 
@@ -247,6 +260,12 @@ export class LikesService extends BaseService {
         deletedAt: DateUtil.now(),
         status: LikeStatus.DELETED,
       },
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.LIKE_DELETED,
+      userId: userId,
+      resourceId: id,
     });
 
     return { success: true };

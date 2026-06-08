@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
 
@@ -12,6 +13,7 @@ import {
 
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
 import { ProfilesService } from '../profiles.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesService', () => {
   let service: ProfilesService;
@@ -45,9 +47,11 @@ describe('ProfilesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
         ProfilesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

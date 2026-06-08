@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
@@ -21,6 +22,7 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
+import { ClsService } from 'nestjs-cls';
 
 describe('CreditsService', () => {
   let service: CreditsService;
@@ -49,6 +51,8 @@ describe('CreditsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

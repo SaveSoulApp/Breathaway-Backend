@@ -1,9 +1,11 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { BlocksController } from '../blocks.controller';
 import { BlocksService } from '../blocks.service';
 import { CreateBlockDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('BlocksController', () => {
   let controller: BlocksController;
@@ -39,6 +41,8 @@ describe('BlocksController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BlocksController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: BlocksService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

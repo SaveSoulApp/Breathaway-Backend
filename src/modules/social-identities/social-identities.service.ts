@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { SocialIdentityResponseDto } from './dto';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class SocialidentitiesService extends BaseService {
   }
 
   async verifyInstagramIdentity(
+    userId: string | null,
     instagramId: string,
   ): Promise<SocialIdentityResponseDto> {
     const accessToken = this.configService.get<string>(
@@ -59,6 +61,17 @@ export class SocialidentitiesService extends BaseService {
         const errorMessage =
           data?.error?.message || 'Failed to verify Instagram identity';
         throw new BadRequestException(`Instagram API Error: ${errorMessage}`);
+      }
+
+      if (userId) {
+        this.emitAuditLog({
+          actionType: AuditActionType.SOCIAL_IDENTITY_VERIFIED,
+          userId: userId,
+          metadata: {
+            platform: 'instagram',
+            maskedPlatformId: instagramId, // The handle/ID used
+          },
+        });
       }
 
       // Map to standard response format

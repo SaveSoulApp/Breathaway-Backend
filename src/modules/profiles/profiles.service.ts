@@ -4,10 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserProfile } from '@prisma/client';
+import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { DateUtil } from '@common/utils/date.utils';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 
 @Injectable()
@@ -46,6 +47,11 @@ export class ProfilesService extends BaseService {
             ? DateUtil.parse(createProfileDto.dateOfBirth)
             : null,
         },
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.PROFILE_CREATED,
+        userId: userId,
       });
 
       this.logger.log(`Profile created successfully for user: ${userId}`);
@@ -121,6 +127,11 @@ export class ProfilesService extends BaseService {
         },
       });
 
+      this.emitAuditLog({
+        actionType: AuditActionType.PROFILE_UPDATED,
+        userId: userId,
+      });
+
       this.logger.log(`Profile updated successfully for user: ${userId}`);
       return updatedProfile;
     } catch (error) {
@@ -159,6 +170,11 @@ export class ProfilesService extends BaseService {
       const patchedProfile = await this.prisma.userProfile.update({
         where: { userId },
         data,
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.PROFILE_UPDATED,
+        userId: userId,
       });
 
       this.logger.log(`Profile patched successfully for user: ${userId}`);
@@ -215,6 +231,11 @@ export class ProfilesService extends BaseService {
           where: { userId, isActive: true },
           data: { isActive: false },
         });
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.ACCOUNT_DELETED,
+        userId: userId,
       });
 
       this.logger.log(`Account soft-deleted successfully for user: ${userId}`);

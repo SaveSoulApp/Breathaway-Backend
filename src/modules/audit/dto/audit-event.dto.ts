@@ -1,0 +1,57 @@
+import {
+  IsEnum,
+  IsIP,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+
+export enum AuditActionType {
+  USER_LOGIN = 'USER_LOGIN',
+  USER_LOGOUT = 'USER_LOGOUT',
+  USER_REGISTERED = 'USER_REGISTERED',
+  USAGE_TRIGGERED = 'USAGE_TRIGGERED',
+  PURCHASE_TRIGGERED = 'PURCHASE_TRIGGERED',
+  IDENTITY_VERIFIED = 'IDENTITY_VERIFIED',
+  IDENTITY_OTP_SENT = 'IDENTITY_OTP_SENT',
+  PROFILE_CREATED = 'PROFILE_CREATED',
+  PROFILE_UPDATED = 'PROFILE_UPDATED',
+  LIKE_CREATED = 'LIKE_CREATED',
+  LIKE_DELETED = 'LIKE_DELETED',
+  IDENTITY_CREATED = 'IDENTITY_CREATED',
+  BLOCK_CREATED = 'BLOCK_CREATED',
+  BLOCK_DELETED = 'BLOCK_DELETED',
+  DEVICE_REGISTERED = 'DEVICE_REGISTERED',
+  DEVICE_DELETED = 'DEVICE_DELETED',
+  OTP_VERIFIED = 'OTP_VERIFIED',
+  MATCH_RESOLVED = 'MATCH_RESOLVED',
+  MATCH_UNMATCHED = 'MATCH_UNMATCHED',
+  SOCIAL_IDENTITY_VERIFIED = 'SOCIAL_IDENTITY_VERIFIED',
+  CREDITS_GRANTED = 'CREDITS_GRANTED',
+  ACCOUNT_DELETED = 'ACCOUNT_DELETED',
+  ADMIN_ACCOUNT_DELETED = 'ADMIN_ACCOUNT_DELETED',
+  PREFERENCES_UPDATED = 'PREFERENCES_UPDATED',
+}
+
+export class AuditEventDto {
+  @IsEnum(AuditActionType)
+  @IsNotEmpty()
+  actionType: AuditActionType;
+
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @IsString()
+  @IsOptional()
+  resourceId?: string;
+
+  @IsIP()
+  @IsOptional()
+  ipAddress?: string;
+
+  @IsObject()
+  @IsOptional()
+  metadata?: Record<string, unknown>;
+}

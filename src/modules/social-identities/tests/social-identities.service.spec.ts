@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadGatewayException,
@@ -7,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '@core/logger';
 import { SocialidentitiesService } from '../social-identities.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('SocialidentitiesService', () => {
   let service: SocialidentitiesService;
@@ -33,6 +35,8 @@ describe('SocialidentitiesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         SocialidentitiesService,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: LoggerService, useValue: logger },
@@ -53,9 +57,9 @@ describe('SocialidentitiesService', () => {
     it('should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is not defined', async () => {
       configService.get.mockReturnValue(undefined);
 
-      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
-        InternalServerErrorException,
-      );
+      await expect(
+        service.verifyInstagramIdentity(null, 'test-id'),
+      ).rejects.toThrow(InternalServerErrorException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
@@ -73,9 +77,9 @@ describe('SocialidentitiesService', () => {
       };
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.verifyInstagramIdentity(null, 'test-id'),
+      ).rejects.toThrow(BadRequestException);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Instagram API returned error: 400'),
@@ -91,7 +95,9 @@ describe('SocialidentitiesService', () => {
       };
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
+      await expect(
+        service.verifyInstagramIdentity(null, 'test-id'),
+      ).rejects.toThrow(
         new BadRequestException(
           'Instagram API Error: Failed to verify Instagram identity',
         ),
@@ -102,9 +108,9 @@ describe('SocialidentitiesService', () => {
       configService.get.mockReturnValue('valid-token');
       (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-      await expect(service.verifyInstagramIdentity('test-id')).rejects.toThrow(
-        BadGatewayException,
-      );
+      await expect(
+        service.verifyInstagramIdentity(null, 'test-id'),
+      ).rejects.toThrow(BadGatewayException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Network or unexpected error while calling Instagram API: Network error',
@@ -131,7 +137,7 @@ describe('SocialidentitiesService', () => {
       };
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
-      const result = await service.verifyInstagramIdentity('123');
+      const result = await service.verifyInstagramIdentity(null, '123');
 
       expect(result).toEqual({
         id: '123',

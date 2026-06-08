@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   Identity,
@@ -19,6 +20,7 @@ import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-pa
 import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { IdentityWorkflowsService } from '../identity-workflows.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentityWorkflowsService', () => {
   let service: IdentityWorkflowsService;
@@ -71,6 +73,8 @@ describe('IdentityWorkflowsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         IdentityWorkflowsService,
         { provide: LoggerService, useValue: logger },
         { provide: PrismaService, useValue: createPrismaMock() },
@@ -132,7 +136,7 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(
         socialidentitiesService.verifyInstagramIdentity,
-      ).toHaveBeenCalledWith('sender_1');
+      ).toHaveBeenCalledWith('user_123', 'sender_1');
       expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
         IdentityType.INSTAGRAM,
         'test_user',

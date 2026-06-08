@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Device, DevicePlatform } from '@prisma/client';
 
@@ -8,6 +9,7 @@ import { LoggerService } from '@core/logger';
 import { DevicesController } from '../devices.controller';
 import { DevicesService } from '../devices.service';
 import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('DevicesController', () => {
   let controller: DevicesController;
@@ -38,6 +40,8 @@ describe('DevicesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DevicesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: DevicesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],

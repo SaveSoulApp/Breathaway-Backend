@@ -8,6 +8,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreateBlockDto } from './dto';
 
 interface BlockWithProfile {
@@ -88,6 +89,13 @@ export class BlocksService extends BaseService {
         },
       });
 
+      this.emitAuditLog({
+        actionType: AuditActionType.BLOCK_CREATED,
+        userId: blockerUserId,
+        resourceId: reactivatedBlock.id,
+        metadata: { blockedUserId },
+      });
+
       return this.mapToResponseDto(reactivatedBlock);
     }
 
@@ -112,6 +120,13 @@ export class BlocksService extends BaseService {
           },
         },
       },
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.BLOCK_CREATED,
+      userId: blockerUserId,
+      resourceId: newBlock.id,
+      metadata: { blockedUserId },
     });
 
     return this.mapToResponseDto(newBlock);
@@ -195,6 +210,13 @@ export class BlocksService extends BaseService {
       data: {
         deletedAt: DateUtil.now(),
       },
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.BLOCK_DELETED,
+      userId: userId,
+      resourceId: block.id,
+      metadata: { unblockedUserId: block.blockedUserId },
     });
 
     return { success: true };

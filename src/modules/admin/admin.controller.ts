@@ -1,7 +1,15 @@
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  Body,
+} from '@nestjs/common';
 import {
   ApiBasicAuth,
   ApiOperation,
@@ -13,6 +21,7 @@ import {
   GetReportRequestDto,
   ReportTimeframeResponseDto,
   ReportTotalResponseDto,
+  DeleteAccountRequestDto,
 } from './dto';
 import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
 
@@ -62,5 +71,25 @@ export class AdminController extends BaseController {
     @Query() query: GetReportRequestDto,
   ): Promise<ReportTimeframeResponseDto> {
     return this.adminService.generateTimeframeReport(query);
+  }
+
+  @Delete('users/:userId')
+  @ApiOperation({
+    summary: 'Delete a user account',
+    description: 'Soft deletes a user account and their associated data.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account successfully soft-deleted.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found or already deleted.',
+  })
+  async deleteAccount(
+    @Param('userId') userId: string,
+    @Body() dto: DeleteAccountRequestDto,
+  ): Promise<void> {
+    return this.adminService.deleteAccount(userId, dto.reason);
   }
 }

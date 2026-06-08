@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
@@ -8,6 +9,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { PreferencesService } from '../preferences.service';
 import { PreferencesResponseDto, UpdatePreferencesRequestDto } from '../dto';
+import { ClsService } from 'nestjs-cls';
 
 describe('PreferencesService', () => {
   let service: PreferencesService;
@@ -36,6 +38,8 @@ describe('PreferencesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         PreferencesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

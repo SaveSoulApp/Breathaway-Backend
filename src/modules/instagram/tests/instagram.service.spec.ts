@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { HttpException, InternalServerErrorException } from '@nestjs/common';
@@ -5,6 +6,7 @@ import axios from 'axios';
 import { LoggerService } from '@core/logger';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
 import { InstagramService } from '../instagram.service';
+import { ClsService } from 'nestjs-cls';
 
 jest.mock('axios');
 
@@ -45,6 +47,8 @@ describe('InstagramService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         InstagramService,
         { provide: LoggerService, useValue: logger },
         { provide: ConfigService, useValue: mockConfigService },

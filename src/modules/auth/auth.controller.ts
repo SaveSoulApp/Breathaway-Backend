@@ -147,7 +147,7 @@ export class AuthController extends BaseController {
     description: 'User successfully signed out',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  signout() {
-    return this.authService.signout();
+  signout(@CurrentUserId() userId: string) {
+    return this.authService.signout(userId);
   }
 }

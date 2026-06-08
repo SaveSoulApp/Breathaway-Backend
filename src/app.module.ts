@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { Request } from 'express';
+import { ClsModule } from 'nestjs-cls';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { configureMiddleware, MiddlewareModule } from './common/middlewares';
@@ -16,6 +19,7 @@ import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-man
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { CreditsModule } from './modules/credits/credits.module';
@@ -26,6 +30,7 @@ import { IdentitiesModule } from './modules/identities/identities.module';
 import { IdentityWorkflowsModule } from './modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
 import { LikesModule } from './modules/likes/likes.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -35,7 +40,6 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -43,6 +47,16 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
       isGlobal: true,
       envFilePath: `.env.${process.env.NODE_ENV}`,
       cache: true,
+    }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+        setup: (cls, req: Request) => {
+          cls.set('ipAddress', req.ip);
+          cls.set('userAgent', req.headers['user-agent']);
+        },
+      },
     }),
     //Rate limiting for the entire application
     ThrottlerModule.forRootAsync({
@@ -71,6 +85,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
     PrismaModule,
     GcpSecretManagerModule,
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     //Business Modules
     AuthModule,
@@ -94,6 +109,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
     AdminModule,
     PreferencesModule,
     MaintenanceModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [

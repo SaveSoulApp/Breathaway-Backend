@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
@@ -11,6 +12,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import { MatchesService } from '../matches.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('MatchesService', () => {
   let service: MatchesService;
@@ -99,6 +101,8 @@ describe('MatchesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

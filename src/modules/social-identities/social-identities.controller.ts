@@ -39,6 +39,7 @@ export class SocialIdentitiesController extends BaseController {
     @Body() verifyInstagramDto: VerifyInstagramRequestDto,
   ): Promise<SocialIdentityResponseDto> {
     return this.socialidentitiesService.verifyInstagramIdentity(
+      null,
       verifyInstagramDto.instagramId,
     );
   }

@@ -1,6 +1,7 @@
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { Injectable } from '@nestjs/common';
 import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
 
@@ -57,6 +58,14 @@ export class PreferencesService extends BaseService {
     });
 
     this.logger.log(`Updated preferences for user ${userId}`);
+
+    this.emitAuditLog({
+      actionType: AuditActionType.PREFERENCES_UPDATED,
+      userId: userId,
+      metadata: {
+        updatedCategories: Object.keys(dto),
+      },
+    });
 
     return updated;
   }

@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import {
@@ -17,6 +18,7 @@ import {
   mockUpdateIdentityDto,
   mockUserId,
 } from './mocks/identities.mock';
+import { ClsService } from 'nestjs-cls';
 
 describe('IdentitiesController', () => {
   let controller: IdentitiesController;
@@ -47,6 +49,8 @@ describe('IdentitiesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IdentitiesController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: IdentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: mockLoggerService },
       ],

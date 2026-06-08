@@ -1,13 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { ClsService } from 'nestjs-cls';
 
 describe(JwtAuthGuard.name, () => {
   let guard: JwtAuthGuard;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [JwtAuthGuard],
+      providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        JwtAuthGuard,
+      ],
     }).compile();
 
     guard = module.get<JwtAuthGuard>(JwtAuthGuard);

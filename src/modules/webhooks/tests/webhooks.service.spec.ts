@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -6,6 +7,7 @@ import { WebhookMessageHandler } from '../handlers/webhook-message.handler.inter
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import { WebhooksService } from '../webhooks.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -52,6 +54,8 @@ describe('WebhooksService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         WebhooksService,
         { provide: ConfigService, useValue: configService },
         {

@@ -1,8 +1,10 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
 import { InstagramController } from '../instagram.controller';
 import { InstagramService } from '../instagram.service';
+import { ClsService } from 'nestjs-cls';
 
 describe('InstagramController', () => {
   let controller: InstagramController;
@@ -29,6 +31,8 @@ describe('InstagramController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InstagramController],
       providers: [
+        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: InstagramService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
