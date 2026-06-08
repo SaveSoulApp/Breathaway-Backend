@@ -1,6 +1,7 @@
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
 import { LoggerService } from '@core/logger';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import {
   BadRequestException,
   HttpException,
@@ -64,6 +65,11 @@ export class OneTimePasswordsService extends BaseService {
       `Generated and stored OTP for user_id: ${userId} with TTL: ${this.otpTtl}s. Rate limit: ${this.otpRateLimitTtl}s`,
     );
 
+    this.emitAuditLog({
+      actionType: AuditActionType.IDENTITY_OTP_SENT,
+      userId: userId,
+    });
+
     return { otp: plainOtp, expiresIn: this.otpTtl };
   }
 
@@ -86,6 +92,11 @@ export class OneTimePasswordsService extends BaseService {
     await this.redisClient.del(redisKey);
 
     this.logger.debug(`Consumed OTP for user_id: ${userId}`);
+
+    this.emitAuditLog({
+      actionType: AuditActionType.OTP_VERIFIED,
+      userId: userId,
+    });
 
     return userId;
   }

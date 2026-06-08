@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
@@ -99,6 +100,7 @@ describe('MatchesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

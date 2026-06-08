@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -63,6 +64,7 @@ describe('FirebaseService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         FirebaseService,
         {
           provide: ConfigService,

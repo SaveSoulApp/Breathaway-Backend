@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
@@ -41,6 +42,7 @@ describe('DevicesService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         DevicesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: logger },

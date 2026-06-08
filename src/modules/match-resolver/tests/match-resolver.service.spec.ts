@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   IntentType,
@@ -77,6 +78,7 @@ describe('MatchResolverService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchResolverService,
         {
           provide: LoggerService,

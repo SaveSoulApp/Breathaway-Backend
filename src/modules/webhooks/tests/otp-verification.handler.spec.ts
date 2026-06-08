@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
@@ -35,6 +36,7 @@ describe('OtpVerificationHandler', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         OtpVerificationHandler,
         { provide: LoggerService, useValue: logger },
         { provide: PubSubPublisherService, useValue: mockPubsubPublisher },

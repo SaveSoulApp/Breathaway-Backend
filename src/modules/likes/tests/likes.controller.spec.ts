@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
 
@@ -54,6 +55,7 @@ describe('LikesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LikesController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LikesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

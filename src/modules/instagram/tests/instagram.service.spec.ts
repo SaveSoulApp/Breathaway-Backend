@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { HttpException, InternalServerErrorException } from '@nestjs/common';
@@ -45,6 +46,7 @@ describe('InstagramService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         InstagramService,
         { provide: LoggerService, useValue: logger },
         { provide: ConfigService, useValue: mockConfigService },

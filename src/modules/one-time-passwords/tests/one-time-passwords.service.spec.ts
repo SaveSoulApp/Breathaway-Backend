@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -52,6 +53,7 @@ describe('OneTimePasswordsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         OneTimePasswordsService,
         { provide: ConfigService, useValue: configServiceMock },
         { provide: LoggerService, useValue: loggerServiceMock },

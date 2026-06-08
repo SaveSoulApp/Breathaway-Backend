@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -36,6 +37,7 @@ describe('FcmProviderService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         FcmProviderService,
         { provide: LoggerService, useValue: logger },
         { provide: FirebaseService, useValue: mockFirebaseService },

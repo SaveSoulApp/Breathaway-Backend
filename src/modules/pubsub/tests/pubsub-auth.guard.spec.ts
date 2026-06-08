@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -30,6 +31,7 @@ describe('PubSubAuthGuard', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         PubSubAuthGuard,
         { provide: LoggerService, useValue: logger },
         { provide: ConfigService, useValue: mockConfigService },

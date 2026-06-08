@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Device, DevicePlatform } from '@prisma/client';
 
@@ -38,6 +39,7 @@ describe('DevicesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DevicesController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: DevicesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],

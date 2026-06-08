@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PreferencesController } from '../preferences.controller';
 import { PreferencesService } from '../preferences.service';
@@ -30,6 +31,7 @@ describe('PreferencesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PreferencesController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: PreferencesService, useValue: mockPreferencesService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
   ExceptionLoggingFilter,
@@ -61,6 +62,7 @@ export async function createAuthTestApp(
       PrismaModule,
       FirebaseModule,
       AuthModule,
+      EventEmitterModule.forRoot(),
       ...extraModules,
     ],
     providers: [

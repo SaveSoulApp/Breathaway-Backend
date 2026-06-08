@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { LoggerService } from '@core/logger';
@@ -41,6 +42,7 @@ describe('WebhooksController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WebhooksService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],

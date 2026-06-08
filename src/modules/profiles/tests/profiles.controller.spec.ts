@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
@@ -43,6 +44,7 @@ describe('ProfilesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProfilesController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: ProfilesService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

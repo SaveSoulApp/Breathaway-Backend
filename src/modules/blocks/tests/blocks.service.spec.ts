@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   BadRequestException,
   ConflictException,
@@ -63,6 +64,7 @@ describe('BlocksService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         BlocksService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },

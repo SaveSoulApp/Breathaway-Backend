@@ -2,6 +2,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
 import { Injectable } from '@nestjs/common';
@@ -67,7 +68,7 @@ export class MatchResolverService extends BaseService {
 
       if (!isEligible.valid) return;
 
-      await this.executeMatchTransaction(
+      const match = await this.executeMatchTransaction(
         canonicalLikeOne,
         canonicalLikeTwo,
         userOneId,
@@ -78,6 +79,16 @@ export class MatchResolverService extends BaseService {
       this.logger.log(
         `Match created successfully between users ${userOneId} and ${userTwoId}.`,
       );
+
+      this.emitAuditLog({
+        actionType: AuditActionType.MATCH_RESOLVED,
+        userId: newLike.senderUserId,
+        resourceId: match.id,
+        metadata: {
+          matchId: match.id,
+          secondaryUserId: newLike.targetUserId,
+        },
+      });
     } catch (error) {
       const err = error as { code?: string; stack?: string };
       if (err?.code === 'P2002') {
@@ -158,10 +169,12 @@ export class MatchResolverService extends BaseService {
     userOneId: string,
     userTwoId: string,
     existingMatch: Match | null,
-  ) {
-    await this.prisma.$transaction(async (tx) => {
+  ): Promise<Match> {
+    return this.prisma.$transaction(async (tx) => {
+      let finalMatch: Match;
+
       if (existingMatch) {
-        await tx.match.update({
+        finalMatch = await tx.match.update({
           where: { id: existingMatch.id },
           data: {
             likeOneId: likeOne.id,
@@ -174,7 +187,7 @@ export class MatchResolverService extends BaseService {
           },
         });
       } else {
-        await tx.match.create({
+        finalMatch = await tx.match.create({
           data: {
             userOneId,
             userTwoId,
@@ -196,6 +209,8 @@ export class MatchResolverService extends BaseService {
         where: { id: likeTwo.id },
         data: { status: LikeStatus.MATCHED },
       });
+
+      return finalMatch;
     });
   }
 }

@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
 
@@ -59,6 +60,7 @@ describe('CreditsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CreditsController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: CreditsService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

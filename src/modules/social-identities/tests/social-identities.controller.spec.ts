@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import { SocialIdentitiesController } from '../social-identities.controller';
@@ -28,6 +29,7 @@ describe('SocialIdentitiesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SocialIdentitiesController],
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: SocialidentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
@@ -65,7 +67,10 @@ describe('SocialIdentitiesController', () => {
 
       const result = await controller.verifyInstagram(dto);
 
-      expect(service.verifyInstagramIdentity).toHaveBeenCalledWith('123456789');
+      expect(service.verifyInstagramIdentity).toHaveBeenCalledWith(
+        null,
+        '123456789',
+      );
       expect(result).toEqual(mockResponse);
     });
   });

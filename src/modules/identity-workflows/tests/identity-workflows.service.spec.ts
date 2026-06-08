@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   Identity,
@@ -71,6 +72,7 @@ describe('IdentityWorkflowsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         IdentityWorkflowsService,
         { provide: LoggerService, useValue: logger },
         { provide: PrismaService, useValue: createPrismaMock() },
@@ -132,7 +134,7 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(
         socialidentitiesService.verifyInstagramIdentity,
-      ).toHaveBeenCalledWith('sender_1');
+      ).toHaveBeenCalledWith('user_123', 'sender_1');
       expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
         IdentityType.INSTAGRAM,
         'test_user',

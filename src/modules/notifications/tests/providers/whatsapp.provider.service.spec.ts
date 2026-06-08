@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SendNotificationRequestDto } from '../../dto/request/send-notification.request.dto';
@@ -24,6 +25,7 @@ describe('WhatsAppProviderService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         WhatsAppProviderService,
         { provide: LoggerService, useValue: logger },
       ],

@@ -7,6 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 import {
   ConsumeCreditsRequestDto,
@@ -196,7 +197,7 @@ export class CreditsService extends BaseService {
     }
 
     const client = tx ?? this.prisma;
-    return client.creditLedger.create({
+    const ledger = await client.creditLedger.create({
       data: {
         userId: dto.userId,
         transactionType: CreditTransactionType.CREDIT,
@@ -206,6 +207,19 @@ export class CreditsService extends BaseService {
         expiresAt: dto.expiresAt ? DateUtil.parse(dto.expiresAt) : null,
       },
     });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.CREDITS_GRANTED,
+      userId: dto.userId,
+      resourceId: ledger.id,
+      metadata: {
+        amount: Math.abs(dto.amount),
+        source: dto.source,
+        transactionId: dto.referenceId,
+      },
+    });
+
+    return ledger;
   }
 
   async consumeCredits(
@@ -224,7 +238,7 @@ export class CreditsService extends BaseService {
       throw new BadRequestException('Insufficient credits');
     }
 
-    return client.creditLedger.create({
+    const ledger = await client.creditLedger.create({
       data: {
         userId: dto.userId,
         transactionType: CreditTransactionType.DEBIT,
@@ -233,6 +247,18 @@ export class CreditsService extends BaseService {
         referenceId: dto.referenceId,
       },
     });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.USAGE_TRIGGERED,
+      userId: dto.userId,
+      resourceId: ledger.id,
+      metadata: {
+        amount: Math.abs(dto.amount),
+        usageType: CreditSource.LIKE_USAGE,
+      },
+    });
+
+    return ledger;
   }
 
   async hasSufficientCredits(

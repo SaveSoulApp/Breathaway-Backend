@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IdentityCryptoService } from './identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { IKeyManager } from '@core/kms/key-manager.interface';
@@ -35,6 +36,7 @@ describe('IdentityCryptoService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         IdentityCryptoService,
         { provide: LoggerService, useValue: loggerService },
         { provide: 'KEY_MANAGER', useValue: keyManager },

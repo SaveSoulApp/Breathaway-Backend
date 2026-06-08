@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep, MockProxy } from 'jest-mock-extended';
 import * as fs from 'fs';
@@ -54,6 +55,7 @@ describe('EmailService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         EmailService,
         { provide: LoggerService, useValue: mockLogger },
         { provide: PrismaService, useValue: mockPrisma },

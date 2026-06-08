@@ -52,7 +52,10 @@ export class IdentityWorkflowsService extends BaseService {
         `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${senderId}`,
       );
       const identity =
-        await this.socialidentitiesService.verifyInstagramIdentity(senderId);
+        await this.socialidentitiesService.verifyInstagramIdentity(
+          userId,
+          senderId,
+        );
 
       const username = identity.username;
 
