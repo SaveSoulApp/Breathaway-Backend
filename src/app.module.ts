@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -36,6 +37,7 @@ import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -71,6 +73,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
     PrismaModule,
     GcpSecretManagerModule,
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     //Business Modules
     AuthModule,
@@ -94,6 +97,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
     AdminModule,
     PreferencesModule,
     MaintenanceModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [
