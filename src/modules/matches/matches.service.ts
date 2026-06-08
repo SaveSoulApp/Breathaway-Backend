@@ -2,6 +2,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntentType, MatchStatus } from '@prisma/client';
 import { MatchListQueryDto } from './dto';
@@ -178,6 +179,12 @@ export class MatchesService extends BaseService {
         status: MatchStatus.UNMATCHED,
         deletedAt: DateUtil.now(),
       },
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.MATCH_UNMATCHED,
+      userId: userId,
+      resourceId: matchId,
     });
 
     return { success: true };

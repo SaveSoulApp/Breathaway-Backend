@@ -49,6 +49,11 @@ export class ProfilesService extends BaseService {
         },
       });
 
+      this.emitAuditLog({
+        actionType: AuditActionType.PROFILE_CREATED,
+        userId: userId,
+      });
+
       this.logger.log(`Profile created successfully for user: ${userId}`);
       return profile;
     } catch (error) {
@@ -226,6 +231,11 @@ export class ProfilesService extends BaseService {
           where: { userId, isActive: true },
           data: { isActive: false },
         });
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.ACCOUNT_DELETED,
+        userId: userId,
       });
 
       this.logger.log(`Account soft-deleted successfully for user: ${userId}`);

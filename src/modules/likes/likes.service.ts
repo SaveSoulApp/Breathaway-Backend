@@ -262,6 +262,12 @@ export class LikesService extends BaseService {
       },
     });
 
+    this.emitAuditLog({
+      actionType: AuditActionType.LIKE_DELETED,
+      userId: userId,
+      resourceId: id,
+    });
+
     return { success: true };
   }
 }

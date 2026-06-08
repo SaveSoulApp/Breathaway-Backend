@@ -84,6 +84,12 @@ export class AuthService extends BaseService {
       `Created user ${user.id} with ${authMethod.method} – OTP pending.`,
     );
 
+    this.emitAuditLog({
+      actionType: AuditActionType.USER_REGISTERED,
+      userId: user.id,
+      metadata: { method: authMethod.method },
+    });
+
     return { userId: user.id, status: 'pending_verification' };
   }
 
@@ -165,6 +171,12 @@ export class AuthService extends BaseService {
       );
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
+
+      this.emitAuditLog({
+        actionType: AuditActionType.USER_REGISTERED,
+        userId: user.id,
+        metadata: { method: authMethod.method },
+      });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
         publicValueHash: valueHash,
@@ -270,6 +282,12 @@ export class AuthService extends BaseService {
     // No AuthCredential for social types.
 
     this.logger.log(`New social sign‑up (${type}) for user ${user.id}`);
+
+    this.emitAuditLog({
+      actionType: AuditActionType.USER_REGISTERED,
+      userId: user.id,
+      metadata: { method: type },
+    });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
       platformIdHash: platformIdHash,
