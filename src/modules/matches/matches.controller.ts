@@ -15,7 +15,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { BaseController } from '@core/base';
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
@@ -29,6 +29,7 @@ import { MatchesService } from './matches.service';
 @ApiTags('Matches')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'matches',
   version: ['1'],

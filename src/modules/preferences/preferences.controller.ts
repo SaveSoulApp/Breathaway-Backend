@@ -1,4 +1,4 @@
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
@@ -16,6 +16,7 @@ import { PreferencesService } from './preferences.service';
 @ApiTags('Preferences')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'preferences',
   version: ['1'],

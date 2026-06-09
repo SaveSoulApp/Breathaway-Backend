@@ -19,7 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { BaseController } from '@core/base';
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import {
@@ -33,6 +33,7 @@ import { ProfilesService } from './profiles.service';
 @ApiTags('Profiles')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'profiles',
   version: ['1'],

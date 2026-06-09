@@ -1,4 +1,4 @@
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -32,6 +32,7 @@ import {
 @ApiTags('Credits')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'credits',
   version: ['1'],

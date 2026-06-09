@@ -1,3 +1,4 @@
+import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -27,6 +28,7 @@ import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
 
 @ApiTags('Admin')
 @SkipClientIdentity()
+@ApiStandardErrors()
 @Controller({
   path: 'admin',
   version: ['1'],

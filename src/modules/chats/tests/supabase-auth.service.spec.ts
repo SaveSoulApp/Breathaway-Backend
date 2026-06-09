@@ -35,7 +35,8 @@ describe('SupabaseAuthService', () => {
 
   describe('generateToken', () => {
     it('should generate a token when private key is configured', () => {
-      const mockPrivateKey = '-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----';
+      const mockPrivateKey =
+        '-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----';
       const mockUserId = 'user-123';
       const mockToken = 'jwt-token';
 
@@ -44,7 +45,9 @@ describe('SupabaseAuthService', () => {
 
       const result = service.generateToken(mockUserId);
 
-      expect(configService.get).toHaveBeenCalledWith('SUPABASE_JWT_PRIVATE_KEY');
+      expect(configService.get).toHaveBeenCalledWith(
+        'SUPABASE_JWT_PRIVATE_KEY',
+      );
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: mockUserId,

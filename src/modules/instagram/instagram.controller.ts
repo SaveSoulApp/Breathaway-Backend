@@ -1,3 +1,4 @@
+import { ApiStandardErrors } from '@common/decorators';
 import { Controller, Get, Query, UseGuards, HttpStatus } from '@nestjs/common';
 import { BaseController } from '@core/base';
 import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
@@ -6,6 +7,7 @@ import { InstagramService } from './instagram.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Instagram')
+@ApiStandardErrors()
 @Controller({
   path: 'instagram',
   version: ['1'],
