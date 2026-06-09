@@ -1,6 +1,7 @@
 import { AdminModule } from '@modules/admin/admin.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlocksModule } from '@modules/blocks/blocks.module';
+import { ChatsModule } from '@modules/chats/chats.module';
 import { CreditsModule } from '@modules/credits/credits.module';
 import { DevicesModule } from '@modules/devices/devices.module';
 import { HealthModule } from '@modules/health/health.module';
@@ -52,6 +53,7 @@ function publicApiDocumentation(app: INestApplication): void {
   const publicModules = [
     AuthModule,
     BlocksModule,
+    ChatsModule,
     CreditsModule,
     DevicesModule,
     HealthModule,
@@ -60,8 +62,8 @@ function publicApiDocumentation(app: INestApplication): void {
     MatchesModule,
     OneTimePasswordsModule,
     ProfilesModule,
-    SocialIdentitiesModule,
     PreferencesModule,
+    SocialIdentitiesModule,
   ];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')

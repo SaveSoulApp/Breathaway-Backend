@@ -81,9 +81,7 @@ describe('SocialIdentitiesController (e2e)', () => {
         .send({ instagramId: 'invalid_ig_id' });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain(
-        'Instagram API Error: Invalid user id',
-      );
+      expect(res.body.detail).toContain('Instagram API Error: Invalid user id');
     });
 
     it('should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is missing', async () => {
@@ -98,7 +96,7 @@ describe('SocialIdentitiesController (e2e)', () => {
         .send({ instagramId: 'test_ig_123' });
 
       expect(res.status).toBe(500);
-      expect(res.body.message).toBe(
+      expect(res.body.detail).toBe(
         'Instagram verification is currently unavailable.',
       );
 

@@ -80,7 +80,7 @@ describe('PubSubIngestionController (e2e)', () => {
         .send(payload);
 
       expect(res.status).toBe(401);
-      expect(res.body.message).toBe('Invalid Pub/Sub verification token');
+      expect(res.body.detail).toBe('Invalid Pub/Sub verification token');
     });
 
     it('should reject requests with an invalid token', async () => {
@@ -90,7 +90,7 @@ describe('PubSubIngestionController (e2e)', () => {
         .send(payload);
 
       expect(res.status).toBe(401);
-      expect(res.body.message).toBe('Invalid Pub/Sub verification token');
+      expect(res.body.detail).toBe('Invalid Pub/Sub verification token');
     });
 
     it('should allow requests with a valid token', async () => {
@@ -135,7 +135,7 @@ describe('PubSubIngestionController (e2e)', () => {
         .send(payload);
 
       expect(res.status).toBe(500);
-      expect(res.body.message).toBe('Internal server error');
+      expect(res.body.detail).toBe('An unexpected error occurred.');
     });
 
     it('should ignore and return 200 for payloads with missing message objects', async () => {

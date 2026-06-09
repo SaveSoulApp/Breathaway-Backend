@@ -51,6 +51,7 @@
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.8.0",
     "@sendgrid/mail": "^8.1.6",
+    "@supabase/supabase-js": "^2.108.0",
     "axios": "^1.15.2",
     "cache-manager": "^7.2.8",
     "cache-manager-redis-yet": "^5.1.5",

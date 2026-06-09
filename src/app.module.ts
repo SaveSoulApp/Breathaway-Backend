@@ -40,6 +40,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { ChatsModule } from './modules/chats/chats.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     PreferencesModule,
     MaintenanceModule,
     AuditModule,
+    ChatsModule,
   ],
   controllers: [AppController],
   providers: [
