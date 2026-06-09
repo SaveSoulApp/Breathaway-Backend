@@ -14,10 +14,17 @@ export class SupabaseAuthService {
    * Ensures the `sub` claim is the userId so Supabase RLS (`auth.uid()`) works.
    */
   generateToken(userId: string): string {
-    const secret = this.configService.get<string>('SUPABASE_JWT_SECRET');
-    if (!secret) {
-      throw new InternalServerErrorException('Chat configuration is missing');
+    const privateKey = this.configService.get<string>(
+      'SUPABASE_JWT_PRIVATE_KEY',
+    );
+    if (!privateKey) {
+      throw new InternalServerErrorException(
+        'Chat configuration is missing: SUPABASE_JWT_PRIVATE_KEY',
+      );
     }
+
+    // Support both actual newlines and escaped newlines from .env
+    const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
 
     return this.jwtService.sign(
       {
@@ -25,7 +32,8 @@ export class SupabaseAuthService {
         role: 'authenticated',
       },
       {
-        secret,
+        secret: formattedPrivateKey,
+        algorithm: 'ES256',
         expiresIn: '1h',
       },
     );

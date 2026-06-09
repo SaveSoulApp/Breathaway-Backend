@@ -34,31 +34,32 @@ describe('SupabaseAuthService', () => {
   });
 
   describe('generateToken', () => {
-    it('should generate a token when secret is configured', () => {
-      const mockSecret = 'super-secret';
+    it('should generate a token when private key is configured', () => {
+      const mockPrivateKey = '-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----';
       const mockUserId = 'user-123';
       const mockToken = 'jwt-token';
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockReturnValue(mockPrivateKey);
       jest.spyOn(jwtService, 'sign').mockReturnValue(mockToken);
 
       const result = service.generateToken(mockUserId);
 
-      expect(configService.get).toHaveBeenCalledWith('SUPABASE_JWT_SECRET');
+      expect(configService.get).toHaveBeenCalledWith('SUPABASE_JWT_PRIVATE_KEY');
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: mockUserId,
           role: 'authenticated',
         },
         {
-          secret: mockSecret,
+          secret: mockPrivateKey.replace(/\\n/g, '\n'),
+          algorithm: 'ES256',
           expiresIn: '1h',
         },
       );
       expect(result).toBe(mockToken);
     });
 
-    it('should throw an InternalServerErrorException if secret is missing', () => {
+    it('should throw an InternalServerErrorException if private key is missing', () => {
       jest.spyOn(configService, 'get').mockReturnValue(undefined);
 
       expect(() => service.generateToken('user-123')).toThrow(
