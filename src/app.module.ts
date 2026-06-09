@@ -39,6 +39,7 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
@@ -110,6 +111,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     PreferencesModule,
     MaintenanceModule,
     AuditModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [

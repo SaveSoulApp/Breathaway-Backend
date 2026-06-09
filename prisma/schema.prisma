@@ -51,6 +51,7 @@ enum CreditSource {
   LIKE_USAGE
   ADMIN
   EXPIRED
+  SUBSCRIPTION
 }
 
 enum DevicePlatform {
@@ -85,6 +86,7 @@ model User {
 
   devices          Device[]
   creditLedger     CreditLedger[]
+  subscriptions    UserSubscription[]
 
   createdAt        DateTime         @default(now())
   deletedAt        DateTime?
@@ -296,4 +298,149 @@ model NotificationPreference {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// Subscription Management
+// ──────────────────────────────────────────────
+
+enum SubscriptionPlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  GRACE_PERIOD
+  REVOKED
+  PAUSED
+}
+
+enum StorePlatform {
+  APPLE
+  GOOGLE
+}
+
+enum CurrencyCode {
+  INR
+  USD
+  SGD
+  AED
+  GBP
+  EUR
+  AUD
+}
+
+enum SubscriptionEventType {
+  INITIAL_PURCHASE
+  RENEWAL
+  CANCELLATION
+  GRACE_PERIOD_ENTERED
+  BILLING_RECOVERY
+  REVOCATION
+  REFUND
+  PRICE_CHANGE_CONFIRMED
+  EXPIRY
+}
+
+model SubscriptionPlan {
+  id                String                 @id @default(ulid())
+
+  name              String
+  description       String?
+  slug              String                 @unique
+
+  appleProductId    String?                @unique
+  googleProductId   String?                @unique
+
+  creditsGranted    Int
+  validityDays      Int
+  trialDurationDays Int                    @default(0)
+
+  sortOrder         Int                    @default(0)
+  status            SubscriptionPlanStatus @default(ACTIVE)
+
+  prices            SubscriptionPlanPrice[]
+  subscriptions     UserSubscription[]
+
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([status])
+}
+
+model SubscriptionPlanPrice {
+  id             String           @id @default(ulid())
+
+  planId         String
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  currencyCode   CurrencyCode
+  price          Decimal          @db.Decimal(10, 2)
+  countryCode    String           @db.Char(2)
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([planId, currencyCode, countryCode])
+  @@index([countryCode])
+}
+
+model UserSubscription {
+  id                    String             @id @default(ulid())
+
+  userId                String
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  planId                String
+  plan                  SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  status                SubscriptionStatus @default(ACTIVE)
+  storePlatform         StorePlatform
+
+  storeTransactionId    String?
+  storeProductId        String?
+
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  trialEnd              DateTime?
+
+  autoRenewing          Boolean            @default(false)
+  cancelledAt           DateTime?
+  expiresAt             DateTime
+
+  currencyCode          CurrencyCode?
+  pricePaid             Decimal?           @db.Decimal(10, 2)
+  countryCode           String?            @db.Char(2)
+
+  events                SubscriptionEvent[]
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([storeTransactionId])
+  @@index([expiresAt])
+}
+
+model SubscriptionEvent {
+  id               String                @id @default(ulid())
+
+  subscriptionId   String
+  subscription     UserSubscription      @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  eventType        SubscriptionEventType
+  storePlatform    StorePlatform
+
+  storeEventId     String?
+  rawPayload       Json?
+
+  createdAt        DateTime              @default(now())
+
+  @@index([subscriptionId])
+  @@index([eventType])
+  @@index([storeEventId])
 }

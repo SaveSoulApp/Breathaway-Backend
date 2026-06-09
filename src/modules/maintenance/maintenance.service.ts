@@ -3,6 +3,7 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreditsService } from '@modules/credits/credits.service';
+import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
 import { Injectable } from '@nestjs/common';
 import { LikeStatus } from '@prisma/client';
 
@@ -12,6 +13,7 @@ export class MaintenanceService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly creditsService: CreditsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {
     super(logger);
   }
@@ -39,4 +41,9 @@ export class MaintenanceService extends BaseService {
   async expireCreditBundles() {
     return this.creditsService.expireCreditBundles();
   }
+
+  async expireSubscriptions() {
+    return this.subscriptionsService.expireSubscriptions();
+  }
 }
+
