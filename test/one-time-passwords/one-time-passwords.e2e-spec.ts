@@ -85,7 +85,7 @@ describe('OneTimePasswordsController (e2e)', () => {
         .send({ otp: 'invalid-otp-value' });
 
       expect(verifyRes.status).toBe(400); // BadRequest
-      expect(verifyRes.body.message).toBe('Invalid or expired OTP');
+      expect(verifyRes.body.detail).toBe('Invalid or expired OTP');
     });
 
     it('POST /api/v1/one-time-passwords/verify - fails to verify the same OTP twice', async () => {
@@ -114,7 +114,7 @@ describe('OneTimePasswordsController (e2e)', () => {
         .send({ otp });
 
       expect(verifyRes2.status).toBe(400);
-      expect(verifyRes2.body.message).toBe('Invalid or expired OTP');
+      expect(verifyRes2.body.detail).toBe('Invalid or expired OTP');
     });
 
     it('POST /api/v1/one-time-passwords/generate - enforces rate limiting', async () => {
@@ -133,7 +133,7 @@ describe('OneTimePasswordsController (e2e)', () => {
         .send();
 
       expect(res.status).toBe(429); // TOO_MANY_REQUESTS
-      expect(res.body.message).toBe('Please wait before requesting a new OTP');
+      expect(res.body.detail).toBe('Please wait before requesting a new OTP');
     });
   });
 });

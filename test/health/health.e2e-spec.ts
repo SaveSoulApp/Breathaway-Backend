@@ -25,9 +25,9 @@ describe('HealthModule (e2e)', () => {
         expect([200, 503]).toContain(resV1.status);
 
         let healthData = resV1.body;
-        // If ExceptionLoggingFilter intercepts it, the terminus response is stringified in 'message'
-        if (resV1.status === 503 && typeof resV1.body.message === 'string') {
-          healthData = JSON.parse(resV1.body.message);
+        // If ExceptionLoggingFilter intercepts it, the terminus response is stringified in 'detail'
+        if (resV1.status === 503 && typeof resV1.body.detail === 'string') {
+          healthData = JSON.parse(resV1.body.detail);
         }
 
         expect(['ok', 'error', 'down']).toContain(healthData.status);

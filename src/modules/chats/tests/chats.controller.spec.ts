@@ -59,7 +59,10 @@ describe('ChatsController', () => {
 
   describe('sendMessage', () => {
     it('should delegate to chatsService and return the message', async () => {
-      const mockDto: CreateMessageRequestDto = { targetUserId: 'user-2', content: 'hello' };
+      const mockDto: CreateMessageRequestDto = {
+        targetUserId: 'user-2',
+        content: 'hello',
+      };
       const mockMessage = { id: 'msg-1', content: 'hello' };
 
       chatsService.sendMessage.mockResolvedValue(mockMessage as any);
@@ -77,9 +80,17 @@ describe('ChatsController', () => {
 
       chatsService.markMessageRead.mockResolvedValue({ success: true } as any);
 
-      const result = await controller.markMessagesRead('user-1', 'room-1', mockDto);
+      const result = await controller.markMessagesRead(
+        'user-1',
+        'room-1',
+        mockDto,
+      );
 
-      expect(chatsService.markMessageRead).toHaveBeenCalledWith('user-1', 'room-1', mockDto);
+      expect(chatsService.markMessageRead).toHaveBeenCalledWith(
+        'user-1',
+        'room-1',
+        mockDto,
+      );
       expect(result).toEqual({ success: true });
     });
   });
@@ -91,9 +102,17 @@ describe('ChatsController', () => {
 
       chatsService.getMessages.mockResolvedValue(mockResponse as any);
 
-      const result = await controller.getMessages('user-1', 'room-1', mockQuery);
+      const result = await controller.getMessages(
+        'user-1',
+        'room-1',
+        mockQuery,
+      );
 
-      expect(chatsService.getMessages).toHaveBeenCalledWith('user-1', 'room-1', mockQuery);
+      expect(chatsService.getMessages).toHaveBeenCalledWith(
+        'user-1',
+        'room-1',
+        mockQuery,
+      );
       expect(result).toEqual(mockResponse);
     });
   });

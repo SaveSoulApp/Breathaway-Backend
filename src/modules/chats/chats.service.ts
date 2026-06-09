@@ -16,7 +16,8 @@ import { generateRoomParticipants } from './utils/chats.utils';
 @Injectable()
 export class ChatsService {
   private readonly logger = new Logger(ChatsService.name);
-  private readonly supabase: SupabaseClient;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly supabase: SupabaseClient<any, 'public', any>;
 
   constructor(private readonly configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -31,6 +32,7 @@ export class ChatsService {
     }
 
     // Initialize with service role key to bypass RLS for server-side operations
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     this.supabase = createClient(supabaseUrl || '', supabaseKey || '', {
       auth: { persistSession: false },
     });
@@ -61,10 +63,14 @@ export class ChatsService {
       throw new InternalServerErrorException('Failed to fetch messages');
     }
 
+    const messages = (data as Record<string, unknown>[]) || [];
+
     return {
-      messages: data,
+      messages,
       nextCursor:
-        data.length === limit ? data[data.length - 1].createdAt : null,
+        messages.length === limit
+          ? (messages[messages.length - 1].createdAt as string)
+          : null,
     };
   }
 
@@ -76,22 +82,25 @@ export class ChatsService {
     );
 
     // 1. Ensure the room exists idempotently
-    const { data: room, error: roomError } = await this.supabase
+    const { data: roomData, error: roomError } = await this.supabase
       .from('ChatRoom')
       .upsert({ userOneId, userTwoId }, { onConflict: 'userOneId, userTwoId' })
       .select('id')
       .single();
 
-    if (roomError) {
+    const room = roomData as { id: string } | null;
+
+    if (roomError || !room) {
       this.logger.error(
-        `Failed to upsert chat room: ${roomError.message}`,
+        `Failed to upsert chat room: ${roomError?.message}`,
         roomError,
       );
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
     // 2. Insert the message
-    const { data: message, error: msgError } = await this.supabase
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const { data, error: msgError } = await this.supabase
       .from('Message')
       .insert({
         roomId: room.id,
@@ -100,6 +109,8 @@ export class ChatsService {
       })
       .select('*')
       .single();
+
+    const message = data as Record<string, unknown>;
 
     if (msgError) {
       this.logger.error(
@@ -111,7 +122,7 @@ export class ChatsService {
 
     // 3. Fire-and-forget push notification
     this.triggerPushNotification(targetUserId, senderId, content).catch(
-      (err) => {
+      (err: Error) => {
         this.logger.error(
           `Failed to send push notification: ${err.message}`,
           err,
@@ -168,5 +179,6 @@ export class ChatsService {
     this.logger.log(
       `[Push Notification Simulation] Sending to ${targetUserId}: ${content.substring(0, 20)}...`,
     );
+    return Promise.resolve();
   }
 }

@@ -192,7 +192,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(404);
-      expect(res.body.message).toBe('Match not found');
+      expect(res.body.detail).toBe('Match not found');
     });
 
     it('GET /api/v1/matches - should hide match if the other user soft deletes their account', async () => {
@@ -243,7 +243,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(404);
-      expect(res.body.message).toBe('Match not found');
+      expect(res.body.detail).toBe('Match not found');
     });
 
     it('GET /api/v1/matches - should not include the unmatched match', async () => {

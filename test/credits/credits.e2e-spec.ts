@@ -131,7 +131,7 @@ describe('CreditsModule (e2e)', () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Insufficient');
+      expect(res.body.detail).toContain('Insufficient');
     });
   });
 });

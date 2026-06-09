@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ChatsService } from '../chats.service';
 import { createClient } from '@supabase/supabase-js';
 import * as chatUtils from '../utils/chats.utils';
@@ -60,9 +63,14 @@ describe('ChatsService', () => {
   describe('getMessages', () => {
     it('should return messages and no nextCursor if fewer than limit', async () => {
       const mockMessages = [{ id: '1', createdAt: 'date1' }];
-      mockSupabaseClient.limit.mockResolvedValue({ data: mockMessages, error: null });
+      mockSupabaseClient.limit.mockResolvedValue({
+        data: mockMessages,
+        error: null,
+      });
 
-      const result = await service.getMessages('user-1', 'room-1', { limit: 20 });
+      const result = await service.getMessages('user-1', 'room-1', {
+        limit: 20,
+      });
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('Message');
       expect(result.messages).toEqual(mockMessages);
@@ -70,7 +78,10 @@ describe('ChatsService', () => {
     });
 
     it('should throw InternalServerErrorException on supabase error', async () => {
-      mockSupabaseClient.limit.mockResolvedValue({ data: null, error: { message: 'DB Error' } });
+      mockSupabaseClient.limit.mockResolvedValue({
+        data: null,
+        error: { message: 'DB Error' },
+      });
 
       await expect(service.getMessages('user-1', 'room-1', {})).rejects.toThrow(
         InternalServerErrorException,
@@ -82,16 +93,22 @@ describe('ChatsService', () => {
     it('should send a message and trigger a push notification', async () => {
       const mockRoom = { id: 'room-1' };
       const mockMessage = { id: 'msg-1', content: 'hello' };
-      
+
       jest.spyOn(chatUtils, 'generateRoomParticipants').mockReturnValue({
         userOneId: 'user-1',
         userTwoId: 'user-2',
       });
 
       // Mock upsert for room
-      mockSupabaseClient.single.mockResolvedValueOnce({ data: mockRoom, error: null });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: mockRoom,
+        error: null,
+      });
       // Mock insert for message
-      mockSupabaseClient.single.mockResolvedValueOnce({ data: mockMessage, error: null });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: mockMessage,
+        error: null,
+      });
 
       const result = await service.sendMessage('user-1', {
         targetUserId: 'user-2',
@@ -114,20 +131,28 @@ describe('ChatsService', () => {
   describe('markMessageRead', () => {
     it('should update messages correctly', async () => {
       const mockRefMessage = { createdAt: '2023-01-01' };
-      
+
       // Mock fetching reference message
-      mockSupabaseClient.single.mockResolvedValueOnce({ data: mockRefMessage, error: null });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: mockRefMessage,
+        error: null,
+      });
       // Mock update response
       mockSupabaseClient.lte.mockResolvedValueOnce({ error: null });
 
-      const result = await service.markMessageRead('user-1', 'room-1', { messageId: 'msg-1' });
+      const result = await service.markMessageRead('user-1', 'room-1', {
+        messageId: 'msg-1',
+      });
 
       expect(result).toEqual({ success: true });
       expect(mockSupabaseClient.update).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if reference message not found', async () => {
-      mockSupabaseClient.single.mockResolvedValueOnce({ data: null, error: { message: 'Not found' } });
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Not found' },
+      });
 
       await expect(
         service.markMessageRead('user-1', 'room-1', { messageId: 'msg-1' }),
