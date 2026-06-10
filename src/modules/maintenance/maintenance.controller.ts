@@ -1,3 +1,4 @@
+import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { GcpOidcAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
@@ -21,6 +22,7 @@ import { MaintenanceService } from './maintenance.service';
 @SkipClientIdentity()
 @ApiBearerAuth()
 @UseGuards(GcpOidcAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'internal/jobs',
   version: ['1'],

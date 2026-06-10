@@ -14,7 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { BaseController } from '@core/base';
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
@@ -96,6 +96,7 @@ export class AuthController extends BaseController {
 
   @Post('dev-login')
   @UseGuards(BasicAuthGuard)
+  @ApiStandardErrors()
   @ApiOperation({ summary: 'Developer login for testing purposes' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -111,6 +112,7 @@ export class AuthController extends BaseController {
   @Patch('add-phone')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiStandardErrors()
   @ApiOperation({ summary: 'Add a phone number as secondary authentication' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -126,6 +128,7 @@ export class AuthController extends BaseController {
   @Patch('add-email')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiStandardErrors()
   @ApiOperation({ summary: 'Add an email as secondary authentication' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -141,6 +144,7 @@ export class AuthController extends BaseController {
   @Post('signout')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiStandardErrors()
   @ApiOperation({ summary: 'Sign out the current user' })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,

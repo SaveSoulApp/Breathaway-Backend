@@ -1,3 +1,4 @@
+import { ApiStandardErrors } from '@common/decorators';
 import { CurrentUserId } from '@common/decorators/current-user-id.decorator';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { SerializeExpose } from '@common/interceptors';
@@ -14,6 +15,7 @@ import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
 import { OneTimePasswordsService } from './one-time-passwords.service';
 
 @ApiTags('One Time Passwords')
+@ApiStandardErrors()
 @Controller({
   path: 'one-time-passwords',
   version: ['1'],

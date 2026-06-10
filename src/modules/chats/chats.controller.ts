@@ -1,4 +1,4 @@
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -31,6 +31,7 @@ import { SupabaseAuthService } from './services/supabase-auth.service';
 @ApiTags('Chats')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'chats',
   version: ['1'],

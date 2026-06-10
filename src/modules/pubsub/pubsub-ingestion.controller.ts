@@ -1,3 +1,4 @@
+import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -21,6 +22,7 @@ import {
 
 @ApiTags('PubSub (Internal)')
 @ApiExcludeController()
+@ApiStandardErrors()
 @Controller({
   path: 'pubsub',
   version: ['1'],

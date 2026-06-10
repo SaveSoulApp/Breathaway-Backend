@@ -1,4 +1,4 @@
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { ClientIdentity } from '@common/decorators/client-identity.decorator';
 import { ClientIdentityKey } from '@common/enums';
 import { JwtAuthGuard } from '@common/guards';
@@ -36,6 +36,7 @@ import {
 @ApiTags('Devices')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'devices',
   version: ['1'],

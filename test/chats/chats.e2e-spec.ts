@@ -42,7 +42,8 @@ describe('ChatsController (e2e)', () => {
 
     (createClient as jest.Mock).mockReturnValue(mockSupabaseClient);
 
-    process.env.SUPABASE_JWT_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgcl4AW+uYgNuG1Iey\\n5blCle8WbdRdVCU0ClAPSFbLxs2hRANCAATwEcv9fGvVN5FreEQPmiVSYyGRmQD2\\netnwkizwE/WSlBrs74faOuKuFK8qbVtOGryMo/eZvhkPbdIy18ZJXagj\\n-----END PRIVATE KEY-----';
+    process.env.SUPABASE_JWT_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgcl4AW+uYgNuG1Iey\\n5blCle8WbdRdVCU0ClAPSFbLxs2hRANCAATwEcv9fGvVN5FreEQPmiVSYyGRmQD2\\netnwkizwE/WSlBrs74faOuKuFK8qbVtOGryMo/eZvhkPbdIy18ZJXagj\\n-----END PRIVATE KEY-----';
 
     const context = await createAuthTestApp([ChatsModule]);
     app = context.app;
