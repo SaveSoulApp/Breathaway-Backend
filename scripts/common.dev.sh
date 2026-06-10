@@ -57,3 +57,5 @@ export BREVO_API_KEY='your_brevo_api_key_here'
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
 export SWAGGER_ENABLED='true'
+
+export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
