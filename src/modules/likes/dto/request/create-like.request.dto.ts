@@ -68,7 +68,8 @@ export class CreateLikeRequestDto {
   intent: IntentType;
 
   @ApiPropertyOptional({
-    description: "A personal label to remember who this like is for (e.g. 'Sarah', 'My Crush')",
+    description:
+      "A personal label to remember who this like is for (e.g. 'Sarah', 'My Crush')",
     maxLength: 100,
   })
   @IsOptional()
