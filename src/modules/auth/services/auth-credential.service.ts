@@ -3,7 +3,7 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { AuthMethod } from '../utils/auth-method.utils';
 
@@ -49,15 +49,54 @@ export class AuthCredentialService extends BaseService {
         },
       });
 
-      const newIdentity = await tx.identity.create({
-        data: {
-          type: identityType,
-          ...publicValueData,
-          userId: newUser.id,
-          isVerified,
-          verifiedAt: isVerified ? DateUtil.now() : null,
+      const existingIdentity = await tx.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type: identityType,
+            publicValueHash: publicValueData.publicValueHash,
+          },
         },
       });
+
+      let identityId: string;
+
+      if (existingIdentity) {
+        if (existingIdentity.userId !== null) {
+          // Ghost identity already claimed by a different user — real conflict.
+          throw new ConflictException(
+            `An account for this ${identityType.toLowerCase()} already exists`,
+          );
+        }
+
+        // "Ghost" identity created by the likes flow (userId=null). Claim it by
+        // attaching the new user. We also refresh all encrypted fields so the
+        // new user's key rotation applies going forward.
+        const updatedIdentity = await tx.identity.update({
+          where: { id: existingIdentity.id },
+          data: {
+            ...publicValueData,
+            userId: newUser.id,
+            isVerified,
+            verifiedAt: isVerified ? DateUtil.now() : null,
+          },
+        });
+        identityId = updatedIdentity.id;
+
+        this.logger.log(
+          `Claimed ghost identity ${identityId} for new user ${newUser.id}`,
+        );
+      } else {
+        const newIdentity = await tx.identity.create({
+          data: {
+            type: identityType,
+            ...publicValueData,
+            userId: newUser.id,
+            isVerified,
+            verifiedAt: isVerified ? DateUtil.now() : null,
+          },
+        });
+        identityId = newIdentity.id;
+      }
 
       await tx.authCredential.create({
         data: {
@@ -66,7 +105,7 @@ export class AuthCredentialService extends BaseService {
           valueHash: publicValueData.publicValueHash,
           valueMasked: publicValueData.publicValueMasked,
           isPrimary: true,
-          identityId: newIdentity.id,
+          identityId: identityId,
         },
       });
 
