@@ -51,8 +51,10 @@ export class AuthService extends BaseService {
         : IdentityType.EMAIL;
 
     // Normalize before hashing so Auth and Likes flows produce the same hash
-    const { publicValueHash } =
-      await this.encryptionService.processPublicValue(value, identityType);
+    const { publicValueHash } = await this.encryptionService.processPublicValue(
+      value,
+      identityType,
+    );
 
     // Check global uniqueness via AuthCredential
     const existingCred = await this.prisma.authCredential.findUnique({

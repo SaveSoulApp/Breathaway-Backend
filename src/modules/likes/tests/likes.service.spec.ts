@@ -34,7 +34,9 @@ describe('LikesService', () => {
   let prisma: MockPrismaService;
   let configServiceMock: jest.Mocked<ConfigService>;
   let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
-  let identitiesServiceMock: jest.Mocked<Pick<IdentitiesService, 'getDecryptedPublicValue'>>;
+  let identitiesServiceMock: jest.Mocked<
+    Pick<IdentitiesService, 'getDecryptedPublicValue'>
+  >;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
@@ -108,7 +110,9 @@ describe('LikesService', () => {
     } as unknown as jest.Mocked<IdentityCryptoService>;
 
     identitiesServiceMock = {
-      getDecryptedPublicValue: jest.fn().mockResolvedValue(decryptedPublicValue),
+      getDecryptedPublicValue: jest
+        .fn()
+        .mockResolvedValue(decryptedPublicValue),
     };
 
     matchResolverServiceMock = {
