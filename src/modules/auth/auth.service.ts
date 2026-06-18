@@ -265,16 +265,44 @@ export class AuthService extends BaseService {
         },
       });
 
-      await tx.identity.create({
-        data: {
-          type,
-          ...publicValueData,
-          ...platformIdData,
-          userId: newUser.id,
-          isVerified: true, // social accounts are pre‑verified
-          verifiedAt: DateUtil.now(),
+      const ghostIdentity = await tx.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type,
+            publicValueHash: publicValueData.publicValueHash,
+          },
         },
       });
+
+      if (ghostIdentity) {
+        if (ghostIdentity.userId !== null) {
+          throw new ConflictException(
+            `This ${type.toLowerCase()} account is already linked to another user.`,
+          );
+        }
+
+        await tx.identity.update({
+          where: { id: ghostIdentity.id },
+          data: {
+            userId: newUser.id,
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+            ...publicValueData,
+            ...platformIdData,
+          },
+        });
+      } else {
+        await tx.identity.create({
+          data: {
+            type,
+            ...publicValueData,
+            ...platformIdData,
+            userId: newUser.id,
+            isVerified: true, // social accounts are pre‑verified
+            verifiedAt: DateUtil.now(),
+          },
+        });
+      }
 
       return newUser;
     });
@@ -347,14 +375,44 @@ export class AuthService extends BaseService {
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
     await this.prisma.$transaction(async (tx) => {
-      const identity = await tx.identity.create({
-        data: {
-          type: this.authCredentialService.toCredentialType(authType),
-          ...publicValueData,
-          userId: user.id,
-          isVerified: false, // will need verification
+      const existingIdentity = await tx.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type: this.authCredentialService.toCredentialType(authType),
+            publicValueHash: publicValueData.publicValueHash,
+          },
         },
       });
+
+      let identityId: string;
+
+      if (existingIdentity) {
+        if (existingIdentity.userId !== null) {
+          throw new ConflictException(
+            `This ${authType} is already linked to another user`,
+          );
+        }
+
+        const updatedIdentity = await tx.identity.update({
+          where: { id: existingIdentity.id },
+          data: {
+            userId: user.id,
+            isVerified: false,
+            ...publicValueData,
+          },
+        });
+        identityId = updatedIdentity.id;
+      } else {
+        const newIdentity = await tx.identity.create({
+          data: {
+            type: this.authCredentialService.toCredentialType(authType),
+            ...publicValueData,
+            userId: user.id,
+            isVerified: false, // will need verification
+          },
+        });
+        identityId = newIdentity.id;
+      }
 
       // Determine if this should be primary (if user has no primary credential yet, set true)
       const primaryCount = await tx.authCredential.count({
@@ -369,7 +427,7 @@ export class AuthService extends BaseService {
           valueHash: publicValueData.publicValueHash,
           valueMasked: publicValueData.publicValueMasked ?? null,
           isPrimary,
-          identityId: identity.id,
+          identityId: identityId,
         },
       });
     });

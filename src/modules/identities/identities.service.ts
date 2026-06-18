@@ -58,9 +58,34 @@ export class IdentitiesService extends BaseService {
       },
     });
     if (existing) {
-      throw new ConflictException(
-        `An identity of type ${dto.type} with this value or platform ID already exists`,
-      );
+      if (existing.userId !== null) {
+        throw new ConflictException(
+          `An identity of type ${dto.type} with this value or platform ID already exists`,
+        );
+      }
+
+      const updated = await this.prisma.identity.update({
+        where: { id: existing.id },
+        data: {
+          userId,
+          isVerified: false,
+          ...publicValueData,
+          ...platformIdData,
+        },
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.IDENTITY_CREATED,
+        userId: userId,
+        resourceId: updated.id,
+        metadata: {
+          identityType: updated.type,
+          maskedValue: updated.publicValueMasked,
+          publicValueHash: updated.publicValueHash,
+        },
+      });
+
+      return this.toMaskedResponse(updated);
     }
 
     const identity = await this.prisma.identity.create({
@@ -294,6 +319,7 @@ export class IdentitiesService extends BaseService {
           userId,
           isVerified: true,
           verifiedAt: DateUtil.now(),
+          ...publicValueData,
           ...platformIdData,
         },
       });
