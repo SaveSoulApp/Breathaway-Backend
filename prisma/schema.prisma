@@ -184,6 +184,7 @@ model Like {
 
   intent           IntentType
   status           LikeStatus  @default(PENDING)
+  label            String?
 
   matchAsLikeOne   Match?      @relation("MatchLikeOne")
   matchAsLikeTwo   Match?      @relation("MatchLikeTwo")

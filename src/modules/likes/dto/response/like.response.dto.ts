@@ -1,7 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Expose, Type } from 'class-transformer';
-import { IntentType, LikeStatus, IdentityType } from '@prisma/client';
 import { PaginationMeta } from '@common/dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+import { Expose, Type } from 'class-transformer';
 
 export class LikeTargetIdentityDto {
   @ApiProperty()
@@ -37,6 +37,13 @@ export class LikeResponseDto {
   @ApiProperty({ enum: LikeStatus })
   @Expose()
   status: LikeStatus;
+
+  @ApiPropertyOptional({
+    description:
+      "A personal label to remember who this like is for (e.g. 'Sarah', 'My Crush')",
+  })
+  @Expose()
+  label: string | null;
 
   @ApiProperty({ type: LikeTargetIdentityDto })
   @Expose()

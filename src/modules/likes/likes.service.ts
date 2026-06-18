@@ -114,6 +114,7 @@ export class LikesService extends BaseService {
         targetUserId: targetIdentity.userId,
         intent: dto.intent,
         status: LikeStatus.PENDING,
+        label: dto.label ?? null,
         expiresAt,
       },
       select: {
@@ -122,6 +123,7 @@ export class LikesService extends BaseService {
         targetUserId: true,
         intent: true,
         status: true,
+        label: true,
         createdAt: true,
         expiresAt: true,
         targetIdentity: {
@@ -179,6 +181,7 @@ export class LikesService extends BaseService {
           id: true,
           intent: true,
           status: true,
+          label: true,
           createdAt: true,
           expiresAt: true,
           targetIdentity: {
@@ -220,6 +223,7 @@ export class LikesService extends BaseService {
         id: true,
         intent: true,
         status: true,
+        label: true,
         createdAt: true,
         expiresAt: true,
         targetIdentity: {
