@@ -22,6 +22,7 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
@@ -33,6 +34,7 @@ describe('LikesService', () => {
   let prisma: MockPrismaService;
   let configServiceMock: jest.Mocked<ConfigService>;
   let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
+  let identitiesServiceMock: jest.Mocked<Pick<IdentitiesService, 'getDecryptedPublicValue'>>;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
@@ -40,6 +42,7 @@ describe('LikesService', () => {
   const targetIdentityId = 'target-identity-id';
   const targetUserId = 'target-user-id';
   const likeId = 'like-id-123';
+  const decryptedPublicValue = '+1234567890';
 
   const mockTargetIdentity: Identity = {
     id: targetIdentityId,
@@ -64,6 +67,7 @@ describe('LikesService', () => {
     deletedAt: null,
   };
 
+  /** Raw DB shape (before attachPublicValue enrichment). */
   const mockLikeData = {
     id: likeId,
     senderUserId: userId,
@@ -71,12 +75,22 @@ describe('LikesService', () => {
     targetUserId,
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
+    label: null,
     createdAt: DateUtil.now(),
     updatedAt: DateUtil.now(),
     deletedAt: null,
     expiresAt: DateUtil.now(),
     targetIdentity: mockTargetIdentity,
   } as unknown as Like & { targetIdentity: Identity };
+
+  /** Expected shape after attachPublicValue adds publicValue. */
+  const mockLikeResponse = {
+    ...mockLikeData,
+    targetIdentity: {
+      ...mockTargetIdentity,
+      publicValue: decryptedPublicValue,
+    },
+  };
 
   beforeEach(async () => {
     configServiceMock = {
@@ -92,6 +106,10 @@ describe('LikesService', () => {
       processPublicValue: jest.fn(),
       processPlatformId: jest.fn(),
     } as unknown as jest.Mocked<IdentityCryptoService>;
+
+    identitiesServiceMock = {
+      getDecryptedPublicValue: jest.fn().mockResolvedValue(decryptedPublicValue),
+    };
 
     matchResolverServiceMock = {
       resolveFromLike: jest.fn().mockResolvedValue(undefined),
@@ -111,6 +129,7 @@ describe('LikesService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: ConfigService, useValue: configServiceMock },
         { provide: IdentityCryptoService, useValue: identityCryptoServiceMock },
+        { provide: IdentitiesService, useValue: identitiesServiceMock },
         { provide: MatchResolverService, useValue: matchResolverServiceMock },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -180,7 +199,7 @@ describe('LikesService', () => {
         },
       });
       expect(prisma.like.create).toHaveBeenCalled();
-      expect(result).toEqual(mockLikeData);
+      expect(result).toEqual(mockLikeResponse);
     });
 
     it('should handle creating like via targetIdentity object (new identity)', async () => {
@@ -239,7 +258,7 @@ describe('LikesService', () => {
           ...processPlatformData,
         },
       });
-      expect(result).toEqual(mockLikeData);
+      expect(result).toEqual(mockLikeResponse);
     });
 
     it('should throw NotFoundException if target identity not found', async () => {
@@ -293,6 +312,7 @@ describe('LikesService', () => {
           targetUserId,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+          label: null,
           expiresAt: expect.any(Date),
         },
         select: expect.any(Object),
@@ -300,7 +320,7 @@ describe('LikesService', () => {
       expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
         mockLikeData,
       );
-      expect(result).toEqual(mockLikeData);
+      expect(result).toEqual(mockLikeResponse);
     });
 
     it('should log error if match resolver fails', async () => {
@@ -357,7 +377,7 @@ describe('LikesService', () => {
         select: expect.any(Object),
       });
       expect(result).toEqual({
-        data: [mockLikeData],
+        data: [mockLikeResponse],
         meta: {
           page: 1,
           limit: 20,
@@ -387,7 +407,7 @@ describe('LikesService', () => {
         },
         select: expect.any(Object),
       });
-      expect(result).toEqual(mockLikeData);
+      expect(result).toEqual(mockLikeResponse);
     });
 
     it('should throw NotFoundException if not found', async () => {
