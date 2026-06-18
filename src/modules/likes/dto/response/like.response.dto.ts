@@ -12,9 +12,9 @@ export class LikeTargetIdentityDto {
   @Expose()
   type: IdentityType;
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   @Expose()
-  publicValueMasked: string | null;
+  publicValue: string;
 
   @ApiProperty()
   @Expose()

@@ -3,9 +3,9 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import {
   ConflictException,
   Injectable,
@@ -407,6 +407,24 @@ export class IdentitiesService extends BaseService {
           { error: err.message },
         );
       });
+  }
+
+  async getDecryptedPublicValue(identityId: string): Promise<string> {
+    const identity = await this.prisma.identity.findUnique({
+      where: { id: identityId },
+    });
+
+    if (!identity) {
+      throw new NotFoundException(`Identity ${identityId} not found`);
+    }
+
+    return this.encryption.decryptPublicValue({
+      publicValueCiphertext: identity.publicValueCiphertext,
+      publicValueIv: identity.publicValueIv,
+      publicValueTag: identity.publicValueTag,
+      publicValueWrappedKey: identity.publicValueWrappedKey,
+      publicValueKeyId: identity.publicValueKeyId,
+    });
   }
 
   private async findOwnedOrFail(id: string, userId: string) {
