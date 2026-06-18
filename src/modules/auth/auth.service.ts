@@ -221,12 +221,13 @@ export class AuthService extends BaseService {
   async socialAuth(dto: SocialAuthDto) {
     const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
 
-    // platformUserId hash
-    const platformIdHash =
-      await this.encryptionService.computeHash(platformUserId);
+    // Normalize and hash via the same helpers used everywhere else so that
+    // platformIdHash and publicValueHash are always canonical values.
+    const platformIdData =
+      await this.encryptionService.processPlatformId(platformUserId);
 
     const identity = await this.prisma.identity.findFirst({
-      where: { type, platformIdHash },
+      where: { type, platformIdHash: platformIdData.platformIdHash },
       select: { id: true, userId: true, isVerified: true },
     });
 
@@ -242,21 +243,17 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: type,
-        platformIdHash: platformIdHash,
+        platformIdHash: platformIdData.platformIdHash,
         isNewUser: false,
       });
     }
 
-    // Encrypt handle (public value) and platformUserId (platformId)
-    const encHandle = await this.encryptionService.encryptPublicValue(handle);
-    const handleMasked = this.encryptionService.maskPublicValue(
+    // processPublicValue normalizes handle (strips leading '@', lowercases) and
+    // encryptPublicValue before hashing – consistent with the likes flow.
+    const publicValueData = await this.encryptionService.processPublicValue(
       handle,
       type as IdentityType,
     );
-    const encPlatformId =
-      await this.encryptionService.encryptPlatformId(platformUserId);
-
-    const publicValueHash = await this.encryptionService.computeHash(handle);
 
     const user = await this.prisma.$transaction(async (tx) => {
       // New social identity
@@ -271,21 +268,8 @@ export class AuthService extends BaseService {
       await tx.identity.create({
         data: {
           type,
-          publicValueHash,
-          publicValueCiphertext: encHandle.ciphertextBase64,
-          publicValueIv: encHandle.ivBase64,
-          publicValueTag: encHandle.tagBase64,
-          publicValueWrappedKey: encHandle.wrappedKeyBase64,
-          publicValueKeyId: encHandle.keyId,
-          publicValueMasked: handleMasked,
-
-          platformIdHash,
-          platformIdCiphertext: encPlatformId.ciphertextBase64,
-          platformIdIv: encPlatformId.ivBase64,
-          platformIdTag: encPlatformId.tagBase64,
-          platformIdWrappedKey: encPlatformId.wrappedKeyBase64,
-          platformIdKeyId: encPlatformId.keyId,
-
+          ...publicValueData,
+          ...platformIdData,
           userId: newUser.id,
           isVerified: true, // social accounts are pre‑verified
           verifiedAt: DateUtil.now(),
@@ -306,7 +290,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
-      platformIdHash: platformIdHash,
+      platformIdHash: platformIdData.platformIdHash,
       isNewUser: true,
     });
   }
@@ -401,7 +385,15 @@ export class AuthService extends BaseService {
   // ---------- Dev Login ----------
   async devLogin(dto: DevLoginDto) {
     const value = dto.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+
+    // Normalize before hashing so it matches the canonical hash stored at
+    // signup time. Phone numbers are stripped of non-digits; emails are
+    // lowercased. Use a simple heuristic: if it contains '@' it's an email.
+    const identityType = value.includes('@')
+      ? IdentityType.EMAIL
+      : IdentityType.PHONE;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findFirst({
       where: { valueHash },
