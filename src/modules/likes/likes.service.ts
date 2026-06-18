@@ -13,8 +13,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus } from '@prisma/client';
-import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
-import { LikeListQueryDto } from './dto/request/like-list-query.request.dto';
+import {
+  CreateLikeRequestDto,
+  LikeListQueryDto,
+  UpdateLikeLabelRequestDto,
+} from './dto';
 
 @Injectable()
 export class LikesService extends BaseService {
@@ -273,5 +276,43 @@ export class LikesService extends BaseService {
     });
 
     return { success: true };
+  }
+
+  async updateLabel(
+    id: string,
+    userId: string,
+    dto: UpdateLikeLabelRequestDto,
+  ) {
+    const like = await this.prisma.like.findFirst({
+      where: { id, senderUserId: userId, deletedAt: null },
+    });
+
+    if (!like) {
+      throw new NotFoundException(`Like ${id} not found`);
+    }
+
+    // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
+    // so the user can always personalise their history
+    return this.prisma.like.update({
+      where: { id },
+      data: { label: dto.label ?? null },
+      select: {
+        id: true,
+        intent: true,
+        status: true,
+        label: true,
+        createdAt: true,
+        expiresAt: true,
+        targetIdentity: {
+          select: {
+            id: true,
+            type: true,
+            publicValueMasked: true,
+            isVerified: true,
+            verifiedAt: true,
+          },
+        },
+      },
+    });
   }
 }
