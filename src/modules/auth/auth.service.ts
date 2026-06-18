@@ -45,11 +45,18 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier; // raw phone or email
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+
+    // Normalize before hashing so Auth and Likes flows produce the same hash
+    const { publicValueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     // Check global uniqueness via AuthCredential
     const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+      where: { valueHash: publicValueHash },
       select: {
         userId: true,
         identity: {
@@ -72,9 +79,8 @@ export class AuthService extends BaseService {
       );
     }
 
-    const user = await this.authCredentialService.createUserWithCredential(
+    const { user } = await this.authCredentialService.createUserWithCredential(
       value,
-      valueHash,
       authMethod.method,
       false,
     );
@@ -102,7 +108,12 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -148,7 +159,12 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -163,12 +179,12 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      const user = await this.authCredentialService.createUserWithCredential(
-        value,
-        valueHash,
-        authMethod.method,
-        true,
-      );
+      const { user, normalizedHash } =
+        await this.authCredentialService.createUserWithCredential(
+          value,
+          authMethod.method,
+          true,
+        );
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
 
@@ -179,7 +195,7 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
-        publicValueHash: valueHash,
+        publicValueHash: normalizedHash,
         isNewUser: true,
       });
     }
@@ -319,11 +335,18 @@ export class AuthService extends BaseService {
     }
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
+
+    // Normalize before hashing – must match what processPublicValue produces
+    const publicValueData = await this.encryptionService.processPublicValue(
+      value,
+      identityType,
+    );
 
     // 2. Check global uniqueness
     const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+      where: { valueHash: publicValueData.publicValueHash },
     });
     if (existingCred) {
       throw new ConflictException(
@@ -339,23 +362,11 @@ export class AuthService extends BaseService {
 
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
-    const encPublic = await this.encryptionService.encryptPublicValue(value);
-    const valueMasked = this.encryptionService.maskPublicValue(
-      value,
-      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
-    );
-
     await this.prisma.$transaction(async (tx) => {
       const identity = await tx.identity.create({
         data: {
           type: this.authCredentialService.toCredentialType(authType),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
+          ...publicValueData,
           userId: user.id,
           isVerified: false, // will need verification
         },
@@ -371,8 +382,8 @@ export class AuthService extends BaseService {
         data: {
           userId: user.id,
           type: this.authCredentialService.toCredentialType(authType),
-          valueHash,
-          valueMasked: valueMasked,
+          valueHash: publicValueData.publicValueHash,
+          valueMasked: publicValueData.publicValueMasked ?? null,
           isPrimary,
           identityId: identity.id,
         },
@@ -382,7 +393,7 @@ export class AuthService extends BaseService {
     // TODO: Send verification code to the new value
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
-      publicValueHash: valueHash,
+      publicValueHash: publicValueData.publicValueHash,
       isSecondaryAuth: true,
     });
   }

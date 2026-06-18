@@ -7,6 +7,12 @@ import { Injectable } from '@nestjs/common';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { AuthMethod } from '../utils/auth-method.utils';
 
+export interface CreateUserResult {
+  user: User;
+  /** The normalized, canonical publicValueHash used for AuthCredential lookup */
+  normalizedHash: string;
+}
+
 @Injectable()
 export class AuthCredentialService extends BaseService {
   constructor(
@@ -19,17 +25,22 @@ export class AuthCredentialService extends BaseService {
 
   async createUserWithCredential(
     value: string,
-    valueHash: string,
     authMethod: AuthMethod,
     isVerified = false,
-  ): Promise<User> {
-    const encPublic = await this.encryptionService.encryptPublicValue(value);
-    const valueMasked = this.encryptionService.maskPublicValue(
+  ): Promise<CreateUserResult> {
+    const identityType =
+      authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
+
+    // processPublicValue normalizes the value (strips non-digits for PHONE,
+    // lowercases for EMAIL) before hashing and encrypting. This is the
+    // canonical hash that the likes flow also produces, ensuring deduplication
+    // works correctly via the @@unique([type, publicValueHash]) constraint.
+    const publicValueData = await this.encryptionService.processPublicValue(
       value,
-      authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
+      identityType,
     );
 
-    return this.prisma.$transaction(async (tx) => {
+    const user = await this.prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           notificationPreference: {
@@ -40,14 +51,8 @@ export class AuthCredentialService extends BaseService {
 
       const newIdentity = await tx.identity.create({
         data: {
-          type: this.toCredentialType(authMethod),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
+          type: identityType,
+          ...publicValueData,
           userId: newUser.id,
           isVerified,
           verifiedAt: isVerified ? DateUtil.now() : null,
@@ -58,8 +63,8 @@ export class AuthCredentialService extends BaseService {
         data: {
           userId: newUser.id,
           type: this.toCredentialType(authMethod),
-          valueHash,
-          valueMasked: valueMasked,
+          valueHash: publicValueData.publicValueHash,
+          valueMasked: publicValueData.publicValueMasked,
           isPrimary: true,
           identityId: newIdentity.id,
         },
@@ -67,6 +72,8 @@ export class AuthCredentialService extends BaseService {
 
       return newUser;
     });
+
+    return { user, normalizedHash: publicValueData.publicValueHash };
   }
 
   toCredentialType(method: AuthMethod): AuthCredentialType {
