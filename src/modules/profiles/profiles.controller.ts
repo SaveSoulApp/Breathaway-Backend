@@ -30,6 +30,14 @@ import {
 } from './dto';
 import { ProfilesService } from './profiles.service';
 
+/**
+ * Handles HTTP operations for the /profiles resource.
+ *
+ * All endpoints require a valid JWT — the authenticated user's ID is resolved
+ * from the token via the `@CurrentUserId()` decorator and cannot be overridden
+ * by the caller. Write operations (POST, PUT, PATCH, DELETE) are scoped
+ * exclusively to the authenticated user's own profile.
+ */
 @ApiTags('Profiles')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -61,6 +69,16 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
+  /**
+   * Creates a profile for the authenticated user.
+   *
+   * Each user may have at most one profile — submitting a second creation
+   * request while a profile already exists returns a 409 Conflict.
+   *
+   * @returns The newly created `ProfileResponseDto`.
+   * @throws {ConflictException} When a profile already exists for the authenticated user.
+   * @throws {BadRequestException} When the request body fails validation.
+   */
   async createProfile(
     @CurrentUserId() userId: string,
     @Body() createProfileDto: CreateProfileDto,
@@ -83,6 +101,12 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  /**
+   * Returns the profile belonging to the authenticated user.
+   *
+   * @returns The authenticated user's `ProfileResponseDto`.
+   * @throws {NotFoundException} When the authenticated user has no profile yet.
+   */
   async getMyProfile(@CurrentUserId() userId: string) {
     const profile = await this.profilesService.getProfileByUserId(userId);
     return profile;
@@ -100,6 +124,17 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  /**
+   * Returns a profile by its ULID, regardless of which user owns it.
+   *
+   * Intended for scenarios where the caller knows a profile ID directly
+   * (e.g., social graph lookups). Authentication is still required, but
+   * the returned profile may belong to a different user.
+   *
+   * @param id - ULID of the profile to retrieve.
+   * @returns The matching `ProfileResponseDto`.
+   * @throws {NotFoundException} When no profile exists with the given ID.
+   */
   async getProfileById(@Param('id') id: string) {
     const profile = await this.profilesService.getProfileById(id);
     return profile;
@@ -116,6 +151,15 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  /**
+   * Fully replaces the authenticated user's profile (PUT semantics).
+   *
+   * All fields in the request body overwrite existing values — omitting an
+   * optional field resets it to its default, not its current persisted value.
+   *
+   * @returns The fully updated `ProfileResponseDto`.
+   * @throws {NotFoundException} When the authenticated user has no profile yet.
+   */
   async updateProfile(
     @CurrentUserId() userId: string,
     @Body() updateProfileDto: UpdateProfileDto,
@@ -138,6 +182,15 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  /**
+   * Partially updates the authenticated user's profile (PATCH semantics).
+   *
+   * Only the supplied fields are overwritten; absent fields retain their
+   * current persisted values.
+   *
+   * @returns The patched `ProfileResponseDto`.
+   * @throws {NotFoundException} When the authenticated user has no profile yet.
+   */
   async patchProfile(
     @CurrentUserId() userId: string,
     @Body() patchProfileDto: PatchProfileDto,
@@ -160,6 +213,16 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  /**
+   * Soft-deletes the authenticated user's account and all associated data.
+   *
+   * This is a non-reversible, cascading operation — identities, auth
+   * credentials, and devices are also deactivated in the same transaction.
+   * Returns 204 No Content on success.
+   *
+   * @throws {NotFoundException} When the authenticated user does not exist or
+   *   has already been deleted.
+   */
   async deleteProfile(@CurrentUserId() userId: string) {
     await this.profilesService.deleteProfile(userId);
   }
