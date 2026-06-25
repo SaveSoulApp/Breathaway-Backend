@@ -105,10 +105,10 @@ export class IdentityWorkflowsService extends BaseService {
   /**
    * Handles the `identity.claimed` Pub/Sub event.
    *
-   * Finds all still-actionable likes that targeted one of the claiming user's
-   * identities and attempts match resolution for each. Because `targetUserId`
-   * no longer exists on the `Like` table, there is no backfill step — the live
-   * join through `Identity.userId` is always authoritative.
+   * Finds all still-actionable likes that targeted one of the newly-owned
+   * identities and attempts match resolution for each. Ownership is resolved
+   * at query time via the live `Identity → userId` join, so no data migration
+   * is required before match processing can begin.
    */
   @PubSubListener(PubSubEvent.IDENTITY_CLAIMED)
   async handleIdentityClaimed(

@@ -280,7 +280,7 @@ describe('IdentityWorkflowsService', () => {
         where: { userId, deletedAt: null },
         select: { id: true },
       });
-      // No backfill (removed) and no resolution
+      // No likes queried or resolved when the user has no active identities
       expect(prisma.like.updateMany).not.toHaveBeenCalled();
       expect(prisma.like.findMany).not.toHaveBeenCalled();
       expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
@@ -297,7 +297,7 @@ describe('IdentityWorkflowsService', () => {
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
-      // No backfill updateMany call — that step was removed
+      // Ownership is resolved via live join; no updateMany call is expected
       expect(prisma.like.updateMany).not.toHaveBeenCalled();
 
       // Resolution query filters only on targetIdentityId (no targetUserId)

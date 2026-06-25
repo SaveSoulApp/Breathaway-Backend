@@ -90,9 +90,9 @@ export class AuthCredentialService extends BaseService {
         );
 
         // A ghost identity was claimed — publish the event so the
-        // identity-workflows handler can backfill targetUserId on any
-        // existing likes and trigger mutual-like / match resolution.
-        // This is fire-and-forget; Pub/Sub provides durability guarantees.
+        // identity-workflows handler can attempt match resolution for any
+        // pending likes that targeted this identity.
+        // Fire-and-forget; Pub/Sub provides delivery durability.
         this.pubSubPublisher
           .publish(
             PubSubTopic.IDENTITY_WORKFLOWS,

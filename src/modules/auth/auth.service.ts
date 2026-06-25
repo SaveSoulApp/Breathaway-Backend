@@ -312,9 +312,9 @@ export class AuthService extends BaseService {
       return newUser;
     });
 
-    // If a ghost identity was claimed, trigger the identity-workflows backfill
-    // and match resolution so any likes targeting this social handle are
-    // resolved into matches now that the identity has an owner.
+    // A ghost identity was claimed — trigger match resolution so any pending
+    // likes that targeted this social handle are evaluated now that the
+    // identity has an owner.
     this.pubSubPublisher
       .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
         userId: user.id,
