@@ -4,6 +4,8 @@ import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.ser
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { FirebaseService } from '@modules/firebase/firebase.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   ConflictException,
   Injectable,
@@ -32,6 +34,7 @@ export class AuthService extends BaseService {
     private readonly encryptionService: IdentityCryptoService,
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
+    private readonly pubSubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -308,6 +311,20 @@ export class AuthService extends BaseService {
 
       return newUser;
     });
+
+    // If a ghost identity was claimed, trigger the identity-workflows backfill
+    // and match resolution so any likes targeting this social handle are
+    // resolved into matches now that the identity has an owner.
+    this.pubSubPublisher
+      .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+        userId: user.id,
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for social user ${user.id}`,
+          { error: err.message },
+        );
+      });
 
     // No AuthCredential for social types.
 

@@ -117,7 +117,6 @@ export class LikesService extends BaseService {
       data: {
         senderUserId: userId,
         targetIdentityId,
-        targetUserId: targetIdentity.userId,
         intent: dto.intent,
         status: LikeStatus.PENDING,
         label: dto.label ?? null,
@@ -126,7 +125,13 @@ export class LikesService extends BaseService {
       select: {
         ...LIKE_SELECT,
         senderUserId: true,
-        targetUserId: true,
+        targetIdentityId: true,
+        targetIdentity: {
+          select: {
+            ...LIKE_SELECT.targetIdentity.select,
+            userId: true,
+          },
+        },
       },
     });
 

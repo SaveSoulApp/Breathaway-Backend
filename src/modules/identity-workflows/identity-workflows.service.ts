@@ -105,14 +105,10 @@ export class IdentityWorkflowsService extends BaseService {
   /**
    * Handles the `identity.claimed` Pub/Sub event.
    *
-   * Orchestrates two independent passes:
-   *   1. Backfill — data integrity: stamp targetUserId on ALL historically
-   *      unresolved likes (regardless of expiry or deletion state).
-   *   2. Match resolution — business logic: evaluate only still-actionable likes
-   *      for mutual-like / match creation.
-   *
-   * Keeping these two concerns separate ensures a pod crash or early return in
-   * resolution never silently skips the backfill.
+   * Finds all still-actionable likes that targeted one of the claiming user's
+   * identities and attempts match resolution for each. Because `targetUserId`
+   * no longer exists on the `Like` table, there is no backfill step — the live
+   * join through `Identity.userId` is always authoritative.
    */
   @PubSubListener(PubSubEvent.IDENTITY_CLAIMED)
   async handleIdentityClaimed(
@@ -138,10 +134,6 @@ export class IdentityWorkflowsService extends BaseService {
 
     const identityIds = userIdentities.map((i) => i.id);
 
-    // Pass 1: unconditional data-integrity backfill.
-    await this.backfillTargetUserId(userId, identityIds, messageId);
-
-    // Pass 2: match resolution on only the still-actionable likes.
     await this.resolveUnclaimedLikes(userId, identityIds, messageId);
   }
 
@@ -150,37 +142,12 @@ export class IdentityWorkflowsService extends BaseService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Backfills `targetUserId` on every like that ever pointed at one of the
-   * claiming user's identities while it was unclaimed — regardless of whether
-   * the like has since expired, been soft-deleted, or changed status.
-   *
-   * This is a pure data-integrity operation so that historical queries
-   * (analytics, audits, future reprocessing) always find the correct owner.
-   */
-  private async backfillTargetUserId(
-    userId: string,
-    identityIds: string[],
-    messageId: string,
-  ): Promise<void> {
-    const result = await this.prisma.like.updateMany({
-      where: {
-        targetIdentityId: { in: identityIds },
-        targetUserId: null,
-      },
-      data: { targetUserId: userId },
-    });
-
-    this.logger.log(
-      `[${messageId}] Backfilled targetUserId=${userId} on ${result.count} like(s) (all statuses/expiry states).`,
-    );
-  }
-
-  /**
    * Runs match resolution against every like that is still actionable:
    * `PENDING`, not soft-deleted, and not yet expired.
    *
-   * By the time this runs, `targetUserId` has already been backfilled by
-   * `backfillTargetUserId`, so `resolveFromLike` receives a fully resolved like.
+   * The filter on `targetIdentityId` is sufficient to scope results to the
+   * claiming user — no `targetUserId` filter is needed because that column
+   * no longer exists.
    */
   private async resolveUnclaimedLikes(
     userId: string,
@@ -190,7 +157,6 @@ export class IdentityWorkflowsService extends BaseService {
     const actionableLikes = await this.prisma.like.findMany({
       where: {
         targetIdentityId: { in: identityIds },
-        targetUserId: userId,
         status: LikeStatus.PENDING,
         deletedAt: null,
         expiresAt: { gt: DateUtil.now() },
@@ -198,9 +164,10 @@ export class IdentityWorkflowsService extends BaseService {
       select: {
         id: true,
         senderUserId: true,
-        targetUserId: true,
+        targetIdentityId: true,
         intent: true,
         status: true,
+        targetIdentity: { select: { userId: true } },
       },
     });
 

@@ -3,6 +3,8 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { ConflictException, Injectable } from '@nestjs/common';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { AuthMethod } from '../utils/auth-method.utils';
@@ -19,6 +21,7 @@ export class AuthCredentialService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly encryptionService: IdentityCryptoService,
+    private readonly pubSubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
@@ -85,6 +88,21 @@ export class AuthCredentialService extends BaseService {
         this.logger.log(
           `Claimed ghost identity ${identityId} for new user ${newUser.id}`,
         );
+
+        // A ghost identity was claimed — publish the event so the
+        // identity-workflows handler can backfill targetUserId on any
+        // existing likes and trigger mutual-like / match resolution.
+        // This is fire-and-forget; Pub/Sub provides durability guarantees.
+        this.pubSubPublisher
+          .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+            userId: newUser.id,
+          })
+          .catch((err: Error) => {
+            this.logger.error(
+              `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for new user ${newUser.id}`,
+              { error: err.message },
+            );
+          });
       } else {
         const newIdentity = await tx.identity.create({
           data: {

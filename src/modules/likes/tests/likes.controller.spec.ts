@@ -25,7 +25,7 @@ describe('LikesController', () => {
   const mockLikeResponse = {
     id: likeId,
     senderUserId: userId,
-    targetUserId: 'target-user',
+    targetIdentityId: 'target-identity-id',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
     label: null,

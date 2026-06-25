@@ -18,7 +18,6 @@ export type RawLike = {
   expiresAt: Date | null;
   targetIdentity: RawLikeIdentity;
   senderUserId?: string;
-  targetUserId?: string | null;
 };
 
 /** The Prisma select clause reused across all like queries. */

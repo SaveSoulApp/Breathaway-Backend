@@ -38,17 +38,19 @@ describe('MatchResolverService', () => {
   const mockNewLike: LikeSummary = {
     id: 'like-1',
     senderUserId: 'user-1',
-    targetUserId: 'user-2',
+    targetIdentityId: 'identity-2',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
+    targetIdentity: { userId: 'user-2' },
   };
 
   const mockReverseLike: LikeSummary = {
     id: 'like-2',
     senderUserId: 'user-2',
-    targetUserId: 'user-1',
+    targetIdentityId: 'identity-1',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
+    targetIdentity: { userId: 'user-1' },
   };
 
   beforeEach(async () => {
@@ -124,10 +126,10 @@ describe('MatchResolverService', () => {
   });
 
   describe('resolveFromLike', () => {
-    it('should return early if targetUserId is missing', async () => {
+    it('should return early if targetIdentity.userId is null (unresolved identity)', async () => {
       const likeMissingTarget: LikeSummary = {
         ...mockNewLike,
-        targetUserId: null,
+        targetIdentity: { userId: null },
       };
 
       await service.resolveFromLike(likeMissingTarget);
@@ -146,10 +148,18 @@ describe('MatchResolverService', () => {
       expect(prisma.like.findFirst).toHaveBeenCalledWith({
         where: {
           senderUserId: 'user-2',
-          targetUserId: 'user-1',
+          targetIdentity: { userId: 'user-1' },
           status: LikeStatus.PENDING,
           deletedAt: null,
           expiresAt: { gt: expect.any(Date) },
+        },
+        select: {
+          id: true,
+          senderUserId: true,
+          targetIdentityId: true,
+          intent: true,
+          status: true,
+          targetIdentity: { select: { userId: true } },
         },
       });
       expect(contextualLogger.debug).toHaveBeenCalledWith(
@@ -250,13 +260,15 @@ describe('MatchResolverService', () => {
         ...mockNewLike,
         id: 'like-b',
         senderUserId: 'user-B',
-        targetUserId: 'user-A',
+        targetIdentityId: 'identity-A',
+        targetIdentity: { userId: 'user-A' },
       };
       const reverseLikeUserA: LikeSummary = {
         ...mockReverseLike,
         id: 'like-a',
         senderUserId: 'user-A',
-        targetUserId: 'user-B',
+        targetIdentityId: 'identity-B',
+        targetIdentity: { userId: 'user-B' },
       };
 
       prisma.like.findFirst.mockResolvedValue(
@@ -340,7 +352,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Race condition caught: Unique constraint violation while creating Match for users user-1 and user-2.`,
+        `Race condition caught: Unique constraint violation while creating Match for like like-1.`,
       );
       // Ensures it doesn't log it as an error
       expect(contextualLogger.error).not.toHaveBeenCalled();

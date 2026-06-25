@@ -74,7 +74,6 @@ describe('LikesService', () => {
     id: likeId,
     senderUserId: userId,
     targetIdentityId,
-    targetUserId,
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
     label: null,
@@ -313,7 +312,6 @@ describe('LikesService', () => {
         data: {
           senderUserId: userId,
           targetIdentityId,
-          targetUserId,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           label: null,
