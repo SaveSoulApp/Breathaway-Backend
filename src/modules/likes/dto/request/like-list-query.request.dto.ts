@@ -4,6 +4,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
+/**
+ * Query parameters for GET /likes — controls pagination, filtering, and sort order.
+ *
+ * All fields are optional; defaults are applied by NestJS when omitted.
+ * `page` and `limit` are coerced from query strings to integers by the `@Transform` decorator.
+ */
 export class LikeListQueryDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })
   @IsOptional()

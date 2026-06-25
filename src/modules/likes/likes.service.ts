@@ -22,6 +22,14 @@ import {
 } from './dto';
 import { LIKE_SELECT, RawLike } from './likes.types';
 
+/**
+ * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
+ *
+ * A like represents one user's expressed intent to connect with another person's identity.
+ * This service coordinates identity resolution (via IdentityCryptoService and IdentitiesService),
+ * duplicate prevention, expiry scheduling, match resolution (via MatchResolverService),
+ * and audit logging for every state-changing operation.
+ */
 @Injectable()
 export class LikesService extends BaseService {
   private readonly expiryDays: number;
@@ -38,6 +46,23 @@ export class LikesService extends BaseService {
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
   }
 
+  /**
+   * Records a new like from the authenticated user toward a target identity.
+   *
+   * When only raw identity data is supplied (`dto.targetIdentity`), the service either
+   * resolves an existing identity by its hashed public value or creates a new unresolved
+   * one. Duplicate likes (same sender → same target, non-deleted) are rejected.
+   * Match resolution is triggered asynchronously after the like is persisted — a failure
+   * there is logged but does NOT roll back the like.
+   *
+   * @param userId - UUID of the authenticated user sending the like.
+   * @param dto    - Payload containing the target identity reference, intent, and optional label.
+   * @returns The created like with the decrypted target identity `publicValue` attached.
+   * @throws {BadRequestException} When neither `targetIdentityId` nor `targetIdentity` is supplied,
+   *   or when the user attempts to like an identity that maps to themselves.
+   * @throws {NotFoundException} When the resolved `targetIdentityId` does not exist in the database.
+   * @throws {ConflictException} When a non-deleted like from this user to the same identity already exists.
+   */
   async create(userId: string, dto: CreateLikeRequestDto) {
     let targetIdentityId = dto.targetIdentityId;
 
@@ -158,6 +183,18 @@ export class LikesService extends BaseService {
     return this.attachPublicValue(like);
   }
 
+  /**
+   * Returns a paginated, optionally filtered list of likes sent by the given user.
+   *
+   * Runs a count and a data query in parallel to minimise latency. Each row has its
+   * target identity `publicValue` decrypted before being returned, so this method
+   * performs one decryption call per row — avoid large `limit` values in hot paths.
+   *
+   * @param userId - UUID of the user whose likes are being listed.
+   * @param query  - Pagination parameters (`page`, `limit`), optional `intent` and `status` filters,
+   *                 and `sortOrder` (defaults to DESC).
+   * @returns A paginated envelope containing the like rows and cursor metadata.
+   */
   async findAllForUser(userId: string, query: LikeListQueryDto) {
     const {
       page = 1,
@@ -207,6 +244,17 @@ export class LikesService extends BaseService {
     };
   }
 
+  /**
+   * Fetches a single like by ID, enforcing ownership by the given user.
+   *
+   * Only non-soft-deleted likes are returned; a deleted like is treated the same
+   * as non-existent from the caller's perspective.
+   *
+   * @param id     - UUID of the like to retrieve.
+   * @param userId - UUID of the user who must own the like.
+   * @returns The like with decrypted target identity data.
+   * @throws {NotFoundException} When no non-deleted like with the given ID exists for this user.
+   */
   async findOneForUser(id: string, userId: string) {
     const like = await this.prisma.like.findFirst({
       where: {
@@ -224,6 +272,19 @@ export class LikesService extends BaseService {
     return this.attachPublicValue(like);
   }
 
+  /**
+   * Soft-deletes a PENDING like by stamping `deletedAt` and setting status to DELETED.
+   *
+   * The record is intentionally retained in the database for audit history. Only PENDING
+   * likes may be deleted; MATCHED or VOIDED likes must be managed via their own lifecycle
+   * endpoints. Emits a LIKE_DELETED audit event on success.
+   *
+   * @param id     - UUID of the like to delete.
+   * @param userId - UUID of the user who must own the like.
+   * @returns `{ success: true }` on successful deletion.
+   * @throws {NotFoundException} When no non-deleted like with the given ID exists for this user.
+   * @throws {BadRequestException} When the like is not in PENDING status.
+   */
   async delete(id: string, userId: string) {
     const like = await this.prisma.like.findFirst({
       where: { id, senderUserId: userId, deletedAt: null },
@@ -254,6 +315,19 @@ export class LikesService extends BaseService {
     return { success: true };
   }
 
+  /**
+   * Updates the personal label on a like, regardless of its current status.
+   *
+   * Labels are a user-facing annotation (e.g. "Sarah from the gym") and are intentionally
+   * updateable even after a like has been MATCHED or VOIDED, so users can always personalise
+   * their history. Passing `null` in the DTO clears any existing label.
+   *
+   * @param id     - UUID of the like to update.
+   * @param userId - UUID of the user who must own the like.
+   * @param dto    - New label value; `null` clears the field.
+   * @returns The updated like with decrypted target identity data.
+   * @throws {NotFoundException} When no non-deleted like with the given ID exists for this user.
+   */
   async updateLabel(
     id: string,
     userId: string,

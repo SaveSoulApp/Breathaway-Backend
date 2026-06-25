@@ -1,6 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
+/**
+ * Payload for PATCH /likes/:id/label — sets or clears the user's personal annotation on a like.
+ *
+ * The label is purely cosmetic and is never shown to the target person. Omitting `label`
+ * or sending `null` removes any existing annotation.
+ */
 export class UpdateLikeLabelRequestDto {
   @ApiPropertyOptional({
     description:
