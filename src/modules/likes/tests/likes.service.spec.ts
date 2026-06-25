@@ -348,7 +348,7 @@ describe('LikesService', () => {
   });
 
   describe('findAllForUser', () => {
-    it('should return pending likes with pagination meta', async () => {
+    it('should return all likes with pagination meta', async () => {
       // Arrange
       prisma.like.findMany.mockResolvedValue([mockLikeData]);
       prisma.like.count.mockResolvedValue(1);
@@ -363,15 +363,11 @@ describe('LikesService', () => {
       expect(prisma.like.count).toHaveBeenCalledWith({
         where: {
           senderUserId: userId,
-          status: LikeStatus.PENDING,
-          deletedAt: null,
         },
       });
       expect(prisma.like.findMany).toHaveBeenCalledWith({
         where: {
           senderUserId: userId,
-          status: LikeStatus.PENDING,
-          deletedAt: null,
         },
         orderBy: { createdAt: 'desc' },
         skip: 0,

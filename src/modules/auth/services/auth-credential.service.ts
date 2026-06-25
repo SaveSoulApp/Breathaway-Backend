@@ -94,9 +94,13 @@ export class AuthCredentialService extends BaseService {
         // existing likes and trigger mutual-like / match resolution.
         // This is fire-and-forget; Pub/Sub provides durability guarantees.
         this.pubSubPublisher
-          .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
-            userId: newUser.id,
-          })
+          .publish(
+            PubSubTopic.IDENTITY_WORKFLOWS,
+            PubSubEvent.IDENTITY_CLAIMED,
+            {
+              userId: newUser.id,
+            },
+          )
           .catch((err: Error) => {
             this.logger.error(
               `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for new user ${newUser.id}`,

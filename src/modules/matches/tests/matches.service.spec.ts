@@ -87,6 +87,7 @@ describe('MatchesService', () => {
       firstName: 'Jane',
       lastName: 'Smith',
       gender: null,
+      label: null,
     },
   };
 
@@ -107,6 +108,7 @@ describe('MatchesService', () => {
       firstName: 'Jane',
       lastName: 'Smith',
       gender: null,
+      label: null,
     },
   };
 
@@ -204,6 +206,16 @@ describe('MatchesService', () => {
               },
             },
           },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
+            },
+          },
         },
       });
       expect(result).toEqual({
@@ -298,6 +310,16 @@ describe('MatchesService', () => {
                   gender: true,
                 },
               },
+            },
+          },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
             },
           },
         },

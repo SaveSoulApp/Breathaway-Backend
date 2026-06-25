@@ -14,7 +14,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LikeStatus } from '@prisma/client';
+import { LikeStatus, Prisma } from '@prisma/client';
 import {
   CreateLikeRequestDto,
   LikeListQueryDto,
@@ -168,7 +168,7 @@ export class LikesService extends BaseService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.LikeWhereInput = {
       senderUserId: userId,
     };
 
