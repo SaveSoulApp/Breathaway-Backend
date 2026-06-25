@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LikesModule } from '@modules/likes/likes.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
@@ -14,6 +15,7 @@ describe('LikesController (e2e)', () => {
   let prisma: PrismaService;
   let jwtService: JwtService;
   let configService: ConfigService;
+  let crypto: IdentityCryptoService;
 
   const allCreatedUserIds: string[] = [];
 
@@ -24,6 +26,7 @@ describe('LikesController (e2e)', () => {
     prisma = context.prisma;
     jwtService = app.get(JwtService);
     configService = app.get(ConfigService);
+    crypto = app.get(IdentityCryptoService);
   });
 
   afterAll(async () => {
@@ -48,22 +51,27 @@ describe('LikesController (e2e)', () => {
         aud: configService.get<string>('JWT_AUDIENCE'),
       });
 
-      // Seed another user and their identity to like
+      // Seed another user and their identity to like.
+      // Use a unique email per run (keyed to user2.id) to prevent unique
+      // constraint collisions if a prior run's DB cleanup was skipped.
+      // Use processPublicValue for ALL encryption fields so that the KMS can
+      // successfully decrypt the publicValue when LikesService.attachPublicValue
+      // is called in the response path.
       const user2 = await prisma.user.create({ data: {} });
       allCreatedUserIds.push(user2.id);
+
+      const uniqueEmail = `test-likes-${user2.id}@e2e.test`;
+      const publicValueData = await crypto.processPublicValue(
+        uniqueEmail,
+        IdentityType.EMAIL,
+      );
 
       const identity = await prisma.identity.create({
         data: {
           userId: user2.id,
           type: IdentityType.EMAIL,
           isVerified: true,
-          publicValueHash: 'somehash',
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
-          publicValueKeyId: 'key',
-          publicValueMasked: 't**t@test.com',
+          ...publicValueData,
         },
       });
       targetIdentityId = identity.id;

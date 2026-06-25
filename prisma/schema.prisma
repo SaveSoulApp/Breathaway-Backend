@@ -75,7 +75,6 @@ model User {
   authCredentials  AuthCredential[]
 
   sentLikes        Like[]           @relation("SentLikes")
-  receivedLikes    Like[]           @relation("ReceivedLikes")
 
   matchesAsUserOne Match[]          @relation("MatchUserOne")
   matchesAsUserTwo Match[]          @relation("MatchUserTwo")
@@ -179,11 +178,9 @@ model Like {
   targetIdentityId String
   targetIdentity   Identity    @relation(fields: [targetIdentityId], references: [id], onDelete: Cascade)
 
-  targetUserId     String?
-  targetUser       User?       @relation("ReceivedLikes", fields: [targetUserId], references: [id])
-
   intent           IntentType
   status           LikeStatus  @default(PENDING)
+  label            String?
 
   matchAsLikeOne   Match?      @relation("MatchLikeOne")
   matchAsLikeTwo   Match?      @relation("MatchLikeTwo")
@@ -195,7 +192,6 @@ model Like {
   @@unique([senderUserId, targetIdentityId])
   @@index([senderUserId])
   @@index([targetIdentityId])
-  @@index([targetUserId])
   @@index([status])
   @@index([expiresAt])
 }

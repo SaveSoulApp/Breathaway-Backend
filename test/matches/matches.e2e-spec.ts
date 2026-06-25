@@ -47,10 +47,7 @@ describe('MatchesController (e2e)', () => {
     });
     await prisma.like.deleteMany({
       where: {
-        OR: [
-          { senderUserId: { in: allCreatedUserIds } },
-          { targetUserId: { in: allCreatedUserIds } },
-        ],
+        senderUserId: { in: allCreatedUserIds },
       },
     });
     await cleanupTestUsers(prisma, allCreatedUserIds);
@@ -124,7 +121,6 @@ describe('MatchesController (e2e)', () => {
         data: {
           senderUserId: user1.id,
           targetIdentityId: identity2.id,
-          targetUserId: user2.id,
           intent: IntentType.OPEN,
           status: LikeStatus.MATCHED,
         },
@@ -134,7 +130,6 @@ describe('MatchesController (e2e)', () => {
         data: {
           senderUserId: user2.id,
           targetIdentityId: identity1.id,
-          targetUserId: user1.id,
           intent: IntentType.OPEN,
           status: LikeStatus.MATCHED,
         },

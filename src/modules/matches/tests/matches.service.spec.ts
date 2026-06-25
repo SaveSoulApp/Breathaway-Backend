@@ -35,6 +35,7 @@ describe('MatchesService', () => {
       profile: {
         firstName: 'John',
         lastName: 'Doe',
+        gender: null,
       },
     },
     userTwo: {
@@ -42,6 +43,7 @@ describe('MatchesService', () => {
       profile: {
         firstName: 'Jane',
         lastName: 'Smith',
+        gender: null,
       },
     },
   };
@@ -55,6 +57,7 @@ describe('MatchesService', () => {
       profile: {
         firstName: 'Jane',
         lastName: 'Smith',
+        gender: null,
       },
     },
     userTwo: {
@@ -62,6 +65,7 @@ describe('MatchesService', () => {
       profile: {
         firstName: 'John',
         lastName: 'Doe',
+        gender: null,
       },
     },
   };
@@ -70,12 +74,20 @@ describe('MatchesService', () => {
     id: matchId,
     status: MatchStatus.ACTIVE,
     matchedAt: mockMatchDataUserOne.matchedAt,
-    intentOne: IntentType.CASUAL,
-    intentTwo: IntentType.CASUAL,
+    myIntent: IntentType.CASUAL,
+    theirIntent: IntentType.CASUAL,
+    me: {
+      id: currentUserId,
+      firstName: 'John',
+      lastName: 'Doe',
+      gender: null,
+    },
     otherUser: {
       id: otherUserId,
       firstName: 'Jane',
       lastName: 'Smith',
+      gender: null,
+      label: null,
     },
   };
 
@@ -83,12 +95,20 @@ describe('MatchesService', () => {
     id: matchId,
     status: MatchStatus.ACTIVE,
     matchedAt: mockMatchDataUserTwo.matchedAt,
-    intentOne: IntentType.CASUAL,
-    intentTwo: IntentType.CASUAL,
+    myIntent: IntentType.CASUAL,
+    theirIntent: IntentType.CASUAL,
+    me: {
+      id: currentUserId,
+      firstName: 'John',
+      lastName: 'Doe',
+      gender: null,
+    },
     otherUser: {
       id: otherUserId,
       firstName: 'Jane',
       lastName: 'Smith',
+      gender: null,
+      label: null,
     },
   };
 
@@ -169,6 +189,7 @@ describe('MatchesService', () => {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
             },
@@ -180,8 +201,19 @@ describe('MatchesService', () => {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
+            },
+          },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
             },
           },
         },
@@ -263,6 +295,7 @@ describe('MatchesService', () => {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
             },
@@ -274,8 +307,19 @@ describe('MatchesService', () => {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
+            },
+          },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
             },
           },
         },

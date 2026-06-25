@@ -8,10 +8,17 @@ import { MatchesService } from '@modules/matches/matches.service';
 import { Injectable } from '@nestjs/common';
 import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 
+/**
+ * Minimal like shape consumed by the match resolver.
+ * `targetIdentity.userId` replaces the removed `targetUserId` denormalized
+ * column — the live join through `Identity` is always authoritative.
+ */
 export type LikeSummary = Pick<
   Like,
-  'id' | 'senderUserId' | 'targetUserId' | 'intent' | 'status'
->;
+  'id' | 'senderUserId' | 'targetIdentityId' | 'intent' | 'status'
+> & {
+  targetIdentity: { userId: string | null };
+};
 
 @Injectable()
 export class MatchResolverService extends BaseService {
@@ -26,7 +33,9 @@ export class MatchResolverService extends BaseService {
 
   async resolveFromLike(newLike: LikeSummary) {
     try {
-      if (!newLike.targetUserId) {
+      const targetUserId = newLike.targetIdentity.userId;
+
+      if (!targetUserId) {
         this.logger.debug(
           `Like ${newLike.id} target identity is unresolved. Skipping match resolution.`,
         );
@@ -35,12 +44,12 @@ export class MatchResolverService extends BaseService {
 
       const reverseLike = await this.findReverseLike(
         newLike.senderUserId,
-        newLike.targetUserId,
+        targetUserId,
       );
 
       if (!reverseLike) {
         this.logger.debug(
-          `No reverse like found for users ${newLike.senderUserId} and ${newLike.targetUserId}.`,
+          `No reverse like found for users ${newLike.senderUserId} and ${targetUserId}.`,
         );
         return;
       }
@@ -51,17 +60,18 @@ export class MatchResolverService extends BaseService {
 
       const [userOneId, userTwoId] = [
         newLike.senderUserId,
-        newLike.targetUserId,
+        targetUserId,
       ].sort();
 
       const canonicalLikeOne =
         userOneId === newLike.senderUserId ? newLike : reverseLike;
       const canonicalLikeTwo =
-        userTwoId === newLike.targetUserId ? reverseLike : newLike;
+        userTwoId === targetUserId ? reverseLike : newLike;
 
       const isEligible = await this.validateMatchEligibility(
         newLike,
         reverseLike,
+        targetUserId,
         userOneId,
         userTwoId,
       );
@@ -86,14 +96,14 @@ export class MatchResolverService extends BaseService {
         resourceId: match.id,
         metadata: {
           matchId: match.id,
-          secondaryUserId: newLike.targetUserId,
+          secondaryUserId: targetUserId,
         },
       });
     } catch (error) {
       const err = error as { code?: string; stack?: string };
       if (err?.code === 'P2002') {
         this.logger.warn(
-          `Race condition caught: Unique constraint violation while creating Match for users ${newLike.senderUserId} and ${newLike.targetUserId}.`,
+          `Race condition caught: Unique constraint violation while creating Match for like ${newLike.id}.`,
         );
         return;
       }
@@ -111,10 +121,18 @@ export class MatchResolverService extends BaseService {
     return this.prisma.like.findFirst({
       where: {
         senderUserId: userBId,
-        targetUserId: userAId,
+        targetIdentity: { userId: userAId },
         status: LikeStatus.PENDING,
         deletedAt: null,
         expiresAt: { gt: DateUtil.now() },
+      },
+      select: {
+        id: true,
+        senderUserId: true,
+        targetIdentityId: true,
+        intent: true,
+        status: true,
+        targetIdentity: { select: { userId: true } },
       },
     });
   }
@@ -122,6 +140,7 @@ export class MatchResolverService extends BaseService {
   private async validateMatchEligibility(
     newLike: LikeSummary,
     reverseLike: LikeSummary,
+    targetUserId: string,
     userOneId: string,
     userTwoId: string,
   ): Promise<{ valid: boolean; existingMatch: Match | null }> {
@@ -139,12 +158,12 @@ export class MatchResolverService extends BaseService {
 
     const isBlocked = await this.blocksService.isBlocked(
       newLike.senderUserId,
-      newLike.targetUserId!,
+      targetUserId,
     );
 
     if (isBlocked) {
       this.logger.log(
-        `Block exists between users ${newLike.senderUserId} and ${newLike.targetUserId}. Suppressing match.`,
+        `Block exists between users ${newLike.senderUserId} and ${targetUserId}. Suppressing match.`,
       );
       return { valid: false, existingMatch: null };
     }

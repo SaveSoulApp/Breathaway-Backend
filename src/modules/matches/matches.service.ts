@@ -4,7 +4,7 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IntentType, MatchStatus } from '@prisma/client';
+import { GenderType, IntentType, MatchStatus } from '@prisma/client';
 import { MatchListQueryDto } from './dto';
 
 interface MatchWithUsers {
@@ -20,6 +20,7 @@ interface MatchWithUsers {
     profile: {
       firstName: string;
       lastName: string | null;
+      gender: GenderType | null;
     } | null;
   };
   userTwo: {
@@ -27,7 +28,14 @@ interface MatchWithUsers {
     profile: {
       firstName: string;
       lastName: string | null;
+      gender: GenderType | null;
     } | null;
+  };
+  likeOne: {
+    label: string | null;
+  };
+  likeTwo: {
+    label: string | null;
   };
 }
 
@@ -76,6 +84,7 @@ export class MatchesService extends BaseService {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
             },
@@ -87,8 +96,19 @@ export class MatchesService extends BaseService {
                 select: {
                   firstName: true,
                   lastName: true,
+                  gender: true,
                 },
               },
+            },
+          },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
             },
           },
         },
@@ -134,6 +154,7 @@ export class MatchesService extends BaseService {
               select: {
                 firstName: true,
                 lastName: true,
+                gender: true,
               },
             },
           },
@@ -145,8 +166,19 @@ export class MatchesService extends BaseService {
               select: {
                 firstName: true,
                 lastName: true,
+                gender: true,
               },
             },
+          },
+        },
+        likeOne: {
+          select: {
+            label: true,
+          },
+        },
+        likeTwo: {
+          select: {
+            label: true,
           },
         },
       },
@@ -211,18 +243,28 @@ export class MatchesService extends BaseService {
 
   private mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
     const isUserOne = match.userOneId === currentUserId;
+    const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
+    const theirLike = isUserOne ? match.likeTwo : match.likeOne;
 
     return {
       id: match.id,
       status: match.status,
       matchedAt: match.matchedAt,
-      intentOne: match.intentOne,
-      intentTwo: match.intentTwo,
+      myIntent: isUserOne ? match.intentOne : match.intentTwo,
+      theirIntent: isUserOne ? match.intentTwo : match.intentOne,
+      me: {
+        id: me.id,
+        firstName: me.profile?.firstName,
+        lastName: me.profile?.lastName,
+        gender: me.profile?.gender ?? null,
+      },
       otherUser: {
         id: otherUser.id,
         firstName: otherUser.profile?.firstName,
         lastName: otherUser.profile?.lastName,
+        gender: otherUser.profile?.gender ?? null,
+        label: theirLike?.label ?? null,
       },
     };
   }

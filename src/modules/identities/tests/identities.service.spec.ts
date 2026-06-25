@@ -707,6 +707,7 @@ describe('IdentitiesService', () => {
           userId: mockUserId,
           isVerified: true,
           verifiedAt: expect.any(Date),
+          ...mockEncryptedData,
           ...mockPlatformIdData,
         },
       });

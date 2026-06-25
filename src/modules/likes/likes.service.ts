@@ -1,9 +1,11 @@
+import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import {
   BadRequestException,
@@ -12,9 +14,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LikeStatus } from '@prisma/client';
-import { CreateLikeRequestDto } from './dto/request/create-like.request.dto';
-import { LikeListQueryDto } from './dto/request/like-list-query.request.dto';
+import { LikeStatus, Prisma } from '@prisma/client';
+import {
+  CreateLikeRequestDto,
+  LikeListQueryDto,
+  UpdateLikeLabelRequestDto,
+} from './dto';
+import { LIKE_SELECT, RawLike } from './likes.types';
 
 @Injectable()
 export class LikesService extends BaseService {
@@ -25,6 +31,7 @@ export class LikesService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly identityCryptoService: IdentityCryptoService,
+    private readonly identitiesService: IdentitiesService,
     private readonly matchResolverService: MatchResolverService,
   ) {
     super(logger);
@@ -111,26 +118,19 @@ export class LikesService extends BaseService {
       data: {
         senderUserId: userId,
         targetIdentityId,
-        targetUserId: targetIdentity.userId,
         intent: dto.intent,
         status: LikeStatus.PENDING,
+        label: dto.label ?? null,
         expiresAt,
       },
       select: {
-        id: true,
+        ...LIKE_SELECT,
         senderUserId: true,
-        targetUserId: true,
-        intent: true,
-        status: true,
-        createdAt: true,
-        expiresAt: true,
+        targetIdentityId: true,
         targetIdentity: {
           select: {
-            id: true,
-            type: true,
-            publicValueMasked: true,
-            isVerified: true,
-            verifiedAt: true,
+            ...LIKE_SELECT.targetIdentity.select,
+            userId: true,
           },
         },
       },
@@ -155,46 +155,44 @@ export class LikesService extends BaseService {
       },
     });
 
-    return like;
+    return this.attachPublicValue(like);
   }
 
   async findAllForUser(userId: string, query: LikeListQueryDto) {
-    const { page = 1, limit = 20 } = query;
+    const {
+      page = 1,
+      limit = 20,
+      intent,
+      status,
+      sortOrder = SortOrder.DESC,
+    } = query;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: Prisma.LikeWhereInput = {
       senderUserId: userId,
-      status: LikeStatus.PENDING,
-      deletedAt: null,
     };
 
-    const [total, data] = await Promise.all([
+    if (intent) {
+      where.intent = intent;
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    const [total, rows] = await Promise.all([
       this.prisma.like.count({ where }),
       this.prisma.like.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: sortOrder },
         skip,
         take: limit,
-        select: {
-          id: true,
-          intent: true,
-          status: true,
-          createdAt: true,
-          expiresAt: true,
-          targetIdentity: {
-            select: {
-              id: true,
-              type: true,
-              publicValueMasked: true,
-              isVerified: true,
-              verifiedAt: true,
-            },
-          },
-        },
+        select: LIKE_SELECT,
       }),
     ]);
 
     const totalPages = Math.ceil(total / limit);
+    const data = await Promise.all(rows.map((r) => this.attachPublicValue(r)));
 
     return {
       data,
@@ -216,29 +214,14 @@ export class LikesService extends BaseService {
         senderUserId: userId,
         deletedAt: null,
       },
-      select: {
-        id: true,
-        intent: true,
-        status: true,
-        createdAt: true,
-        expiresAt: true,
-        targetIdentity: {
-          select: {
-            id: true,
-            type: true,
-            publicValueMasked: true,
-            isVerified: true,
-            verifiedAt: true,
-          },
-        },
-      },
+      select: LIKE_SELECT,
     });
 
     if (!like) {
       throw new NotFoundException(`Like ${id} not found`);
     }
 
-    return like;
+    return this.attachPublicValue(like);
   }
 
   async delete(id: string, userId: string) {
@@ -269,5 +252,49 @@ export class LikesService extends BaseService {
     });
 
     return { success: true };
+  }
+
+  async updateLabel(
+    id: string,
+    userId: string,
+    dto: UpdateLikeLabelRequestDto,
+  ) {
+    const like = await this.prisma.like.findFirst({
+      where: { id, senderUserId: userId, deletedAt: null },
+    });
+
+    if (!like) {
+      throw new NotFoundException(`Like ${id} not found`);
+    }
+
+    // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
+    // so the user can always personalise their history
+    const updated = await this.prisma.like.update({
+      where: { id },
+      data: { label: dto.label ?? null },
+      select: LIKE_SELECT,
+    });
+
+    return this.attachPublicValue(updated);
+  }
+
+  // ----- Private helpers -----
+
+  /**
+   * Delegates publicValue decryption to IdentitiesService (which owns that responsibility)
+   * and attaches the result to the targetIdentity shape returned to the controller.
+   */
+  private async attachPublicValue<T extends RawLike>(like: T) {
+    const publicValue = await this.identitiesService.getDecryptedPublicValue(
+      like.targetIdentity.id,
+    );
+
+    return {
+      ...like,
+      targetIdentity: {
+        ...like.targetIdentity,
+        publicValue,
+      },
+    };
   }
 }

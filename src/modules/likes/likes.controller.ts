@@ -1,3 +1,8 @@
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -6,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -16,16 +22,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { LoggerService } from '@core/logger';
 import {
   CreateLikeRequestDto,
   LikeListQueryDto,
-  PaginatedLikeResponseDto,
   LikeResponseDto,
+  PaginatedLikeResponseDto,
+  UpdateLikeLabelRequestDto,
 } from './dto';
 import { LikesService } from './likes.service';
 
@@ -74,6 +76,19 @@ export class LikesController extends BaseController {
   @SerializeExpose(LikeResponseDto)
   async findOne(@CurrentUserId() userId: string, @Param('id') id: string) {
     return this.likesService.findOneForUser(id, userId);
+  }
+
+  @Patch(':id/label')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Add or update the personal label on a like' })
+  @ApiResponse({ status: HttpStatus.OK, type: LikeResponseDto })
+  @SerializeExpose(LikeResponseDto)
+  async updateLabel(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateLikeLabelRequestDto,
+  ) {
+    return this.likesService.updateLabel(id, userId, dto);
   }
 
   @Delete(':id')

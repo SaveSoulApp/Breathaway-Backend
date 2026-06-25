@@ -1,8 +1,8 @@
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
 import { BrevoEmailAdapter } from './email/adapters/brevo.email.adapter';
+import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
 import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
 import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
 import { EmailService } from './email/email.service';

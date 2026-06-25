@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -65,4 +66,14 @@ export class CreateLikeRequestDto {
   @IsEnum(IntentType)
   @IsNotEmpty()
   intent: IntentType;
+
+  @ApiPropertyOptional({
+    description:
+      "A personal label to remember who this like is for (e.g. 'Sarah', 'My Crush')",
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  label?: string;
 }

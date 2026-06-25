@@ -18,12 +18,20 @@ describe('MatchesController', () => {
     id: matchId,
     status: MatchStatus.ACTIVE,
     matchedAt: DateUtil.now(),
-    intentOne: IntentType.CASUAL,
-    intentTwo: IntentType.CASUAL,
+    myIntent: IntentType.CASUAL,
+    theirIntent: IntentType.CASUAL,
+    me: {
+      id: userId,
+      firstName: 'John',
+      lastName: 'Doe',
+      gender: null,
+    },
     otherUser: {
       id: 'other-user-id',
       firstName: 'Jane',
       lastName: 'Doe',
+      gender: null,
+      label: null,
     },
   };
 
