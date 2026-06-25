@@ -1,3 +1,4 @@
+import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -158,18 +159,32 @@ export class LikesService extends BaseService {
   }
 
   async findAllForUser(userId: string, query: LikeListQueryDto) {
-    const { page = 1, limit = 20 } = query;
+    const {
+      page = 1,
+      limit = 20,
+      intent,
+      status,
+      sortOrder = SortOrder.DESC,
+    } = query;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: any = {
       senderUserId: userId,
     };
+
+    if (intent) {
+      where.intent = intent;
+    }
+
+    if (status) {
+      where.status = status;
+    }
 
     const [total, rows] = await Promise.all([
       this.prisma.like.count({ where }),
       this.prisma.like.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: sortOrder },
         skip,
         take: limit,
         select: LIKE_SELECT,
