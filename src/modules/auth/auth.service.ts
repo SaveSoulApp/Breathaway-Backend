@@ -25,6 +25,15 @@ import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 
+/**
+ * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
+ * and secondary credential linking — by coordinating Firebase token validation,
+ * identity hashing via IdentityCryptoService, and JWT issuance via AuthTokenService.
+ *
+ * All credential values (phone numbers, emails) are normalized and hashed before
+ * any persistence or lookup to ensure consistent canonical representations across
+ * the Auth and Likes flows.
+ */
 @Injectable()
 export class AuthService extends BaseService {
   constructor(
@@ -39,7 +48,20 @@ export class AuthService extends BaseService {
     super(logger);
   }
 
-  // ---------- Phone / Email Signup ----------
+  /**
+   * Registers a new user account pending OTP verification.
+   *
+   * Validates the Firebase token, hashes the identifier for deduplication, and rejects
+   * if a verified or pending-verification account already exists. Emits a USER_REGISTERED
+   * audit event on success. The created account is unverified until OTP confirmation.
+   *
+   * @param dto - Firebase UID and ID token representing the sign-up credential.
+   * @returns An object containing the new user's ID and a `pending_verification` status.
+   * @throws {ConflictException} When a verified account already exists for this credential.
+   * @throws {ConflictException} When the credential represents an unsupported auth method
+   *   (only PHONE and EMAIL are accepted).
+   * @throws {ConflictException} When registration is pending verification for the same credential.
+   */
   async signup(dto: AuthSignupDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -104,7 +126,18 @@ export class AuthService extends BaseService {
     return { userId: user.id, status: 'pending_verification' };
   }
 
-  // ---------- Phone / Email Signin ----------
+  /**
+   * Authenticates an existing verified user and issues a JWT access token.
+   *
+   * Looks up the credential by hashed identifier. Rejects unverified accounts with
+   * an UnauthorizedException to signal the frontend to show the verification screen.
+   *
+   * @param dto - Firebase UID and ID token representing the sign-in credential.
+   * @returns The user's ID and a signed JWT access token.
+   * @throws {NotFoundException} When no account is registered for the provided credential.
+   * @throws {UnauthorizedException} When the account exists but has not completed OTP verification.
+   * @throws {ConflictException} When the credential represents an unsupported auth method.
+   */
   async signin(dto: AuthSigninDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -155,7 +188,18 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Sign‑in or Sign‑up (phone/email) ----------
+  /**
+   * Performs a combined sign-in or sign-up flow for phone/email credentials.
+   *
+   * If the credential is new, creates a verified account and emits a USER_REGISTERED audit event.
+   * If the credential belongs to an unverified existing account, throws UnauthorizedException.
+   * Returns an `isNewUser` flag so clients can route to onboarding or home.
+   *
+   * @param dto - Firebase UID and ID token for the authenticating credential.
+   * @returns The user's ID, signed JWT access token, and an `isNewUser` boolean.
+   * @throws {UnauthorizedException} When the credential belongs to an existing unverified account.
+   * @throws {ConflictException} When the credential represents an unsupported auth method.
+   */
   async signInOrSignUp(dto: AuthSigninDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -222,7 +266,19 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Social Sign‑up / Sign‑in ----------
+  /**
+   * Authenticates or registers a user via a social media platform identity.
+   *
+   * Looks up the identity by hashed platform user ID. If found and owned, logs the user in.
+   * If a ghost identity exists (userId=null, created from prior likes activity), claims it
+   * and publishes an IDENTITY_CLAIMED Pub/Sub event for match resolution. No AuthCredential
+   * is stored for social identities — the platformIdHash is the authoritative lookup key.
+   *
+   * @param dto - Social platform type, platform user ID, and public handle.
+   * @returns The user's ID, signed JWT access token, and an `isNewUser` boolean.
+   * @throws {ConflictException} When the platform account is already linked to another active user.
+   * @throws {ConflictException} When the account has been deleted and requires re-verification.
+   */
   async socialAuth(dto: SocialAuthDto) {
     const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
 
@@ -342,7 +398,22 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Add Secondary Phone / Email ----------
+  /**
+   * Links a verified secondary phone or email credential to an existing user account.
+   *
+   * Validates that the Firebase token matches the expected `authType`, enforces global
+   * uniqueness of the credential, and creates an Identity + AuthCredential within a
+   * transaction. The credential is set as primary if the user has no existing primary.
+   * The linked credential will be unverified until OTP confirmation.
+   *
+   * @param userId - UUID of the currently authenticated user.
+   * @param dto - Firebase UID and ID token representing the new secondary credential.
+   * @param authType - Expected authentication method: must be PHONE or EMAIL.
+   * @returns The user's ID and a refreshed JWT access token.
+   * @throws {ConflictException} When the Firebase token's method does not match `authType`.
+   * @throws {ConflictException} When the credential is already linked to another account.
+   * @throws {NotFoundException} When the authenticated user record cannot be found.
+   */
   async addSecondaryAuth(
     userId: string,
     dto: AddSecondaryAuthDto,
@@ -459,7 +530,17 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Dev Login ----------
+  /**
+   * Authenticates a developer or test user without Firebase token validation.
+   *
+   * Normalizes the identifier (lowercases emails, strips non-digits from phone numbers)
+   * before hashing for lookup. Only intended for use in non-production environments
+   * protected by BasicAuthGuard at the controller layer.
+   *
+   * @param dto - A pre-seeded email or phone number from the test database.
+   * @returns The user's ID and a signed JWT access token.
+   * @throws {NotFoundException} When no credential matches the provided identifier.
+   */
   async devLogin(dto: DevLoginDto) {
     const value = dto.identifier;
 
@@ -502,6 +583,15 @@ export class AuthService extends BaseService {
     }
   }
 
+  /**
+   * Records a user logout event and emits a USER_LOGOUT audit log.
+   *
+   * JWT tokens are stateless and are not actively invalidated — callers must discard
+   * the token client-side. Token revocation (e.g., via a denylist) can be layered on here.
+   *
+   * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
+   * @returns A confirmation message object.
+   */
   signout(userId: string) {
     // Token revocation can be implemented later
     this.emitAuditLog({
