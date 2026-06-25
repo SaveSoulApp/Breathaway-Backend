@@ -1,5 +1,6 @@
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
@@ -15,6 +16,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     FirebaseModule,
     JwtAuthModule,
     IdentityCryptoModule,
+    PubSubModule,
   ],
   controllers: [AuthController],
   providers: [

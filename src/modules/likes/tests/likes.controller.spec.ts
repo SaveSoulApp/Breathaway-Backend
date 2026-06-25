@@ -34,6 +34,7 @@ describe('LikesController', () => {
     targetIdentity: {
       id: 'target-identity-id',
       type: IdentityType.PHONE,
+      userId: null,
       publicValue: '+1234567890',
       isVerified: true,
       verifiedAt: DateUtil.now(),

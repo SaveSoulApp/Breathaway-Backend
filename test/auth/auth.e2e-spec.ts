@@ -14,6 +14,7 @@ import {
 } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
+import { IdentityType } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Auth E2E Test Suite
@@ -95,9 +96,14 @@ describe('AuthController (e2e)', () => {
     });
 
     it('409 – conflicts when credential is already verified', async () => {
-      // Seed: create a verified user + credential
-      const phone = '+19995550102';
-      const hash = await crypto.computeHash(phone);
+      // Use a unique phone per run so residual DB rows from prior runs do not
+      // trigger the unique constraint before the test can assert the 409 from
+      // the auth service.
+      const phone = `+1999555${Date.now().toString().slice(-4)}02`;
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -138,9 +144,14 @@ describe('AuthController (e2e)', () => {
     });
 
     it('409 – conflicts when credential is unverified (pending verification)', async () => {
-      // Seed: create an unverified user + credential
-      const phone = '+19995550103';
-      const hash = await crypto.computeHash(phone);
+      // Use a unique phone per run so residual DB rows from prior runs do not
+      // trigger the unique constraint before the test can assert the 409 from
+      // the auth service.
+      const phone = `+1999555${Date.now().toString().slice(-4)}03`;
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -194,8 +205,12 @@ describe('AuthController (e2e)', () => {
     let seededUserId: string;
 
     beforeAll(async () => {
-      // Seed: verified user
-      const hash = await crypto.computeHash(phone);
+      // Seed: verified user — use processPublicValue so the hash matches what
+      // auth.service.ts produces after normalising the raw phone number.
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -246,7 +261,10 @@ describe('AuthController (e2e)', () => {
 
     it('401 – rejects signin for unverified user', async () => {
       const unverifiedPhone = '+19995550201';
-      const hash = await crypto.computeHash(unverifiedPhone);
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        unverifiedPhone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -325,8 +343,13 @@ describe('AuthController (e2e)', () => {
     });
 
     it('200 – auto-signs-in an existing verified user', async () => {
-      const phone = '+19995550301';
-      const hash = await crypto.computeHash(phone);
+      // Use a unique phone per run so residual DB rows from prior runs do not
+      // trigger the unique constraint before the test can assert the 200.
+      const phone = `+1999555${Date.now().toString().slice(-4)}01`;
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -371,8 +394,13 @@ describe('AuthController (e2e)', () => {
     });
 
     it('401 – rejects existing but unverified user', async () => {
-      const phone = '+19995550302';
-      const hash = await crypto.computeHash(phone);
+      // Use a unique phone per run so residual DB rows from prior runs do not
+      // trigger the unique constraint before the test can assert the 401.
+      const phone = `+1999555${Date.now().toString().slice(-4)}02`;
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -539,8 +567,12 @@ describe('AuthController (e2e)', () => {
     let basicAuthHeader: string;
 
     beforeAll(async () => {
-      // Seed: user with email credential
-      const hash = await crypto.computeHash(identifier);
+      // Seed: user with email credential — use processPublicValue so the hash
+      // matches what auth.service.ts produces after normalising the email.
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        identifier,
+        IdentityType.EMAIL,
+      );
       const user = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {
@@ -656,9 +688,13 @@ describe('AuthController (e2e)', () => {
     });
 
     it('409 – conflicts when phone is already in use', async () => {
-      // Seed a different user with the same phone
+      // Seed a different user with the same phone — use processPublicValue so
+      // the hash matches what auth.service.ts produces after normalisation.
       const phone = '+19995550401';
-      const hash = await crypto.computeHash(phone);
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
       const otherUser = await prisma.user.create({ data: {} });
       const identity = await prisma.identity.create({
         data: {

@@ -1,4 +1,5 @@
 import { FirebaseModule } from '@modules/firebase/firebase.module';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
@@ -12,7 +13,7 @@ import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
 
 @Module({
-  imports: [FirebaseModule],
+  imports: [FirebaseModule, PubSubModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,

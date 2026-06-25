@@ -28,10 +28,7 @@ export async function cleanupTestUsers(
   });
   await prisma.like.deleteMany({
     where: {
-      OR: [
-        { senderUserId: { in: userIds } },
-        { targetUserId: { in: userIds } },
-      ],
+      senderUserId: { in: userIds },
     },
   });
   await prisma.authCredential.deleteMany({
