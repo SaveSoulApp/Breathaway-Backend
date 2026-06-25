@@ -31,6 +31,12 @@ interface MatchWithUsers {
       gender: GenderType | null;
     } | null;
   };
+  likeOne: {
+    label: string | null;
+  };
+  likeTwo: {
+    label: string | null;
+  };
 }
 
 @Injectable()
@@ -95,6 +101,16 @@ export class MatchesService extends BaseService {
               },
             },
           },
+          likeOne: {
+            select: {
+              label: true,
+            },
+          },
+          likeTwo: {
+            select: {
+              label: true,
+            },
+          },
         },
       }),
     ]);
@@ -153,6 +169,16 @@ export class MatchesService extends BaseService {
                 gender: true,
               },
             },
+          },
+        },
+        likeOne: {
+          select: {
+            label: true,
+          },
+        },
+        likeTwo: {
+          select: {
+            label: true,
           },
         },
       },
@@ -219,6 +245,7 @@ export class MatchesService extends BaseService {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
+    const theirLike = isUserOne ? match.likeTwo : match.likeOne;
 
     return {
       id: match.id,
@@ -237,6 +264,7 @@ export class MatchesService extends BaseService {
         firstName: otherUser.profile?.firstName,
         lastName: otherUser.profile?.lastName,
         gender: otherUser.profile?.gender ?? null,
+        label: theirLike?.label ?? null,
       },
     };
   }

@@ -29,6 +29,16 @@ export class MatchUserProfileDto {
   gender: GenderType | null;
 }
 
+export class MatchOtherUserProfileDto extends MatchUserProfileDto {
+  @ApiProperty({
+    description: 'The label associated with the like from this user',
+    required: false,
+    nullable: true,
+  })
+  @Expose()
+  label?: string | null;
+}
+
 export class MatchResponseDto {
   @ApiProperty({ description: 'The ID of the match' })
   @Expose()
@@ -69,12 +79,12 @@ export class MatchResponseDto {
   me: MatchUserProfileDto;
 
   @ApiProperty({
-    type: MatchUserProfileDto,
+    type: MatchOtherUserProfileDto,
     description: 'Profile of the other user in the match',
   })
   @Expose()
-  @Type(() => MatchUserProfileDto)
-  otherUser: MatchUserProfileDto;
+  @Type(() => MatchOtherUserProfileDto)
+  otherUser: MatchOtherUserProfileDto;
 }
 
 export class PaginatedMatchResponseDto {
