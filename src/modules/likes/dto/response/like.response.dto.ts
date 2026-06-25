@@ -15,14 +15,6 @@ export class LikeTargetIdentityDto {
   @ApiProperty()
   @Expose()
   publicValue: string;
-
-  @ApiProperty()
-  @Expose()
-  isVerified: boolean;
-
-  @ApiPropertyOptional()
-  @Expose()
-  verifiedAt: Date | null;
 }
 
 export class LikeResponseDto {

@@ -4,8 +4,6 @@ import { IdentityType, LikeStatus } from '@prisma/client';
 export type RawLikeIdentity = {
   id: string;
   type: IdentityType;
-  isVerified: boolean;
-  verifiedAt: Date | null;
 };
 
 /** Shape of a raw like row as returned from the DB (before publicValue is attached). */
@@ -32,8 +30,6 @@ export const LIKE_SELECT = {
     select: {
       id: true,
       type: true,
-      isVerified: true,
-      verifiedAt: true,
     },
   },
 } as const;

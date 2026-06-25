@@ -163,8 +163,6 @@ export class LikesService extends BaseService {
 
     const where = {
       senderUserId: userId,
-      status: LikeStatus.PENDING,
-      deletedAt: null,
     };
 
     const [total, rows] = await Promise.all([
