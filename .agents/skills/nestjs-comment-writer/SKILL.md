@@ -27,9 +27,12 @@ generating any output.
 
 ## Core Principles
 
-**Two-layer commenting**: Every significant element needs both layers:
-1. **Business logic layer** — What domain problem is this solving? Why does this function exist? What would break if it didn't?
-2. **Utility layer** — What does this function do mechanically? What are its inputs, outputs, side effects, and failure modes?
+**Three-layer commenting**: Every significant element needs these layers:
+1. **Business logic layer** — What domain problem is this solving? What is the strategy (e.g., FIFO allocation, append-only ledger)?
+2. **Architectural intent & Security** — How is this designed to be composed with other modules? (e.g., accepts a Prisma `tx` to prevent TOCTOU race conditions). How does it enforce security? (e.g., enforces row-level ownership via `userId`).
+3. **Utility & Hidden Mechanics** — What does it do mechanically? Crucially, expose hidden mutations (e.g., shifting dates to end-of-day UTC), idempotency guarantees, and side effects.
+
+**Explain the "Why" behind constraints and errors**: When documenting `@throws` or parameter constraints, explain the *domain reason* behind the block, not just the code condition. (e.g., Instead of "Throws when source is LIKE_USAGE", write "LIKE_USAGE is a system-only source; manual grants are blocked to prevent misuse.")
 
 **Don't state the obvious**: If the parameter name and type already make the intent clear, don't
 repeat it in prose. Instead, spend that sentence explaining behavior that *isn't* captured in
