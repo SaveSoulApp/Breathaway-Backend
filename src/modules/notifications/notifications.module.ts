@@ -11,8 +11,10 @@ import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
 
+import { PreferencesModule } from '@modules/preferences/preferences.module';
+
 @Module({
-  imports: [FirebaseModule],
+  imports: [FirebaseModule, PreferencesModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,

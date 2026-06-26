@@ -17,6 +17,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 import { ClsService } from 'nestjs-cls';
@@ -26,6 +27,7 @@ describe('MatchResolverService', () => {
   let prisma: MockPrismaService;
   let matchesService: jest.Mocked<MatchesService>;
   let blocksService: jest.Mocked<BlocksService>;
+  let notificationsService: jest.Mocked<NotificationsService>;
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
     log: jest.Mock;
@@ -79,6 +81,10 @@ describe('MatchResolverService', () => {
       isBlocked: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<BlocksService>;
 
+    notificationsService = {
+      dispatch: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<NotificationsService>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
@@ -99,6 +105,10 @@ describe('MatchResolverService', () => {
         {
           provide: BlocksService,
           useValue: blocksService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsService,
         },
       ],
     }).compile();
