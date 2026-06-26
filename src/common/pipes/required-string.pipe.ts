@@ -43,7 +43,7 @@ export class RequiredStringPipe implements PipeTransform {
 
 /**
  * Convenience factory to create a RequiredStringPipe with a specific parameter name.
- * 
+ *
  * @param paramName - The name of the parameter being validated.
  * @returns A new instance of RequiredStringPipe.
  */

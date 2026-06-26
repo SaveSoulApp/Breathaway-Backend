@@ -15,6 +15,14 @@ import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
  */
 @Injectable()
 export class PreferencesService extends BaseService {
+  /** All-channels-enabled fallback returned when no preference record exists for a user. */
+  private readonly DEFAULT_PREFERENCES: PreferencesResponseDto = {
+    pushEnabled: true,
+    whatsappEnabled: true,
+    smsEnabled: true,
+    emailEnabled: true,
+  };
+
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
@@ -35,16 +43,46 @@ export class PreferencesService extends BaseService {
     });
 
     if (!preferences) {
-      // Return defaults if somehow not created
-      return {
-        pushEnabled: true,
-        whatsappEnabled: true,
-        smsEnabled: true,
-        emailEnabled: true,
-      };
+      return this.DEFAULT_PREFERENCES;
     }
 
     return preferences;
+  }
+
+  /**
+   * Retrieves notification preferences for multiple users in bulk.
+   * Users without a persisted preference record will default to having all channels enabled.
+   *
+   * @param userIds - Array of user UUIDs whose preferences to retrieve.
+   * @returns A Map where the key is the userId and the value is their PreferencesResponseDto.
+   */
+  async getPreferencesMany(
+    userIds: string[],
+  ): Promise<Map<string, PreferencesResponseDto>> {
+
+    if (!userIds || userIds.length === 0) {
+      return new Map();
+    }
+
+    const preferencesList = await this.prisma.notificationPreference.findMany({
+      where: { userId: { in: userIds } },
+    });
+
+    const preferencesMap = new Map<string, PreferencesResponseDto>();
+
+    // Populate with actual records
+    for (const pref of preferencesList) {
+      preferencesMap.set(pref.userId, pref);
+    }
+
+    // Fill in defaults for missing users
+    for (const userId of userIds) {
+      if (!preferencesMap.has(userId)) {
+        preferencesMap.set(userId, this.DEFAULT_PREFERENCES);
+      }
+    }
+
+    return preferencesMap;
   }
 
   /**

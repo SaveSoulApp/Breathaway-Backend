@@ -7,10 +7,11 @@ import { PreferencesService } from './preferences.service';
  * independently toggle push, WhatsApp, SMS, and email notification channels.
  *
  * Imports: none — operates solely on the shared PrismaService provided globally.
- * Exports: none — preferences data is only consumed internally via the REST API.
+ * Exports: PreferencesService — allowing other modules to resolve user preferences.
  */
 @Module({
   controllers: [PreferencesController],
   providers: [PreferencesService],
+  exports: [PreferencesService],
 })
 export class PreferencesModule {}
