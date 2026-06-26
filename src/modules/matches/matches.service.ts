@@ -7,6 +7,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { GenderType, IntentType, MatchStatus } from '@prisma/client';
 import { MatchListQueryDto } from './dto';
 
+/**
+ * Minimal database projection for a match record with both participants and
+ * their like labels. Used internally to avoid overfetching and to type the
+ * `mapToResponseDto` transform safely.
+ */
 interface MatchWithUsers {
   id: string;
   status: MatchStatus;
@@ -39,6 +44,14 @@ interface MatchWithUsers {
   };
 }
 
+/**
+ * Owns the core matches domain — querying active matches for a user,
+ * fetching individual match details, and processing unmatch requests.
+ *
+ * Responses are always normalised to the requesting user's perspective:
+ * `me` and `otherUser` are resolved dynamically based on whether the caller
+ * is `userOne` or `userTwo` in the canonical match record.
+ */
 @Injectable()
 export class MatchesService extends BaseService {
   constructor(
@@ -48,6 +61,17 @@ export class MatchesService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Fetches all ACTIVE matches for a user with cursor-style pagination,
+   * excluding records where either participant has been soft-deleted.
+   *
+   * Runs a count and a data query in parallel via `Promise.all` to avoid
+   * sequential round-trips. Results are sorted by `matchedAt` descending.
+   *
+   * @param userId - The authenticated user whose matches are being listed.
+   * @param query  - Pagination options (`page`, `limit`).
+   * @returns A paginated envelope with match summaries and pagination metadata.
+   */
   async findAllForUser(userId: string, query: MatchListQueryDto) {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
@@ -130,6 +154,16 @@ export class MatchesService extends BaseService {
     };
   }
 
+  /**
+   * Retrieves a single match by ID, gated on the requesting user being a
+   * participant in that match.
+   *
+   * @param matchId - UUID of the match to retrieve.
+   * @param userId  - The authenticated user's ID; used to assert participation.
+   * @returns The match detail DTO from the caller's perspective.
+   * @throws {NotFoundException} When no non-deleted match with the given ID
+   *   exists where the caller is either userOne or userTwo.
+   */
   async findOneForUser(matchId: string, userId: string) {
     const match = await this.prisma.match.findFirst({
       where: {
@@ -191,6 +225,19 @@ export class MatchesService extends BaseService {
     return this.mapToResponseDto(match, userId);
   }
 
+  /**
+   * Dissolves an active match between the authenticated user and their partner
+   * by setting the match status to UNMATCHED and recording a soft-delete timestamp.
+   *
+   * Emits an audit event with both user IDs so moderators can detect abuse
+   * patterns (e.g., repeated unmatch after rematch cycling).
+   *
+   * @param matchId - UUID of the match to dissolve.
+   * @param userId  - ID of the user initiating the unmatch.
+   * @returns `{ success: true }` upon completion.
+   * @throws {NotFoundException} When no active, non-deleted match exists with
+   *   the given ID where the caller is a participant.
+   */
   async unmatch(matchId: string, userId: string) {
     const match = await this.prisma.match.findFirst({
       where: {
@@ -222,6 +269,16 @@ export class MatchesService extends BaseService {
     return { success: true };
   }
 
+  /**
+   * Determines whether two user intents can produce a match.
+   *
+   * `OPEN` intent is permissive — it is compatible with any other intent.
+   * `RELATIONSHIP` and `CASUAL` must be mirrored exactly to match.
+   *
+   * @param intentOne - Intent of the first user.
+   * @param intentTwo - Intent of the second user.
+   * @returns `true` when the intents are compatible; `false` otherwise.
+   */
   isIntentCompatible(intentOne: IntentType, intentTwo: IntentType): boolean {
     if (intentOne === IntentType.OPEN || intentTwo === IntentType.OPEN) {
       return true;

@@ -29,6 +29,15 @@ import {
 })
 @SkipClientIdentity()
 @UseGuards(PubSubAuthGuard)
+/**
+ * Internal HTTP endpoint that receives GCP Pub/Sub push-delivery messages and
+ * dispatches them to registered @PubSubListener handlers.
+ *
+ * Excluded from the public Swagger docs and protected by a shared-secret token
+ * guard (PubSubAuthGuard). All routes skip the standard client-identity check
+ * because Pub/Sub push requests originate from Google's infrastructure, not
+ * from app clients.
+ */
 export class PubSubIngestionController extends BaseController {
   constructor(
     logger: LoggerService,
@@ -37,6 +46,20 @@ export class PubSubIngestionController extends BaseController {
     super(logger);
   }
 
+  /**
+   * Accepts a raw GCP Pub/Sub push payload, resolves the target handler by
+   * `eventType` attribute, decodes the Base64 message body, and invokes the
+   * matched @PubSubListener method.
+   *
+   * Invalid or unroutable messages (missing `message` object, missing
+   * `eventType`, no registered handler, or unparseable Base64 data) are
+   * silently swallowed with a warning log and a 200 OK response — returning
+   * a non-2xx would cause Pub/Sub to retry indefinitely for unroutable events.
+   * Errors thrown during handler execution propagate and trigger Pub/Sub's
+   * retry policy according to the subscription configuration.
+   *
+   * @param rawPayload - The raw push notification body from GCP Pub/Sub.
+   */
   @Post('ingest')
   @ApiOperation({ summary: 'Ingest Pub/Sub messages (Internal)' })
   @ApiResponse({

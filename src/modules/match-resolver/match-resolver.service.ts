@@ -21,6 +21,16 @@ export type LikeSummary = Pick<
 };
 
 @Injectable()
+/**
+ * Orchestrates the match resolution pipeline that runs synchronously after a
+ * new like is persisted.
+ *
+ * The resolution sequence is: verify the target identity is resolved → find a
+ * reverse like → validate intent compatibility and block status → execute the
+ * match upsert inside a Prisma transaction. Prisma's `P2002` unique constraint
+ * violation is caught and silenced as a harmless race condition (two concurrent
+ * likes resolving simultaneously), ensuring idempotent behaviour at scale.
+ */
 export class MatchResolverService extends BaseService {
   constructor(
     logger: LoggerService,
@@ -31,6 +41,19 @@ export class MatchResolverService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Entry point for the match resolution pipeline, called immediately after a
+   * like record is created.
+   *
+   * Uses deterministic user-ID sorting to assign canonical `userOne`/`userTwo`
+   * roles, ensuring the unique constraint on `(userOneId, userTwoId)` is always
+   * applied consistently regardless of which user liked first. A Prisma `P2002`
+   * error (unique constraint violation) is silently swallowed as a resolved race
+   * condition — any other error is logged and suppressed so a failed match
+   * resolution does not roll back the like itself.
+   *
+   * @param newLike - The newly created like summary triggering resolution.
+   */
   async resolveFromLike(newLike: LikeSummary) {
     try {
       const targetUserId = newLike.targetIdentity.userId;
@@ -114,6 +137,13 @@ export class MatchResolverService extends BaseService {
     }
   }
 
+  /**
+   * Searches for a PENDING, non-expired like from `userBId` targeting `userAId`.
+   *
+   * @param userAId - The sender of the new like whose perspective we are checking from.
+   * @param userBId - The target of the new like, who must have previously liked back.
+   * @returns The reverse `LikeSummary` if found, or `null` when no mutual like exists.
+   */
   private async findReverseLike(
     userAId: string,
     userBId: string,
@@ -137,6 +167,18 @@ export class MatchResolverService extends BaseService {
     });
   }
 
+  /**
+   * Runs three eligibility checks before allowing a match to be created:
+   * 1. Intent compatibility between the two likes.
+   * 2. No active block relationship between the users.
+   * 3. No currently ACTIVE match already exists for the user pair.
+   *
+   * An existing UNMATCHED record is considered eligible for reactivation and
+   * is returned as `existingMatch` so the transaction can upsert rather than
+   * insert.
+   *
+   * @returns `{ valid: true, existingMatch }` when all checks pass; `{ valid: false, existingMatch: null }` otherwise.
+   */
   private async validateMatchEligibility(
     newLike: LikeSummary,
     reverseLike: LikeSummary,
@@ -182,6 +224,24 @@ export class MatchResolverService extends BaseService {
     return { valid: true, existingMatch };
   }
 
+  /**
+   * Atomically creates or reactivates a match and marks both triggering likes
+   * as MATCHED within a single Prisma transaction.
+   *
+   * When `existingMatch` is non-null (a previously UNMATCHED record), the
+   * transaction performs an update to re-activate it with updated like
+   * references and a fresh `matchedAt` timestamp. Otherwise a new match record
+   * is created. Both paths mark the two likes as MATCHED in the same
+   * transaction to prevent partial updates.
+   *
+   * @param likeOne       - The like associated with `userOneId` (canonical order).
+   * @param likeTwo       - The like associated with `userTwoId` (canonical order).
+   * @param userOneId     - Lower-sorted user ID (deterministic canonical order).
+   * @param userTwoId     - Higher-sorted user ID.
+   * @param existingMatch - An existing, non-active match record to reactivate,
+   *                        or `null` to create a new one.
+   * @returns The persisted (created or updated) Match record.
+   */
   private async executeMatchTransaction(
     likeOne: LikeSummary,
     likeTwo: LikeSummary,
