@@ -5,6 +5,10 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
 import { Injectable } from '@nestjs/common';
 import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 
@@ -37,6 +41,7 @@ export class MatchResolverService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly matchesService: MatchesService,
     private readonly blocksService: BlocksService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -122,6 +127,9 @@ export class MatchResolverService extends BaseService {
           secondaryUserId: targetUserId,
         },
       });
+
+      // Dispatch notifications
+      await this.dispatchMatchNotifications(userOneId, userTwoId, match.id);
     } catch (error) {
       const err = error as { code?: string; stack?: string };
       if (err?.code === 'P2002') {
@@ -134,6 +142,52 @@ export class MatchResolverService extends BaseService {
       this.logger.error(`Failed to resolve match for Like ${newLike.id}`, {
         stack: err.stack,
       });
+    }
+  }
+
+  /**
+   * Fetches user profiles and dispatches localized NEW_MATCH notifications to both users.
+   */
+  private async dispatchMatchNotifications(
+    userOneId: string,
+    userTwoId: string,
+    matchId: string,
+  ): Promise<void> {
+    try {
+      const profiles = await this.prisma.userProfile.findMany({
+        where: { userId: { in: [userOneId, userTwoId] } },
+        select: { userId: true, firstName: true },
+      });
+
+      const userOneName =
+        profiles.find((p) => p.userId === userOneId)?.firstName ?? 'someone';
+      const userTwoName =
+        profiles.find((p) => p.userId === userTwoId)?.firstName ?? 'someone';
+
+      // Notify User One
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        userIds: [userOneId],
+        type: NotificationType.NEW_MATCH,
+        category: NotificationCategory.SOCIAL,
+        payload: { name: userTwoName, matchId },
+      });
+
+      // Notify User Two
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        userIds: [userTwoId],
+        type: NotificationType.NEW_MATCH,
+        category: NotificationCategory.SOCIAL,
+        payload: { name: userOneName, matchId },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to dispatch match notifications for match ${matchId}:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
     }
   }
 

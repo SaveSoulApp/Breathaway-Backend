@@ -1,6 +1,7 @@
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { PreferencesService } from '@modules/preferences/preferences.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
@@ -14,7 +15,7 @@ import { NotificationChannel } from './enums/notification-channel.enum';
 import { NotificationType } from './enums/notification-type.enum';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
-import { PreferencesService } from '@modules/preferences/preferences.service';
+import { PUSH_TEMPLATE_MAP } from './push-template.registry';
 
 /**
  * Maps a push NotificationType to the corresponding EmailType for template selection.
@@ -84,6 +85,17 @@ export class NotificationsService extends BaseService {
 
     const channels = dto.channels as NotificationChannel[];
     const promises: Promise<void>[] = [];
+
+    // Interpolate title and body from push templates if missing
+    const pushTemplateConfig = PUSH_TEMPLATE_MAP[dto.type];
+    if (pushTemplateConfig) {
+      if (!dto.title && pushTemplateConfig.title) {
+        dto.title = pushTemplateConfig.title(dto.payload ?? {});
+      }
+      if (!dto.body && pushTemplateConfig.body) {
+        dto.body = pushTemplateConfig.body(dto.payload ?? {});
+      }
+    }
 
     // Fetch preferences for all users in bulk
     const preferencesMap = await this.preferencesService.getPreferencesMany(

@@ -59,7 +59,6 @@ export class PreferencesService extends BaseService {
   async getPreferencesMany(
     userIds: string[],
   ): Promise<Map<string, PreferencesResponseDto>> {
-
     if (!userIds || userIds.length === 0) {
       return new Map();
     }

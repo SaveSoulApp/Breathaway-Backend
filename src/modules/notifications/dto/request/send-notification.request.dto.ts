@@ -38,21 +38,23 @@ export class SendNotificationRequestDto {
   @IsNotEmpty({ each: true })
   userIds: string[];
 
-  @ApiProperty({
-    description: 'Title of the notification',
+  @ApiPropertyOptional({
+    description:
+      'Title of the notification (optional if using standard template)',
     example: 'New Message',
   })
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  @IsOptional()
+  title?: string;
 
-  @ApiProperty({
-    description: 'Body/content of the notification',
+  @ApiPropertyOptional({
+    description:
+      'Body/content of the notification (optional if using standard template)',
     example: 'You have a new message from John',
   })
   @IsString()
-  @IsNotEmpty()
-  body: string;
+  @IsOptional()
+  body?: string;
 
   @ApiProperty({
     description: 'Type of the notification',
