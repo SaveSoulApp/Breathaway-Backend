@@ -13,6 +13,14 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
 
+/**
+ * Manages the full lifecycle of short-lived, single-use OTPs backed by Redis.
+ *
+ * OTPs are generated as human-readable kebab-slug strings (via `random-word-slugs`),
+ * immediately hashed with a SHA-based utility before storage so the plain-text
+ * value is never persisted, and expired automatically via Redis TTL. A per-user
+ * rate-limit key prevents burst generation within the `OTP_RATE_LIMIT_TTL` window.
+ */
 @Injectable()
 export class OneTimePasswordsService extends BaseService {
   private readonly otpTtl: number;
@@ -37,8 +45,17 @@ export class OneTimePasswordsService extends BaseService {
   }
 
   /**
-   * Generates a new OTP, hashes it, stores it in Redis with the given user_id,
-   * and returns the plain text OTP.
+   * Generates a readable slug OTP, stores its hash in Redis keyed by the hash,
+   * and sets a per-user rate-limit sentinel — returning the plain-text OTP once.
+   *
+   * The plain-text OTP is never persisted; only its hash is stored, ensuring that
+   * even a Redis breach cannot reveal valid tokens. An audit event is emitted to
+   * record the issuance against the user's activity log.
+   *
+   * @param userId - ID of the authenticated user requesting the OTP.
+   * @returns The plain-text OTP and its TTL in seconds (`OTP_TTL`, default 300).
+   * @throws {HttpException(429)} When a rate-limit key for this user already
+   *   exists in Redis (i.e., another OTP was generated within `OTP_RATE_LIMIT_TTL`).
    */
   async generateAndStoreOtp(
     userId: string,
@@ -74,9 +91,16 @@ export class OneTimePasswordsService extends BaseService {
   }
 
   /**
-   * Verifies an OTP by its plaintext value.
-   * If found, deletes the OTP and returns the associated userId.
-   * If not found, throws a BadRequestException.
+   * Validates a plaintext OTP and, if valid, atomically consumes it by deleting
+   * the Redis key — ensuring each token can only be used once.
+   *
+   * The plaintext is hashed before the Redis lookup; an absent key indicates
+   * the OTP was never issued, has already been consumed, or has expired.
+   *
+   * @param plainOtp - The raw OTP string as received from the client.
+   * @returns The user ID that was bound to the OTP at generation time.
+   * @throws {BadRequestException} When no Redis entry exists for the given OTP
+   *   (invalid, already used, or expired).
    */
   async verifyAndConsumeOtp(plainOtp: string): Promise<string> {
     const hashedOtp = hashString(plainOtp);
@@ -102,7 +126,12 @@ export class OneTimePasswordsService extends BaseService {
   }
 
   /**
-   * Checks if the user has exceeded the rate limit for generating OTPs.
+   * Checks whether the user is within the OTP generation rate-limit window.
+   *
+   * @param userId - The user ID to check the rate-limit sentinel for.
+   * @returns The Redis key used to set the rate-limit sentinel, so the caller
+   *   can persist it after generating the OTP without a second lookup.
+   * @throws {HttpException(429)} When a rate-limit sentinel key exists for this user.
    */
   private async checkForRateLimits(userId: string) {
     const rateLimitKey = `rate_limit:otp:${userId}`;

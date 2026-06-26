@@ -10,6 +10,13 @@ import { Request, Response } from 'express';
 import { ContextualLogger } from './logger.interface';
 import { LoggerService } from './logger.service';
 
+/**
+ * Global exception filter that catches unhandled exceptions and formats them as RFC 7807 Problem Details.
+ *
+ * Acts as the final safety net for the application, ensuring that raw stack traces or internal
+ * error details are never leaked to the client in production. It translates standard NestJS
+ * HttpExceptions into a standardized JSON payload while securely logging the full error internally.
+ */
 @Catch()
 export class ExceptionLoggingFilter implements ExceptionFilter {
   private readonly logger: ContextualLogger;
@@ -18,6 +25,13 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
     this.logger = this.loggerService.forContext(ExceptionLoggingFilter.name);
   }
 
+  /**
+   * Intercepts the exception, logs it internally, and transforms the HTTP response.
+   *
+   * Normalizes validation errors (e.g., from class-validator) and 500 errors into a safe,
+   * predictable problem-details format. The original error stack is logged to the backend
+   * for debugging without exposing sensitive internals to the caller.
+   */
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

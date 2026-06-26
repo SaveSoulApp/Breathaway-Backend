@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 
+/**
+ * Validates that incoming query or route parameters strictly match a predefined TypeScript enum.
+ *
+ * Prevents invalid enum values from reaching controllers, avoiding database or logic errors.
+ * Supports array values for multi-select query parameters.
+ */
 @Injectable()
 export class EnumValidationPipe implements PipeTransform {
   constructor(
@@ -9,6 +15,15 @@ export class EnumValidationPipe implements PipeTransform {
     private readonly isArray: boolean = false,
   ) {}
 
+  /**
+   * Validates the raw input value against the allowed values of the specified enum.
+   *
+   * Automatically handles optional fields, arrays, and single-value coercion when needed.
+   *
+   * @param value - Raw string or array of strings from the incoming request.
+   * @returns The original or coerced value if it strictly matches the enum.
+   * @throws {BadRequestException} When any provided value does not exist in the target enum.
+   */
   transform(value: unknown): unknown {
     if (
       this.optional &&

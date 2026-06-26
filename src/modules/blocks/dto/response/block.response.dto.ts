@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
+/**
+ * Embedded profile snapshot of the blocked user; flattened from the nested Prisma profile join.
+ */
 class BlockedUserDto {
   @ApiProperty({
     description: 'The unique identifier (ULID) of the blocked user',
@@ -20,6 +23,10 @@ class BlockedUserDto {
   lastName?: string;
 }
 
+/**
+ * Response shape for all /blocks endpoints; represents a single active block relationship
+ * with the blocked user's basic identity.
+ */
 export class BlockResponseDto {
   @ApiProperty({
     description: 'The unique identifier (ULID) of the block record',

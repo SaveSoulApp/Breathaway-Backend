@@ -3,6 +3,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 
+/**
+ * Minimal target identity shape embedded in every like response.
+ *
+ * `publicValue` is decrypted by the service before serialisation — callers always
+ * receive the plaintext value (e.g. the full phone number or handle).
+ */
 export class LikeTargetIdentityDto {
   @ApiProperty()
   @Expose()
@@ -17,6 +23,9 @@ export class LikeTargetIdentityDto {
   publicValue: string;
 }
 
+/**
+ * Response shape for a single like — returned by POST, GET /:id, and PATCH /:id/label.
+ */
 export class LikeResponseDto {
   @ApiProperty()
   @Expose()
@@ -51,6 +60,12 @@ export class LikeResponseDto {
   expiresAt: Date | null;
 }
 
+/**
+ * Paginated wrapper returned by GET /likes.
+ *
+ * `meta` carries cursor information (page, limit, total, hasNext, hasPrev) to
+ * support client-side infinite-scroll or page-based navigation.
+ */
 export class PaginatedLikeResponseDto {
   @ApiProperty({ type: [LikeResponseDto] })
   @Expose()

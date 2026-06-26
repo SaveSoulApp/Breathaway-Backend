@@ -4,6 +4,16 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { PUBSUB_LISTENER_KEY } from './pubsub.decorator';
 
+/**
+ * Auto-discovers and maintains an in-memory registry of all methods decorated
+ * with @PubSubListener across the application.
+ *
+ * Scans every registered NestJS provider and controller at module initialisation
+ * using DiscoveryService and MetadataScanner. Each discovered handler is stored
+ * keyed by its `eventType` string, enabling O(1) dispatch from the ingestion
+ * controller. Duplicate registrations for the same event type emit a warning
+ * and the last-registered handler wins.
+ */
 @Injectable()
 export class PubSubRegistryService extends BaseService implements OnModuleInit {
   private readonly registry = new Map<
@@ -20,6 +30,11 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
     super(logger);
   }
 
+  /**
+   * Triggers the full application scan after all modules have been initialised,
+   * ensuring every @PubSubListener is registered before the first ingest request
+   * can be handled.
+   */
   onModuleInit() {
     this.explore();
   }
@@ -73,7 +88,15 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
   }
 
   /**
-   * Retrieves the registered handler for a specific event type.
+   * Looks up the handler registered for a specific Pub/Sub event type.
+   *
+   * Returns `undefined` when no @PubSubListener has been registered for the
+   * given event type; the ingestion controller treats this as an unroutable
+   * message and logs a warning.
+   *
+   * @param eventType - The event type string used as the registry key.
+   * @returns The handler context containing the provider instance and the
+   *   bound method reference, or `undefined` if not registered.
    */
   getHandler(
     eventType: string,

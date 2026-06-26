@@ -1,7 +1,16 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 
+/**
+ * Configures the NestJS JWT module asynchronously using configuration variables.
+ *
+ * Imports:
+ *   - ConfigModule: Configures access to environmental configuration services.
+ *
+ * Exports:
+ *   - JwtModule: Exposes the configured JwtModule for signing and verifying JSON Web Tokens.
+ */
 @Module({
   imports: [
     JwtModule.registerAsync({

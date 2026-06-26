@@ -12,11 +12,25 @@ import {
   getAuthMethodFromDecodedToken,
 } from '@modules/auth/utils/auth-method.utils';
 
+/**
+ * Structured result returned by `validateFirebaseToken`, bundling the raw
+ * decoded JWT with the resolved authentication method for downstream use.
+ */
 export interface FirebaseValidationResult {
+  /** The decoded Firebase ID token payload including uid, email, and sign-in provider claims. */
   decodedToken: admin.auth.DecodedIdToken;
+  /** The authentication method (e.g., Google, Apple, email) derived from the token's sign-in provider. */
   authMethod: AuthMethodInfo;
 }
 
+/**
+ * Wraps the Firebase Admin SDK to provide token verification, user lookup,
+ * and FCM messaging access to the rest of the application.
+ *
+ * The Admin SDK is initialised once on module startup using service-account
+ * credentials sourced from environment config. Guards and auth pipelines
+ * depend on this service to authenticate inbound Firebase ID tokens.
+ */
 @Injectable()
 export class FirebaseService extends BaseService implements OnModuleInit {
   constructor(
@@ -26,6 +40,14 @@ export class FirebaseService extends BaseService implements OnModuleInit {
     super(loggerService);
   }
 
+  /**
+   * Initialises the Firebase Admin SDK on application startup if no app instance
+   * exists yet, guarding against double-initialisation in watch/reload scenarios.
+   *
+   * Errors during initialisation are logged but not rethrown, allowing the
+   * application to start so other modules remain operational. Any subsequent
+   * call to an Admin SDK method will fail fast if initialisation was skipped.
+   */
   onModuleInit() {
     try {
       if (!admin.apps.length) {
@@ -54,10 +76,28 @@ export class FirebaseService extends BaseService implements OnModuleInit {
     });
   }
 
+  /**
+   * Returns the Firebase Cloud Messaging instance for dispatching push notifications.
+   *
+   * Delegates directly to the Admin SDK singleton; callers should not cache the
+   * returned instance, as it is already a singleton managed by the SDK.
+   *
+   * @returns The FCM Messaging instance used to send messages to device tokens or topics.
+   */
   getMessaging() {
     return admin.messaging();
   }
 
+  /**
+   * Verifies a Firebase ID token and returns its decoded payload.
+   *
+   * Use `validateFirebaseToken` instead when a UID consistency check is also
+   * required. This method is suitable for lightweight read-only token inspection.
+   *
+   * @param idToken - The Firebase ID token from the client's Authorization header.
+   * @returns The decoded token payload including uid, email, and provider claims.
+   * @throws {UnauthorizedException} When the token is invalid, expired, or revoked.
+   */
   async verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
     try {
       return await admin.auth().verifyIdToken(idToken);
@@ -66,6 +106,16 @@ export class FirebaseService extends BaseService implements OnModuleInit {
     }
   }
 
+  /**
+   * Fetches the Firebase UserRecord for the given UID.
+   *
+   * Primarily used to inspect a user's provider data, disabled status, or
+   * custom claims without requiring a fresh ID token from the client.
+   *
+   * @param uid - The Firebase UID of the user to retrieve.
+   * @returns The UserRecord containing account metadata and provider details.
+   * @throws {UnauthorizedException} When no Firebase user exists with the given UID.
+   */
   async getUser(uid: string): Promise<admin.auth.UserRecord> {
     try {
       return await admin.auth().getUser(uid);
@@ -75,9 +125,20 @@ export class FirebaseService extends BaseService implements OnModuleInit {
   }
 
   /**
-   * Common function to validate Firebase token and UID
-   * Returns both the decoded token and authentication method information
-   * Throws UnauthorizedException if validation fails
+   * Verifies a Firebase ID token and asserts that its `uid` claim matches the
+   * supplied UID, preventing token-substitution attacks.
+   *
+   * Resolves the authentication method (Google, Apple, email/password, etc.) from
+   * the decoded token and returns it alongside the raw payload for downstream use.
+   * Specific Firebase Admin SDK error codes are mapped to descriptive
+   * `UnauthorizedException` messages to aid client-side debugging.
+   *
+   * @param uid     - The UID claimed by the caller; must match the token's `uid` claim.
+   * @param idToken - The Firebase ID token to verify.
+   * @param context - Optional label (e.g., route name) appended to error messages for tracing.
+   * @returns The decoded token and resolved auth method on successful validation.
+   * @throws {UnauthorizedException} When the token is invalid, expired, revoked, malformed,
+   *   or when the `uid` does not match the token's subject.
    */
   async validateFirebaseToken(
     uid: string,

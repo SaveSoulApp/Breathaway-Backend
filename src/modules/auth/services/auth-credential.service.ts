@@ -15,6 +15,12 @@ export interface CreateUserResult {
   normalizedHash: string;
 }
 
+/**
+ * Orchestrates user account provisioning, credential creation, and identity claims.
+ *
+ * Coordinates database updates inside a unified transaction, resolving conflicts
+ * between registered users and "ghost" identities that exist due to prior activity.
+ */
 @Injectable()
 export class AuthCredentialService extends BaseService {
   constructor(
@@ -26,6 +32,20 @@ export class AuthCredentialService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Provisions a new user account alongside its primary authentication credential and identity link.
+   *
+   * Executes database mutations within a transaction block. If an existing registered user already owns
+   * the provided identity, a ConflictException is thrown. If the identity exists as a "ghost" record
+   * (created during interactions like likes before registration), it claims the identity by assigning
+   * it to the new user and fires an asynchronous IDENTITY_CLAIMED Pub/Sub event for background processing.
+   *
+   * @param value - Raw credential string (e.g. email address or phone number).
+   * @param authMethod - Method used to register/authenticate the user (PHONE or EMAIL).
+   * @param isVerified - Sets verification status flags and timestamps (defaults to false).
+   * @returns A promise that resolves to the newly created User entity and the processed identity hash.
+   * @throws {ConflictException} When the identity is already claimed by a fully registered user.
+   */
   async createUserWithCredential(
     value: string,
     authMethod: AuthMethod,
@@ -137,6 +157,12 @@ export class AuthCredentialService extends BaseService {
     return { user, normalizedHash: publicValueData.publicValueHash };
   }
 
+  /**
+   * Maps an AuthMethod utility enum to the corresponding Prisma AuthCredentialType enum.
+   *
+   * @param method - The application auth method to map.
+   * @returns The corresponding DB-level AuthCredentialType.
+   */
   toCredentialType(method: AuthMethod): AuthCredentialType {
     return method === AuthMethod.PHONE
       ? AuthCredentialType.PHONE

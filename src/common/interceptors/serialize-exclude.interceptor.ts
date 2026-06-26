@@ -12,13 +12,30 @@ interface ClassConstructor {
   new (...args: unknown[]): object;
 }
 
-//This annotation will expose all fields except marked at @Exclude()
+/**
+ * Applies the SerializeExcluderInterceptor to the route or controller.
+ *
+ * By default, includes all class-transformer properties unless explicitly marked with `@Exclude()`.
+ */
 export function SerializeExclude(dto: ClassConstructor) {
   return UseInterceptors(new SerializeExcluderInterceptor(dto));
 }
 
+/**
+ * Intercepts the response stream to transform outgoing data into a DTO instance,
+ * stripping out properties explicitly marked for exclusion.
+ *
+ * Useful when the default serialization strategy is to expose everything,
+ * but specific sensitive fields must be hidden.
+ */
 export class SerializeExcluderInterceptor implements NestInterceptor {
   constructor(private dto: ClassConstructor) {}
+  /**
+   * Wraps the response stream, running `plainToInstance` on the returned data
+   * before it is sent to the client.
+   *
+   * Enables implicit conversion to ensure type safety based on the DTO definition.
+   */
   intercept(
     context: ExecutionContext,
     next: CallHandler<unknown>,

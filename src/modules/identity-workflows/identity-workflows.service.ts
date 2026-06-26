@@ -19,6 +19,17 @@ import { SocialidentitiesService } from '@modules/social-identities/social-ident
 import { Injectable } from '@nestjs/common';
 import { IdentityType, LikeStatus } from '@prisma/client';
 
+/**
+ * Reacts to identity-related Pub/Sub events and executes the multi-step workflows
+ * that verify, link, and resolve matches for user identities.
+ *
+ * All entry points are Pub/Sub listeners — there are no direct service-to-service
+ * calls into this class. The two primary flows are:
+ *   1. Instagram OTP verification: validates an OTP received via DM, links the
+ *      sender's Instagram account to the BreathAway user, and fires a push notification.
+ *   2. Identity claimed: after any identity is claimed, retroactively resolves all
+ *      pending likes that targeted the newly owned identity, completing deferred matches.
+ */
 @Injectable()
 export class IdentityWorkflowsService extends BaseService {
   constructor(
@@ -33,6 +44,19 @@ export class IdentityWorkflowsService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Processes an Instagram OTP received via DM to verify and claim the sender's
+   * Instagram identity on behalf of the BreathAway user who initiated the flow.
+   *
+   * Sequence: verifies and consumes the OTP → resolves the Instagram sender to a
+   * social identity record → claims or creates a canonical Identity → fires a
+   * push notification to confirm linkage. Notification failures are swallowed so
+   * they do not invalidate the successful claim.
+   *
+   * @param data - Event payload containing the extracted OTP, Instagram sender ID,
+   *               and the message timestamp.
+   * @param messageId - Pub/Sub message ID used for tracing across log entries.
+   */
   @PubSubListener(PubSubEvent.INSTAGRAM_OTP_RECEIVED)
   async handleInstagramOtpReceived(
     data: { otp: string; senderId: string; timestamp: string },
