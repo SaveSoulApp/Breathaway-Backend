@@ -82,6 +82,32 @@ describe('PreferencesService', () => {
     });
   });
 
+  describe('getPreferencesMany', () => {
+    it('should return preferences for multiple users including defaults for missing ones', async () => {
+      const userIds = ['user-1', 'user-2'];
+      const mockPrefList = [
+        { ...mockPreference, userId: 'user-1', pushEnabled: false },
+      ];
+
+      prisma.notificationPreference.findMany.mockResolvedValue(mockPrefList);
+
+      const result = await service.getPreferencesMany(userIds);
+
+      expect(prisma.notificationPreference.findMany).toHaveBeenCalledWith({
+        where: { userId: { in: userIds } },
+      });
+      expect(result.size).toBe(2);
+      expect(result.get('user-1')?.pushEnabled).toBe(false); // Found in DB
+      expect(result.get('user-2')?.pushEnabled).toBe(true); // Default fallback
+    });
+
+    it('should return empty map for empty input array', async () => {
+      const result = await service.getPreferencesMany([]);
+      expect(result.size).toBe(0);
+      expect(prisma.notificationPreference.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updatePreferences', () => {
     it('should upsert and return updated preferences', async () => {
       const dto: UpdatePreferencesRequestDto = { pushEnabled: false };
