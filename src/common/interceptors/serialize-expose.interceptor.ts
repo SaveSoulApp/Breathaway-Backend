@@ -12,14 +12,29 @@ interface ClassConstructor {
   new (...args: unknown[]): object;
 }
 
-//This annotation will expose only the fields annotated with @Expose()
+/**
+ * Applies the SerializeExposerInterceptor to the route or controller.
+ *
+ * Enforces a strict serialization strategy where only properties explicitly marked
+ * with `@Expose()` are included in the response.
+ */
 export function SerializeExpose(dto: ClassConstructor) {
   return UseInterceptors(new SerializeExposerInterceptor(dto));
 }
 
+/**
+ * Intercepts the response stream to transform outgoing data into a DTO instance,
+ * stripping away all extraneous properties not explicitly exposed.
+ *
+ * Enforces a default-deny serialization strategy to prevent accidental data leaks.
+ */
 export class SerializeExposerInterceptor implements NestInterceptor {
   constructor(private dto: ClassConstructor) {}
 
+  /**
+   * Wraps the response stream, applying strict `plainToInstance` transformation
+   * on the returned data to ensure only `@Expose()` fields remain.
+   */
   intercept(
     context: ExecutionContext,
     next: CallHandler<unknown>,

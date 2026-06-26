@@ -4,6 +4,16 @@ import {
   ExecutionContext,
 } from '@nestjs/common';
 
+/**
+ * Extracts and strictly validates a required string parameter from the URL query string.
+ *
+ * Rejects undefined, null, non-string, or purely whitespace values before they reach
+ * the controller layer, providing consistent 400 Bad Request error messages.
+ *
+ * @param paramName - The exact key name expected in the query string.
+ * @returns The sanitized (trimmed) string value from the query parameter.
+ * @throws {BadRequestException} When the parameter is missing, not a string, or empty.
+ */
 export const RequiredStringQuery = createParamDecorator(
   (paramName: string, ctx: ExecutionContext) => {
     const request = ctx

@@ -1,6 +1,9 @@
 /**
- * Currency utility class for formatting and manipulating monetary values
- * with special support for Indian numbering system and currency symbols.
+ * Provides comprehensive utilities for formatting, parsing, and manipulating monetary values.
+ *
+ * Encapsulates the complexities of international currency standards and Indian numbering
+ * systems, ensuring financial data is displayed consistently and parsed safely to avoid
+ * precision errors.
  */
 export class CurrencyUtils {
   private static currencySymbols: { [key: string]: string } = {
@@ -30,7 +33,15 @@ export class CurrencyUtils {
   };
 
   /**
-   * Formats a number as Indian currency with proper symbol, commas, and suffix.
+   * Formats a raw number into a stylized Indian currency string with proper localization.
+   *
+   * Applies the traditional Indian numbering system (lakhs, crores) and includes the '`/-`'
+   * suffix standard for Indian financial documents.
+   *
+   * @param amount - The numeric value to format.
+   * @param currency - The currency code (defaults to INR).
+   * @param showDecimals - Whether to retain decimal values (e.g., paise). Defaults to false.
+   * @returns The localized currency string (e.g., "₹ 1,50,000/-") or 'Invalid amount'.
    */
   static formatINR(
     amount: number,
@@ -48,7 +59,16 @@ export class CurrencyUtils {
   }
 
   /**
-   * Formats amount for any currency with international standards.
+   * Formats a monetary value according to standard international currency conventions.
+   *
+   * Primarily relies on the native `Intl.NumberFormat` API for robust, locale-aware
+   * styling, with a manual fallback for unsupported environments.
+   *
+   * @param amount - The numeric value to format.
+   * @param currency - ISO 4217 currency code (defaults to 'INR').
+   * @param locale - BCP 47 language tag (defaults to 'en-IN').
+   * @param showDecimals - Whether to enforce a two-digit fractional representation. Defaults to true.
+   * @returns The standard currency string (e.g., "$1,250.75") or 'Invalid amount'.
    */
   static formatCurrency(
     amount: number,
@@ -81,7 +101,14 @@ export class CurrencyUtils {
   }
 
   /**
-   * Converts number to words (Indian numbering system).
+   * Translates a numerical monetary value into its written word equivalent using the Indian system.
+   *
+   * Crucial for generating legal financial documents, invoices, and checks where written
+   * amounts act as an anti-fraud measure.
+   *
+   * @param amount - The numeric value to translate.
+   * @param currency - The reference currency for appending appropriate unit nouns.
+   * @returns The capitalized written amount (e.g., "One Lakh Rupees Only").
    */
   static toWords(amount: number, currency: string = 'INR'): string {
     if (!this.isValidAmount(amount)) {
@@ -107,16 +134,13 @@ export class CurrencyUtils {
   }
 
   /**
-   * Parses a currency string back to number.
+   * Safely extracts a raw numeric value from a localized or formatted currency string.
    *
-   * @param currencyString - The formatted currency string
-   * @returns Parsed numerical value or NaN if invalid
+   * Handles stripping of symbols, thousands separators (both Western and European formats),
+   * and standardizes decimal points for safe database insertion.
    *
-   * @example
-   * CurrencyUtils.parseCurrency('₹ 5,000/-') // 5000
-   * CurrencyUtils.parseCurrency('$1,250.75') // 1250.75
-   * CurrencyUtils.parseCurrency('€1.234,56') // 1234.56 (European format)
-   * CurrencyUtils.parseCurrency('Invalid') // NaN
+   * @param currencyString - The raw, formatted user input.
+   * @returns The parsed float value, or `NaN` if extraction fails.
    */
   static parseCurrency(currencyString: string): number {
     if (!currencyString || typeof currencyString !== 'string') {
@@ -148,7 +172,13 @@ export class CurrencyUtils {
   }
 
   /**
-   * Validates if a string is a valid currency amount.
+   * Evaluates if a string conforms to acceptable currency formatting patterns.
+   *
+   * Validates structure (comma placement, decimal validity) before attempting a full parse,
+   * preventing corrupted financial data from entering the system.
+   *
+   * @param value - The raw string to validate.
+   * @returns `true` if structurally and numerically valid; `false` otherwise.
    */
   static isValidCurrency(value: string): boolean {
     if (!value || typeof value !== 'string') return false;

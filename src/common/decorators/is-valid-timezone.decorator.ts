@@ -5,6 +5,17 @@ import {
 } from 'class-validator';
 import { TimezoneUtil } from '../utils/timezone.utils';
 
+/**
+ * Validates that a string property is a recognized IANA timezone identifier
+ * (e.g., "Asia/Kolkata", "UTC").
+ *
+ * Silently allows undefined, null, or empty string values; if the property
+ * is required, combine this with @IsNotEmpty(). Relies on `TimezoneUtil`
+ * for the actual timezone resolution and validation logic.
+ *
+ * @param validationOptions - Optional class-validator configuration (e.g., custom error message, groups).
+ * @returns A validation decorator to apply to class properties.
+ */
 export function IsValidTimezone(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({
