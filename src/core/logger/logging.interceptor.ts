@@ -11,6 +11,13 @@ import { ConfigService } from '@nestjs/config';
 
 import { LoggerService } from './logger.service';
 
+/**
+ * Intercepts incoming HTTP requests to log their lifecycle, performance, and metadata.
+ *
+ * Automatically injects an `X-Request-ID` (or generates a random UUID) into the log context
+ * to enable distributed tracing. Measures wall-clock execution time and logs both the
+ * inbound request and outbound response details.
+ */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly isProduction: boolean;
@@ -25,6 +32,13 @@ export class LoggingInterceptor implements NestInterceptor {
       this.configService.get('SHOULD_LOG_RESPONSE') === 'true';
   }
 
+  /**
+   * Wraps the route handler to capture request timing and outcome.
+   *
+   * Logs a 'debug' entry immediately upon request arrival. Upon successful completion,
+   * logs another entry containing the response latency and status code. In non-production
+   * environments (if configured), it also includes the full response body for debugging.
+   */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<{
       method: string;

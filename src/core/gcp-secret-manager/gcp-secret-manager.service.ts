@@ -3,6 +3,12 @@ import { LoggerService } from '@core/logger';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { Injectable } from '@nestjs/common';
 
+/**
+ * Integrates with Google Cloud Secret Manager to store and manage sensitive infrastructure credentials.
+ *
+ * Utilizes the official `@google-cloud/secret-manager` client. Assumes the environment has
+ * Application Default Credentials (ADC) configured with appropriate IAM roles (e.g., Secret Manager Admin).
+ */
 @Injectable()
 export class GcpSecretManagerService extends BaseService {
   private readonly client = new SecretManagerServiceClient();
@@ -12,9 +18,14 @@ export class GcpSecretManagerService extends BaseService {
   }
 
   /**
-   * Adds a new version to an existing GCP secret.
-   * @param secretName - The short secret name (e.g. 'some-secret-name'), not the full resource path.
-   * @param value - The plaintext value to store.
+   * Adds a new version to an existing GCP secret, effectively updating its plaintext value.
+   *
+   * Automatically resolves the current GCP project ID. If the secret does not exist,
+   * the underlying GCP API will throw an error (it does not create the secret structure automatically).
+   *
+   * @param secretName - The short secret name (e.g. 'stripe-webhook-secret'), not the full resource path.
+   * @param value - The plaintext value to store as the new active version.
+   * @throws {Error} When the GCP API rejects the request (e.g., insufficient permissions, secret not found).
    */
   async upsertSecret(secretName: string, value: string): Promise<void> {
     try {
