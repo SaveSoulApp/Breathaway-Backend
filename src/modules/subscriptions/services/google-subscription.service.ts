@@ -1,10 +1,22 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SubscriptionEventType } from '@prisma/client';
 import axios from 'axios';
 import { GoogleAuth } from 'google-auth-library';
+
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+interface GoogleNotificationRaw {
+  packageName?: string;
+  eventTimeMillis?: string;
+  subscriptionNotification?: {
+    version?: string;
+    notificationType?: number;
+    purchaseToken?: string;
+    subscriptionId?: string;
+  };
+}
 
 interface GoogleSubscriptionNotification {
   version: string;
@@ -48,16 +60,16 @@ export class GoogleSubscriptionService extends BaseService {
 
   parseNotification(base64Data: string): GoogleNotificationPayload {
     const json = Buffer.from(base64Data, 'base64').toString('utf-8');
-    const data = JSON.parse(json);
+    const data = JSON.parse(json) as GoogleNotificationRaw;
 
     return {
-      packageName: data.packageName,
-      eventTimeMillis: data.eventTimeMillis,
+      packageName: data.packageName ?? '',
+      eventTimeMillis: data.eventTimeMillis ?? '',
       subscriptionNotification: {
-        version: data.subscriptionNotification?.version,
-        notificationType: data.subscriptionNotification?.notificationType,
-        purchaseToken: data.subscriptionNotification?.purchaseToken,
-        subscriptionId: data.subscriptionNotification?.subscriptionId,
+        version: data.subscriptionNotification?.version ?? '',
+        notificationType: data.subscriptionNotification?.notificationType ?? 0,
+        purchaseToken: data.subscriptionNotification?.purchaseToken ?? '',
+        subscriptionId: data.subscriptionNotification?.subscriptionId ?? '',
       },
     };
   }

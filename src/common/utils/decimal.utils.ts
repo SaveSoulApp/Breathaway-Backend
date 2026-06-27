@@ -23,7 +23,7 @@ export class DecimalUtils {
     }
 
     if (Array.isArray(data)) {
-      return data.map((item) =>
+      return (data as unknown[]).map((item) =>
         DecimalUtils.convertDecimals(item),
       ) as unknown as T;
     }

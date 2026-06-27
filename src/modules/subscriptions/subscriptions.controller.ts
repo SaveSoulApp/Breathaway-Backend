@@ -1,7 +1,3 @@
-import { CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -21,6 +17,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import {
   SubscriptionPlanResponseDto,
   UserSubscriptionResponseDto,
@@ -59,7 +61,9 @@ export class SubscriptionsController extends BaseController {
   async listPlans(
     @Query('countryCode') countryCode?: string,
   ): Promise<SubscriptionPlanResponseDto[]> {
-    return this.subscriptionPlansService.listActivePlans(countryCode) as any;
+    return (await this.subscriptionPlansService.listActivePlans(
+      countryCode,
+    )) as unknown as SubscriptionPlanResponseDto[];
   }
 
   @Get('plans/:id')
@@ -68,10 +72,10 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: SubscriptionPlanResponseDto,
   })
-  async getPlan(
-    @Param('id') id: string,
-  ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.getPlanById(id) as any;
+  async getPlan(@Param('id') id: string): Promise<SubscriptionPlanResponseDto> {
+    return (await this.subscriptionPlansService.getPlanById(
+      id,
+    )) as unknown as SubscriptionPlanResponseDto;
   }
 
   @Post('verify-purchase')
@@ -91,10 +95,10 @@ export class SubscriptionsController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: VerifyPurchaseRequestDto,
   ): Promise<UserSubscriptionResponseDto> {
-    return this.subscriptionsService.verifyAndCreateSubscription(
+    return (await this.subscriptionsService.verifyAndCreateSubscription(
       userId,
       dto,
-    ) as any;
+    )) as unknown as UserSubscriptionResponseDto;
   }
 
   @Get('me')
@@ -113,7 +117,7 @@ export class SubscriptionsController extends BaseController {
       throw new NotFoundException('No active subscription found');
     }
 
-    return subscription as any;
+    return subscription as unknown as UserSubscriptionResponseDto;
   }
 
   @Get('me/history')
@@ -125,6 +129,8 @@ export class SubscriptionsController extends BaseController {
   async getMySubscriptionHistory(
     @CurrentUserId() userId: string,
   ): Promise<UserSubscriptionResponseDto[]> {
-    return this.subscriptionsService.getSubscriptionHistory(userId) as any;
+    return (await this.subscriptionsService.getSubscriptionHistory(
+      userId,
+    )) as unknown as UserSubscriptionResponseDto[];
   }
 }

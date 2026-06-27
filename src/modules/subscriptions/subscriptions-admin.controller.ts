@@ -1,7 +1,3 @@
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BasicAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -19,6 +15,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { BasicAuthGuard } from '@common/guards';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
@@ -54,7 +56,9 @@ export class SubscriptionsAdminController extends BaseController {
   async createPlan(
     @Body() dto: CreatePlanRequestDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.createPlan(dto) as any;
+    return (await this.subscriptionPlansService.createPlan(
+      dto,
+    )) as unknown as SubscriptionPlanResponseDto;
   }
 
   @Patch('plans/:id')
@@ -68,7 +72,10 @@ export class SubscriptionsAdminController extends BaseController {
     @Param('id') id: string,
     @Body() dto: UpdatePlanRequestDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.updatePlan(id, dto) as any;
+    return (await this.subscriptionPlansService.updatePlan(
+      id,
+      dto,
+    )) as unknown as SubscriptionPlanResponseDto;
   }
 
   @Post('plans/:planId/prices')
@@ -82,7 +89,10 @@ export class SubscriptionsAdminController extends BaseController {
     @Param('planId') planId: string,
     @Body() dto: CreatePlanPriceRequestDto,
   ): Promise<SubscriptionPlanPriceResponseDto> {
-    return this.subscriptionPlansService.addPlanPrice(planId, dto) as any;
+    return (await this.subscriptionPlansService.addPlanPrice(
+      planId,
+      dto,
+    )) as unknown as SubscriptionPlanPriceResponseDto;
   }
 
   @Delete('plans/:planId/prices/:priceId')

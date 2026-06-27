@@ -1,8 +1,9 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SubscriptionEventType } from '@prisma/client';
+
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 
 interface AppleTransactionInfo {
   originalTransactionId: string;
@@ -19,6 +20,15 @@ interface AppleRenewalInfo {
   autoRenewProductId: string;
   autoRenewStatus: number;
   expirationIntent?: number;
+}
+
+interface AppleJwsPayload extends Record<string, unknown> {
+  notificationType: string;
+  subtype?: string;
+  data?: {
+    signedTransactionInfo?: string;
+    signedRenewalInfo?: string;
+  };
 }
 
 interface AppleNotificationPayload {
@@ -39,15 +49,18 @@ export class AppleSubscriptionService extends BaseService {
   }
 
   parseNotification(signedPayload: string): AppleNotificationPayload {
-    const outerPayload = this.decodeJwsPayload(signedPayload);
+    const outerPayload = this.decodeJwsPayload<AppleJwsPayload>(signedPayload);
 
-    const transactionInfo: AppleTransactionInfo = outerPayload.data
-      ?.signedTransactionInfo
-      ? this.decodeJwsPayload(outerPayload.data.signedTransactionInfo)
+    const transactionInfo = outerPayload.data?.signedTransactionInfo
+      ? this.decodeJwsPayload<AppleTransactionInfo>(
+          outerPayload.data.signedTransactionInfo,
+        )
       : ({} as AppleTransactionInfo);
 
-    const renewalInfo: AppleRenewalInfo = outerPayload.data?.signedRenewalInfo
-      ? this.decodeJwsPayload(outerPayload.data.signedRenewalInfo)
+    const renewalInfo = outerPayload.data?.signedRenewalInfo
+      ? this.decodeJwsPayload<AppleRenewalInfo>(
+          outerPayload.data.signedRenewalInfo,
+        )
       : ({} as AppleRenewalInfo);
 
     return {
@@ -111,14 +124,14 @@ export class AppleSubscriptionService extends BaseService {
     }
   }
 
-  private decodeJwsPayload(jws: string): any {
+  private decodeJwsPayload<T = Record<string, unknown>>(jws: string): T {
     const parts = jws.split('.');
 
     if (parts.length !== 3) {
       this.logger.warn(
         'Invalid JWS format: expected 3 parts separated by dots',
       );
-      return {};
+      return {} as T;
     }
 
     const payload = parts[1];
@@ -127,6 +140,6 @@ export class AppleSubscriptionService extends BaseService {
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
     const json = Buffer.from(base64, 'base64').toString('utf-8');
 
-    return JSON.parse(json);
+    return JSON.parse(json) as T;
   }
 }

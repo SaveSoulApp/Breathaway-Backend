@@ -94,4 +94,3 @@ export class MaintenanceController extends BaseController {
     return this.maintenanceService.expireSubscriptions();
   }
 }
-
