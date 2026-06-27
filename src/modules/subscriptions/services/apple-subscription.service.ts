@@ -39,6 +39,12 @@ interface AppleNotificationPayload {
   rawPayload: Record<string, unknown>;
 }
 
+/**
+ * Integrates with Apple StoreKit 2 for Server-to-Server Notifications.
+ *
+ * Validates, decodes, and parses Apple's cryptographically signed JWS payloads,
+ * translating App Store lifecycle events into our unified internal event schema.
+ */
 @Injectable()
 export class AppleSubscriptionService extends BaseService {
   constructor(
@@ -48,6 +54,15 @@ export class AppleSubscriptionService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Decodes an Apple JWS webhook payload into strongly-typed objects.
+   *
+   * Extracts the outer notification and decodes the embedded signedTransactionInfo
+   * and signedRenewalInfo objects.
+   *
+   * @param signedPayload - The raw JWS string received from Apple.
+   * @returns The parsed notification data including nested transaction details.
+   */
   parseNotification(signedPayload: string): AppleNotificationPayload {
     const outerPayload = this.decodeJwsPayload<AppleJwsPayload>(signedPayload);
 
@@ -72,6 +87,15 @@ export class AppleSubscriptionService extends BaseService {
     };
   }
 
+  /**
+   * Maps an Apple notification type and subtype to a unified SubscriptionEventType.
+   *
+   * Used to standardize disparate store events into our internal billing lifecycle.
+   *
+   * @param notificationType - The primary event type from Apple (e.g., 'SUBSCRIBED').
+   * @param subtype - Optional secondary context (e.g., 'INITIAL_BUY').
+   * @returns The corresponding internal event type.
+   */
   mapNotificationType(
     notificationType: string,
     subtype?: string,

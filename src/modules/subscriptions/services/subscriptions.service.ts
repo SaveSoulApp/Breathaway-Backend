@@ -86,6 +86,13 @@ interface LogEventParams {
   rawPayload?: Record<string, unknown>;
 }
 
+/**
+ * Orchestrates the lifecycle of user subscriptions and processes store events.
+ *
+ * This service handles creating initial subscriptions, processing renewals, cancellations,
+ * and expirations. It ensures idempotency for webhooks and coordinates with the
+ * CreditsModule to disburse credits upon successful payment.
+ */
 @Injectable()
 export class SubscriptionsService extends BaseService {
   constructor(
@@ -101,6 +108,12 @@ export class SubscriptionsService extends BaseService {
   // User-facing queries
   // ──────────────────────────────────────────────
 
+  /**
+   * Retrieves the currently active or grace-period subscription for a user.
+   *
+   * @param userId - ID of the target user.
+   * @returns The active subscription entity, or null if none exists.
+   */
   async getActiveSubscription(userId: string) {
     const subscription = await this.prisma.userSubscription.findFirst({
       where: {
@@ -116,6 +129,12 @@ export class SubscriptionsService extends BaseService {
     return subscription ?? null;
   }
 
+  /**
+   * Fetches the complete history of a user's subscriptions and associated events.
+   *
+   * @param userId - ID of the target user.
+   * @returns Array of past and present subscriptions.
+   */
   async getSubscriptionHistory(userId: string) {
     return this.prisma.userSubscription.findMany({
       where: { userId },
@@ -132,9 +151,16 @@ export class SubscriptionsService extends BaseService {
   // ──────────────────────────────────────────────
 
   /**
-   * Called by the mobile app after a successful in-app purchase.
-   * This is the only entry point for creating initial subscriptions —
-   * webhook INITIAL_PURCHASE events only serve as a fallback/reconciliation.
+   * Processes a client-initiated in-app purchase and provisions the subscription.
+   *
+   * Serves as the primary entry point for new subscriptions, overriding the latency
+   * of asynchronous webhooks. Implements idempotency to return the existing record
+   * if the purchase was already processed.
+   *
+   * @param userId - ID of the authenticated user.
+   * @param dto - Token and product details from the client SDK.
+   * @returns The newly created or existing user subscription.
+   * @throws {BadRequestException} When expiration date precedes purchase date.
    */
   async verifyAndCreateSubscription(
     userId: string,
@@ -194,6 +220,15 @@ export class SubscriptionsService extends BaseService {
   // Lifecycle handlers (called by webhook handlers)
   // ──────────────────────────────────────────────
 
+  /**
+   * Provisions a new subscription record and disburses initial credits.
+   *
+   * Wraps creation and credit granting in a Prisma transaction to ensure atomicity.
+   * Idempotent against the store transaction ID.
+   *
+   * @param params - Validated purchase details from either the client or a webhook.
+   * @returns The newly created subscription.
+   */
   async handleInitialPurchase(params: InitialPurchaseParams) {
     // Idempotency: check if subscription already exists for this store transaction
     const existing = await this.prisma.userSubscription.findFirst({
@@ -271,6 +306,15 @@ export class SubscriptionsService extends BaseService {
     return subscription;
   }
 
+  /**
+   * Processes an auto-renewal event, extending the subscription and granting credits.
+   *
+   * Uses Prisma transactions for atomicity. If the event was already processed
+   * (idempotency check), the method returns early without side effects.
+   *
+   * @param params - Renewal period details and webhook payload.
+   * @returns The updated subscription, or undefined if already processed.
+   */
   async handleRenewal(params: RenewalParams) {
     if (await this.isEventAlreadyProcessed(params.storeEventId)) return;
 
@@ -328,6 +372,15 @@ export class SubscriptionsService extends BaseService {
     return updatedSubscription;
   }
 
+  /**
+   * Marks a subscription as cancelled but retains its active status until expiration.
+   *
+   * Sets autoRenewing to false. The user retains access and credits until the
+   * current billing period ends.
+   *
+   * @param params - Cancellation details from the store webhook.
+   * @returns The updated subscription, or undefined if already processed.
+   */
   async handleCancellation(params: CancellationParams) {
     if (await this.isEventAlreadyProcessed(params.storeEventId)) return;
 
@@ -374,6 +427,14 @@ export class SubscriptionsService extends BaseService {
     return updatedSubscription;
   }
 
+  /**
+   * Transitions a subscription into a grace period due to a billing issue.
+   *
+   * The user retains access while the store attempts to recover payment.
+   *
+   * @param params - Details of the grace period event.
+   * @returns The updated subscription, or undefined if already processed.
+   */
   async handleGracePeriod(params: GracePeriodParams) {
     if (await this.isEventAlreadyProcessed(params.storeEventId)) return;
 
@@ -404,6 +465,14 @@ export class SubscriptionsService extends BaseService {
     return updatedSubscription;
   }
 
+  /**
+   * Recovers a subscription from a grace period or paused state after successful payment.
+   *
+   * Extends the expiration date and disburses the credits owed for the new period.
+   *
+   * @param params - Details of the recovered billing period.
+   * @returns The updated subscription, or undefined if already processed.
+   */
   async handleBillingRecovery(params: BillingRecoveryParams) {
     if (await this.isEventAlreadyProcessed(params.storeEventId)) return;
 
@@ -450,6 +519,15 @@ export class SubscriptionsService extends BaseService {
     return updatedSubscription;
   }
 
+  /**
+   * Immediately revokes a subscription, typically due to a refund or chargeback.
+   *
+   * Access is terminated instantly. (Note: Retracting already spent credits is handled
+   * separately if required by business logic).
+   *
+   * @param params - Revocation details from the store.
+   * @returns The updated subscription, or undefined if already processed.
+   */
   async handleRevocation(params: RevocationParams) {
     if (await this.isEventAlreadyProcessed(params.storeEventId)) return;
 
@@ -487,6 +565,15 @@ export class SubscriptionsService extends BaseService {
     return updatedSubscription;
   }
 
+  /**
+   * Marks a subscription as expired when the billing period ends without renewal.
+   *
+   * Prevents duplicate expirations if the subscription is already in a terminal state.
+   *
+   * @param storeTransactionId - The original transaction ID identifying the subscription.
+   * @param storePlatform - The platform the subscription belongs to.
+   * @returns The updated subscription, or the existing one if already terminal.
+   */
   async handleExpiry(storeTransactionId: string, storePlatform: StorePlatform) {
     const subscription =
       await this.findSubscriptionByStoreTransaction(storeTransactionId);
@@ -534,6 +621,14 @@ export class SubscriptionsService extends BaseService {
   // Maintenance (C3 fix — atomic batch)
   // ──────────────────────────────────────────────
 
+  /**
+   * Batch processes expirations for all subscriptions past their end date.
+   *
+   * Designed to be run by a cron job or background worker to sweep stale subscriptions
+   * that haven't received a timely renewal webhook. Wraps all updates in a single transaction.
+   *
+   * @returns The number of subscriptions expired during this sweep.
+   */
   async expireSubscriptions(): Promise<number> {
     const now = DateUtil.now();
 
@@ -580,6 +675,13 @@ export class SubscriptionsService extends BaseService {
   // Helpers
   // ──────────────────────────────────────────────
 
+  /**
+   * Locates a subscription by its store-provided transaction identifier.
+   *
+   * @param storeTransactionId - The transaction ID to search for.
+   * @returns The matching subscription entity.
+   * @throws {NotFoundException} When no matching subscription exists.
+   */
   async findSubscriptionByStoreTransaction(storeTransactionId: string) {
     const subscription = await this.prisma.userSubscription.findFirst({
       where: { storeTransactionId },

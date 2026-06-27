@@ -43,6 +43,13 @@ interface GooglePurchaseDetails {
   cancelReason?: number;
 }
 
+/**
+ * Integrates with Google Play Developer API and Real-Time Developer Notifications.
+ *
+ * Handles parsing base64-encoded Pub/Sub messages from Google and querying the
+ * Google Play API to fetch authoritative purchase details for verification and
+ * event processing.
+ */
 @Injectable()
 export class GoogleSubscriptionService extends BaseService {
   private readonly googleAuth: GoogleAuth;
@@ -58,6 +65,12 @@ export class GoogleSubscriptionService extends BaseService {
     });
   }
 
+  /**
+   * Decodes a base64-encoded Google Play Developer Notification.
+   *
+   * @param base64Data - The encoded string received from Google Pub/Sub.
+   * @returns The parsed JSON object representing the notification.
+   */
   parseNotification(base64Data: string): GoogleNotificationPayload {
     const json = Buffer.from(base64Data, 'base64').toString('utf-8');
     const data = JSON.parse(json) as GoogleNotificationRaw;
@@ -74,6 +87,18 @@ export class GoogleSubscriptionService extends BaseService {
     };
   }
 
+  /**
+   * Fetches authoritative subscription details directly from the Google Play API.
+   *
+   * Since Google notifications don't contain full transaction data, we must query
+   * their API using the purchase token to get current state, price, and expiration.
+   *
+   * @param packageName - The Android package identifier (e.g., com.example.app).
+   * @param subscriptionId - The Google Play product ID.
+   * @param purchaseToken - The unique token identifying the purchase.
+   * @returns The full purchase state and details.
+   * @throws {Error} When the Google API request fails (e.g., invalid token).
+   */
   async verifyPurchase(
     packageName: string,
     subscriptionId: string,
@@ -104,6 +129,14 @@ export class GoogleSubscriptionService extends BaseService {
     }
   }
 
+  /**
+   * Maps a Google Play notification integer code to a unified SubscriptionEventType.
+   *
+   * Used to standardize disparate store events into our internal billing lifecycle.
+   *
+   * @param notificationType - The integer code defined by Google.
+   * @returns The corresponding internal event type.
+   */
   mapNotificationType(notificationType: number): SubscriptionEventType {
     switch (notificationType) {
       case 1: // SUBSCRIPTION_RECOVERED

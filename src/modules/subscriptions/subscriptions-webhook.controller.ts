@@ -19,6 +19,13 @@ import { AppleSubscriptionService } from './services/apple-subscription.service'
 import { GoogleSubscriptionService } from './services/google-subscription.service';
 import { SubscriptionsService } from './services/subscriptions.service';
 
+/**
+ * Processes server-to-server notifications from Apple App Store and Google Play.
+ *
+ * Exposes unauthenticated webhook endpoints. Validation and security checks
+ * (e.g., verifying Apple's signed payloads) are handled within the respective
+ * services.
+ */
 @ApiTags('Webhooks - Subscriptions')
 @SkipClientIdentity()
 @SkipThrottle()
@@ -36,6 +43,16 @@ export class SubscriptionsWebhookController extends BaseController {
     super(logger);
   }
 
+  /**
+   * Receives and processes App Store Server Notifications V2.
+   *
+   * Apple sends a JWS payload which is decoded and verified by AppleSubscriptionService.
+   * Based on the notification type, the appropriate lifecycle event (renewal, expiry, etc.)
+   * is triggered in the database.
+   *
+   * @param dto - Contains the JWS signedPayload from Apple.
+   * @returns An object acknowledging receipt; HTTP 200 prevents Apple from retrying.
+   */
   @Post('apple')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Apple App Store Server Notification V2 webhook' })
@@ -83,6 +100,16 @@ export class SubscriptionsWebhookController extends BaseController {
     }
   }
 
+  /**
+   * Receives and processes Google Play Real-Time Developer Notifications.
+   *
+   * Google sends a base64 encoded payload via Pub/Sub or direct webhook.
+   * The notification is parsed, and the purchase token is verified against the
+   * Google Play Developer API to determine the event type.
+   *
+   * @param dto - Contains the encoded message payload from Google.
+   * @returns An object acknowledging receipt.
+   */
   @Post('google')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

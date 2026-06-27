@@ -30,6 +30,12 @@ import {
 } from './dto';
 import { SubscriptionPlansService } from './services/subscription-plans.service';
 
+/**
+ * Handles HTTP operations for the /admin/subscriptions resource.
+ *
+ * Exposes administrative endpoints to manage subscription plans and their localized pricing.
+ * Requires Basic Auth.
+ */
 @ApiTags('Admin - Subscriptions')
 @SkipClientIdentity()
 @ApiBearerAuth()
@@ -46,6 +52,12 @@ export class SubscriptionsAdminController extends BaseController {
     super(logger);
   }
 
+  /**
+   * Creates a new subscription plan.
+   *
+   * @param dto - Details of the new plan (name, credits granted, validity days, etc).
+   * @returns The newly created subscription plan.
+   */
   @Post('plans')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new subscription plan' })
@@ -61,6 +73,16 @@ export class SubscriptionsAdminController extends BaseController {
     )) as unknown as SubscriptionPlanResponseDto;
   }
 
+  /**
+   * Updates properties of an existing subscription plan.
+   *
+   * Does not affect active user subscriptions already on this plan, except for UI presentation.
+   *
+   * @param id - UUID of the subscription plan to update.
+   * @param dto - Fields to update.
+   * @returns The updated subscription plan.
+   * @throws {NotFoundException} When no plan exists with the given id.
+   */
   @Patch('plans/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update an existing subscription plan' })
@@ -78,6 +100,14 @@ export class SubscriptionsAdminController extends BaseController {
     )) as unknown as SubscriptionPlanResponseDto;
   }
 
+  /**
+   * Adds a localized price entry to an existing subscription plan.
+   *
+   * @param planId - UUID of the subscription plan.
+   * @param dto - Currency, country code, and price amount.
+   * @returns The newly created price entry.
+   * @throws {NotFoundException} When the subscription plan does not exist.
+   */
   @Post('plans/:planId/prices')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a price entry to a subscription plan' })
@@ -95,6 +125,13 @@ export class SubscriptionsAdminController extends BaseController {
     )) as unknown as SubscriptionPlanPriceResponseDto;
   }
 
+  /**
+   * Removes a localized price entry from a subscription plan.
+   *
+   * @param planId - UUID of the subscription plan.
+   * @param priceId - UUID of the price entry to remove.
+   * @throws {NotFoundException} When the plan or price entry does not exist.
+   */
   @Delete('plans/:planId/prices/:priceId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a price entry from a subscription plan' })
