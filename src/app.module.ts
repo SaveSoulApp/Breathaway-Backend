@@ -41,6 +41,7 @@ import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ChatsModule } from './modules/chats/chats.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { ChatsModule } from './modules/chats/chats.module';
     MaintenanceModule,
     AuditModule,
     ChatsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

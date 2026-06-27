@@ -1,14 +1,15 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdminModule } from '@modules/admin/admin.module';
+import { ReportsModule } from '@modules/reports/reports.module';
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import request from 'supertest';
 import * as crypto from 'crypto';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { DevicePlatform, GenderType, IdentityType } from '@prisma/client';
+import { AdminModule } from '@modules/admin/admin.module';
 
-describe('AdminModule (e2e)', () => {
+describe('ReportsModule (e2e)', () => {
   let app: INestApplication;
   let configService: ConfigService;
   let prisma: PrismaService;
@@ -20,7 +21,9 @@ describe('AdminModule (e2e)', () => {
     process.env.ADMIN_USERNAME = 'admin';
     process.env.ADMIN_PASSWORD = 'admin';
 
-    const context = await createAuthTestApp([AdminModule]);
+    // We also include AdminModule just in case AdminBasicAuthGuard needs any global setup from it,
+    // but the endpoints are on ReportsModule.
+    const context = await createAuthTestApp([ReportsModule, AdminModule]);
     app = context.app;
     configService = app.get(ConfigService);
     prisma = context.prisma;
@@ -36,10 +39,10 @@ describe('AdminModule (e2e)', () => {
     await app.close();
   });
 
-  describe('GET /api/v1/admin/reports/total', () => {
+  describe('GET /api/v1/reports/total', () => {
     it('should reject unauthorized requests', async () => {
       const res = await request(app.getHttpServer()).get(
-        '/api/v1/admin/reports/total',
+        '/api/v1/reports/total',
       );
       expect(res.status).toBe(401);
     });
@@ -47,7 +50,7 @@ describe('AdminModule (e2e)', () => {
     it('should reject requests with invalid credentials', async () => {
       const invalidAuth = `Basic ${Buffer.from('wrong:wrong').toString('base64')}`;
       const res = await request(app.getHttpServer())
-        .get('/api/v1/admin/reports/total')
+        .get('/api/v1/reports/total')
         .set('Authorization', invalidAuth);
       expect(res.status).toBe(401);
     });
@@ -88,7 +91,7 @@ describe('AdminModule (e2e)', () => {
       });
 
       const res = await request(app.getHttpServer())
-        .get('/api/v1/admin/reports/total')
+        .get('/api/v1/reports/total')
         .set('Authorization', authHeader);
 
       expect(res.status).toBe(200);
@@ -100,7 +103,7 @@ describe('AdminModule (e2e)', () => {
     });
   });
 
-  describe('GET /api/v1/admin/reports/timeframe', () => {
+  describe('GET /api/v1/reports/timeframe', () => {
     it('should return timeframe report for given dates', async () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 1);
@@ -108,7 +111,7 @@ describe('AdminModule (e2e)', () => {
       endDate.setDate(endDate.getDate() + 1);
 
       const res = await request(app.getHttpServer())
-        .get('/api/v1/admin/reports/timeframe')
+        .get('/api/v1/reports/timeframe')
         .query({
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
