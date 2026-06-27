@@ -1,5 +1,5 @@
-import { CreditsModule } from '@modules/credits/credits.module';
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { MaintenanceController } from './maintenance.controller';
 import { MaintenanceService } from './maintenance.service';
 
@@ -9,13 +9,16 @@ import { MaintenanceService } from './maintenance.service';
  * /internal/jobs HTTP endpoints.
  *
  * Imports:
- *   - CreditsModule: provides CreditsService so the maintenance job can invoke
- *     credit-bundle expiration without re-implementing the expiry logic.
+ *   - ConfigModule: provides ConfigService so MaintenanceService can read
+ *     `CREDIT_EXPIRY_BATCH_SIZE` from the application configuration.
+ *
+ * PubSubPublisherService is available globally via PubSubModule (@Global) and
+ * requires no explicit import here.
  *
  * No exports — this module is a leaf consumer; no other module depends on it.
  */
 @Module({
-  imports: [CreditsModule],
+  imports: [ConfigModule],
   controllers: [MaintenanceController],
   providers: [MaintenanceService],
 })
