@@ -406,8 +406,11 @@ describe('CreditsService', () => {
         ]),
       });
 
-      const call = (prisma.creditLedger.createMany as jest.Mock).mock.calls[0][0];
-      const adminExp = call.data.find((d: any) => d.referenceId === 'admin-credit');
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock
+        .calls[0][0];
+      const adminExp = call.data.find(
+        (d: any) => d.referenceId === 'admin-credit',
+      );
       expect(adminExp).toBeUndefined();
     });
 

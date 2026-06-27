@@ -25,7 +25,8 @@ export class CreditExpiryBatchRequestDto {
    * has expired, ensuring consistency across all batches in the same job run.
    */
   @ApiProperty({
-    description: 'ISO-8601 timestamp pinned at fan-out time (authoritative "now")',
+    description:
+      'ISO-8601 timestamp pinned at fan-out time (authoritative "now")',
   })
   @IsDateString()
   asOf: string;

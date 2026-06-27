@@ -94,12 +94,13 @@ export class MaintenanceService extends BaseService {
     let cursor: string | undefined = undefined;
     let batchesPublished = 0;
     let totalUsersEnqueued = 0;
+    let hasMore = true;
 
     this.logger.log(
       `Credit expiry fan-out started. batchSize=${this.expiryBatchSize}, asOf=${asOf}`,
     );
 
-    do {
+    while (hasMore) {
       // Cursor-paginate distinct userIds with expired CREDIT rows.
       // `cursor` advances to the last userId of the previous page, ensuring
       // we never re-fetch the same page and hold no result set in memory.
@@ -116,7 +117,10 @@ export class MaintenanceService extends BaseService {
           take: this.expiryBatchSize,
         });
 
-      if (rows.length === 0) break;
+      if (rows.length === 0) {
+        hasMore = false;
+        break;
+      }
 
       const userIds: string[] = rows.map((r) => r.userId);
 
@@ -133,7 +137,12 @@ export class MaintenanceService extends BaseService {
       this.logger.debug(
         `Published batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
       );
-    } while (true);
+
+      // If we fetched fewer rows than the requested batch size, we've reached the end.
+      if (rows.length < this.expiryBatchSize) {
+        hasMore = false;
+      }
+    }
 
     this.logger.log(
       `Credit expiry fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
