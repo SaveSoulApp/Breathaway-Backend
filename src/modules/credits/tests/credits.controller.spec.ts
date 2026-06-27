@@ -7,10 +7,7 @@ import { LoggerService } from '@core/logger';
 
 import { CreditsController } from '../credits.controller';
 import { CreditsService } from '../credits.service';
-import {
-  ConsumeCreditsRequestDto,
-  CreditLedgerQueryDto,
-} from '../dto';
+import { ConsumeCreditsRequestDto, CreditLedgerQueryDto } from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('CreditsController', () => {

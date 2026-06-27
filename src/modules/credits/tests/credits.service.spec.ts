@@ -1,5 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditLedger,
@@ -306,13 +311,13 @@ describe('CreditsService', () => {
       referenceId: 'like-ref-123',
     };
 
-    it('should throw BadRequestException if insufficient credits', async () => {
+    it('should throw HttpException if insufficient credits', async () => {
       // Arrange
       jest.spyOn(service, 'getBalance').mockResolvedValue(5);
 
       // Act & Assert
       await expect(service.consumeCredits(dto)).rejects.toThrow(
-        new BadRequestException('Insufficient credits'),
+        new HttpException('Insufficient credits', HttpStatus.PAYMENT_REQUIRED),
       );
     });
 
