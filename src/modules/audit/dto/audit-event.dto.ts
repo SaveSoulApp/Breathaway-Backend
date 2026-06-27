@@ -7,11 +7,17 @@ import {
   IsString,
 } from 'class-validator';
 
+/**
+ * Canonical set of auditable domain events across the BreathAway platform.
+ * Each value maps to a distinct user- or system-initiated action that must
+ * be recorded for compliance, abuse detection, or operational observability.
+ */
 export enum AuditActionType {
   USER_LOGIN = 'USER_LOGIN',
   USER_LOGOUT = 'USER_LOGOUT',
   USER_REGISTERED = 'USER_REGISTERED',
   USAGE_TRIGGERED = 'USAGE_TRIGGERED',
+  USAGE_DENIED = 'USAGE_DENIED',
   PURCHASE_TRIGGERED = 'PURCHASE_TRIGGERED',
   IDENTITY_VERIFIED = 'IDENTITY_VERIFIED',
   IDENTITY_OTP_SENT = 'IDENTITY_OTP_SENT',
@@ -41,23 +47,36 @@ export enum AuditActionType {
   SUBSCRIPTION_PLAN_UPDATED = 'SUBSCRIPTION_PLAN_UPDATED',
 }
 
+/**
+ * Payload emitted with every `audit.log` event and published verbatim to the
+ * audit Pub/Sub topic.
+ *
+ * Emitters should populate `resourceId` and `metadata` with enough context for
+ * a downstream consumer to reconstruct what changed and why, without querying
+ * the primary database.
+ */
 export class AuditEventDto {
+  /** The category of action being recorded; used as a Pub/Sub message attribute for filtering. */
   @IsEnum(AuditActionType)
   @IsNotEmpty()
   actionType: AuditActionType;
 
+  /** Internal BreathAway user ID of the actor who triggered the event. */
   @IsString()
   @IsNotEmpty()
   userId: string;
 
+  /** ID of the primary resource affected by the action (e.g., likeId, matchId, identityId). */
   @IsString()
   @IsOptional()
   resourceId?: string;
 
+  /** IPv4 or IPv6 address of the originating request, used for abuse and geo-anomaly detection. */
   @IsIP()
   @IsOptional()
   ipAddress?: string;
 
+  /** Arbitrary key-value pairs providing additional event context (e.g., previous values, diff). */
   @IsObject()
   @IsOptional()
   metadata?: Record<string, unknown>;

@@ -47,10 +47,7 @@ describe('MatchesController (e2e)', () => {
     });
     await prisma.like.deleteMany({
       where: {
-        OR: [
-          { senderUserId: { in: allCreatedUserIds } },
-          { targetUserId: { in: allCreatedUserIds } },
-        ],
+        senderUserId: { in: allCreatedUserIds },
       },
     });
     await cleanupTestUsers(prisma, allCreatedUserIds);
@@ -124,7 +121,6 @@ describe('MatchesController (e2e)', () => {
         data: {
           senderUserId: user1.id,
           targetIdentityId: identity2.id,
-          targetUserId: user2.id,
           intent: IntentType.OPEN,
           status: LikeStatus.MATCHED,
         },
@@ -134,7 +130,6 @@ describe('MatchesController (e2e)', () => {
         data: {
           senderUserId: user2.id,
           targetIdentityId: identity1.id,
-          targetUserId: user1.id,
           intent: IntentType.OPEN,
           status: LikeStatus.MATCHED,
         },
@@ -192,7 +187,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(404);
-      expect(res.body.message).toBe('Match not found');
+      expect(res.body.detail).toBe('Match not found');
     });
 
     it('GET /api/v1/matches - should hide match if the other user soft deletes their account', async () => {
@@ -243,7 +238,7 @@ describe('MatchesController (e2e)', () => {
         .set('authorization', `Bearer ${user1Jwt}`);
 
       expect(res.status).toBe(404);
-      expect(res.body.message).toBe('Match not found');
+      expect(res.body.detail).toBe('Match not found');
     });
 
     it('GET /api/v1/matches - should not include the unmatched match', async () => {

@@ -15,6 +15,7 @@ import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsService } from '../notifications.service';
 import { FcmProviderService } from '../providers/fcm.provider.service';
 import { WhatsAppProviderService } from '../providers/whatsapp.provider.service';
+import { PreferencesService } from '@modules/preferences/preferences.service';
 import { ClsService } from 'nestjs-cls';
 
 describe('NotificationsService', () => {
@@ -24,6 +25,7 @@ describe('NotificationsService', () => {
   let fcmProvider: jest.Mocked<FcmProviderService>;
   let emailService: jest.Mocked<EmailService>;
   let whatsAppProvider: jest.Mocked<WhatsAppProviderService>;
+  let preferencesService: jest.Mocked<PreferencesService>;
 
   beforeEach(async () => {
     const contextualLogger = {
@@ -68,6 +70,10 @@ describe('NotificationsService', () => {
         { provide: FcmProviderService, useValue: mockFcm },
         { provide: EmailService, useValue: mockEmail },
         { provide: WhatsAppProviderService, useValue: mockWhatsApp },
+        {
+          provide: PreferencesService,
+          useValue: { getPreferencesMany: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -77,6 +83,10 @@ describe('NotificationsService', () => {
     fcmProvider = module.get(FcmProviderService);
     emailService = module.get(EmailService);
     whatsAppProvider = module.get(WhatsAppProviderService);
+    preferencesService = module.get(PreferencesService);
+
+    // Default mock behavior for preferences
+    preferencesService.getPreferencesMany.mockResolvedValue(new Map());
   });
 
   afterEach(() => {
@@ -136,6 +146,10 @@ describe('NotificationsService', () => {
       );
       fcmProvider.send.mockResolvedValue();
 
+      const prefMap = new Map();
+      prefMap.set('user-1', { pushEnabled: true });
+      preferencesService.getPreferencesMany.mockResolvedValue(prefMap);
+
       await service.processSendRequest(dto);
 
       expect(prismaService.device.findMany).toHaveBeenCalledWith({
@@ -168,6 +182,14 @@ describe('NotificationsService', () => {
       emailService.send.mockResolvedValue(undefined as never);
       whatsAppProvider.send.mockResolvedValue();
 
+      const prefMap = new Map();
+      prefMap.set('user-1', {
+        pushEnabled: true,
+        emailEnabled: true,
+        whatsappEnabled: true,
+      });
+      preferencesService.getPreferencesMany.mockResolvedValue(prefMap);
+
       await service.processSendRequest(dto);
 
       expect(fcmProvider.send).toHaveBeenCalled();
@@ -192,6 +214,10 @@ describe('NotificationsService', () => {
       };
 
       emailService.send.mockRejectedValue(new Error('Email failed'));
+
+      const prefMap = new Map();
+      prefMap.set('user-1', { emailEnabled: true });
+      preferencesService.getPreferencesMany.mockResolvedValue(prefMap);
 
       // The processSendRequest shouldn't throw, it should use Promise.allSettled and log
       await expect(service.processSendRequest(dto)).resolves.not.toThrow();

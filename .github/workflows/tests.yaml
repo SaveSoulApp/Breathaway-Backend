@@ -12,6 +12,9 @@ on:
       - master
       - develop
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Cancel any in-flight run for the same branch/PR when a new commit is pushed.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

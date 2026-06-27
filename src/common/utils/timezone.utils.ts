@@ -1,8 +1,20 @@
 import { DateUtil, dayjs } from './date.utils';
 
+/**
+ * Provides comprehensive utilities for handling, validating, and converting timezones.
+ *
+ * Ensures consistent date and time representations across the application, handling normalization
+ * (e.g., standardizing legacy/alias timezones like Asia/Calcutta to Asia/Kolkata) and safe conversions
+ * to UTC for database persistence.
+ */
 export class TimezoneUtil {
   /**
-   * Validate if a string is a valid IANA timezone
+   * Validates whether a given string is a recognized IANA timezone identifier.
+   *
+   * Relies on the native `Intl.DateTimeFormat` API to check for timezone support in the current environment.
+   *
+   * @param tz - The raw timezone string to validate.
+   * @returns `true` if the timezone is valid and supported; `false` otherwise.
    */
   static isValidTimezone(tz: string): boolean {
     if (!tz || typeof tz !== 'string') return false;
@@ -15,9 +27,13 @@ export class TimezoneUtil {
   }
 
   /**
-   * Normalize timezone string
-   * - If invalid, returns UTC
-   * - Handles common case-insensitive issues
+   * Normalizes a timezone string to its canonical IANA identifier.
+   *
+   * Automatically resolves common aliases (e.g., mapping `Asia/Calcutta` to `Asia/Kolkata`) and handles
+   * case-insensitive matching. Defaults to `UTC` if the input is empty or invalid to ensure a safe fallback.
+   *
+   * @param tz - The raw timezone string to normalize.
+   * @returns The canonical IANA timezone identifier, or `UTC` if validation fails.
    */
   static normalizeTimezone(tz?: string): string {
     if (!tz || tz.trim() === '') {
@@ -78,7 +94,15 @@ export class TimezoneUtil {
   }
 
   /**
-   * Convert a date string from user's timezone to UTC Date object
+   * Converts a date string in a specific timezone to a UTC Date object representing either the start or end of the day.
+   *
+   * Useful for converting user-provided local dates (e.g., from a date picker) into absolute UTC timestamps
+   * for querying database ranges.
+   *
+   * @param dateString - The local date string in `YYYY-MM-DD` format.
+   * @param timezone - The user's local timezone (e.g., "America/New_York").
+   * @param timeOfDay - Indicates whether to calculate the `start` (00:00:00) or `end` (23:59:59) of the local day.
+   * @returns A native Date object normalized to UTC.
    */
   static convertToUTC(
     dateString: string,
@@ -107,7 +131,12 @@ export class TimezoneUtil {
   }
 
   /**
-   * Format a Date object in the given timezone
+   * Formats a UTC Date object into a localized string for a specific timezone.
+   *
+   * @param date - The source Date object to format.
+   * @param timezone - The target timezone to display the date in.
+   * @param format - The desired Day.js format string.
+   * @returns The formatted date string localized to the requested timezone.
    */
   static formatInTimezone(
     date: Date,
@@ -119,7 +148,15 @@ export class TimezoneUtil {
   }
 
   /**
-   * Get date range boundaries in UTC for a given timezone
+   * Calculates the absolute UTC boundaries for a given date range in a specific timezone.
+   *
+   * Translates a start and end local date into a safe, timezone-aware UTC interval for querying data
+   * (e.g., generating end-of-day reports).
+   *
+   * @param startDate - The start date string in `YYYY-MM-DD` format.
+   * @param endDate - The end date string in `YYYY-MM-DD` format.
+   * @param timezone - The timezone context for the date range.
+   * @returns An object containing the precise UTC start and end Date boundaries.
    */
   static getUTCDateRange(
     startDate: string,
@@ -133,7 +170,13 @@ export class TimezoneUtil {
   }
 
   /**
-   * Get timezone offset in minutes for a specific date
+   * Calculates the offset in minutes from UTC for a specific date in a given timezone.
+   *
+   * Takes Daylight Saving Time (DST) into account based on the provided date.
+   *
+   * @param date - The reference date used to calculate the offset.
+   * @param timezone - The target timezone.
+   * @returns The timezone offset in minutes (e.g., -240 for EDT).
    */
   static getOffsetInMinutes(date: Date, timezone: string): number {
     const normalizedTz = this.normalizeTimezone(timezone);
@@ -141,7 +184,14 @@ export class TimezoneUtil {
   }
 
   /**
-   * Get timezone abbreviation (e.g., IST, EST, PST)
+   * Retrieves the standard abbreviation for a timezone at a specific date.
+   *
+   * Handles DST transitions (e.g., returns EDT vs EST appropriately) and normalizes certain
+   * aliases (e.g., returning IST for India Standard Time instead of a GMT offset).
+   *
+   * @param timezone - The target timezone identifier.
+   * @param date - The reference date used to determine the correct abbreviation.
+   * @returns The concise timezone abbreviation string.
    */
   static getTimezoneAbbreviation(
     timezone: string,
@@ -161,7 +211,13 @@ export class TimezoneUtil {
   }
 
   /**
-   * Check if two timezones are the same (handles normalization)
+   * Determines if two timezone strings represent the same canonical timezone.
+   *
+   * Performs normalization on both inputs before comparison to handle aliases and case differences.
+   *
+   * @param tz1 - The first timezone string.
+   * @param tz2 - The second timezone string.
+   * @returns `true` if the normalized timezones are identical; `false` otherwise.
    */
   static areTimezonesSame(tz1: string, tz2: string): boolean {
     return this.normalizeTimezone(tz1) === this.normalizeTimezone(tz2);

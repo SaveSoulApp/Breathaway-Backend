@@ -77,6 +77,9 @@ deploy_service() {
         "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
         "KMS_KEY_NAMES=kms-key-names:latest"
         "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
+        "SUPABASE_URL=supabase-url:latest"
+        "SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest"
+        "SUPABASE_JWT_PRIVATE_KEY=supabase-jwt-private-key:latest"
         "ADMIN_USERNAME=admin-username:latest"
         "ADMIN_PASSWORD=admin-password:latest"
         "SWAGGER_USERNAME=swagger-username:latest"
@@ -119,6 +122,7 @@ deploy_service() {
         "BREVO_API_KEY=${BREVO_API_KEY}"
         "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
         "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
+        "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)

@@ -1,23 +1,42 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IntentType, MatchStatus } from '@prisma/client';
-import { Expose, Type } from 'class-transformer';
 import { PaginationMeta } from '@common/dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { GenderType, IntentType, MatchStatus } from '@prisma/client';
+import { Expose, Type } from 'class-transformer';
 
-export class MatchOtherUserDto {
-  @ApiProperty({ description: 'The ID of the other user' })
+export class MatchUserProfileDto {
+  @ApiProperty({ description: 'The ID of the user' })
   @Expose()
   id: string;
 
-  @ApiProperty({ description: 'The first name of the other user' })
+  @ApiProperty({ description: 'The first name of the user' })
   @Expose()
   firstName: string;
 
   @ApiProperty({
-    description: 'The last name of the other user',
+    description: 'The last name of the user',
     required: false,
   })
   @Expose()
   lastName?: string;
+
+  @ApiProperty({
+    enum: GenderType,
+    description: 'The gender of the user',
+    required: false,
+    nullable: true,
+  })
+  @Expose()
+  gender: GenderType | null;
+}
+
+export class MatchOtherUserProfileDto extends MatchUserProfileDto {
+  @ApiProperty({
+    description: 'The label associated with the like from this user',
+    required: false,
+    nullable: true,
+  })
+  @Expose()
+  label?: string | null;
 }
 
 export class MatchResponseDto {
@@ -38,25 +57,34 @@ export class MatchResponseDto {
 
   @ApiProperty({
     enum: IntentType,
-    description: 'The intent of the first like',
+    description:
+      'The intent of the calling user (the one who made this request)',
   })
   @Expose()
-  intentOne: IntentType;
+  myIntent: IntentType;
 
   @ApiProperty({
     enum: IntentType,
-    description: 'The intent of the second like',
+    description: 'The intent of the other user in this match',
   })
   @Expose()
-  intentTwo: IntentType;
+  theirIntent: IntentType;
 
   @ApiProperty({
-    type: MatchOtherUserDto,
-    description: 'Basic profile of the other user in the match',
+    type: MatchUserProfileDto,
+    description: 'Profile of the calling user',
   })
   @Expose()
-  @Type(() => MatchOtherUserDto)
-  otherUser: MatchOtherUserDto;
+  @Type(() => MatchUserProfileDto)
+  me: MatchUserProfileDto;
+
+  @ApiProperty({
+    type: MatchOtherUserProfileDto,
+    description: 'Profile of the other user in the match',
+  })
+  @Expose()
+  @Type(() => MatchOtherUserProfileDto)
+  otherUser: MatchOtherUserProfileDto;
 }
 
 export class PaginatedMatchResponseDto {

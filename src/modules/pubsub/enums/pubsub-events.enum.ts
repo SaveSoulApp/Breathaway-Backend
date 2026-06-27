@@ -13,4 +13,7 @@ export enum PubSubEvent {
 
   // Events flowing through the AUDIT_LOGS topic
   SYSTEM_AUDIT_LOG = 'system.audit.log',
+
+  // Events flowing through the CREDIT_EXPIRY topic
+  CREDIT_EXPIRY_BATCH = 'credit.expiry.batch',
 }

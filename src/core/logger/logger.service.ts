@@ -5,6 +5,13 @@ import * as pino from 'pino';
 import { createGcpLoggerConfig } from './gcp-logger.config';
 import { ContextualLogger } from './logger.interface';
 
+/**
+ * Provides a standardized, highly performant logging interface wrapping Pino.
+ *
+ * Configures environment-specific log formats (e.g., pretty-printing for local development,
+ * JSON-structured logging for GCP Cloud Logging). It acts as the central logging sink for the
+ * entire application, ensuring all log output adheres to a consistent structure.
+ */
 @Injectable()
 export class LoggerService implements NestLoggerService {
   private baseLogger: pino.Logger;
@@ -52,7 +59,13 @@ export class LoggerService implements NestLoggerService {
   }
 
   /**
-   * Create a logger instance with context for services
+   * Creates an isolated, context-aware logger instance for a specific class or module.
+   *
+   * All logs emitted through the returned ContextualLogger will automatically include
+   * the provided context string, making it easier to filter logs by source.
+   *
+   * @param context - The name of the class, module, or component requesting the logger.
+   * @returns A ContextualLogger exposing standard logging methods.
    */
   forContext(context: string): ContextualLogger {
     const childLogger = this.baseLogger.child({ context });

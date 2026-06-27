@@ -1,22 +1,39 @@
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
+import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
+
 import {
   ConsumeCreditsRequestDto,
+  CreditExpiryBatchRequestDto,
   CreditLedgerQueryDto,
   GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
 
+/**
+ * Owns the credit economy domain — granting, consuming, querying, and expiring
+ * user credit balances via an append-only double-entry ledger.
+ *
+ * All mutations write immutable `CreditLedger` rows rather than updating a
+ * single balance field, which provides a full audit trail and supports
+ * per-bundle expiration without destructive updates. This service is designed
+ * to be composed into transactions by other modules (e.g., LikesService) via
+ * the optional `tx` parameter on mutating methods.
+ */
 @Injectable()
 export class CreditsService extends BaseService {
   constructor(
@@ -26,6 +43,19 @@ export class CreditsService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Computes a user's current spendable credit balance by summing all CREDIT
+   * transactions and subtracting all DEBIT transactions from their ledger.
+   *
+   * Accepts an optional Prisma transaction client so callers can read the
+   * balance atomically within an ongoing transaction (e.g., before consuming
+   * credits to prevent a TOCTOU race).
+   *
+   * @param userId - UUID of the user whose balance to compute.
+   * @param tx     - Optional Prisma transaction client; falls back to the shared
+   *                 PrismaService instance when omitted.
+   * @returns The net credit balance; returns `0` if the user has no ledger entries.
+   */
   async getBalance(
     userId: string,
     tx?: Prisma.TransactionClient,
@@ -54,6 +84,19 @@ export class CreditsService extends BaseService {
     return balance;
   }
 
+  /**
+   * Returns a paginated, filterable view of a user's credit ledger — their
+   * full transaction history including earned, spent, and expired credits.
+   *
+   * Supports filtering by transaction type, credit source, date range,
+   * expiry window, and reference ID search. Date-only `createdTo` strings
+   * (without a `T` component) are automatically expanded to end-of-day UTC
+   * so the filter is inclusive of all records on that calendar day.
+   *
+   * @param userId - UUID of the user whose ledger to query.
+   * @param query  - Pagination, sorting, and filter parameters from the request.
+   * @returns A paginated result set with entries and metadata (totals, page info).
+   */
   async getLedger(
     userId: string,
     query: CreditLedgerQueryDto,
@@ -167,6 +210,17 @@ export class CreditsService extends BaseService {
     };
   }
 
+  /**
+   * Fetches a single credit ledger entry by ID, scoped to the requesting user.
+   *
+   * The `userId` scope prevents users from reading other users' transaction
+   * records even if they know a valid entry UUID.
+   *
+   * @param userId - UUID of the authenticated user; used to enforce row-level ownership.
+   * @param id     - UUID of the ledger entry to retrieve.
+   * @returns The matching ledger entry with its transaction details.
+   * @throws {NotFoundException} When no entry exists for the given `id` owned by `userId`.
+   */
   async getLedgerEntry(userId: string, id: string) {
     const entry = await this.prisma.creditLedger.findFirst({
       where: { id, userId },
@@ -188,6 +242,21 @@ export class CreditsService extends BaseService {
     return entry;
   }
 
+  /**
+   * Adds credits to a user's account by writing a CREDIT ledger entry and
+   * emitting an audit event for traceability.
+   *
+   * `LIKE_USAGE` is a system-only source reserved for automated debit
+   * processing; manually granting credits under this source is blocked to
+   * prevent misuse. Supports an optional Prisma transaction client so the
+   * grant can be committed atomically alongside related operations (e.g.,
+   * a purchase confirmation).
+   *
+   * @param dto - Recipient, amount, source, optional reference ID, and optional expiry.
+   * @param tx  - Optional Prisma transaction client for atomic multi-step operations.
+   * @returns The newly created `CreditLedger` record.
+   * @throws {BadRequestException} When `dto.source` is `LIKE_USAGE`.
+   */
   async grantCredits(
     dto: GrantCreditsRequestDto,
     tx?: Prisma.TransactionClient,
@@ -222,6 +291,21 @@ export class CreditsService extends BaseService {
     return ledger;
   }
 
+  /**
+   * Deducts credits from a user's account by writing a `LIKE_USAGE` DEBIT
+   * ledger entry, enforcing that the balance is sufficient before the write.
+   *
+   * The balance check and ledger insert are designed to be wrapped in a
+   * Prisma transaction by the caller to prevent concurrent over-spend.
+   * Emits a `USAGE_TRIGGERED` audit event on success.
+   *
+   * @param dto - Target user, amount to deduct, and an optional reference ID
+   *              linking this debit to the triggering resource (e.g., a Like ID).
+   * @param tx  - Optional Prisma transaction client; strongly recommended to
+   *              prevent race conditions on concurrent debit requests.
+   * @returns The newly created DEBIT `CreditLedger` record.
+   * @throws {BadRequestException} When the user's current balance is less than `dto.amount`.
+   */
   async consumeCredits(
     dto: ConsumeCreditsRequestDto,
     tx?: Prisma.TransactionClient,
@@ -235,7 +319,10 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
-      throw new BadRequestException('Insufficient credits');
+      throw new HttpException(
+        'Insufficient credits',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
     }
 
     const ledger = await client.creditLedger.create({
@@ -261,6 +348,19 @@ export class CreditsService extends BaseService {
     return ledger;
   }
 
+  /**
+   * Checks whether a user holds enough credits to cover a required spend,
+   * without modifying any ledger state.
+   *
+   * Delegates the balance computation to `getBalance`, accepting the same
+   * optional transaction client to allow atomic read-then-write patterns.
+   *
+   * @param userId         - UUID of the user to check.
+   * @param requiredAmount - Minimum credit balance required; defaults to `1`.
+   * @param tx             - Optional Prisma transaction client for consistency
+   *                         within an ongoing transaction.
+   * @returns `true` when the user's balance meets or exceeds `requiredAmount`.
+   */
   async hasSufficientCredits(
     userId: string,
     requiredAmount = 1,
@@ -270,26 +370,31 @@ export class CreditsService extends BaseService {
     return balance >= requiredAmount;
   }
 
-  async expireCreditBundles(): Promise<{
-    processedUsers: number;
-    totalExpiredDebitsInserted: number;
-  }> {
-    const now = DateUtil.now();
-
-    const usersWithPotentiallyExpiredCredits =
-      await this.prisma.creditLedger.findMany({
-        where: {
-          transactionType: CreditTransactionType.CREDIT,
-          expiresAt: { lte: now },
-        },
-        select: { userId: true },
-        distinct: ['userId'],
-      });
-
+  /**
+   * Core expiration worker for a bounded list of users.
+   *
+   * Applies the FIFO-with-expiry allocation strategy for each supplied `userId`:
+   * prior debits are consumed against the earliest-expiring credits first, and
+   * only the unconsumed portion of a bundle that has passed `asOf` is expired
+   * via a compensating DEBIT row. This makes the method safe to retry — if a
+   * batch has already been partially processed, re-running it produces zero new
+   * rows for users whose bundles were already fully expired (`unusedAmount` will
+   * be 0 because the prior DEBIT rows are already included in the ledger scan).
+   *
+   * @param userIds - Bounded list of user IDs to evaluate in this batch.
+   * @param asOf    - Authoritative point-in-time for expiry evaluation, pinned
+   *                  by the fan-out coordinator so all batches share the same
+   *                  snapshot regardless of delivery lag.
+   * @returns A summary with the count of users processed and DEBIT rows inserted.
+   */
+  async expireCreditsForUsers(
+    userIds: string[],
+    asOf: Date,
+  ): Promise<{ processedUsers: number; expiredDebitsInserted: number }> {
     let processedUsers = 0;
-    let totalExpiredDebitsInserted = 0;
+    let expiredDebitsInserted = 0;
 
-    for (const { userId } of usersWithPotentiallyExpiredCredits) {
+    for (const userId of userIds) {
       const ledger = await this.prisma.creditLedger.findMany({
         where: { userId },
         orderBy: { createdAt: 'asc' },
@@ -327,14 +432,14 @@ export class CreditsService extends BaseService {
 
         const unusedAmount = credit.amount - usedFromThisCredit;
 
-        if (credit.expiresAt && credit.expiresAt <= now && unusedAmount > 0) {
+        if (credit.expiresAt && credit.expiresAt <= asOf && unusedAmount > 0) {
           expirationsToInsert.push({
             userId,
             transactionType: CreditTransactionType.DEBIT,
             amount: unusedAmount,
             source: CreditSource.EXPIRED,
             referenceId: credit.id,
-            createdAt: now,
+            createdAt: asOf,
           });
         }
       }
@@ -343,15 +448,41 @@ export class CreditsService extends BaseService {
         await this.prisma.creditLedger.createMany({
           data: expirationsToInsert,
         });
-        totalExpiredDebitsInserted += expirationsToInsert.length;
+        expiredDebitsInserted += expirationsToInsert.length;
       }
+
       processedUsers++;
     }
 
+    return { processedUsers, expiredDebitsInserted };
+  }
+
+  /**
+   * Pub/Sub listener that receives a single paginated batch of user IDs from
+   * the fan-out coordinator and runs credit expiration for exactly those users.
+   *
+   * Invoked by the GCP Pub/Sub push subscription on the `credit-expiry` topic.
+   * The `asOf` timestamp in the payload is the coordinator's snapshot of `now`,
+   * ensuring all batches evaluate expiry at the same point in time.
+   *
+   * Retries are safe: the allocation algorithm is idempotent for users whose
+   * bundles have already been expired in a prior attempt.
+   *
+   * @param payload - Decoded Pub/Sub message body containing `userIds` and `asOf`.
+   */
+  @PubSubListener(PubSubEvent.CREDIT_EXPIRY_BATCH)
+  async handleExpiryBatch(payload: CreditExpiryBatchRequestDto): Promise<void> {
+    const asOf = DateUtil.parse(payload.asOf);
+
     this.logger.log(
-      `Expiration job complete. Processed ${processedUsers} users. Inserted ${totalExpiredDebitsInserted} expiration debits.`,
+      `Processing credit expiry batch: ${payload.userIds.length} users, asOf=${payload.asOf}`,
     );
 
-    return { processedUsers, totalExpiredDebitsInserted };
+    const { processedUsers, expiredDebitsInserted } =
+      await this.expireCreditsForUsers(payload.userIds, asOf);
+
+    this.logger.log(
+      `Batch complete. Processed ${processedUsers} users. Inserted ${expiredDebitsInserted} expiration debits.`,
+    );
   }
 }

@@ -16,6 +16,13 @@ import {
 
 export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
+/**
+ * Restricts access based on strict client identity verification, enforcing API keys,
+ * client IDs, and required platform/version constraints.
+ *
+ * Ensures that incoming requests originate from a supported, up-to-date client application
+ * and extracts validated identity metadata into the request object.
+ */
 @Injectable()
 export class ClientIdentityGuard implements CanActivate {
   private readonly validApiKeys: Set<string>;
@@ -44,6 +51,17 @@ export class ClientIdentityGuard implements CanActivate {
       this.logger.warn('No valid Client IDs configured.');
   }
 
+  /**
+   * Validates custom client identity headers and the User-Agent string against
+   * configured whitelists and version thresholds.
+   *
+   * Can be bypassed by applying the `@SkipClientIdentity()` decorator to a route.
+   * Successfully validated identity data is attached to `request.clientIdentity`.
+   *
+   * @returns `true` if all client identity headers and version constraints are satisfied.
+   * @throws {UnauthorizedException} When the API key, Client ID, platform, or app version is invalid.
+   * @throws {BadRequestException} When required headers are missing or malformed.
+   */
   canActivate(context: ExecutionContext): boolean {
     const isSkipped = this.reflector.getAllAndOverride<boolean>(
       SKIP_CLIENT_IDENTITY_META,

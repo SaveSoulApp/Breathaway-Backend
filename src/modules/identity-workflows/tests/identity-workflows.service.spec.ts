@@ -280,6 +280,7 @@ describe('IdentityWorkflowsService', () => {
         where: { userId, deletedAt: null },
         select: { id: true },
       });
+      // No likes queried or resolved when the user has no active identities
       expect(prisma.like.updateMany).not.toHaveBeenCalled();
       expect(prisma.like.findMany).not.toHaveBeenCalled();
       expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
@@ -288,58 +289,21 @@ describe('IdentityWorkflowsService', () => {
       );
     });
 
-    it('should backfill all unresolved likes (including expired/deleted) regardless of status', async () => {
+    it('should query actionable likes scoped to the user identities without targetUserId filter', async () => {
       prisma.identity.findMany.mockResolvedValue([
         { id: identityId },
       ] as unknown as Identity[]);
-      // Backfill returns 3 rows updated (e.g., 1 valid + 2 expired)
-      prisma.like.updateMany.mockResolvedValue({ count: 3 });
-      // Resolution query finds no actionable likes (all were expired)
       prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
-      // Backfill called with NO expiry/status/deletedAt filter
-      expect(prisma.like.updateMany).toHaveBeenCalledWith({
-        where: {
-          targetIdentityId: { in: [identityId] },
-          targetUserId: null,
-        },
-        data: { targetUserId: userId },
-      });
+      // Ownership is resolved via live join; no updateMany call is expected
+      expect(prisma.like.updateMany).not.toHaveBeenCalled();
 
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Backfilled'),
-      );
-      // No matches attempted since actionableLikes is empty
-      expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
-    });
-
-    it('should run match resolution only for PENDING non-expired non-deleted likes', async () => {
-      const pendingLike = {
-        id: 'like_1',
-        senderUserId: 'user_sender',
-        targetUserId: userId,
-        intent: IntentType.OPEN,
-        status: LikeStatus.PENDING,
-      };
-
-      prisma.identity.findMany.mockResolvedValue([
-        { id: identityId },
-      ] as unknown as Identity[]);
-      prisma.like.updateMany.mockResolvedValue({ count: 1 });
-      prisma.like.findMany.mockResolvedValue([
-        pendingLike,
-      ] as unknown as Like[]);
-
-      await service.handleIdentityClaimed({ userId }, messageId);
-
-      // Resolution query must filter on targetUserId (already backfilled),
-      // PENDING status, no deletedAt, and not expired.
+      // Resolution query filters only on targetIdentityId (no targetUserId)
       expect(prisma.like.findMany).toHaveBeenCalledWith({
         where: {
           targetIdentityId: { in: [identityId] },
-          targetUserId: userId,
           status: LikeStatus.PENDING,
           deletedAt: null,
           expiresAt: { gt: expect.any(Date) },
@@ -347,11 +311,32 @@ describe('IdentityWorkflowsService', () => {
         select: {
           id: true,
           senderUserId: true,
-          targetUserId: true,
+          targetIdentityId: true,
           intent: true,
           status: true,
+          targetIdentity: { select: { userId: true } },
         },
       });
+    });
+
+    it('should run match resolution for PENDING non-expired non-deleted likes', async () => {
+      const pendingLike = {
+        id: 'like_1',
+        senderUserId: 'user_sender',
+        targetIdentityId: identityId,
+        intent: IntentType.OPEN,
+        status: LikeStatus.PENDING,
+        targetIdentity: { userId },
+      };
+
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
+      prisma.like.findMany.mockResolvedValue([
+        pendingLike,
+      ] as unknown as Like[]);
+
+      await service.handleIdentityClaimed({ userId }, messageId);
 
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(1);
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledWith(
@@ -367,23 +352,24 @@ describe('IdentityWorkflowsService', () => {
         {
           id: 'like_1',
           senderUserId: 'user_a',
-          targetUserId: userId,
+          targetIdentityId: identityId,
           intent: IntentType.OPEN,
           status: LikeStatus.PENDING,
+          targetIdentity: { userId },
         },
         {
           id: 'like_2',
           senderUserId: 'user_b',
-          targetUserId: userId,
+          targetIdentityId: identityId,
           intent: IntentType.OPEN,
           status: LikeStatus.PENDING,
+          targetIdentity: { userId },
         },
       ];
 
       prisma.identity.findMany.mockResolvedValue([
         { id: identityId },
       ] as unknown as Identity[]);
-      prisma.like.updateMany.mockResolvedValue({ count: 2 });
       prisma.like.findMany.mockResolvedValue(likes as unknown as Like[]);
 
       // First like resolution fails, second succeeds
@@ -405,28 +391,17 @@ describe('IdentityWorkflowsService', () => {
       );
     });
 
-    it('should include all identity IDs in the query when the user has multiple active identities', async () => {
+    it('should include all identity IDs when the user has multiple active identities', async () => {
       const secondIdentityId = 'identity_yyy';
 
       prisma.identity.findMany.mockResolvedValue([
         { id: identityId },
         { id: secondIdentityId },
       ] as unknown as Identity[]);
-      prisma.like.updateMany.mockResolvedValue({ count: 0 });
       prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
-      // Backfill must pass BOTH identity IDs
-      expect(prisma.like.updateMany).toHaveBeenCalledWith({
-        where: {
-          targetIdentityId: { in: [identityId, secondIdentityId] },
-          targetUserId: null,
-        },
-        data: { targetUserId: userId },
-      });
-
-      // Resolution query must also scope to both IDs
       expect(prisma.like.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -436,47 +411,29 @@ describe('IdentityWorkflowsService', () => {
       );
     });
 
-    it('should log zero-row backfill and still run the resolution pass', async () => {
-      prisma.identity.findMany.mockResolvedValue([
-        { id: identityId },
-      ] as unknown as Identity[]);
-      // No historical likes to backfill
-      prisma.like.updateMany.mockResolvedValue({ count: 0 });
-      prisma.like.findMany.mockResolvedValue([] as unknown as Like[]);
-
-      await service.handleIdentityClaimed({ userId }, messageId);
-
-      // Backfill log should mention 0
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('0 like(s)'),
-      );
-      // Resolution still attempted (finds nothing, returns early)
-      expect(prisma.like.findMany).toHaveBeenCalled();
-      expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
-    });
-
     it('should resolve all actionable likes and emit completion log when all succeed', async () => {
       const likes = [
         {
           id: 'like_a',
           senderUserId: 'user_x',
-          targetUserId: userId,
+          targetIdentityId: identityId,
           intent: IntentType.OPEN,
           status: LikeStatus.PENDING,
+          targetIdentity: { userId },
         },
         {
           id: 'like_b',
           senderUserId: 'user_y',
-          targetUserId: userId,
+          targetIdentityId: identityId,
           intent: IntentType.OPEN,
           status: LikeStatus.PENDING,
+          targetIdentity: { userId },
         },
       ];
 
       prisma.identity.findMany.mockResolvedValue([
         { id: identityId },
       ] as unknown as Identity[]);
-      prisma.like.updateMany.mockResolvedValue({ count: 2 });
       prisma.like.findMany.mockResolvedValue(likes as unknown as Like[]);
       matchResolverService.resolveFromLike.mockResolvedValue(undefined);
 

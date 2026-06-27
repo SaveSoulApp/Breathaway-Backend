@@ -4,6 +4,14 @@ import { PubSub } from '@google-cloud/pubsub';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * Outbound GCP Pub/Sub adapter responsible for serialising and publishing
+ * application events to named topics.
+ *
+ * Initialised with the GCP project ID from `ConfigService` at construction
+ * time; relies on Application Default Credentials (ADC) in deployed
+ * environments and on service-account key files locally.
+ */
 @Injectable()
 export class PubSubPublisherService extends BaseService {
   private pubsub: PubSub;
@@ -19,12 +27,21 @@ export class PubSubPublisherService extends BaseService {
   }
 
   /**
-   * Publishes a structured message to a GCP Pub/Sub topic, ensuring the eventType attribute is set.
+   * Serialises `data` as JSON, encodes it to a Buffer, and publishes the
+   * message to the given Pub/Sub topic with `eventType` always present in
+   * the attributes map.
    *
-   * @param topicName The GCP topic name.
-   * @param eventType The custom event type (e.g., 'meta.webhook.received').
-   * @param data The JSON-serializable payload.
-   * @param attributes Optional additional string attributes.
+   * The `eventType` attribute is mandatory because the ingestion controller
+   * uses it to route messages to the correct @PubSubListener handler.
+   *
+   * @param topicName - GCP Pub/Sub topic name (not the full resource path).
+   * @param eventType - Application-level event discriminator (e.g., `'meta.webhook.received'`).
+   * @param data      - JSON-serialisable payload to attach as the message body.
+   * @param attributes - Optional additional string key-value pairs merged into
+   *                     the message attributes alongside `eventType`.
+   * @returns The Pub/Sub message ID assigned by GCP upon successful publish.
+   * @throws Re-throws any error from the GCP Pub/Sub client (e.g., topic not
+   *   found, credential failure) after logging it.
    */
   async publish(
     topicName: string,

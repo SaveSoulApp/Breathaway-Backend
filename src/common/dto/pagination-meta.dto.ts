@@ -1,6 +1,12 @@
 import { Expose } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
+/**
+ * Standardized pagination metadata returned alongside paginated collections.
+ *
+ * Used across the application to provide clients with consistent navigation state
+ * for list endpoints.
+ */
 export class PaginationMeta {
   @ApiProperty({ description: 'Current page number' })
   @Expose()

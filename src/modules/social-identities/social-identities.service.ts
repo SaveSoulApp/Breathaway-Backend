@@ -10,6 +10,14 @@ import { LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { SocialIdentityResponseDto } from './dto';
 
+/**
+ * Integrates with third-party social platforms to verify that a claimed
+ * identity belongs to a real, active account.
+ *
+ * Currently supports Instagram via the Instagram Graph API. Verification is
+ * purely read-only — no data is persisted; callers are responsible for
+ * storing or linking the verified identity after a successful response.
+ */
 @Injectable()
 export class SocialidentitiesService extends BaseService {
   constructor(
@@ -19,6 +27,26 @@ export class SocialidentitiesService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Fetches and validates an Instagram account against the Graph API,
+   * returning a normalised profile snapshot.
+   *
+   * When `userId` is provided, an audit event is emitted to record that this
+   * user performed a social identity verification. Pass `null` during
+   * pre-authentication flows where no user session exists yet.
+   *
+   * @param userId - ID of the authenticated user initiating verification, or
+   *                 `null` to skip audit logging.
+   * @param instagramId - The Instagram user ID (numeric string) to verify.
+   * @returns A normalised profile DTO including follower count, verification
+   *   badge, and mutual follow status relative to the business account.
+   * @throws {InternalServerErrorException} When `INSTAGRAM_ACCESS_TOKEN` is
+   *   absent from the environment configuration.
+   * @throws {BadRequestException} When the Instagram API responds with a
+   *   client-level error (e.g., invalid ID, insufficient permissions).
+   * @throws {BadGatewayException} When a network or unexpected error occurs
+   *   while communicating with the Instagram Graph API.
+   */
   async verifyInstagramIdentity(
     userId: string | null,
     instagramId: string,

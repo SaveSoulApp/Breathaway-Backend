@@ -11,6 +11,15 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
 
+/**
+ * Owns the business logic for user profile lifecycle — creation, retrieval,
+ * mutation, and account-level soft deletion.
+ *
+ * Write operations emit an audit log event via the inherited `emitAuditLog`
+ * helper. The `deleteProfile` method goes beyond the profile record itself,
+ * cascading a soft delete across identities, auth credentials, and devices
+ * within a single Prisma transaction.
+ */
 @Injectable()
 export class ProfilesService extends BaseService {
   constructor(
@@ -21,7 +30,18 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Create a new user profile
+   * Creates a new profile for the authenticated user and records the event in
+   * the audit log.
+   *
+   * Enforces a one-profile-per-user constraint by querying before inserting.
+   * An ISO 8601 `dateOfBirth` string, if provided, is parsed to a `Date`
+   * object before persistence — raw string storage is intentionally avoided.
+   *
+   * @param userId - ULID of the authenticated user who owns this profile.
+   * @param createProfileDto - Display name, date of birth, and any other
+   *                           initial profile fields.
+   * @returns The newly persisted `UserProfile` record.
+   * @throws {ConflictException} When a profile already exists for the given user.
    */
   async createProfile(
     userId: string,
@@ -66,7 +86,15 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Get profile by user ID
+   * Retrieves the profile belonging to the authenticated user.
+   *
+   * Looks up by `userId` (the unique FK on the profile record), not by
+   * the profile's own primary key — use `getProfileById` when the profile
+   * ULID is known instead.
+   *
+   * @param userId - ULID of the user whose profile to fetch.
+   * @returns The `UserProfile` record associated with the user.
+   * @throws {NotFoundException} When no profile exists for the given user.
    */
   async getProfileByUserId(userId: string): Promise<UserProfile> {
     this.logger.log(`Fetching profile for user: ${userId}`);
@@ -83,7 +111,15 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Get profile by profile ID
+   * Retrieves a profile by its own primary key (ULID).
+   *
+   * Intended for public-facing lookups where the caller knows the profile ID
+   * but not necessarily the owning user's ID (e.g., viewing another user's
+   * public profile).
+   *
+   * @param id - ULID of the profile record to fetch.
+   * @returns The matching `UserProfile` record.
+   * @throws {NotFoundException} When no profile exists with the given ID.
    */
   async getProfileById(id: string): Promise<UserProfile> {
     this.logger.log(`Fetching profile with ID: ${id}`);
@@ -100,7 +136,18 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Update profile (PUT - full replacement)
+   * Fully replaces the authenticated user's profile fields (PUT semantics).
+   *
+   * All fields from `updateProfileDto` overwrite existing values — omitting
+   * an optional field sets it to its default, not its current value.
+   * An ISO 8601 `dateOfBirth` string is converted to a `Date` before the
+   * update; omitting it explicitly sets the column to `null`.
+   * Emits a `PROFILE_UPDATED` audit event on success.
+   *
+   * @param userId - ULID of the authenticated user whose profile to replace.
+   * @param updateProfileDto - Complete new field values for the profile.
+   * @returns The updated `UserProfile` record.
+   * @throws {NotFoundException} When no profile exists for the given user.
    */
   async updateProfile(
     userId: string,
@@ -144,7 +191,17 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Patch profile (PATCH - partial update)
+   * Partially updates the authenticated user's profile fields (PATCH semantics).
+   *
+   * Only fields present in `patchProfileDto` are written; absent fields
+   * retain their current values. `dateOfBirth`, when provided, is parsed
+   * from ISO 8601 to `Date` before persistence — omitting it leaves the
+   * existing value unchanged. Emits a `PROFILE_UPDATED` audit event on success.
+   *
+   * @param userId - ULID of the authenticated user whose profile to patch.
+   * @param patchProfileDto - Subset of profile fields to overwrite.
+   * @returns The patched `UserProfile` record.
+   * @throws {NotFoundException} When no profile exists for the given user.
    */
   async patchProfile(
     userId: string,
@@ -189,7 +246,18 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Delete profile (Soft Delete Account)
+   * Soft-deletes the user's account and all directly owned data in a single
+   * atomic transaction.
+   *
+   * Sets `deletedAt` on the `User` record and any active `Identity` /
+   * `AuthCredential` rows, and flips `isActive` to `false` on all linked
+   * `Device` records. The profile row itself is not deleted — it remains
+   * associated with the (now-deleted) user for audit and recovery purposes.
+   * Emits an `ACCOUNT_DELETED` audit event after the transaction commits.
+   *
+   * @param userId - ULID of the authenticated user to soft-delete.
+   * @throws {NotFoundException} When no active user exists with the given ID
+   *   (either not found or already soft-deleted).
    */
   async deleteProfile(userId: string): Promise<void> {
     this.logger.log(`Soft-deleting account for user: ${userId}`);
@@ -249,7 +317,15 @@ export class ProfilesService extends BaseService {
   }
 
   /**
-   * Check if profile exists
+   * Checks whether a profile exists for the given user without fetching the
+   * full record.
+   *
+   * Uses a `select: { userId: true }` projection to avoid transferring
+   * unnecessary columns — suitable for lightweight existence guards in other
+   * services or guards.
+   *
+   * @param userId - ULID of the user to check.
+   * @returns `true` if a profile record exists; `false` otherwise.
    */
   async profileExists(userId: string): Promise<boolean> {
     const profile = await this.prisma.userProfile.findUnique({

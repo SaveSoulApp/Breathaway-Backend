@@ -7,11 +7,7 @@ import { LoggerService } from '@core/logger';
 
 import { CreditsController } from '../credits.controller';
 import { CreditsService } from '../credits.service';
-import {
-  ConsumeCreditsRequestDto,
-  CreditLedgerQueryDto,
-  GrantCreditsRequestDto,
-} from '../dto';
+import { ConsumeCreditsRequestDto, CreditLedgerQueryDto } from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('CreditsController', () => {
@@ -48,7 +44,6 @@ describe('CreditsController', () => {
       getBalance: jest.fn(),
       getLedger: jest.fn(),
       getLedgerEntry: jest.fn(),
-      grantCredits: jest.fn(),
       consumeCredits: jest.fn(),
     };
 
@@ -115,29 +110,6 @@ describe('CreditsController', () => {
 
       // Assert
       expect(service.getLedgerEntry).toHaveBeenCalledWith(userId, entryId);
-      expect(result).toEqual(mockLedgerEntry);
-    });
-  });
-
-  describe('grantCredits', () => {
-    it('should grant credits and return ledger entry', async () => {
-      // Arrange
-      const dto: GrantCreditsRequestDto = {
-        userId,
-        amount: 10,
-        source: CreditSource.PURCHASE,
-      };
-      service.grantCredits.mockResolvedValue(
-        mockLedgerEntry as unknown as Awaited<
-          ReturnType<typeof service.grantCredits>
-        >,
-      );
-
-      // Act
-      const result = await controller.grantCredits(dto);
-
-      // Assert
-      expect(service.grantCredits).toHaveBeenCalledWith(dto);
       expect(result).toEqual(mockLedgerEntry);
     });
   });

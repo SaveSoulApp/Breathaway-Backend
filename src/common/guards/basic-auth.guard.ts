@@ -7,10 +7,25 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
 
+/**
+ * Enforces basic HTTP authentication for development or internal administrative routes.
+ *
+ * Validates the Authorization header against configured development credentials.
+ * Should not be used for client-facing endpoints or public production routes.
+ */
 @Injectable()
 export class BasicAuthGuard implements CanActivate {
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Evaluates the incoming request to ensure it contains a valid Basic Auth header.
+   *
+   * Extracts credentials and performs a constant-time comparison against expected values
+   * to mitigate timing attacks.
+   *
+   * @returns `true` if the credentials match the configured values.
+   * @throws {UnauthorizedException} When the header is missing, malformed, or credentials do not match.
+   */
   public canActivate(context: ExecutionContext): boolean {
     const request = context
       .switchToHttp()
@@ -47,9 +62,7 @@ export class BasicAuthGuard implements CanActivate {
     return true;
   }
 
-  /**
-   * Decodes the Base64 Basic Auth header.
-   */
+  // Decodes the Base64 Basic Auth header.
   private decodeCredentials(header: string): [string, string] {
     const base64Credentials = header.split(' ')[1];
     const credentials = Buffer.from(base64Credentials, 'base64').toString(
@@ -60,11 +73,7 @@ export class BasicAuthGuard implements CanActivate {
     return [parts[0], parts.slice(1).join(':')];
   }
 
-  /**
-   * Performs a constant-time comparison.
-   * To prevent RangeErrors from different buffer lengths, we compare HMACs
-   * of the strings rather than the strings themselves.
-   */
+  // Performs a constant-time comparison via HMACs to prevent timing attacks.
   private isAuthorized(input: string, expected: string): boolean {
     const key = 'static-timing-salt';
 

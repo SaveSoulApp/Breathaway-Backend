@@ -3,9 +3,12 @@ import { Request } from 'express';
 
 /**
  * Extracts the user's timezone from the request object.
- * The value is expected to be populated by a upstream Middleware or Guard.
  *
- * @returns {string} The IANA timezone string, defaulting to 'UTC'.
+ * The value is expected to be populated by an upstream middleware or guard based on
+ * user preferences or headers. This guarantees a safe fallback to 'UTC' if no
+ * timezone is provided, preventing localized logic from failing unexpectedly.
+ *
+ * @returns The IANA timezone string (e.g., 'Asia/Kolkata'), defaulting to 'UTC'.
  */
 export const Timezone = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): string => {

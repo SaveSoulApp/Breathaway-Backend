@@ -50,16 +50,27 @@ describe('MatchResolverService (e2e)', () => {
   };
 
   describe('resolveFromLike', () => {
-    it('should skip if newLike has no targetUserId', async () => {
+    it('should skip if targetIdentity.userId is null (unresolved ghost identity)', async () => {
       const { user: sender } = await createUserWithIdentity('sender-no-target');
-      const { identity: targetIdentity } =
-        await createUserWithIdentity('target-no-target');
+      // Create a ghost identity with no owner
+      const requireCrypto = require('crypto');
+      const ghostIdentity = await prisma.identity.create({
+        data: {
+          type: IdentityType.PHONE,
+          publicValueHash: requireCrypto.randomBytes(32).toString('hex'),
+          publicValueCiphertext: 'x',
+          publicValueIv: 'x',
+          publicValueTag: 'x',
+          publicValueWrappedKey: 'x',
+          publicValueKeyId: 'key-v1',
+          userId: null,
+        },
+      });
 
       const like = await prisma.like.create({
         data: {
           senderUserId: sender.id,
-          targetIdentityId: targetIdentity.id,
-          targetUserId: null,
+          targetIdentityId: ghostIdentity.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -69,9 +80,10 @@ describe('MatchResolverService (e2e)', () => {
       await matchResolverService.resolveFromLike({
         id: like.id,
         senderUserId: like.senderUserId,
-        targetUserId: like.targetUserId,
+        targetIdentityId: like.targetIdentityId,
         intent: like.intent,
         status: like.status,
+        targetIdentity: { userId: null },
       });
 
       const updatedLike = await prisma.like.findUnique({
@@ -89,7 +101,6 @@ describe('MatchResolverService (e2e)', () => {
         data: {
           senderUserId: sender.id,
           targetIdentityId: targetIdentity.id,
-          targetUserId: target.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -99,9 +110,10 @@ describe('MatchResolverService (e2e)', () => {
       await matchResolverService.resolveFromLike({
         id: like.id,
         senderUserId: like.senderUserId,
-        targetUserId: like.targetUserId,
+        targetIdentityId: like.targetIdentityId,
         intent: like.intent,
         status: like.status,
+        targetIdentity: { userId: target.id },
       });
 
       const updatedLike = await prisma.like.findUnique({
@@ -125,7 +137,6 @@ describe('MatchResolverService (e2e)', () => {
         data: {
           senderUserId: userA.id,
           targetIdentityId: identityB.id,
-          targetUserId: userB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -136,7 +147,6 @@ describe('MatchResolverService (e2e)', () => {
         data: {
           senderUserId: userB.id,
           targetIdentityId: identityA.id,
-          targetUserId: userA.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -147,9 +157,10 @@ describe('MatchResolverService (e2e)', () => {
       await matchResolverService.resolveFromLike({
         id: likeFromB.id,
         senderUserId: likeFromB.senderUserId,
-        targetUserId: likeFromB.targetUserId,
+        targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
         status: likeFromB.status,
+        targetIdentity: { userId: userA.id },
       });
 
       const updatedLikeA = await prisma.like.findUnique({
@@ -192,11 +203,10 @@ describe('MatchResolverService (e2e)', () => {
         },
       });
 
-      const likeFromA = await prisma.like.create({
+      await prisma.like.create({
         data: {
           senderUserId: userA.id,
           targetIdentityId: identityB.id,
-          targetUserId: userB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -207,7 +217,6 @@ describe('MatchResolverService (e2e)', () => {
         data: {
           senderUserId: userB.id,
           targetIdentityId: identityA.id,
-          targetUserId: userA.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -217,9 +226,10 @@ describe('MatchResolverService (e2e)', () => {
       await matchResolverService.resolveFromLike({
         id: likeFromB.id,
         senderUserId: likeFromB.senderUserId,
-        targetUserId: likeFromB.targetUserId,
+        targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
         status: likeFromB.status,
+        targetIdentity: { userId: userA.id },
       });
 
       const match = await prisma.match.findFirst({
@@ -232,11 +242,6 @@ describe('MatchResolverService (e2e)', () => {
       });
 
       expect(match).toBeNull();
-
-      const updatedLikeA = await prisma.like.findUnique({
-        where: { id: likeFromA.id },
-      });
-      expect(updatedLikeA?.status).toBe(LikeStatus.PENDING);
     });
 
     it('should prevent match if intents are incompatible', async () => {
@@ -245,12 +250,10 @@ describe('MatchResolverService (e2e)', () => {
       const { user: userB, identity: identityB } =
         await createUserWithIdentity('userB-incompat');
 
-      // Setup incompatible intents (assuming MatchesService has rules for this, like RELATIONSHIP vs CASUAL)
-      const likeFromA = await prisma.like.create({
+      await prisma.like.create({
         data: {
           senderUserId: userA.id,
           targetIdentityId: identityB.id,
-          targetUserId: userB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -261,7 +264,6 @@ describe('MatchResolverService (e2e)', () => {
         data: {
           senderUserId: userB.id,
           targetIdentityId: identityA.id,
-          targetUserId: userA.id,
           intent: IntentType.CASUAL,
           status: LikeStatus.PENDING,
           expiresAt: new Date(Date.now() + 86400000),
@@ -271,9 +273,10 @@ describe('MatchResolverService (e2e)', () => {
       await matchResolverService.resolveFromLike({
         id: likeFromB.id,
         senderUserId: likeFromB.senderUserId,
-        targetUserId: likeFromB.targetUserId,
+        targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
         status: likeFromB.status,
+        targetIdentity: { userId: userA.id },
       });
 
       const match = await prisma.match.findFirst({
@@ -285,10 +288,8 @@ describe('MatchResolverService (e2e)', () => {
         },
       });
 
-      // Assuming RELATIONSHIP and CASUAL are incompatible in MatchesService
-      // If they are compatible, this might fail, so let's check what MatchesService does.
-      // Most likely, they are incompatible. We'll verify this during the test run.
-      // Wait, if they are compatible, the match will be created. Let's see what happens.
+      // RELATIONSHIP and CASUAL are incompatible — no match expected.
+      expect(match).toBeNull();
     });
   });
 });

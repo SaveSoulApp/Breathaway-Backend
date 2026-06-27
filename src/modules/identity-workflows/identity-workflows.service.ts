@@ -19,6 +19,17 @@ import { SocialidentitiesService } from '@modules/social-identities/social-ident
 import { Injectable } from '@nestjs/common';
 import { IdentityType, LikeStatus } from '@prisma/client';
 
+/**
+ * Reacts to identity-related Pub/Sub events and executes the multi-step workflows
+ * that verify, link, and resolve matches for user identities.
+ *
+ * All entry points are Pub/Sub listeners — there are no direct service-to-service
+ * calls into this class. The two primary flows are:
+ *   1. Instagram OTP verification: validates an OTP received via DM, links the
+ *      sender's Instagram account to the BreathAway user, and fires a push notification.
+ *   2. Identity claimed: after any identity is claimed, retroactively resolves all
+ *      pending likes that targeted the newly owned identity, completing deferred matches.
+ */
 @Injectable()
 export class IdentityWorkflowsService extends BaseService {
   constructor(
@@ -33,6 +44,19 @@ export class IdentityWorkflowsService extends BaseService {
     super(logger);
   }
 
+  /**
+   * Processes an Instagram OTP received via DM to verify and claim the sender's
+   * Instagram identity on behalf of the BreathAway user who initiated the flow.
+   *
+   * Sequence: verifies and consumes the OTP → resolves the Instagram sender to a
+   * social identity record → claims or creates a canonical Identity → fires a
+   * push notification to confirm linkage. Notification failures are swallowed so
+   * they do not invalidate the successful claim.
+   *
+   * @param data - Event payload containing the extracted OTP, Instagram sender ID,
+   *               and the message timestamp.
+   * @param messageId - Pub/Sub message ID used for tracing across log entries.
+   */
   @PubSubListener(PubSubEvent.INSTAGRAM_OTP_RECEIVED)
   async handleInstagramOtpReceived(
     data: { otp: string; senderId: string; timestamp: string },
@@ -105,14 +129,10 @@ export class IdentityWorkflowsService extends BaseService {
   /**
    * Handles the `identity.claimed` Pub/Sub event.
    *
-   * Orchestrates two independent passes:
-   *   1. Backfill — data integrity: stamp targetUserId on ALL historically
-   *      unresolved likes (regardless of expiry or deletion state).
-   *   2. Match resolution — business logic: evaluate only still-actionable likes
-   *      for mutual-like / match creation.
-   *
-   * Keeping these two concerns separate ensures a pod crash or early return in
-   * resolution never silently skips the backfill.
+   * Finds all still-actionable likes that targeted one of the newly-owned
+   * identities and attempts match resolution for each. Ownership is resolved
+   * at query time via the live `Identity → userId` join, so no data migration
+   * is required before match processing can begin.
    */
   @PubSubListener(PubSubEvent.IDENTITY_CLAIMED)
   async handleIdentityClaimed(
@@ -138,10 +158,6 @@ export class IdentityWorkflowsService extends BaseService {
 
     const identityIds = userIdentities.map((i) => i.id);
 
-    // Pass 1: unconditional data-integrity backfill.
-    await this.backfillTargetUserId(userId, identityIds, messageId);
-
-    // Pass 2: match resolution on only the still-actionable likes.
     await this.resolveUnclaimedLikes(userId, identityIds, messageId);
   }
 
@@ -150,37 +166,12 @@ export class IdentityWorkflowsService extends BaseService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Backfills `targetUserId` on every like that ever pointed at one of the
-   * claiming user's identities while it was unclaimed — regardless of whether
-   * the like has since expired, been soft-deleted, or changed status.
-   *
-   * This is a pure data-integrity operation so that historical queries
-   * (analytics, audits, future reprocessing) always find the correct owner.
-   */
-  private async backfillTargetUserId(
-    userId: string,
-    identityIds: string[],
-    messageId: string,
-  ): Promise<void> {
-    const result = await this.prisma.like.updateMany({
-      where: {
-        targetIdentityId: { in: identityIds },
-        targetUserId: null,
-      },
-      data: { targetUserId: userId },
-    });
-
-    this.logger.log(
-      `[${messageId}] Backfilled targetUserId=${userId} on ${result.count} like(s) (all statuses/expiry states).`,
-    );
-  }
-
-  /**
    * Runs match resolution against every like that is still actionable:
    * `PENDING`, not soft-deleted, and not yet expired.
    *
-   * By the time this runs, `targetUserId` has already been backfilled by
-   * `backfillTargetUserId`, so `resolveFromLike` receives a fully resolved like.
+   * The filter on `targetIdentityId` is sufficient to scope results to the
+   * claiming user — no `targetUserId` filter is needed because that column
+   * no longer exists.
    */
   private async resolveUnclaimedLikes(
     userId: string,
@@ -190,7 +181,6 @@ export class IdentityWorkflowsService extends BaseService {
     const actionableLikes = await this.prisma.like.findMany({
       where: {
         targetIdentityId: { in: identityIds },
-        targetUserId: userId,
         status: LikeStatus.PENDING,
         deletedAt: null,
         expiresAt: { gt: DateUtil.now() },
@@ -198,9 +188,10 @@ export class IdentityWorkflowsService extends BaseService {
       select: {
         id: true,
         senderUserId: true,
-        targetUserId: true,
+        targetIdentityId: true,
         intent: true,
         status: true,
+        targetIdentity: { select: { userId: true } },
       },
     });
 

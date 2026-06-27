@@ -8,6 +8,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 
+/**
+ * Protects the Pub/Sub ingestion endpoint by validating a shared-secret token
+ * passed as a `?token=` query parameter on every push request.
+ *
+ * GCP Pub/Sub push subscriptions are configured with a push endpoint URL that
+ * includes this token. Any request without the correct token is immediately
+ * rejected, preventing unauthenticated callers from triggering event handlers.
+ */
 @Injectable()
 export class PubSubAuthGuard implements CanActivate {
   constructor(
@@ -15,6 +23,18 @@ export class PubSubAuthGuard implements CanActivate {
     private readonly logger: LoggerService,
   ) {}
 
+  /**
+   * Grants access when the `?token` query parameter matches `PUBSUB_VERIFICATION_TOKEN`.
+   *
+   * A missing or misconfigured `PUBSUB_VERIFICATION_TOKEN` environment variable
+   * is treated as a server configuration error rather than a silent bypass.
+   *
+   * @returns `true` when the token is valid.
+   * @throws {UnauthorizedException} When `PUBSUB_VERIFICATION_TOKEN` is not set
+   *   in the environment.
+   * @throws {UnauthorizedException} When the request token is absent or does not
+   *   match the expected value.
+   */
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
 

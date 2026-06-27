@@ -10,6 +10,13 @@ import { Request, Response } from 'express';
 import { ContextualLogger } from './logger.interface';
 import { LoggerService } from './logger.service';
 
+/**
+ * Global exception filter that catches unhandled exceptions and formats them as RFC 7807 Problem Details.
+ *
+ * Acts as the final safety net for the application, ensuring that raw stack traces or internal
+ * error details are never leaked to the client in production. It translates standard NestJS
+ * HttpExceptions into a standardized JSON payload while securely logging the full error internally.
+ */
 @Catch()
 export class ExceptionLoggingFilter implements ExceptionFilter {
   private readonly logger: ContextualLogger;
@@ -18,6 +25,13 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
     this.logger = this.loggerService.forContext(ExceptionLoggingFilter.name);
   }
 
+  /**
+   * Intercepts the exception, logs it internally, and transforms the HTTP response.
+   *
+   * Normalizes validation errors (e.g., from class-validator) and 500 errors into a safe,
+   * predictable problem-details format. The original error stack is logged to the backend
+   * for debugging without exposing sensitive internals to the caller.
+   */
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -33,21 +47,42 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    let message: string | string[] = 'Internal server error';
-    if (typeof rawResponse === 'string') {
-      message = rawResponse;
-    } else if (rawResponse && typeof rawResponse === 'object') {
-      const resObj = rawResponse as Record<string, unknown>;
-      if (Array.isArray(resObj.message)) {
-        message = resObj.message as string[];
-      } else if (typeof resObj.message === 'string') {
-        message = resObj.message;
-      } else {
-        message = JSON.stringify(rawResponse);
+    // Default values for RFC 7807 (especially for 500 Internal Server Errors to hide PII)
+    let title = 'Internal Server Error';
+    let type = 'INTERNAL_SERVER_ERROR';
+    let detail = 'An unexpected error occurred.';
+    let invalidParams: string[] | undefined;
+
+    if (exception instanceof HttpException) {
+      if (typeof rawResponse === 'string') {
+        detail = rawResponse;
+        title = exception.name || 'Http Exception';
+        type = title.toUpperCase().replace(/\s+/g, '_');
+      } else if (rawResponse && typeof rawResponse === 'object') {
+        const resObj = rawResponse as Record<string, unknown>;
+
+        // Extract title from NestJS default HTTP exception responses
+        if (typeof resObj.error === 'string') {
+          title = resObj.error;
+          type = title.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        } else {
+          title = exception.name || 'Http Exception';
+          type = title.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        }
+
+        // Handle detail and invalid parameters (e.g., from class-validator)
+        if (Array.isArray(resObj.message)) {
+          detail = 'One or more fields failed validation.';
+          invalidParams = resObj.message as string[];
+        } else if (typeof resObj.message === 'string') {
+          detail = resObj.message;
+        } else {
+          detail = JSON.stringify(rawResponse);
+        }
       }
     }
 
-    // Log the error with correct status code
+    // Log the error internally with full details including stack traces
     this.logger.error(`Request failed: ${request.method} ${request.url}`, {
       requestId: request.headers['x-request-id'],
       statusCode: status,
@@ -61,11 +96,16 @@ export class ExceptionLoggingFilter implements ExceptionFilter {
           : String(exception),
     });
 
+    // Send RFC 7807 compliant response
+    response.type('application/problem+json');
     response.status(status).json({
-      statusCode: status,
+      type,
+      title,
+      status,
+      detail,
+      instance: request.url,
       timestamp: DateUtil.now().toISOString(),
-      path: request.url,
-      message: message,
+      ...(invalidParams && { invalid_params: invalidParams }),
     });
   }
 }

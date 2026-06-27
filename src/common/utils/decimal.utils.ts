@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 /**
  * Recursively converts Prisma Decimal instances to JavaScript numbers.
@@ -18,12 +18,14 @@ export class DecimalUtils {
       return data;
     }
 
-    if (data instanceof Decimal) {
+    if (data instanceof Prisma.Decimal) {
       return data.toNumber() as unknown as T;
     }
 
     if (Array.isArray(data)) {
-      return data.map((item) => DecimalUtils.convertDecimals(item)) as unknown as T;
+      return data.map((item) =>
+        DecimalUtils.convertDecimals(item),
+      ) as unknown as T;
     }
 
     if (data instanceof Date) {

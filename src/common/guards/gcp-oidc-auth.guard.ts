@@ -9,6 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 
+/**
+ * Authenticates service-to-service requests within GCP using OpenID Connect (OIDC) tokens.
+ *
+ * Validates Google-signed Bearer tokens to secure endpoints meant to be invoked
+ * by internal GCP services like Cloud Scheduler or Cloud Tasks.
+ */
 @Injectable()
 export class GcpOidcAuthGuard implements CanActivate {
   private readonly oAuth2Client = new OAuth2Client();
@@ -18,6 +24,15 @@ export class GcpOidcAuthGuard implements CanActivate {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * Verifies the OIDC token from the Authorization header using Google's public JWKS.
+   *
+   * Ensures the token is signed by Google and intended for this specific service
+   * audience. Attaches the decoded payload to the request for downstream use.
+   *
+   * @returns `true` if the OIDC token is valid and matches the configured audience.
+   * @throws {UnauthorizedException} When the token is missing, invalid, or the server is misconfigured.
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const authHeader = request.headers.authorization;

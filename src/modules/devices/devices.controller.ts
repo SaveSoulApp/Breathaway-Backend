@@ -1,4 +1,4 @@
-import { CurrentUserId } from '@common/decorators';
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { ClientIdentity } from '@common/decorators/client-identity.decorator';
 import { ClientIdentityKey } from '@common/enums';
 import { JwtAuthGuard } from '@common/guards';
@@ -33,9 +33,17 @@ import {
   UpdateDeviceDto,
 } from './dto';
 
+/**
+ * Handles HTTP operations for the /devices resource.
+ *
+ * All endpoints require a valid JWT. Device ownership is enforced at the service layer
+ * — routes that operate on a specific device reject requests when the device does not
+ * belong to the authenticated user.
+ */
 @ApiTags('Devices')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ApiStandardErrors()
 @Controller({
   path: 'devices',
   version: ['1'],
@@ -63,6 +71,20 @@ export class DevicesController extends BaseController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
+  /**
+   * Registers a new push notification device for the authenticated user.
+   *
+   * Device metadata (deviceId, appVersion, platform) can be supplied via request body
+   * or overridden by custom client identity headers extracted by the `@ClientIdentity`
+   * decorator — headers take precedence over body values when present.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param deviceId - Physical device identifier extracted from the request header, if provided.
+   * @param userAgentData - Parsed user-agent metadata (version, platform) from the request header.
+   * @param createDeviceDto - Push token and optional device metadata.
+   * @returns The persisted device record including its generated ID.
+   * @throws {ConflictException} When a device with the same push token is already registered.
+   */
   async registerDevice(
     @CurrentUserId() userId: string,
     @ClientIdentity(ClientIdentityKey.DEVICE_ID) deviceId: string,
@@ -87,6 +109,12 @@ export class DevicesController extends BaseController {
     description: 'List of devices',
     type: [DeviceResponseDto],
   })
+  /**
+   * Returns all devices registered by the authenticated user, ordered by registration date descending.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @returns An array of device records belonging to the user; empty array if none are registered.
+   */
   async getUserDevices(@CurrentUserId() userId: string) {
     return this.devicesService.getUserDevices(userId);
   }
@@ -103,6 +131,14 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  /**
+   * Retrieves a single device record, scoped to the authenticated user.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param deviceId - ULID of the device record to retrieve.
+   * @returns The matching device record.
+   * @throws {NotFoundException} When no device with the given ID exists for this user.
+   */
   async getDeviceById(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
@@ -122,6 +158,19 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  /**
+   * Fully replaces a device record's fields with the provided payload.
+   *
+   * Use this when the push token has been rotated and all device metadata
+   * should be re-submitted. For partial changes, prefer PATCH.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param deviceId - ULID of the device record to update.
+   * @param updateDeviceDto - Complete replacement payload for the device.
+   * @returns The updated device record.
+   * @throws {NotFoundException} When no device with the given ID exists for this user.
+   * @throws {ConflictException} When the new token is already registered to another device.
+   */
   async updateDevice(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
@@ -142,6 +191,19 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  /**
+   * Partially updates a device record, applying only the provided fields.
+   *
+   * Unspecified fields retain their existing values. Commonly used to update
+   * the push token or toggle the `isActive` flag without re-submitting all device metadata.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param deviceId - ULID of the device record to patch.
+   * @param patchDeviceDto - Subset of device fields to update.
+   * @returns The patched device record.
+   * @throws {NotFoundException} When no device with the given ID exists for this user.
+   * @throws {ConflictException} When the new token is already registered to another device.
+   */
   async patchDevice(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
@@ -162,6 +224,13 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  /**
+   * Permanently removes a device record, stopping push notifications to that token.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param deviceId - ULID of the device record to delete.
+   * @throws {NotFoundException} When no device with the given ID exists for this user.
+   */
   async deleteDevice(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,

@@ -41,6 +41,8 @@ import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { ChatsModule } from './modules/chats/chats.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -111,6 +113,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     PreferencesModule,
     MaintenanceModule,
     AuditModule,
+    ChatsModule,
+    ReportsModule,
     SubscriptionsModule,
   ],
   controllers: [AppController],

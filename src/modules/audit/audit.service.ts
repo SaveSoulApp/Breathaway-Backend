@@ -8,8 +8,18 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { AUDIT_LOG_EVENT } from './constants';
 import { AuditEventDto } from './dto/audit-event.dto';
 
+/**
+ * Listens for internal `audit.log` application events and forwards them as
+ * structured Pub/Sub messages to the configured audit topic.
+ *
+ * Acts as a decoupled sink: feature modules emit events via NestJS EventEmitter
+ * without needing to know about Pub/Sub or the audit topic. Error handling is
+ * intentionally non-throwing — audit failures must never disrupt the originating
+ * business operation.
+ */
 @Injectable()
 export class AuditService extends BaseService {
+  /** Pub/Sub topic name for audit events; defaults to `audit-logs-topic` when not configured. */
   private auditTopic: string;
 
   constructor(
@@ -23,6 +33,16 @@ export class AuditService extends BaseService {
       'audit-logs-topic';
   }
 
+  /**
+   * Receives an `audit.log` application event and publishes it to the audit
+   * Pub/Sub topic tagged with the event's action type as an attribute.
+   *
+   * Failures are caught and logged rather than propagated — a Pub/Sub outage
+   * must not cause the originating HTTP request or workflow to fail.
+   *
+   * @param payload - The audit event containing the actor, action type, and
+   *                  optional resource and metadata context.
+   */
   @OnEvent(AUDIT_LOG_EVENT)
   async handleAuditLogEvent(payload: AuditEventDto) {
     try {

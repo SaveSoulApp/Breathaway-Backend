@@ -4,6 +4,8 @@ import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.ser
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { FirebaseService } from '@modules/firebase/firebase.service';
+import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   ConflictException,
   Injectable,
@@ -23,6 +25,15 @@ import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
 
+/**
+ * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
+ * and secondary credential linking — by coordinating Firebase token validation,
+ * identity hashing via IdentityCryptoService, and JWT issuance via AuthTokenService.
+ *
+ * All credential values (phone numbers, emails) are normalized and hashed before
+ * any persistence or lookup to ensure consistent canonical representations across
+ * the Auth and Likes flows.
+ */
 @Injectable()
 export class AuthService extends BaseService {
   constructor(
@@ -32,11 +43,25 @@ export class AuthService extends BaseService {
     private readonly encryptionService: IdentityCryptoService,
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
+    private readonly pubSubPublisher: PubSubPublisherService,
   ) {
     super(logger);
   }
 
-  // ---------- Phone / Email Signup ----------
+  /**
+   * Registers a new user account pending OTP verification.
+   *
+   * Validates the Firebase token, hashes the identifier for deduplication, and rejects
+   * if a verified or pending-verification account already exists. Emits a USER_REGISTERED
+   * audit event on success. The created account is unverified until OTP confirmation.
+   *
+   * @param dto - Firebase UID and ID token representing the sign-up credential.
+   * @returns An object containing the new user's ID and a `pending_verification` status.
+   * @throws {ConflictException} When a verified account already exists for this credential.
+   * @throws {ConflictException} When the credential represents an unsupported auth method
+   *   (only PHONE and EMAIL are accepted).
+   * @throws {ConflictException} When registration is pending verification for the same credential.
+   */
   async signup(dto: AuthSignupDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -45,11 +70,20 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier; // raw phone or email
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+
+    // Normalize before hashing so Auth and Likes flows produce the same hash
+    const { publicValueHash } = await this.encryptionService.processPublicValue(
+      value,
+      identityType,
+    );
 
     // Check global uniqueness via AuthCredential
     const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+      where: { valueHash: publicValueHash },
       select: {
         userId: true,
         identity: {
@@ -72,9 +106,8 @@ export class AuthService extends BaseService {
       );
     }
 
-    const user = await this.authCredentialService.createUserWithCredential(
+    const { user } = await this.authCredentialService.createUserWithCredential(
       value,
-      valueHash,
       authMethod.method,
       false,
     );
@@ -93,7 +126,18 @@ export class AuthService extends BaseService {
     return { userId: user.id, status: 'pending_verification' };
   }
 
-  // ---------- Phone / Email Signin ----------
+  /**
+   * Authenticates an existing verified user and issues a JWT access token.
+   *
+   * Looks up the credential by hashed identifier. Rejects unverified accounts with
+   * an UnauthorizedException to signal the frontend to show the verification screen.
+   *
+   * @param dto - Firebase UID and ID token representing the sign-in credential.
+   * @returns The user's ID and a signed JWT access token.
+   * @throws {NotFoundException} When no account is registered for the provided credential.
+   * @throws {UnauthorizedException} When the account exists but has not completed OTP verification.
+   * @throws {ConflictException} When the credential represents an unsupported auth method.
+   */
   async signin(dto: AuthSigninDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -102,7 +146,12 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -139,7 +188,18 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Sign‑in or Sign‑up (phone/email) ----------
+  /**
+   * Performs a combined sign-in or sign-up flow for phone/email credentials.
+   *
+   * If the credential is new, creates a verified account and emits a USER_REGISTERED audit event.
+   * If the credential belongs to an unverified existing account, throws UnauthorizedException.
+   * Returns an `isNewUser` flag so clients can route to onboarding or home.
+   *
+   * @param dto - Firebase UID and ID token for the authenticating credential.
+   * @returns The user's ID, signed JWT access token, and an `isNewUser` boolean.
+   * @throws {UnauthorizedException} When the credential belongs to an existing unverified account.
+   * @throws {ConflictException} When the credential represents an unsupported auth method.
+   */
   async signInOrSignUp(dto: AuthSigninDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
@@ -148,7 +208,12 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authMethod.method === AuthMethod.PHONE
+        ? IdentityType.PHONE
+        : IdentityType.EMAIL;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -163,12 +228,12 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      const user = await this.authCredentialService.createUserWithCredential(
-        value,
-        valueHash,
-        authMethod.method,
-        true,
-      );
+      const { user, normalizedHash } =
+        await this.authCredentialService.createUserWithCredential(
+          value,
+          authMethod.method,
+          true,
+        );
 
       this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
 
@@ -179,7 +244,7 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
-        publicValueHash: valueHash,
+        publicValueHash: normalizedHash,
         isNewUser: true,
       });
     }
@@ -201,16 +266,29 @@ export class AuthService extends BaseService {
     });
   }
 
-  // ---------- Social Sign‑up / Sign‑in ----------
+  /**
+   * Authenticates or registers a user via a social media platform identity.
+   *
+   * Looks up the identity by hashed platform user ID. If found and owned, logs the user in.
+   * If a ghost identity exists (userId=null, created from prior likes activity), claims it
+   * and publishes an IDENTITY_CLAIMED Pub/Sub event for match resolution. No AuthCredential
+   * is stored for social identities — the platformIdHash is the authoritative lookup key.
+   *
+   * @param dto - Social platform type, platform user ID, and public handle.
+   * @returns The user's ID, signed JWT access token, and an `isNewUser` boolean.
+   * @throws {ConflictException} When the platform account is already linked to another active user.
+   * @throws {ConflictException} When the account has been deleted and requires re-verification.
+   */
   async socialAuth(dto: SocialAuthDto) {
     const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
 
-    // platformUserId hash
-    const platformIdHash =
-      await this.encryptionService.computeHash(platformUserId);
+    // Normalize and hash via the same helpers used everywhere else so that
+    // platformIdHash and publicValueHash are always canonical values.
+    const platformIdData =
+      await this.encryptionService.processPlatformId(platformUserId);
 
     const identity = await this.prisma.identity.findFirst({
-      where: { type, platformIdHash },
+      where: { type, platformIdHash: platformIdData.platformIdHash },
       select: { id: true, userId: true, isVerified: true },
     });
 
@@ -226,21 +304,17 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: type,
-        platformIdHash: platformIdHash,
+        platformIdHash: platformIdData.platformIdHash,
         isNewUser: false,
       });
     }
 
-    // Encrypt handle (public value) and platformUserId (platformId)
-    const encHandle = await this.encryptionService.encryptPublicValue(handle);
-    const handleMasked = this.encryptionService.maskPublicValue(
+    // processPublicValue normalizes handle (strips leading '@', lowercases) and
+    // encryptPublicValue before hashing – consistent with the likes flow.
+    const publicValueData = await this.encryptionService.processPublicValue(
       handle,
       type as IdentityType,
     );
-    const encPlatformId =
-      await this.encryptionService.encryptPlatformId(platformUserId);
-
-    const publicValueHash = await this.encryptionService.computeHash(handle);
 
     const user = await this.prisma.$transaction(async (tx) => {
       // New social identity
@@ -252,32 +326,61 @@ export class AuthService extends BaseService {
         },
       });
 
-      await tx.identity.create({
-        data: {
-          type,
-          publicValueHash,
-          publicValueCiphertext: encHandle.ciphertextBase64,
-          publicValueIv: encHandle.ivBase64,
-          publicValueTag: encHandle.tagBase64,
-          publicValueWrappedKey: encHandle.wrappedKeyBase64,
-          publicValueKeyId: encHandle.keyId,
-          publicValueMasked: handleMasked,
-
-          platformIdHash,
-          platformIdCiphertext: encPlatformId.ciphertextBase64,
-          platformIdIv: encPlatformId.ivBase64,
-          platformIdTag: encPlatformId.tagBase64,
-          platformIdWrappedKey: encPlatformId.wrappedKeyBase64,
-          platformIdKeyId: encPlatformId.keyId,
-
-          userId: newUser.id,
-          isVerified: true, // social accounts are pre‑verified
-          verifiedAt: DateUtil.now(),
+      const ghostIdentity = await tx.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type,
+            publicValueHash: publicValueData.publicValueHash,
+          },
         },
       });
 
+      if (ghostIdentity) {
+        if (ghostIdentity.userId !== null) {
+          throw new ConflictException(
+            `This ${type.toLowerCase()} account is already linked to another user.`,
+          );
+        }
+
+        await tx.identity.update({
+          where: { id: ghostIdentity.id },
+          data: {
+            userId: newUser.id,
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+            ...publicValueData,
+            ...platformIdData,
+          },
+        });
+      } else {
+        await tx.identity.create({
+          data: {
+            type,
+            ...publicValueData,
+            ...platformIdData,
+            userId: newUser.id,
+            isVerified: true, // social accounts are pre‑verified
+            verifiedAt: DateUtil.now(),
+          },
+        });
+      }
+
       return newUser;
     });
+
+    // A ghost identity was claimed — trigger match resolution so any pending
+    // likes that targeted this social handle are evaluated now that the
+    // identity has an owner.
+    this.pubSubPublisher
+      .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+        userId: user.id,
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for social user ${user.id}`,
+          { error: err.message },
+        );
+      });
 
     // No AuthCredential for social types.
 
@@ -290,12 +393,27 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
-      platformIdHash: platformIdHash,
+      platformIdHash: platformIdData.platformIdHash,
       isNewUser: true,
     });
   }
 
-  // ---------- Add Secondary Phone / Email ----------
+  /**
+   * Links a verified secondary phone or email credential to an existing user account.
+   *
+   * Validates that the Firebase token matches the expected `authType`, enforces global
+   * uniqueness of the credential, and creates an Identity + AuthCredential within a
+   * transaction. The credential is set as primary if the user has no existing primary.
+   * The linked credential will be unverified until OTP confirmation.
+   *
+   * @param userId - UUID of the currently authenticated user.
+   * @param dto - Firebase UID and ID token representing the new secondary credential.
+   * @param authType - Expected authentication method: must be PHONE or EMAIL.
+   * @returns The user's ID and a refreshed JWT access token.
+   * @throws {ConflictException} When the Firebase token's method does not match `authType`.
+   * @throws {ConflictException} When the credential is already linked to another account.
+   * @throws {NotFoundException} When the authenticated user record cannot be found.
+   */
   async addSecondaryAuth(
     userId: string,
     dto: AddSecondaryAuthDto,
@@ -319,11 +437,18 @@ export class AuthService extends BaseService {
     }
 
     const value = authMethod.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+    const identityType =
+      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
+
+    // Normalize before hashing – must match what processPublicValue produces
+    const publicValueData = await this.encryptionService.processPublicValue(
+      value,
+      identityType,
+    );
 
     // 2. Check global uniqueness
     const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+      where: { valueHash: publicValueData.publicValueHash },
     });
     if (existingCred) {
       throw new ConflictException(
@@ -339,27 +464,45 @@ export class AuthService extends BaseService {
 
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
-    const encPublic = await this.encryptionService.encryptPublicValue(value);
-    const valueMasked = this.encryptionService.maskPublicValue(
-      value,
-      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL,
-    );
-
     await this.prisma.$transaction(async (tx) => {
-      const identity = await tx.identity.create({
-        data: {
-          type: this.authCredentialService.toCredentialType(authType),
-          publicValueHash: valueHash,
-          publicValueCiphertext: encPublic.ciphertextBase64,
-          publicValueIv: encPublic.ivBase64,
-          publicValueTag: encPublic.tagBase64,
-          publicValueWrappedKey: encPublic.wrappedKeyBase64,
-          publicValueKeyId: encPublic.keyId,
-          publicValueMasked: valueMasked,
-          userId: user.id,
-          isVerified: false, // will need verification
+      const existingIdentity = await tx.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type: this.authCredentialService.toCredentialType(authType),
+            publicValueHash: publicValueData.publicValueHash,
+          },
         },
       });
+
+      let identityId: string;
+
+      if (existingIdentity) {
+        if (existingIdentity.userId !== null) {
+          throw new ConflictException(
+            `This ${authType} is already linked to another user`,
+          );
+        }
+
+        const updatedIdentity = await tx.identity.update({
+          where: { id: existingIdentity.id },
+          data: {
+            userId: user.id,
+            isVerified: false,
+            ...publicValueData,
+          },
+        });
+        identityId = updatedIdentity.id;
+      } else {
+        const newIdentity = await tx.identity.create({
+          data: {
+            type: this.authCredentialService.toCredentialType(authType),
+            ...publicValueData,
+            userId: user.id,
+            isVerified: false, // will need verification
+          },
+        });
+        identityId = newIdentity.id;
+      }
 
       // Determine if this should be primary (if user has no primary credential yet, set true)
       const primaryCount = await tx.authCredential.count({
@@ -371,10 +514,10 @@ export class AuthService extends BaseService {
         data: {
           userId: user.id,
           type: this.authCredentialService.toCredentialType(authType),
-          valueHash,
-          valueMasked: valueMasked,
+          valueHash: publicValueData.publicValueHash,
+          valueMasked: publicValueData.publicValueMasked ?? null,
           isPrimary,
-          identityId: identity.id,
+          identityId: identityId,
         },
       });
     });
@@ -382,15 +525,33 @@ export class AuthService extends BaseService {
     // TODO: Send verification code to the new value
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
-      publicValueHash: valueHash,
+      publicValueHash: publicValueData.publicValueHash,
       isSecondaryAuth: true,
     });
   }
 
-  // ---------- Dev Login ----------
+  /**
+   * Authenticates a developer or test user without Firebase token validation.
+   *
+   * Normalizes the identifier (lowercases emails, strips non-digits from phone numbers)
+   * before hashing for lookup. Only intended for use in non-production environments
+   * protected by BasicAuthGuard at the controller layer.
+   *
+   * @param dto - A pre-seeded email or phone number from the test database.
+   * @returns The user's ID and a signed JWT access token.
+   * @throws {NotFoundException} When no credential matches the provided identifier.
+   */
   async devLogin(dto: DevLoginDto) {
     const value = dto.identifier;
-    const valueHash = await this.encryptionService.computeHash(value);
+
+    // Normalize before hashing so it matches the canonical hash stored at
+    // signup time. Phone numbers are stripped of non-digits; emails are
+    // lowercased. Use a simple heuristic: if it contains '@' it's an email.
+    const identityType = value.includes('@')
+      ? IdentityType.EMAIL
+      : IdentityType.PHONE;
+    const { publicValueHash: valueHash } =
+      await this.encryptionService.processPublicValue(value, identityType);
 
     const credential = await this.prisma.authCredential.findFirst({
       where: { valueHash },
@@ -422,6 +583,15 @@ export class AuthService extends BaseService {
     }
   }
 
+  /**
+   * Records a user logout event and emits a USER_LOGOUT audit log.
+   *
+   * JWT tokens are stateless and are not actively invalidated — callers must discard
+   * the token client-side. Token revocation (e.g., via a denylist) can be layered on here.
+   *
+   * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
+   * @returns A confirmation message object.
+   */
   signout(userId: string) {
     // Token revocation can be implemented later
     this.emitAuditLog({
