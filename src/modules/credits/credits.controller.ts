@@ -1,4 +1,4 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -25,15 +25,15 @@ import {
   CreditBalanceResponseDto,
   CreditLedgerQueryDto,
   CreditLedgerResponseDto,
-  GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
 } from './dto';
 
 /**
  * HTTP resource for the /credits domain; all endpoints require a valid JWT.
- * The two `internal/` routes (`/internal/grant` and `/internal/consume`) are
- * intended exclusively for server-to-server calls (e.g., scheduler, internal
- * services) and must not be exposed through the public API gateway.
+ * The `internal/consume` route is intended exclusively for server-to-server
+ * calls (e.g., scheduler, internal services) and must not be exposed through
+ * the public API gateway. Credit grants are handled exclusively by the Admin
+ * controller (`POST /admin/credits/grant`) which is protected by Basic Auth.
  */
 @ApiTags('Credits')
 @ApiBearerAuth()
@@ -101,24 +101,6 @@ export class CreditsController extends BaseController {
     @Param('id') id: string,
   ): Promise<CreditLedgerResponseDto> {
     return this.creditsService.getLedgerEntry(userId, id);
-  }
-
-  /**
-   * Internal/admin endpoint that adds credits to a user's account and records
-   * the corresponding ledger entry.
-   *
-   * @param dto - Grant payload including target userId, amount, and source.
-   * @returns The newly created ledger entry for the grant transaction.
-   * @throws `BadRequestException` when the `LIKE_USAGE` credit source is supplied.
-   */
-  @Post('internal/grant')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Grant credits (Internal/Admin)' })
-  @ApiResponse({ status: HttpStatus.CREATED, type: CreditLedgerResponseDto })
-  async grantCredits(
-    @Body() dto: GrantCreditsRequestDto,
-  ): Promise<CreditLedgerResponseDto> {
-    return this.creditsService.grantCredits(dto);
   }
 
   /**

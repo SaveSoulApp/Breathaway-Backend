@@ -2,14 +2,20 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { CreditsService } from '@modules/credits/credits.service';
 import {
+  CreditLedgerResponseDto,
+  GrantCreditsRequestDto,
+} from '@modules/credits/dto';
+import {
+  Body,
   Controller,
   Delete,
-  Get,
+  HttpCode,
+  HttpStatus,
   Param,
-  Query,
+  Post,
   UseGuards,
-  Body,
 } from '@nestjs/common';
 import {
   ApiBasicAuth,
@@ -18,12 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
-import {
-  GetReportRequestDto,
-  ReportTimeframeResponseDto,
-  ReportTotalResponseDto,
-  DeleteAccountRequestDto,
-} from './dto';
+import { DeleteAccountRequestDto } from './dto';
 import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
 
 @ApiTags('Admin')
@@ -39,40 +40,9 @@ export class AdminController extends BaseController {
   constructor(
     logger: LoggerService,
     private readonly adminService: AdminService,
+    private readonly creditsService: CreditsService,
   ) {
     super(logger);
-  }
-
-  @Get('reports/total')
-  @ApiOperation({
-    summary: 'Generate absolute overall administrative report',
-    description:
-      'Retrieves total aggregated platform statistics without any timeframe bounds.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully generated the total report.',
-    type: ReportTotalResponseDto,
-  })
-  async getTotalReport(): Promise<ReportTotalResponseDto> {
-    return this.adminService.generateTotalReport();
-  }
-
-  @Get('reports/timeframe')
-  @ApiOperation({
-    summary: 'Generate a timeframe-bounded administrative report',
-    description:
-      'Retrieves aggregated platform statistics strictly within a specified timeframe. If no dates are passed, evaluates everything until today.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully generated the timeframe report.',
-    type: ReportTimeframeResponseDto,
-  })
-  async getTimeframeReport(
-    @Query() query: GetReportRequestDto,
-  ): Promise<ReportTimeframeResponseDto> {
-    return this.adminService.generateTimeframeReport(query);
   }
 
   @Delete('users/:userId')
@@ -93,5 +63,31 @@ export class AdminController extends BaseController {
     @Body() dto: DeleteAccountRequestDto,
   ): Promise<void> {
     return this.adminService.deleteAccount(userId, dto.reason);
+  }
+
+  /**
+   * Grants credits to a user account. Callable only with valid admin Basic Auth
+   * credentials — no user JWT is accepted on this route.
+   *
+   * @param dto - Grant payload: target `userId`, `amount`, `source`, and optional `referenceId` / `expiresAt`.
+   * @returns The newly created ledger entry recording the credit grant.
+   * @throws `BadRequestException` when the `LIKE_USAGE` credit source is supplied.
+   */
+  @Post('credits/grant')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Grant credits to a user (Admin)',
+    description:
+      'Awards credits to a specified user. Requires HTTP Basic Auth with admin credentials. Not accessible via user JWTs.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Credits successfully granted; ledger entry returned.',
+    type: CreditLedgerResponseDto,
+  })
+  async grantCredits(
+    @Body() dto: GrantCreditsRequestDto,
+  ): Promise<CreditLedgerResponseDto> {
+    return this.creditsService.grantCredits(dto);
   }
 }

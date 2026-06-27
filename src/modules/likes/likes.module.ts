@@ -1,4 +1,5 @@
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
+import { CreditsModule } from '@modules/credits/credits.module';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
 import { Module } from '@nestjs/common';
@@ -18,7 +19,12 @@ import { LikesService } from './likes.service';
  *     formed and transitions both likes to MATCHED status accordingly.
  */
 @Module({
-  imports: [IdentityCryptoModule, IdentitiesModule, MatchResolverModule],
+  imports: [
+    IdentityCryptoModule,
+    IdentitiesModule,
+    MatchResolverModule,
+    CreditsModule,
+  ],
   controllers: [LikesController],
   providers: [LikesService],
 })

@@ -1,16 +1,23 @@
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
+import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
+
 import {
   ConsumeCreditsRequestDto,
+  CreditExpiryBatchRequestDto,
   CreditLedgerQueryDto,
   GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
@@ -312,7 +319,10 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
-      throw new BadRequestException('Insufficient credits');
+      throw new HttpException(
+        'Insufficient credits',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
     }
 
     const ledger = await client.creditLedger.create({
@@ -361,41 +371,30 @@ export class CreditsService extends BaseService {
   }
 
   /**
-   * Scheduled job that enforces credit expiry across all users by inserting
-   * compensating DEBIT entries for any unused portions of expired credit bundles.
+   * Core expiration worker for a bounded list of users.
    *
-   * Uses a FIFO-with-expiry allocation strategy: debits are consumed against
-   * the earliest-expiring credits first. Only the portion of a credit bundle
-   * that was not already consumed by prior debits is expired. This prevents
-   * double-counting and ensures the ledger remains consistent after the job runs.
+   * Applies the FIFO-with-expiry allocation strategy for each supplied `userId`:
+   * prior debits are consumed against the earliest-expiring credits first, and
+   * only the unconsumed portion of a bundle that has passed `asOf` is expired
+   * via a compensating DEBIT row. This makes the method safe to retry — if a
+   * batch has already been partially processed, re-running it produces zero new
+   * rows for users whose bundles were already fully expired (`unusedAmount` will
+   * be 0 because the prior DEBIT rows are already included in the ledger scan).
    *
-   * This method is idempotent for already-expired bundles that have been fully
-   * consumed — no DEBIT row is inserted when `unusedAmount` is zero. Logs a
-   * summary upon completion for GCP Cloud Logging visibility.
-   *
-   * @returns A summary with the count of users processed and the total number
-   *          of expiration DEBIT rows inserted.
+   * @param userIds - Bounded list of user IDs to evaluate in this batch.
+   * @param asOf    - Authoritative point-in-time for expiry evaluation, pinned
+   *                  by the fan-out coordinator so all batches share the same
+   *                  snapshot regardless of delivery lag.
+   * @returns A summary with the count of users processed and DEBIT rows inserted.
    */
-  async expireCreditBundles(): Promise<{
-    processedUsers: number;
-    totalExpiredDebitsInserted: number;
-  }> {
-    const now = DateUtil.now();
-
-    const usersWithPotentiallyExpiredCredits =
-      await this.prisma.creditLedger.findMany({
-        where: {
-          transactionType: CreditTransactionType.CREDIT,
-          expiresAt: { lte: now },
-        },
-        select: { userId: true },
-        distinct: ['userId'],
-      });
-
+  async expireCreditsForUsers(
+    userIds: string[],
+    asOf: Date,
+  ): Promise<{ processedUsers: number; expiredDebitsInserted: number }> {
     let processedUsers = 0;
-    let totalExpiredDebitsInserted = 0;
+    let expiredDebitsInserted = 0;
 
-    for (const { userId } of usersWithPotentiallyExpiredCredits) {
+    for (const userId of userIds) {
       const ledger = await this.prisma.creditLedger.findMany({
         where: { userId },
         orderBy: { createdAt: 'asc' },
@@ -433,14 +432,14 @@ export class CreditsService extends BaseService {
 
         const unusedAmount = credit.amount - usedFromThisCredit;
 
-        if (credit.expiresAt && credit.expiresAt <= now && unusedAmount > 0) {
+        if (credit.expiresAt && credit.expiresAt <= asOf && unusedAmount > 0) {
           expirationsToInsert.push({
             userId,
             transactionType: CreditTransactionType.DEBIT,
             amount: unusedAmount,
             source: CreditSource.EXPIRED,
             referenceId: credit.id,
-            createdAt: now,
+            createdAt: asOf,
           });
         }
       }
@@ -449,15 +448,41 @@ export class CreditsService extends BaseService {
         await this.prisma.creditLedger.createMany({
           data: expirationsToInsert,
         });
-        totalExpiredDebitsInserted += expirationsToInsert.length;
+        expiredDebitsInserted += expirationsToInsert.length;
       }
+
       processedUsers++;
     }
 
+    return { processedUsers, expiredDebitsInserted };
+  }
+
+  /**
+   * Pub/Sub listener that receives a single paginated batch of user IDs from
+   * the fan-out coordinator and runs credit expiration for exactly those users.
+   *
+   * Invoked by the GCP Pub/Sub push subscription on the `credit-expiry` topic.
+   * The `asOf` timestamp in the payload is the coordinator's snapshot of `now`,
+   * ensuring all batches evaluate expiry at the same point in time.
+   *
+   * Retries are safe: the allocation algorithm is idempotent for users whose
+   * bundles have already been expired in a prior attempt.
+   *
+   * @param payload - Decoded Pub/Sub message body containing `userIds` and `asOf`.
+   */
+  @PubSubListener(PubSubEvent.CREDIT_EXPIRY_BATCH)
+  async handleExpiryBatch(payload: CreditExpiryBatchRequestDto): Promise<void> {
+    const asOf = DateUtil.parse(payload.asOf);
+
     this.logger.log(
-      `Expiration job complete. Processed ${processedUsers} users. Inserted ${totalExpiredDebitsInserted} expiration debits.`,
+      `Processing credit expiry batch: ${payload.userIds.length} users, asOf=${payload.asOf}`,
     );
 
-    return { processedUsers, totalExpiredDebitsInserted };
+    const { processedUsers, expiredDebitsInserted } =
+      await this.expireCreditsForUsers(payload.userIds, asOf);
+
+    this.logger.log(
+      `Batch complete. Processed ${processedUsers} users. Inserted ${expiredDebitsInserted} expiration debits.`,
+    );
   }
 }

@@ -46,18 +46,19 @@ export class MaintenanceController extends BaseController {
   }
 
   /**
-   * Triggers the credit-bundle expiration job, voiding all unused bundles
-   * that have passed their expiry date.
+   * Triggers the credit-bundle expiry fan-out: paginates all users with
+   * expired CREDIT rows and publishes one `credit.expiry.batch` Pub/Sub
+   * message per page. Actual expiration runs asynchronously via push delivery
+   * to `CreditsService.handleExpiryBatch`.
    *
-   * Intended to be called daily by GCP Cloud Scheduler. Delegates entirely
-   * to `CreditsService.expireCreditBundles` — see that method for the
-   * expiration criteria and return shape.
+   * Intended to be called daily by GCP Cloud Scheduler. Returns a lightweight
+   * summary of how many batches were published and how many users were enqueued.
    *
-   * @returns A summary of how many bundles were expired.
+   * @returns `{ batchesPublished, totalUsersEnqueued }`
    */
   @Post('expire-bundles')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Run expiration job for unused credit bundles' })
+  @ApiOperation({ summary: 'Fan-out credit bundle expiry batches to Pub/Sub' })
   @ApiResponse({ status: HttpStatus.OK })
   async expireCreditBundles() {
     return this.maintenanceService.expireCreditBundles();

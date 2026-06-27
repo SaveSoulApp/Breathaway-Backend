@@ -1,3 +1,14 @@
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { LikeStatus, Prisma } from '@prisma/client';
+
 import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
@@ -5,16 +16,11 @@ import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.ser
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { CreditsService } from '@modules/credits/credits.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { LikeStatus, Prisma } from '@prisma/client';
+
+import { LikesConfig } from './config/likes.config';
 import {
   CreateLikeRequestDto,
   LikeListQueryDto,
@@ -41,6 +47,7 @@ export class LikesService extends BaseService {
     private readonly identityCryptoService: IdentityCryptoService,
     private readonly identitiesService: IdentitiesService,
     private readonly matchResolverService: MatchResolverService,
+    private readonly creditsService: CreditsService,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -64,6 +71,26 @@ export class LikesService extends BaseService {
    * @throws {ConflictException} When a non-deleted like from this user to the same identity already exists.
    */
   async create(userId: string, dto: CreateLikeRequestDto) {
+    const hasSufficient = await this.creditsService.hasSufficientCredits(
+      userId,
+      LikesConfig.CREDITS_PER_LIKE,
+    );
+
+    if (!hasSufficient) {
+      this.emitAuditLog({
+        actionType: AuditActionType.USAGE_DENIED,
+        userId,
+        metadata: {
+          reason: 'Insufficient credits for like',
+          requiredAmount: LikesConfig.CREDITS_PER_LIKE,
+        },
+      });
+      throw new HttpException(
+        'Insufficient credits',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
     let targetIdentityId = dto.targetIdentityId;
 
     if (!targetIdentityId && dto.targetIdentity) {
@@ -139,26 +166,39 @@ export class LikesService extends BaseService {
     const expiresAt = DateUtil.now();
     expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
 
-    const like = await this.prisma.like.create({
-      data: {
-        senderUserId: userId,
-        targetIdentityId,
-        intent: dto.intent,
-        status: LikeStatus.PENDING,
-        label: dto.label ?? null,
-        expiresAt,
-      },
-      select: {
-        ...LIKE_SELECT,
-        senderUserId: true,
-        targetIdentityId: true,
-        targetIdentity: {
-          select: {
-            ...LIKE_SELECT.targetIdentity.select,
-            userId: true,
+    const like = await this.prisma.$transaction(async (tx) => {
+      const createdLike = await tx.like.create({
+        data: {
+          senderUserId: userId,
+          targetIdentityId,
+          intent: dto.intent,
+          status: LikeStatus.PENDING,
+          label: dto.label ?? null,
+          expiresAt,
+        },
+        select: {
+          ...LIKE_SELECT,
+          senderUserId: true,
+          targetIdentityId: true,
+          targetIdentity: {
+            select: {
+              ...LIKE_SELECT.targetIdentity.select,
+              userId: true,
+            },
           },
         },
-      },
+      });
+
+      await this.creditsService.consumeCredits(
+        {
+          userId,
+          amount: LikesConfig.CREDITS_PER_LIKE,
+          referenceId: createdLike.id,
+        },
+        tx,
+      );
+
+      return createdLike;
     });
 
     // Trigger match resolution asynchronously in the background

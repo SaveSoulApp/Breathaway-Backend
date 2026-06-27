@@ -28,6 +28,7 @@ import { MatchResolverService } from '@modules/match-resolver/match-resolver.ser
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikesService } from '../likes.service';
 import { ClsService } from 'nestjs-cls';
+import { CreditsService } from '@modules/credits/credits.service';
 
 describe('LikesService', () => {
   let service: LikesService;
@@ -134,6 +135,14 @@ describe('LikesService', () => {
         { provide: IdentityCryptoService, useValue: identityCryptoServiceMock },
         { provide: IdentitiesService, useValue: identitiesServiceMock },
         { provide: MatchResolverService, useValue: matchResolverServiceMock },
+        {
+          provide: CreditsService,
+          useValue: {
+            grantCredits: jest.fn(),
+            consumeCredits: jest.fn(),
+            hasSufficientCredits: jest.fn().mockResolvedValue(true),
+          },
+        },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
@@ -141,6 +150,9 @@ describe('LikesService', () => {
 
     service = module.get<LikesService>(LikesService);
     prisma = module.get(PrismaService);
+    (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
+      return cb(prisma);
+    });
   });
 
   afterEach(() => {
