@@ -1,14 +1,18 @@
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+
 import {
   ConsumeCreditsRequestDto,
   CreditLedgerQueryDto,
@@ -312,7 +316,10 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
-      throw new BadRequestException('Insufficient credits');
+      throw new HttpException(
+        'Insufficient credits',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
     }
 
     const ledger = await client.creditLedger.create({
