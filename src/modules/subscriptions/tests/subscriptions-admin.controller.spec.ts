@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SubscriptionPlanStatus } from '@prisma/client';
+import { CurrencyCode, SubscriptionPlanStatus } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
 
@@ -126,7 +126,7 @@ describe('SubscriptionsAdminController', () => {
     it('should add a localized price and return it', async () => {
       // Arrange
       const dto = {
-        currencyCode: 'EUR',
+        currencyCode: CurrencyCode.EUR,
         price: 8.99,
         countryCode: 'DE',
       };

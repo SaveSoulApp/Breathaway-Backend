@@ -295,6 +295,7 @@ describe('SubscriptionsWebhookController', () => {
         data: 'mock-base64-pubsub-data',
         messageId: 'google-msg-id-111',
       },
+      subscription: 'mock-subscription-topic',
     };
 
     it('should return ignored status if no subscriptionNotification is found', async () => {

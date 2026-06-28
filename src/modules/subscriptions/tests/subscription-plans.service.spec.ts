@@ -46,14 +46,18 @@ describe('SubscriptionPlansService', () => {
     sortOrder: 1,
     status: SubscriptionPlanStatus.ACTIVE,
     prices: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   const mockPrice = {
     id: 'price-uuid-222',
     planId: 'plan-uuid-111',
-    currencyCode: 'USD',
-    price: 9.99,
+    currencyCode: 'USD' as any,
+    price: 9.99 as any,
     countryCode: 'US',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   beforeEach(async () => {
@@ -326,7 +330,7 @@ describe('SubscriptionPlansService', () => {
         ...mockPrice,
         id: 'new-price-id',
         ...dto,
-      });
+      } as any);
 
       // Act
       const result = await service.addPlanPrice('plan-uuid-111', dto);
