@@ -83,4 +83,14 @@ export class MaintenanceController extends BaseController {
   async expireLikes() {
     return this.maintenanceService.voidPendingLikes();
   }
+
+  @Post('expire-subscriptions')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Run job to expire active subscriptions past their expiry date',
+  })
+  @ApiResponse({ status: HttpStatus.OK })
+  async expireSubscriptions() {
+    return this.maintenanceService.expireSubscriptions();
+  }
 }

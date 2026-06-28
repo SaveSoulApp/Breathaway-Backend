@@ -1,3 +1,5 @@
+import { CreditsModule } from '@modules/credits/credits.module';
+import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MaintenanceController } from './maintenance.controller';
@@ -18,7 +20,7 @@ import { MaintenanceService } from './maintenance.service';
  * No exports — this module is a leaf consumer; no other module depends on it.
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, CreditsModule, SubscriptionsModule],
   controllers: [MaintenanceController],
   providers: [MaintenanceService],
 })

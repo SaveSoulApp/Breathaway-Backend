@@ -2,9 +2,11 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CreditsService } from '@modules/credits/credits.service';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreditTransactionType, LikeStatus } from '@prisma/client';
@@ -26,6 +28,8 @@ export class MaintenanceService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly creditsService: CreditsService,
+    private readonly subscriptionsService: SubscriptionsService,
     private readonly pubSubPublisher: PubSubPublisherService,
     private readonly configService: ConfigService,
   ) {
@@ -149,5 +153,9 @@ export class MaintenanceService extends BaseService {
     );
 
     return { batchesPublished, totalUsersEnqueued };
+  }
+
+  async expireSubscriptions() {
+    return this.subscriptionsService.expireSubscriptions();
   }
 }
