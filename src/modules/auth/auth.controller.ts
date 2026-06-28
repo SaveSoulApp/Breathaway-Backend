@@ -193,7 +193,10 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  addPhone(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthRequestDto) {
+  addPhone(
+    @CurrentUserId() userId: string,
+    @Body() dto: AddSecondaryAuthRequestDto,
+  ) {
     return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE);
   }
 
@@ -221,7 +224,10 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  addEmail(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthRequestDto) {
+  addEmail(
+    @CurrentUserId() userId: string,
+    @Body() dto: AddSecondaryAuthRequestDto,
+  ) {
     return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL);
   }
 

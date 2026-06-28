@@ -72,8 +72,8 @@ resource "google_pubsub_subscription" "audit_logs_bq_sub" {
 
   bigquery_config {
     # Format: project_id.dataset_id.table_id
-    table          = "${data.google_project.project.project_id}.${google_bigquery_dataset.audit_logs_dataset.dataset_id}.${google_bigquery_table.audit_logs_events.table_id}"
-    write_metadata = true
+    table               = "${data.google_project.project.project_id}.${google_bigquery_dataset.audit_logs_dataset.dataset_id}.${google_bigquery_table.audit_logs_events.table_id}"
+    write_metadata      = true
     drop_unknown_fields = false
   }
 

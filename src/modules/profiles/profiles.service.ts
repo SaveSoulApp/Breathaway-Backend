@@ -9,7 +9,11 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { CreateProfileRequestDto, PatchProfileRequestDto, UpdateProfileRequestDto } from './dto';
+import {
+  CreateProfileRequestDto,
+  PatchProfileRequestDto,
+  UpdateProfileRequestDto,
+} from './dto';
 
 /**
  * Owns the business logic for user profile lifecycle — creation, retrieval,

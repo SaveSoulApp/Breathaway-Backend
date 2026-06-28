@@ -40,8 +40,10 @@ export class LoggerService implements NestLoggerService {
         };
 
     if (isGcp) {
-      const appName = this.configService.get<string>('APP_NAME') || 'nestjs-app';
-      const appVersion = this.configService.get<string>('APP_VERSION') || '1.0.0';
+      const appName =
+        this.configService.get<string>('APP_NAME') || 'nestjs-app';
+      const appVersion =
+        this.configService.get<string>('APP_VERSION') || '1.0.0';
       const gcpConfig = createGcpLoggerConfig(logLevel, appName, appVersion);
       this.baseLogger = pino.default(gcpConfig);
     } else {

@@ -194,7 +194,10 @@ describe('IdentitiesService', () => {
 
       // Act & Assert
       await expect(
-        service.create(mockUserId, mockCreateIdentityRequestDto as CreateIdentityRequestDto),
+        service.create(
+          mockUserId,
+          mockCreateIdentityRequestDto as CreateIdentityRequestDto,
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -514,7 +517,11 @@ describe('IdentitiesService', () => {
 
       // Act & Assert
       await expect(
-        service.update(mockIdentityId, mockUserId, dto as UpdateIdentityRequestDto),
+        service.update(
+          mockIdentityId,
+          mockUserId,
+          dto as UpdateIdentityRequestDto,
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });

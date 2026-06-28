@@ -39,4 +39,8 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
     templateFile: 'system-alert',
     subject: '{{alertTitle}} — BreathAway',
   },
+  [EmailType.BUNDLE_EXPIRY_WARNING]: {
+    templateFile: 'bundle-expiry-warning',
+    subject: 'Your unused likes are expiring in 7 days! ⏳',
+  },
 };

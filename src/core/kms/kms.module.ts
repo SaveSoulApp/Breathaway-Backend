@@ -11,7 +11,8 @@ const keyManagerProvider: Provider = {
     cloudManager: CloudKmsKeyManager,
     gcpManager: GcpSecretsKeyManager,
   ) => {
-    const useCloud = configService.get<string>('USE_GOOGLE_CLOUD_KMS') === 'true';
+    const useCloud =
+      configService.get<string>('USE_GOOGLE_CLOUD_KMS') === 'true';
     return useCloud ? cloudManager : gcpManager;
   },
 };

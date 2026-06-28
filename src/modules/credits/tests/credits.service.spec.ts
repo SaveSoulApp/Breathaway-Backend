@@ -218,7 +218,9 @@ describe('CreditsService', () => {
 
     it('should handle dates with T included', async () => {
       // Arrange
-      const query: CreditLedgerQueryRequestDto = { createdTo: '2023-12-31T12:00:00Z' };
+      const query: CreditLedgerQueryRequestDto = {
+        createdTo: '2023-12-31T12:00:00Z',
+      };
       prisma.creditLedger.count.mockResolvedValue(1);
       prisma.creditLedger.findMany.mockResolvedValue([mockLedgerEntry]);
 

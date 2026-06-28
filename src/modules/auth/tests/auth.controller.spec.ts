@@ -63,7 +63,10 @@ describe('AuthController', () => {
 
   describe('signup', () => {
     it('should sign up a user and return the user credentials', async () => {
-      const dto: AuthSignupRequestDto = { uid: 'uid-123', uidToken: 'token-123' };
+      const dto: AuthSignupRequestDto = {
+        uid: 'uid-123',
+        uidToken: 'token-123',
+      };
       service.signup.mockResolvedValue(mockSignupResponse);
 
       const result = await controller.signup(dto);
@@ -75,7 +78,10 @@ describe('AuthController', () => {
 
   describe('signin', () => {
     it('should sign in a user and return the credentials', async () => {
-      const dto: AuthSigninRequestDto = { uid: 'uid-123', uidToken: 'token-123' };
+      const dto: AuthSigninRequestDto = {
+        uid: 'uid-123',
+        uidToken: 'token-123',
+      };
       service.signin.mockResolvedValue(mockSigninResponse);
 
       const result = await controller.signin(dto);

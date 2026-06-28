@@ -5,7 +5,11 @@ import { LoggerService } from '@core/logger';
 import { UserProfile } from '@prisma/client';
 import { ProfilesController } from '../profiles.controller';
 import { ProfilesService } from '../profiles.service';
-import { CreateProfileRequestDto, PatchProfileRequestDto, UpdateProfileRequestDto } from '../dto';
+import {
+  CreateProfileRequestDto,
+  PatchProfileRequestDto,
+  UpdateProfileRequestDto,
+} from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesController', () => {

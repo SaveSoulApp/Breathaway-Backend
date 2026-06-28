@@ -158,4 +158,83 @@ export class MaintenanceService extends BaseService {
   async expireSubscriptions() {
     return this.subscriptionsService.expireSubscriptions();
   }
+
+  /**
+   * Fan-out coordinator for the bundle expiry warning job.
+   *
+   * Queries the `CreditLedger` for bundles expiring in exactly 7 days
+   * (between `now + 6 days` and `now + 7 days`). Since this job is expected
+   * to run daily, each bundle falls into this 24-hour window exactly once,
+   * avoiding duplicate notifications without schema changes.
+   *
+   * @returns `{ batchesPublished, totalUsersEnqueued }`
+   */
+  async warnExpiringCreditBundles(): Promise<{
+    batchesPublished: number;
+    totalUsersEnqueued: number;
+  }> {
+    const asOf = DateUtil.now();
+
+    // Target window: bundles expiring between (asOf + 6 days) and (asOf + 7 days)
+    const targetStart = new Date(asOf.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const targetEnd = new Date(asOf.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    let cursor: string | undefined = undefined;
+    let batchesPublished = 0;
+    let totalUsersEnqueued = 0;
+    let hasMore = true;
+
+    this.logger.log(
+      `Credit expiry warning fan-out started. batchSize=${this.expiryBatchSize}, window=[${targetStart.toISOString()}, ${targetEnd.toISOString()})`,
+    );
+
+    while (hasMore) {
+      const rows: Array<{ userId: string }> =
+        await this.prisma.creditLedger.findMany({
+          where: {
+            transactionType: CreditTransactionType.CREDIT,
+            expiresAt: {
+              gte: targetStart,
+              lt: targetEnd,
+            },
+            ...(cursor ? { userId: { gt: cursor } } : {}),
+          },
+          select: { userId: true },
+          distinct: ['userId'],
+          orderBy: { userId: 'asc' },
+          take: this.expiryBatchSize,
+        });
+
+      if (rows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const userIds: string[] = rows.map((r) => r.userId);
+
+      await this.pubSubPublisher.publish(
+        PubSubTopic.CREDIT_EXPIRY,
+        PubSubEvent.CREDIT_EXPIRY_WARNING_BATCH,
+        { userIds, asOf: asOf.toISOString() },
+      );
+
+      cursor = userIds[userIds.length - 1];
+      batchesPublished++;
+      totalUsersEnqueued += userIds.length;
+
+      this.logger.debug(
+        `Published warning batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
+      );
+
+      if (rows.length < this.expiryBatchSize) {
+        hasMore = false;
+      }
+    }
+
+    this.logger.log(
+      `Credit expiry warning fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
+    );
+
+    return { batchesPublished, totalUsersEnqueued };
+  }
 }

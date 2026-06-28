@@ -8,4 +8,6 @@ import { CreateDeviceRequestDto } from './create-device.request.dto';
  * Submitted to PATCH /devices/:id. Inherits all fields and validation constraints
  * from CreateDeviceRequestDto, marking all properties as optional.
  */
-export class PatchDeviceRequestDto extends PartialType(CreateDeviceRequestDto) {}
+export class PatchDeviceRequestDto extends PartialType(
+  CreateDeviceRequestDto,
+) {}

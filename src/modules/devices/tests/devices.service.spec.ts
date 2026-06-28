@@ -13,7 +13,11 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import { DevicesService } from '../devices.service';
-import { CreateDeviceRequestDto, PatchDeviceRequestDto, UpdateDeviceRequestDto } from '../dto';
+import {
+  CreateDeviceRequestDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
+} from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('DevicesService', () => {

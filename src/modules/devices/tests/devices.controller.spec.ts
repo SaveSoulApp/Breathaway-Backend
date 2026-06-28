@@ -8,7 +8,11 @@ import { LoggerService } from '@core/logger';
 
 import { DevicesController } from '../devices.controller';
 import { DevicesService } from '../devices.service';
-import { CreateDeviceRequestDto, PatchDeviceRequestDto, UpdateDeviceRequestDto } from '../dto';
+import {
+  CreateDeviceRequestDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
+} from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('DevicesController', () => {

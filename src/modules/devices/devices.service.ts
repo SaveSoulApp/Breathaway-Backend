@@ -9,7 +9,11 @@ import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { CreateDeviceRequestDto, PatchDeviceRequestDto, UpdateDeviceRequestDto } from './dto';
+import {
+  CreateDeviceRequestDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
+} from './dto';
 
 /**
  * Owns the business logic for device registration, retrieval, modification, and removal.

@@ -39,7 +39,10 @@ describe('AdminService', () => {
         AdminService,
         { provide: LoggerService, useValue: mockLoggerService },
         { provide: PrismaService, useValue: mockPrismaService },
-        { provide: EventEmitter2, useValue: { emit: jest.fn(), emitAsync: jest.fn() } },
+        {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn(), emitAsync: jest.fn() },
+        },
         { provide: ClsService, useValue: { get: jest.fn(), set: jest.fn() } },
       ],
     }).compile();

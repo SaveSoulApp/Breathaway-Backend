@@ -24,6 +24,11 @@ import {
 } from './dto';
 import { CreditStatusFilter } from './enums';
 
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+
 /**
  * Owns the credit economy domain — granting, consuming, querying, and expiring
  * user credit balances via an append-only double-entry ledger.
@@ -39,6 +44,7 @@ export class CreditsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -483,6 +489,93 @@ export class CreditsService extends BaseService {
 
     this.logger.log(
       `Batch complete. Processed ${processedUsers} users. Inserted ${expiredDebitsInserted} expiration debits.`,
+    );
+  }
+
+  /**
+   * Pub/Sub listener that receives a batch of user IDs from the warning fan-out
+   * coordinator and dispatches exactly-once warnings for bundles expiring in 7 days.
+   *
+   * @param payload - Decoded Pub/Sub message body containing `userIds`.
+   */
+  @PubSubListener(PubSubEvent.CREDIT_EXPIRY_WARNING_BATCH)
+  async handleExpiryWarningBatch(
+    payload: CreditExpiryBatchRequestDto,
+  ): Promise<void> {
+    const asOf = DateUtil.parse(payload.asOf);
+    // Target window end is asOf + 7 days
+    const targetEnd = new Date(asOf.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    this.logger.log(
+      `Processing credit expiry warning batch: ${payload.userIds.length} users, targetEnd=${targetEnd.toISOString()}`,
+    );
+
+    let warnedUsers = 0;
+
+    for (const userId of payload.userIds) {
+      const ledger = await this.prisma.creditLedger.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      let totalDebits = ledger
+        .filter((l) => l.transactionType === CreditTransactionType.DEBIT)
+        .reduce((sum, l) => sum + l.amount, 0);
+
+      const credits = ledger
+        .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
+        .sort((a, b) => {
+          if (a.expiresAt && b.expiresAt) {
+            if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
+              return a.createdAt.getTime() - b.createdAt.getTime();
+            }
+            return a.expiresAt.getTime() - b.expiresAt.getTime();
+          }
+          if (a.expiresAt && !b.expiresAt) return -1;
+          if (!a.expiresAt && b.expiresAt) return 1;
+          return a.createdAt.getTime() - b.createdAt.getTime();
+        });
+
+      let needsWarning = false;
+
+      for (const credit of credits) {
+        let usedFromThisCredit = 0;
+        if (totalDebits >= credit.amount) {
+          usedFromThisCredit = credit.amount;
+          totalDebits -= credit.amount;
+        } else {
+          usedFromThisCredit = totalDebits;
+          totalDebits = 0;
+        }
+
+        const unusedAmount = credit.amount - usedFromThisCredit;
+
+        // Warn if they have an unconsumed bundle expiring near targetEnd
+        // (the coordinator guarantees these bundles were queried from the [now+6d, now+7d) window)
+        if (
+          credit.expiresAt &&
+          credit.expiresAt > asOf &&
+          credit.expiresAt <= targetEnd &&
+          unusedAmount > 0
+        ) {
+          needsWarning = true;
+          break; // One warning per user is sufficient even if they have multiple bundles expiring
+        }
+      }
+
+      if (needsWarning) {
+        await this.notificationsService.dispatch({
+          type: NotificationType.BUNDLE_EXPIRY_WARNING,
+          category: NotificationCategory.SYSTEM,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+          userIds: [userId],
+        });
+        warnedUsers++;
+      }
+    }
+
+    this.logger.log(
+      `Warning batch complete. Dispatched warnings to ${warnedUsers} out of ${payload.userIds.length} users.`,
     );
   }
 }

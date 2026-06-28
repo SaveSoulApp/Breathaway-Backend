@@ -93,4 +93,14 @@ export class MaintenanceController extends BaseController {
   async expireSubscriptions() {
     return this.maintenanceService.expireSubscriptions();
   }
+
+  @Post('warn-expiring-bundles')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Fan-out warnings for credit bundles expiring in 7 days',
+  })
+  @ApiResponse({ status: HttpStatus.OK })
+  async warnExpiringBundles() {
+    return this.maintenanceService.warnExpiringCreditBundles();
+  }
 }

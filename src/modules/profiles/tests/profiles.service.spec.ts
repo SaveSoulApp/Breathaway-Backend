@@ -11,7 +11,11 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
-import { CreateProfileRequestDto, PatchProfileRequestDto, UpdateProfileRequestDto } from '../dto';
+import {
+  CreateProfileRequestDto,
+  PatchProfileRequestDto,
+  UpdateProfileRequestDto,
+} from '../dto';
 import { ProfilesService } from '../profiles.service';
 import { ClsService } from 'nestjs-cls';
 
