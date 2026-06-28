@@ -1,11 +1,12 @@
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BasicAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -37,7 +38,7 @@ import { SubscriptionPlansService } from './services/subscription-plans.service'
 @ApiTags('Admin - Subscriptions')
 @SkipClientIdentity()
 @ApiBearerAuth()
-@UseGuards(BasicAuthGuard)
+@UseGuards(AdminBasicAuthGuard)
 @Controller({
   path: 'admin/subscriptions',
   version: ['1'],
@@ -69,6 +70,22 @@ export class SubscriptionsAdminController extends BaseController {
     return (await this.subscriptionPlansService.createPlan(
       dto,
     )) as unknown as SubscriptionPlanResponseDto;
+  }
+
+  /**
+   * Retrieves all subscription plans in the system, both active and inactive.
+   *
+   * @returns An array of all subscription plans.
+   */
+  @Get('plans')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get list of all available subscription plans' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: [SubscriptionPlanResponseDto],
+  })
+  async listPlans(): Promise<SubscriptionPlanResponseDto[]> {
+    return (await this.subscriptionPlansService.listAllPlans()) as unknown as SubscriptionPlanResponseDto[];
   }
 
   /**

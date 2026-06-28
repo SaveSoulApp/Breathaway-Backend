@@ -1,9 +1,11 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
+
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
+
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
@@ -23,6 +25,22 @@ export class SubscriptionPlansService extends BaseService {
     private readonly prisma: PrismaService,
   ) {
     super(logger);
+  }
+
+  /**
+   * Retrieves all subscription plans in the system, both active and inactive.
+   *
+   * @returns All plans sorted by their defined sort order, with all localized prices.
+   */
+  async listAllPlans() {
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      include: {
+        prices: true,
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    return plans;
   }
 
   /**
