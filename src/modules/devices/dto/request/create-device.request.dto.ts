@@ -16,7 +16,7 @@ import { Platform } from '@common/interfaces';
  * Submitted to POST /devices to register or associate a push notification token
  * with the authenticated user to enable targeted push message delivery.
  */
-export class CreateDeviceDto {
+export class CreateDeviceRequestDto {
   /**
    * Unique push notification token issued by FCM or APNs.
    * Must be a non-empty string and cannot exceed 255 characters.

@@ -7,7 +7,7 @@ import { Expose } from 'class-transformer';
  * This DTO is returned after successful sign-in, registration, or token exchange,
  * enclosing the JWT access token and basic user details needed for immediate client hydration.
  */
-export class UserAuthDto {
+export class UserAuthResponseDto {
   /**
    * The unique user identifier.
    * Typically returned in sign-in responses.

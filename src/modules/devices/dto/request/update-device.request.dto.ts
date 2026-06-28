@@ -16,7 +16,7 @@ import { Platform } from '@common/interfaces';
  * Submitted to PUT /devices/:id. Completely updates the fields of a specific device.
  * All fields are optional but validated if provided.
  */
-export class UpdateDeviceDto {
+export class UpdateDeviceRequestDto {
   /**
    * Unique push notification token issued by FCM or APNs.
    * Must not be empty if provided, and cannot exceed 255 characters.

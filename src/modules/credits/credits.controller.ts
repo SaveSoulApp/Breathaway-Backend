@@ -23,7 +23,7 @@ import { CreditsService } from './credits.service';
 import {
   ConsumeCreditsRequestDto,
   CreditBalanceResponseDto,
-  CreditLedgerQueryDto,
+  CreditLedgerQueryRequestDto,
   CreditLedgerResponseDto,
   PaginatedCreditLedgerResponseDto,
 } from './dto';
@@ -80,7 +80,7 @@ export class CreditsController extends BaseController {
   })
   async getLedger(
     @CurrentUserId() userId: string,
-    @Query() query: CreditLedgerQueryDto,
+    @Query() query: CreditLedgerQueryRequestDto,
   ): Promise<PaginatedCreditLedgerResponseDto> {
     return this.creditsService.getLedger(userId, query);
   }

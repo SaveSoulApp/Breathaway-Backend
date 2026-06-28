@@ -10,7 +10,7 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
  * will claim it rather than reject the request. Owned duplicates throw a ConflictException.
  * Both `publicValue` and `platformId` are lowercased before hashing and encryption.
  */
-export class CreateIdentityDto {
+export class CreateIdentityRequestDto {
   /** Determines the normalisation and hashing strategy applied to `publicValue`. */
   @ApiProperty({ enum: IdentityType, description: 'Type of the identity' })
   @Transform(({ value }: { value: unknown }) =>

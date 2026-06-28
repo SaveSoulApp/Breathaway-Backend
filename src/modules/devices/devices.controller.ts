@@ -27,10 +27,10 @@ import {
 } from '@nestjs/swagger';
 import { DevicesService } from './devices.service';
 import {
-  CreateDeviceDto,
+  CreateDeviceRequestDto,
   DeviceResponseDto,
-  PatchDeviceDto,
-  UpdateDeviceDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
 } from './dto';
 
 /**
@@ -90,7 +90,7 @@ export class DevicesController extends BaseController {
     @ClientIdentity(ClientIdentityKey.DEVICE_ID) deviceId: string,
     @ClientIdentity(ClientIdentityKey.USER_AGENT)
     userAgentData: interfaces.UserAgentData,
-    @Body() createDeviceDto: CreateDeviceDto,
+    @Body() createDeviceDto: CreateDeviceRequestDto,
   ) {
     // Override/app device metadata from headers if provided
     if (deviceId) createDeviceDto.deviceId = deviceId;
@@ -174,7 +174,7 @@ export class DevicesController extends BaseController {
   async updateDevice(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
-    @Body() updateDeviceDto: UpdateDeviceDto,
+    @Body() updateDeviceDto: UpdateDeviceRequestDto,
   ) {
     return this.devicesService.updateDevice(userId, deviceId, updateDeviceDto);
   }
@@ -207,7 +207,7 @@ export class DevicesController extends BaseController {
   async patchDevice(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
-    @Body() patchDeviceDto: PatchDeviceDto,
+    @Body() patchDeviceDto: PatchDeviceRequestDto,
   ) {
     return this.devicesService.patchDevice(userId, deviceId, patchDeviceDto);
   }

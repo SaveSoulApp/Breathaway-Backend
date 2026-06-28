@@ -8,8 +8,8 @@ import { BaseService } from '@core/base';
 import { Platform } from '@common/interfaces';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from './dto';
+import { AuditActionType } from '@modules/audit/dto';
+import { CreateDeviceRequestDto, PatchDeviceRequestDto, UpdateDeviceRequestDto } from './dto';
 
 /**
  * Owns the business logic for device registration, retrieval, modification, and removal.
@@ -41,7 +41,7 @@ export class DevicesService extends BaseService {
    */
   async createDevice(
     userId: string,
-    createDeviceDto: CreateDeviceDto,
+    createDeviceDto: CreateDeviceRequestDto,
   ): Promise<Device> {
     this.logger.log(`Registering device for user: ${userId}`);
 
@@ -146,7 +146,7 @@ export class DevicesService extends BaseService {
   async updateDevice(
     userId: string,
     deviceId: string,
-    updateDeviceDto: UpdateDeviceDto,
+    updateDeviceDto: UpdateDeviceRequestDto,
   ): Promise<Device> {
     this.logger.log(`Updating device ${deviceId} for user: ${userId}`);
 
@@ -205,7 +205,7 @@ export class DevicesService extends BaseService {
   async patchDevice(
     userId: string,
     deviceId: string,
-    patchDeviceDto: PatchDeviceDto,
+    patchDeviceDto: PatchDeviceRequestDto,
   ): Promise<Device> {
     this.logger.log(`Patching device ${deviceId} for user: ${userId}`);
 

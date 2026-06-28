@@ -2,7 +2,7 @@ import { AppTestContext, createAuthTestApp } from '../helpers/app-test.helper';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { AuditModule } from '@modules/audit/audit.module';
 

@@ -7,7 +7,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
  * Used in the sign-in endpoint to authenticate a user by verifying their credentials
  * via a Firebase UID token or OTP token against the provided unique identifier.
  */
-export class AuthSigninDto {
+export class AuthSigninRequestDto {
   /**
    * Firebase UID token or OTP verification token issued by the auth provider.
    * Must be a non-empty string used by the backend to verify the authenticity of the session.

@@ -20,7 +20,7 @@ import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
 import {
-  MatchListQueryDto,
+  MatchListQueryRequestDto,
   MatchResponseDto,
   PaginatedMatchResponseDto,
 } from './dto';
@@ -65,7 +65,7 @@ export class MatchesController extends BaseController {
   @SerializeExpose(PaginatedMatchResponseDto)
   async findAll(
     @CurrentUserId() userId: string,
-    @Query() query: MatchListQueryDto,
+    @Query() query: MatchListQueryRequestDto,
   ) {
     return this.matchesService.findAllForUser(userId, query);
   }

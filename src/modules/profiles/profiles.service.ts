@@ -8,8 +8,8 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
-import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from './dto';
+import { AuditActionType } from '@modules/audit/dto';
+import { CreateProfileRequestDto, PatchProfileRequestDto, UpdateProfileRequestDto } from './dto';
 
 /**
  * Owns the business logic for user profile lifecycle — creation, retrieval,
@@ -45,7 +45,7 @@ export class ProfilesService extends BaseService {
    */
   async createProfile(
     userId: string,
-    createProfileDto: CreateProfileDto,
+    createProfileDto: CreateProfileRequestDto,
   ): Promise<UserProfile> {
     this.logger.log(`Creating profile for user: ${userId}`);
 
@@ -151,7 +151,7 @@ export class ProfilesService extends BaseService {
    */
   async updateProfile(
     userId: string,
-    updateProfileDto: UpdateProfileDto,
+    updateProfileDto: UpdateProfileRequestDto,
   ): Promise<UserProfile> {
     this.logger.log(`Updating profile for user: ${userId}`);
 
@@ -205,7 +205,7 @@ export class ProfilesService extends BaseService {
    */
   async patchProfile(
     userId: string,
-    patchProfileDto: PatchProfileDto,
+    patchProfileDto: PatchProfileRequestDto,
   ): Promise<UserProfile> {
     this.logger.log(`Patching profile for user: ${userId}`);
 

@@ -1,11 +1,11 @@
 import { PartialType } from '@nestjs/swagger';
 
-import { CreateDeviceDto } from './create-device.request.dto';
+import { CreateDeviceRequestDto } from './create-device.request.dto';
 
 /**
  * Payload for partially updating a device record.
  *
  * Submitted to PATCH /devices/:id. Inherits all fields and validation constraints
- * from CreateDeviceDto, marking all properties as optional.
+ * from CreateDeviceRequestDto, marking all properties as optional.
  */
-export class PatchDeviceDto extends PartialType(CreateDeviceDto) {}
+export class PatchDeviceRequestDto extends PartialType(CreateDeviceRequestDto) {}

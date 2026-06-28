@@ -1,6 +1,6 @@
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -60,7 +60,7 @@ describe('AdminService', () => {
     const reason = 'Violation of terms';
 
     it('should throw NotFoundException if user does not exist', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(service.deleteAccount(userId, reason)).rejects.toThrow(
         NotFoundException,
@@ -68,7 +68,7 @@ describe('AdminService', () => {
     });
 
     it('should throw NotFoundException if user is already deleted', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         deletedAt: new Date(),
       } as any);
 
@@ -78,7 +78,7 @@ describe('AdminService', () => {
     });
 
     it('should soft delete user and related data within a transaction', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: userId,
         deletedAt: null,
       } as any);

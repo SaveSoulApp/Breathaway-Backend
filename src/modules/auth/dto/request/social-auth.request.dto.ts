@@ -22,7 +22,7 @@ export enum SocialAuthType {
  *
  * Used to link external social accounts, verify profile ownership, or perform OAuth/handle-based authentication.
  */
-export class SocialAuthDto {
+export class SocialAuthRequestDto {
   /**
    * The type of social media platform being linked or authenticated against.
    * Must be one of the supported platforms defined in SocialAuthType.

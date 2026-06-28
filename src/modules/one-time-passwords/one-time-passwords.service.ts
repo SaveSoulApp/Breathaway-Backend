@@ -1,7 +1,7 @@
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
 import { LoggerService } from '@core/logger';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import {
   BadRequestException,
   HttpException,

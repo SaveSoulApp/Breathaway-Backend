@@ -3,6 +3,8 @@ import * as pino from 'pino';
 
 export const createGcpLoggerConfig = (
   logLevel: string,
+  appName: string,
+  appVersion: string,
 ): pino.LoggerOptions => ({
   level: logLevel,
   formatters: {
@@ -10,8 +12,8 @@ export const createGcpLoggerConfig = (
     bindings: (bindings) => ({
       ...bindings,
       serviceContext: {
-        service: process.env.npm_package_name || 'nestjs-app',
-        version: process.env.npm_package_version || '1.0.0',
+        service: appName,
+        version: appVersion,
       },
     }),
   },
@@ -39,8 +41,8 @@ export const createGcpLoggerConfig = (
   },
   base: {
     serviceContext: {
-      service: process.env.npm_package_name || 'nestjs-app',
-      version: process.env.npm_package_version || '1.0.0',
+      service: appName,
+      version: appVersion,
     },
   },
 });

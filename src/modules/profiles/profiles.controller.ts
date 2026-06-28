@@ -23,10 +23,10 @@ import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import {
-  CreateProfileDto,
-  PatchProfileDto,
+  CreateProfileRequestDto,
+  PatchProfileRequestDto,
   ProfileResponseDto,
-  UpdateProfileDto,
+  UpdateProfileRequestDto,
 } from './dto';
 import { ProfilesService } from './profiles.service';
 
@@ -81,7 +81,7 @@ export class ProfilesController extends BaseController {
    */
   async createProfile(
     @CurrentUserId() userId: string,
-    @Body() createProfileDto: CreateProfileDto,
+    @Body() createProfileDto: CreateProfileRequestDto,
   ) {
     const profile = await this.profilesService.createProfile(
       userId,
@@ -162,7 +162,7 @@ export class ProfilesController extends BaseController {
    */
   async updateProfile(
     @CurrentUserId() userId: string,
-    @Body() updateProfileDto: UpdateProfileDto,
+    @Body() updateProfileDto: UpdateProfileRequestDto,
   ) {
     const profile = await this.profilesService.updateProfile(
       userId,
@@ -193,7 +193,7 @@ export class ProfilesController extends BaseController {
    */
   async patchProfile(
     @CurrentUserId() userId: string,
-    @Body() patchProfileDto: PatchProfileDto,
+    @Body() patchProfileDto: PatchProfileRequestDto,
   ) {
     const profile = await this.profilesService.patchProfile(
       userId,

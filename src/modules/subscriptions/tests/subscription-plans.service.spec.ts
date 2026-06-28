@@ -11,7 +11,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 
 import {
   CreatePlanPriceRequestDto,

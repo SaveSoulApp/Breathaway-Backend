@@ -5,7 +5,7 @@ import { LoggerService } from '@core/logger';
 import { UserProfile } from '@prisma/client';
 import { ProfilesController } from '../profiles.controller';
 import { ProfilesService } from '../profiles.service';
-import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
+import { CreateProfileRequestDto, PatchProfileRequestDto, UpdateProfileRequestDto } from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesController', () => {
@@ -63,7 +63,7 @@ describe('ProfilesController', () => {
   describe('createProfile', () => {
     it('should successfully create and return a profile', async () => {
       // Arrange
-      const createDto: CreateProfileDto = {
+      const createDto: CreateProfileRequestDto = {
         firstName: 'John',
         lastName: 'Doe',
       };
@@ -109,7 +109,7 @@ describe('ProfilesController', () => {
   describe('updateProfile', () => {
     it('should successfully update and return the profile', async () => {
       // Arrange
-      const updateDto: UpdateProfileDto = {
+      const updateDto: UpdateProfileRequestDto = {
         firstName: 'Jane',
         lastName: 'Doe',
       };
@@ -128,7 +128,7 @@ describe('ProfilesController', () => {
   describe('patchProfile', () => {
     it('should successfully patch and return the profile', async () => {
       // Arrange
-      const patchDto: PatchProfileDto = {
+      const patchDto: PatchProfileRequestDto = {
         firstName: 'Jane',
       };
       const patchedProfile = { ...mockUserProfile, firstName: 'Jane' };

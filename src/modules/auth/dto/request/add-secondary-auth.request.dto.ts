@@ -7,7 +7,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
  * This DTO is used during multi-factor authentication (MFA) setup or when linking alternative login credentials
  * to ensure that the new credential is valid and verified using a Firebase UID token or OTP token.
  */
-export class AddSecondaryAuthDto {
+export class AddSecondaryAuthRequestDto {
   /**
    * Firebase UID token or one-time password (OTP) token used to verify the ownership of the secondary identifier.
    * Must be a non-empty string obtained from the authentication provider.

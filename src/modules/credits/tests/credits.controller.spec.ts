@@ -7,7 +7,7 @@ import { LoggerService } from '@core/logger';
 
 import { CreditsController } from '../credits.controller';
 import { CreditsService } from '../credits.service';
-import { ConsumeCreditsRequestDto, CreditLedgerQueryDto } from '../dto';
+import { ConsumeCreditsRequestDto, CreditLedgerQueryRequestDto } from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('CreditsController', () => {
@@ -88,7 +88,7 @@ describe('CreditsController', () => {
   describe('getLedger', () => {
     it('should return paginated credit ledger', async () => {
       // Arrange
-      const query: CreditLedgerQueryDto = { page: 1, limit: 20 };
+      const query: CreditLedgerQueryRequestDto = { page: 1, limit: 20 };
       service.getLedger.mockResolvedValue(mockPaginatedLedger);
 
       // Act
