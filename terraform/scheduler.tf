@@ -77,11 +77,11 @@ resource "google_cloud_scheduler_job" "expire_pending_likes_job" {
   }
 }
 
-# 5. Create the Warn Expiring Bundles Job (Runs daily at 2:00 AM)
+# 5. Create the Warn Expiring Bundles Job (Runs daily at 10:00 AM)
 resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
   name        = "warn-expiring-credit-bundles-job"
   description = "Internal job to fan-out warnings for credit bundles expiring in 7 days"
-  schedule    = "0 2 * * *"
+  schedule    = "0 10 * * *"
   time_zone   = "UTC"
   region      = var.region
   project     = var.project_id
