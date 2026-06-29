@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -208,7 +208,7 @@ jobs:
       # ── 4. Post PR Comment ────────────────────────────────────────────────
       - name: Post PR Comment
         if: steps.gemini.outcome == 'success'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ env.PR_NUMBER }}
         with:
