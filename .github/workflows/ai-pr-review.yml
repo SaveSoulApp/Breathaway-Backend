@@ -143,7 +143,7 @@ jobs:
               -o response.json \
               -w "%{http_code}" \
               -X POST \
-              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent" \
               -H "Content-Type: application/json" \
               -H "x-goog-api-key: ${GEMINI_API_KEY}" \
               -d @body.json)
