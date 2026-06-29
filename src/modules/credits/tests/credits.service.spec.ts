@@ -28,6 +28,7 @@ import {
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
 import { ClsService } from 'nestjs-cls';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 describe('CreditsService', () => {
   let service: CreditsService;
@@ -58,6 +59,7 @@ describe('CreditsService', () => {
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: NotificationsService, useValue: { dispatch: jest.fn() } },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
