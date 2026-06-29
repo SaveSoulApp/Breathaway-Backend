@@ -122,6 +122,8 @@ jobs:
 
       # ── 3. Call Gemini ────────────────────────────────────────────────────
       - name: Call Gemini
+        id: gemini
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -185,6 +187,7 @@ jobs:
 
       # ── 4. Post PR Comment ────────────────────────────────────────────────
       - name: Post PR Comment
+        if: steps.gemini.outcome == 'success'
         uses: actions/github-script@v7
         with:
           script: |
