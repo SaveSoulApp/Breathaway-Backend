@@ -47,6 +47,17 @@ export class DateUtil {
   static parse(dateVal: string | number | Date): Date {
     return dayjs(dateVal).toDate();
   }
+
+  /**
+   * Adds a specified number of days to a given date.
+   *
+   * @param dateVal - The source date.
+   * @param days - Number of days to add.
+   * @returns A new native Date instance.
+   */
+  static addDays(dateVal: string | number | Date, days: number): Date {
+    return dayjs(dateVal).add(days, 'day').toDate();
+  }
 }
 
 /**

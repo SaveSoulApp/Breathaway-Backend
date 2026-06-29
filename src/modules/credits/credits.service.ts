@@ -169,9 +169,7 @@ export class CreditsService extends BaseService {
     }
 
     if (expiresWithinDays) {
-      const expiresAtMax = DateUtil.parse(
-        now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000,
-      );
+      const expiresAtMax = DateUtil.addDays(now, expiresWithinDays);
       where.expiresAt = {
         gt: now,
         lte: expiresAtMax,
@@ -504,7 +502,7 @@ export class CreditsService extends BaseService {
   ): Promise<void> {
     const asOf = DateUtil.parse(payload.asOf);
     // Target window end is asOf + 7 days
-    const targetEnd = new Date(asOf.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const targetEnd = DateUtil.addDays(asOf, 7);
 
     this.logger.log(
       `Processing credit expiry warning batch: ${payload.userIds.length} users, targetEnd=${targetEnd.toISOString()}`,

@@ -36,4 +36,24 @@ describe('Date Utils', () => {
       expect(formatDate('not a real date')).toBe('Invalid Date');
     });
   });
+
+  describe('DateUtil.addDays', () => {
+    it('should correctly add a specified number of days to a given date', () => {
+      const initialDate = DateUtil.parse('2023-01-01T12:00:00Z');
+      const expectedDate = DateUtil.parse('2023-01-08T12:00:00Z'); // 7 days later
+
+      const result = DateUtil.addDays(initialDate, 7);
+
+      expect(result.toISOString()).toBe(expectedDate.toISOString());
+    });
+
+    it('should correctly handle negative days', () => {
+      const initialDate = DateUtil.parse('2023-01-08T12:00:00Z');
+      const expectedDate = DateUtil.parse('2023-01-01T12:00:00Z'); // 7 days earlier
+
+      const result = DateUtil.addDays(initialDate, -7);
+
+      expect(result.toISOString()).toBe(expectedDate.toISOString());
+    });
+  });
 });

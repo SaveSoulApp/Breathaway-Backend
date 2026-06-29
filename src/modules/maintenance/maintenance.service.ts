@@ -176,8 +176,8 @@ export class MaintenanceService extends BaseService {
     const asOf = DateUtil.now();
 
     // Target window: bundles expiring between (asOf + 6 days) and (asOf + 7 days)
-    const targetStart = new Date(asOf.getTime() + 6 * 24 * 60 * 60 * 1000);
-    const targetEnd = new Date(asOf.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const targetStart = DateUtil.addDays(asOf, 6);
+    const targetEnd = DateUtil.addDays(asOf, 7);
 
     let cursor: string | undefined = undefined;
     let batchesPublished = 0;
