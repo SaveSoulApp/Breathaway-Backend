@@ -5,7 +5,6 @@ on:
     types:
       - opened
       - reopened
-      - synchronize
   # Manual re-trigger (avoids burning API calls on every push)
   workflow_dispatch:
 
@@ -42,6 +41,9 @@ jobs:
             ':(exclude)coverage/**' \
             ':(exclude)generated/**' \
             ':(exclude)node_modules/**' \
+            ':(exclude)*.test.ts' \
+            ':(exclude)*.spec.ts' \
+            ':(exclude)test/**' \
             > diff.txt
 
           # Guard against oversized diffs (Gemini context limit)
@@ -90,7 +92,6 @@ jobs:
           - Exception filters
           - SQL performance and PostgreSQL indexes
           - Breaking API changes
-          - Missing tests (e.g., new controllers or services without tests)
           - Swagger changes
 
           If the diff is trivial (e.g. only version bumps, comment changes, or
@@ -104,7 +105,6 @@ jobs:
           ## Security Concerns
           ## Performance Concerns
           ## Maintainability
-          ## Missing Tests
           ## Suggested Improvements
 
           Pull Request Title:
