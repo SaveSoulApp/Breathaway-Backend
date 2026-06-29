@@ -511,28 +511,21 @@ export class CreditsService extends BaseService {
     let warnedUsers = 0;
 
     for (const userId of payload.userIds) {
-      const ledger = await this.prisma.creditLedger.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'asc' },
+      const debitAggregate = await this.prisma.creditLedger.aggregate({
+        where: { userId, transactionType: CreditTransactionType.DEBIT },
+        _sum: { amount: true },
       });
 
-      let totalDebits = ledger
-        .filter((l) => l.transactionType === CreditTransactionType.DEBIT)
-        .reduce((sum, l) => sum + l.amount, 0);
+      let totalDebits = debitAggregate._sum.amount ?? 0;
 
-      const credits = ledger
-        .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
-        .sort((a, b) => {
-          if (a.expiresAt && b.expiresAt) {
-            if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
-              return a.createdAt.getTime() - b.createdAt.getTime();
-            }
-            return a.expiresAt.getTime() - b.expiresAt.getTime();
-          }
-          if (a.expiresAt && !b.expiresAt) return -1;
-          if (!a.expiresAt && b.expiresAt) return 1;
-          return a.createdAt.getTime() - b.createdAt.getTime();
-        });
+      const credits = await this.prisma.creditLedger.findMany({
+        where: {
+          userId,
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: { not: null },
+        },
+        orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+      });
 
       let needsWarning = false;
 
