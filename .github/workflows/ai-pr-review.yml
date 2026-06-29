@@ -5,6 +5,7 @@ on:
     types:
       - opened
       - reopened
+      - synchronize
   # Manual re-trigger (avoids burning API calls on every push)
   workflow_dispatch:
 
