@@ -133,17 +133,38 @@ jobs:
 
           # SECURITY: API key is passed as a header, NOT in the URL query string,
           # to prevent it from appearing in runner logs or network proxies.
-          HTTP_STATUS=$(curl \
-            -s \
-            -o response.json \
-            -w "%{http_code}" \
-            -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" \
-            -H "Content-Type: application/json" \
-            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
-            -d @body.json)
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          HTTP_STATUS=0
 
-          echo "Gemini HTTP status: ${HTTP_STATUS}"
+          while [ $RETRY_COUNT -le $MAX_RETRIES ]; do
+            HTTP_STATUS=$(curl \
+              -s \
+              -o response.json \
+              -w "%{http_code}" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" \
+              -H "Content-Type: application/json" \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+              -d @body.json)
+
+            echo "Gemini HTTP status: ${HTTP_STATUS}"
+
+            if [ "$HTTP_STATUS" == "200" ]; then
+              break
+            elif [ "$HTTP_STATUS" == "503" ] || [ "$HTTP_STATUS" == "429" ]; then
+              if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+                echo "Max retries reached. Failing."
+                break
+              fi
+              echo "API is busy or rate limited. Retrying in 10 seconds..."
+              sleep 10
+              RETRY_COUNT=$((RETRY_COUNT+1))
+            else
+              # Stop retrying on other errors (like 400 Bad Request)
+              break
+            fi
+          done
 
           # Fail fast so the workflow errors cleanly instead of posting "null" as a review
           if [ "$HTTP_STATUS" != "200" ]; then
