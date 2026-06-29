@@ -10,7 +10,7 @@ import { IsOptional, IsString } from 'class-validator';
  * lowercased, re-encrypted, and re-hashed before writing. Duplicate detection runs
  * against all other active identities of the same type.
  */
-export class UpdateIdentityDto {
+export class UpdateIdentityRequestDto {
   @ApiPropertyOptional({
     description: 'Public value (e.g., phone number, email, social handle)',
   })

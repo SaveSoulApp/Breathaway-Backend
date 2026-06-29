@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { CreditsController } from './credits.controller';
 import { CreditsService } from './credits.service';
 
+import { NotificationsModule } from '@modules/notifications/notifications.module';
+
 /**
  * Encapsulates the credit economy bounded context — balance tracking, ledger history,
  * and credit grant/consume operations.
@@ -12,6 +14,7 @@ import { CreditsService } from './credits.service';
  * introducing a circular import.
  */
 @Module({
+  imports: [NotificationsModule],
   controllers: [CreditsController],
   providers: [CreditsService],
   exports: [CreditsService],

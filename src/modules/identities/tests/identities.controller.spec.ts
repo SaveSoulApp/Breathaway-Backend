@@ -2,20 +2,20 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
 import {
-  CreateIdentityDto,
+  CreateIdentityRequestDto,
   IdentityResponseDto,
   LookupIdentityRequestDto,
-  UpdateIdentityDto,
+  UpdateIdentityRequestDto,
 } from '../dto';
 import { IdentitiesController } from '../identities.controller';
 import { IdentitiesService } from '../identities.service';
 import {
-  mockCreateIdentityDto,
+  mockCreateIdentityRequestDto,
   mockIdentityCompleteResponse,
   mockIdentityId,
   mockIdentityResponse,
   mockLookupIdentityDto,
-  mockUpdateIdentityDto,
+  mockUpdateIdentityRequestDto,
   mockUserId,
 } from './mocks/identities.mock';
 import { ClsService } from 'nestjs-cls';
@@ -77,14 +77,14 @@ describe('IdentitiesController', () => {
 
       const result = await controller.create(
         mockUserId,
-        mockCreateIdentityDto as CreateIdentityDto,
+        mockCreateIdentityRequestDto as CreateIdentityRequestDto,
       );
 
       // Assert
 
       expect(service.create).toHaveBeenCalledWith(
         mockUserId,
-        mockCreateIdentityDto,
+        mockCreateIdentityRequestDto,
       );
       expect(result).toEqual(mockIdentityResponse);
     });
@@ -185,7 +185,7 @@ describe('IdentitiesController', () => {
       const result = await controller.update(
         mockUserId,
         mockIdentityId,
-        mockUpdateIdentityDto as UpdateIdentityDto,
+        mockUpdateIdentityRequestDto as UpdateIdentityRequestDto,
       );
 
       // Assert
@@ -193,7 +193,7 @@ describe('IdentitiesController', () => {
       expect(service.update).toHaveBeenCalledWith(
         mockIdentityId,
         mockUserId,
-        mockUpdateIdentityDto,
+        mockUpdateIdentityRequestDto,
       );
       expect(result).toEqual(mockIdentityResponse);
     });

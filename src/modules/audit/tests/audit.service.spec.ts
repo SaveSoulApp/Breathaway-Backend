@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 import { AuditService } from '../audit.service';
-import { AuditActionType } from '../dto/audit-event.dto';
+import { AuditActionType } from '../dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('AuditService', () => {

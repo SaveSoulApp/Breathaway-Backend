@@ -16,4 +16,5 @@ export enum PubSubEvent {
 
   // Events flowing through the CREDIT_EXPIRY topic
   CREDIT_EXPIRY_BATCH = 'credit.expiry.batch',
+  CREDIT_EXPIRY_WARNING_BATCH = 'credit.expiry.warning.batch',
 }

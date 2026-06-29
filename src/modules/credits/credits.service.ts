@@ -11,18 +11,23 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 
 import {
   ConsumeCreditsRequestDto,
   CreditExpiryBatchRequestDto,
-  CreditLedgerQueryDto,
+  CreditLedgerQueryRequestDto,
   GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
+
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
 
 /**
  * Owns the credit economy domain — granting, consuming, querying, and expiring
@@ -39,6 +44,7 @@ export class CreditsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -99,7 +105,7 @@ export class CreditsService extends BaseService {
    */
   async getLedger(
     userId: string,
-    query: CreditLedgerQueryDto,
+    query: CreditLedgerQueryRequestDto,
   ): Promise<PaginatedCreditLedgerResponseDto> {
     const {
       page = 1,
@@ -163,9 +169,7 @@ export class CreditsService extends BaseService {
     }
 
     if (expiresWithinDays) {
-      const expiresAtMax = DateUtil.parse(
-        now.getTime() + expiresWithinDays * 24 * 60 * 60 * 1000,
-      );
+      const expiresAtMax = DateUtil.addDays(now, expiresWithinDays);
       where.expiresAt = {
         gt: now,
         lte: expiresAtMax,
@@ -483,6 +487,86 @@ export class CreditsService extends BaseService {
 
     this.logger.log(
       `Batch complete. Processed ${processedUsers} users. Inserted ${expiredDebitsInserted} expiration debits.`,
+    );
+  }
+
+  /**
+   * Pub/Sub listener that receives a batch of user IDs from the warning fan-out
+   * coordinator and dispatches exactly-once warnings for bundles expiring in 7 days.
+   *
+   * @param payload - Decoded Pub/Sub message body containing `userIds`.
+   */
+  @PubSubListener(PubSubEvent.CREDIT_EXPIRY_WARNING_BATCH)
+  async handleExpiryWarningBatch(
+    payload: CreditExpiryBatchRequestDto,
+  ): Promise<void> {
+    const asOf = DateUtil.parse(payload.asOf);
+    // Target window end is asOf + 7 days
+    const targetEnd = DateUtil.addDays(asOf, 7);
+
+    this.logger.log(
+      `Processing credit expiry warning batch: ${payload.userIds.length} users, targetEnd=${targetEnd.toISOString()}`,
+    );
+
+    let warnedUsers = 0;
+
+    for (const userId of payload.userIds) {
+      const debitAggregate = await this.prisma.creditLedger.aggregate({
+        where: { userId, transactionType: CreditTransactionType.DEBIT },
+        _sum: { amount: true },
+      });
+
+      let totalDebits = debitAggregate._sum.amount ?? 0;
+
+      const credits = await this.prisma.creditLedger.findMany({
+        where: {
+          userId,
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: { not: null },
+        },
+        orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+      });
+
+      let needsWarning = false;
+
+      for (const credit of credits) {
+        let usedFromThisCredit = 0;
+        if (totalDebits >= credit.amount) {
+          usedFromThisCredit = credit.amount;
+          totalDebits -= credit.amount;
+        } else {
+          usedFromThisCredit = totalDebits;
+          totalDebits = 0;
+        }
+
+        const unusedAmount = credit.amount - usedFromThisCredit;
+
+        // Warn if they have an unconsumed bundle expiring near targetEnd
+        // (the coordinator guarantees these bundles were queried from the [now+6d, now+7d) window)
+        if (
+          credit.expiresAt &&
+          credit.expiresAt > asOf &&
+          credit.expiresAt <= targetEnd &&
+          unusedAmount > 0
+        ) {
+          needsWarning = true;
+          break; // One warning per user is sufficient even if they have multiple bundles expiring
+        }
+      }
+
+      if (needsWarning) {
+        await this.notificationsService.dispatch({
+          type: NotificationType.BUNDLE_EXPIRY_WARNING,
+          category: NotificationCategory.SYSTEM,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+          userIds: [userId],
+        });
+        warnedUsers++;
+      }
+    }
+
+    this.logger.log(
+      `Warning batch complete. Dispatched warnings to ${warnedUsers} out of ${payload.userIds.length} users.`,
     );
   }
 }

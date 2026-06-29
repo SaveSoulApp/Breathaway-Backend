@@ -4,7 +4,6 @@ import { AppleSubscriptionService } from './services/apple-subscription.service'
 import { GoogleSubscriptionService } from './services/google-subscription.service';
 import { SubscriptionPlansService } from './services/subscription-plans.service';
 import { SubscriptionsService } from './services/subscriptions.service';
-import { SubscriptionsAdminController } from './subscriptions-admin.controller';
 import { SubscriptionsWebhookController } from './subscriptions-webhook.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 
@@ -17,20 +16,17 @@ import { SubscriptionsController } from './subscriptions.controller';
  *
  * Exports:
  *   - SubscriptionsService: exposed so other modules can query user subscription status.
+ *   - SubscriptionPlansService: exposed so AdminModule can manage plans.
  */
 @Module({
   imports: [CreditsModule],
-  controllers: [
-    SubscriptionsController,
-    SubscriptionsAdminController,
-    SubscriptionsWebhookController,
-  ],
+  controllers: [SubscriptionsController, SubscriptionsWebhookController],
   providers: [
     SubscriptionsService,
     SubscriptionPlansService,
     AppleSubscriptionService,
     GoogleSubscriptionService,
   ],
-  exports: [SubscriptionsService],
+  exports: [SubscriptionsService, SubscriptionPlansService],
 })
 export class SubscriptionsModule {}

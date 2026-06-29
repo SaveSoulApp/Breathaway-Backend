@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export class UpdateProfileDto {
+export class UpdateProfileRequestDto {
   @ApiPropertyOptional({
     description: 'First name of the user',
     example: 'John',

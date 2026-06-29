@@ -3,7 +3,7 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
@@ -13,9 +13,9 @@ import {
 } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
 import {
-  CreateIdentityDto,
+  CreateIdentityRequestDto,
   LookupIdentityRequestDto,
-  UpdateIdentityDto,
+  UpdateIdentityRequestDto,
 } from './dto';
 
 /**
@@ -56,7 +56,7 @@ export class IdentitiesService extends BaseService {
    * @throws {ConflictException} When an active identity with the same type and value or
    *   platform ID is already owned by another user.
    */
-  async create(userId: string, dto: CreateIdentityDto) {
+  async create(userId: string, dto: CreateIdentityRequestDto) {
     const publicValueData = await this.encryption.processPublicValue(
       dto.publicValue,
       dto.type,
@@ -282,7 +282,7 @@ export class IdentitiesService extends BaseService {
    * @throws {ConflictException} When another active identity of the same type already holds the
    *   supplied value or platform ID.
    */
-  async update(id: string, userId: string, dto: UpdateIdentityDto) {
+  async update(id: string, userId: string, dto: UpdateIdentityRequestDto) {
     const identity = await this.findOwnedOrFail(id, userId);
 
     if (!dto.publicValue && !dto.platformId) {

@@ -76,50 +76,37 @@ export class GcpSecretsKeyManager implements IKeyManager {
   }
 
   /**
-   * Extracts master keys from configuration sources with fallback support
+   * Extracts master keys from configuration sources.
    *
-   * LOADING PRIORITY:
-   * 1. Primary: Single JSON secret containing all master keys (GCP_SECRET_MASTER_KEYS)
-   * 2. Fallback: Multiple environment variables prefixed with 'MASTER_KEY_'
+   * LOADING STRATEGY:
+   * Expects a single JSON secret containing all master keys via `GCP_SECRET_MASTER_KEYS`.
+   * This ensures parity between local development and production environments.
    *
    * KEY FORMAT REQUIREMENTS:
    * - All keys must be Base64 encoded
    * - Each key must be exactly 32 bytes (256 bits) when decoded
    * - Key IDs should be descriptive (e.g., 'key-v1', 'key-v2')
    *
-   * @throws {Error} When keys are malformed or have invalid lengths
+   * @throws {Error} When keys are malformed, missing, or have invalid lengths
    */
   private extractMasterKeys() {
-    // Option 1: Load from single JSON secret (preferred for GCP Secrets Manager)
-    const allKeysJson = this.configService.get<string>(
+    const allKeysJson = this.configService.getOrThrow<string>(
       'GCP_SECRET_MASTER_KEYS',
     );
 
-    if (allKeysJson) {
-      try {
-        const parsed = JSON.parse(allKeysJson) as Record<string, string>;
-        for (const [keyId, base64] of Object.entries(parsed)) {
-          const key = Buffer.from(base64, 'base64');
-          // Validate key length to ensure cryptographic strength
-          if (key.length !== 32)
-            throw new Error(`Invalid key length for ${keyId}`);
-          this.masterKeys.set(keyId, key);
-        }
-      } catch (err) {
-        throw new Error(
-          `Invalid JSON in GCP_SECRET_MASTER_KEYS: ${(err as Error).message}`,
-        );
+    try {
+      const parsed = JSON.parse(allKeysJson) as Record<string, string>;
+      for (const [keyId, base64] of Object.entries(parsed)) {
+        const key = Buffer.from(base64, 'base64');
+        // Validate key length to ensure cryptographic strength
+        if (key.length !== 32)
+          throw new Error(`Invalid key length for ${keyId}`);
+        this.masterKeys.set(keyId, key);
       }
-    } else {
-      // Option 2: Load from multiple environment variables (fallback for local development)
-      for (const [key, value] of Object.entries(process.env)) {
-        if (key.startsWith('MASTER_KEY_')) {
-          // Convert env var name to key ID (e.g., 'MASTER_KEY_V1' -> 'key-v1')
-          const keyId = key.replace('MASTER_KEY_', 'key-').toLowerCase();
-          const buf = Buffer.from(value!, 'base64');
-          if (buf.length === 32) this.masterKeys.set(keyId, buf);
-        }
-      }
+    } catch (err) {
+      throw new Error(
+        `Invalid JSON in GCP_SECRET_MASTER_KEYS: ${(err as Error).message}`,
+      );
     }
   }
 

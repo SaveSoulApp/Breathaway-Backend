@@ -4,7 +4,7 @@ import { CurrencyCode, SubscriptionPlanStatus } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
 
-import { SubscriptionPlansService } from '../services/subscription-plans.service';
+import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
 import { SubscriptionsAdminController } from '../subscriptions-admin.controller';
 
 describe('SubscriptionsAdminController', () => {

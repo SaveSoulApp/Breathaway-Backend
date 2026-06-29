@@ -14,16 +14,16 @@ import {
 } from '@nestjs/common';
 import { IdentityType } from '@prisma/client';
 import {
-  AddSecondaryAuthDto,
-  AuthSigninDto,
-  AuthSignupDto,
-  DevLoginDto,
-  SocialAuthDto,
+  AddSecondaryAuthRequestDto,
+  AuthSigninRequestDto,
+  AuthSignupRequestDto,
+  DevLoginRequestDto,
+  SocialAuthRequestDto,
 } from './dto';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 
 /**
  * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
@@ -62,7 +62,7 @@ export class AuthService extends BaseService {
    *   (only PHONE and EMAIL are accepted).
    * @throws {ConflictException} When registration is pending verification for the same credential.
    */
-  async signup(dto: AuthSignupDto) {
+  async signup(dto: AuthSignupRequestDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
@@ -138,7 +138,7 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the account exists but has not completed OTP verification.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signin(dto: AuthSigninDto) {
+  async signin(dto: AuthSigninRequestDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
@@ -200,7 +200,7 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the credential belongs to an existing unverified account.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signInOrSignUp(dto: AuthSigninDto) {
+  async signInOrSignUp(dto: AuthSigninRequestDto) {
     const { authMethod } = await this.validateFirebaseToken(
       dto.uid,
       dto.uidToken,
@@ -279,7 +279,7 @@ export class AuthService extends BaseService {
    * @throws {ConflictException} When the platform account is already linked to another active user.
    * @throws {ConflictException} When the account has been deleted and requires re-verification.
    */
-  async socialAuth(dto: SocialAuthDto) {
+  async socialAuth(dto: SocialAuthRequestDto) {
     const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
 
     // Normalize and hash via the same helpers used everywhere else so that
@@ -416,7 +416,7 @@ export class AuthService extends BaseService {
    */
   async addSecondaryAuth(
     userId: string,
-    dto: AddSecondaryAuthDto,
+    dto: AddSecondaryAuthRequestDto,
     authType: AuthMethod.PHONE | AuthMethod.EMAIL,
   ) {
     // 1. Validate Firebase token and get identifier
@@ -541,7 +541,7 @@ export class AuthService extends BaseService {
    * @returns The user's ID and a signed JWT access token.
    * @throws {NotFoundException} When no credential matches the provided identifier.
    */
-  async devLogin(dto: DevLoginDto) {
+  async devLogin(dto: DevLoginRequestDto) {
     const value = dto.identifier;
 
     // Normalize before hashing so it matches the canonical hash stored at

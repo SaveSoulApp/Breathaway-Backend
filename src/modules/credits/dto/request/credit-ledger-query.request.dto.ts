@@ -17,7 +17,7 @@ import { CreditSource, CreditTransactionType } from '@prisma/client';
  * Query parameters for `GET /credits/ledger`; all fields are optional and combine
  * as AND filters on the ledger query.
  */
-export class CreditLedgerQueryDto {
+export class CreditLedgerQueryRequestDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })
   @IsOptional()
   @IsInt()

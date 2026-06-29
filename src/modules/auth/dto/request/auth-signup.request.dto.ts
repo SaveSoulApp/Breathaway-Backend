@@ -7,7 +7,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
  * Used in the sign-up endpoint to create a new user profile after verifying their credentials
  * via a Firebase UID token or OTP token.
  */
-export class AuthSignupDto {
+export class AuthSignupRequestDto {
   /**
    * Firebase UID token or OTP token proving the registration credentials have been verified.
    * Must be a non-empty string used to authenticate the initial sign-up request.

@@ -20,12 +20,12 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { AuthService } from './auth.service';
 import {
-  AddSecondaryAuthDto,
-  AuthSigninDto,
-  AuthSignupDto,
-  DevLoginDto,
-  SocialAuthDto,
-  UserAuthDto,
+  AddSecondaryAuthRequestDto,
+  AuthSigninRequestDto,
+  AuthSignupRequestDto,
+  DevLoginRequestDto,
+  SocialAuthRequestDto,
+  UserAuthResponseDto,
 } from './dto';
 import { AuthMethod } from './utils/auth-method.utils';
 
@@ -65,11 +65,11 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'User successfully signed up',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.CREATED)
-  signup(@Body() dto: AuthSignupDto) {
+  signup(@Body() dto: AuthSignupRequestDto) {
     return this.authService.signup(dto);
   }
 
@@ -89,11 +89,11 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully signed in',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signin(@Body() dto: AuthSigninDto) {
+  signin(@Body() dto: AuthSigninRequestDto) {
     return this.authService.signin(dto);
   }
 
@@ -112,11 +112,11 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully authenticated',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signinOrSignup(@Body() dto: AuthSigninDto) {
+  signinOrSignup(@Body() dto: AuthSigninRequestDto) {
     return this.authService.signInOrSignUp(dto);
   }
 
@@ -137,11 +137,11 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully authenticated via social provider',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  socialAuth(@Body() dto: SocialAuthDto) {
+  socialAuth(@Body() dto: SocialAuthRequestDto) {
     return this.authService.socialAuth(dto);
   }
 
@@ -161,11 +161,11 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Dev user successfully authenticated',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  devLogin(@Body() dto: DevLoginDto) {
+  devLogin(@Body() dto: DevLoginRequestDto) {
     return this.authService.devLogin(dto);
   }
 
@@ -189,11 +189,14 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Phone number added successfully',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  addPhone(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
+  addPhone(
+    @CurrentUserId() userId: string,
+    @Body() dto: AddSecondaryAuthRequestDto,
+  ) {
     return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE);
   }
 
@@ -217,11 +220,14 @@ export class AuthController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Email added successfully',
-    type: UserAuthDto,
+    type: UserAuthResponseDto,
   })
-  @SerializeExpose(UserAuthDto)
+  @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  addEmail(@CurrentUserId() userId: string, @Body() dto: AddSecondaryAuthDto) {
+  addEmail(
+    @CurrentUserId() userId: string,
+    @Body() dto: AddSecondaryAuthRequestDto,
+  ) {
     return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL);
   }
 

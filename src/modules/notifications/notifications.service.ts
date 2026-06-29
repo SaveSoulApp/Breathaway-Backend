@@ -28,6 +28,7 @@ const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   [NotificationType.NEW_MESSAGE]: EmailType.NEW_MESSAGE,
   [NotificationType.CREDIT_UPDATE]: EmailType.CREDIT_UPDATE,
   [NotificationType.SYSTEM_ALERT]: EmailType.SYSTEM_ALERT,
+  [NotificationType.BUNDLE_EXPIRY_WARNING]: EmailType.BUNDLE_EXPIRY_WARNING,
 };
 
 @Injectable()

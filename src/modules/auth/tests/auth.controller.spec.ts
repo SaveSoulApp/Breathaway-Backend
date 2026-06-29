@@ -7,7 +7,7 @@ import { LoggerService } from '@core/logger';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
-import { AuthSignupDto, AuthSigninDto } from '../dto';
+import { AuthSignupRequestDto, AuthSigninRequestDto } from '../dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -63,7 +63,10 @@ describe('AuthController', () => {
 
   describe('signup', () => {
     it('should sign up a user and return the user credentials', async () => {
-      const dto: AuthSignupDto = { uid: 'uid-123', uidToken: 'token-123' };
+      const dto: AuthSignupRequestDto = {
+        uid: 'uid-123',
+        uidToken: 'token-123',
+      };
       service.signup.mockResolvedValue(mockSignupResponse);
 
       const result = await controller.signup(dto);
@@ -75,7 +78,10 @@ describe('AuthController', () => {
 
   describe('signin', () => {
     it('should sign in a user and return the credentials', async () => {
-      const dto: AuthSigninDto = { uid: 'uid-123', uidToken: 'token-123' };
+      const dto: AuthSigninRequestDto = {
+        uid: 'uid-123',
+        uidToken: 'token-123',
+      };
       service.signin.mockResolvedValue(mockSigninResponse);
 
       const result = await controller.signin(dto);

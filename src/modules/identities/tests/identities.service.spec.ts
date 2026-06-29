@@ -12,13 +12,13 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
 import {
-  CreateIdentityDto,
+  CreateIdentityRequestDto,
   LookupIdentityRequestDto,
-  UpdateIdentityDto,
+  UpdateIdentityRequestDto,
 } from '../dto';
 import { IdentitiesService } from '../identities.service';
 import {
-  mockCreateIdentityDto,
+  mockCreateIdentityRequestDto,
   mockEncryptedData,
   mockIdentityData,
   mockIdentityId,
@@ -103,19 +103,19 @@ describe('IdentitiesService', () => {
 
       const result = await service.create(
         mockUserId,
-        mockCreateIdentityDto as CreateIdentityDto,
+        mockCreateIdentityRequestDto as CreateIdentityRequestDto,
       );
 
       // Assert
 
       expect(encryption.processPublicValue).toHaveBeenCalledWith(
-        mockCreateIdentityDto.publicValue,
-        mockCreateIdentityDto.type,
+        mockCreateIdentityRequestDto.publicValue,
+        mockCreateIdentityRequestDto.type,
       );
 
       expect(prisma.identity.findFirst).toHaveBeenCalledWith({
         where: {
-          type: mockCreateIdentityDto.type,
+          type: mockCreateIdentityRequestDto.type,
           OR: [{ publicValueHash: mockEncryptedData.publicValueHash }],
           deletedAt: null,
         },
@@ -123,7 +123,7 @@ describe('IdentitiesService', () => {
 
       expect(prisma.identity.create).toHaveBeenCalledWith({
         data: {
-          type: mockCreateIdentityDto.type,
+          type: mockCreateIdentityRequestDto.type,
           userId: mockUserId,
           isVerified: false,
           ...mockEncryptedData,
@@ -135,7 +135,7 @@ describe('IdentitiesService', () => {
     it('should successfully create an identity with platformId', async () => {
       // Arrange
       const dtoWithPlatform = {
-        ...mockCreateIdentityDto,
+        ...mockCreateIdentityRequestDto,
         platformId: '12345',
       };
 
@@ -153,7 +153,7 @@ describe('IdentitiesService', () => {
 
       const result = await service.create(
         mockUserId,
-        dtoWithPlatform as CreateIdentityDto,
+        dtoWithPlatform as CreateIdentityRequestDto,
       );
 
       // Assert
@@ -194,7 +194,10 @@ describe('IdentitiesService', () => {
 
       // Act & Assert
       await expect(
-        service.create(mockUserId, mockCreateIdentityDto as CreateIdentityDto),
+        service.create(
+          mockUserId,
+          mockCreateIdentityRequestDto as CreateIdentityRequestDto,
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -383,7 +386,7 @@ describe('IdentitiesService', () => {
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        {} as UpdateIdentityDto,
+        {} as UpdateIdentityRequestDto,
       );
 
       // Assert
@@ -410,7 +413,7 @@ describe('IdentitiesService', () => {
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as UpdateIdentityDto,
+        dto as UpdateIdentityRequestDto,
       );
 
       // Assert
@@ -448,7 +451,7 @@ describe('IdentitiesService', () => {
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as UpdateIdentityDto,
+        dto as UpdateIdentityRequestDto,
       );
 
       // Assert
@@ -485,7 +488,7 @@ describe('IdentitiesService', () => {
       const result = await service.update(
         mockIdentityId,
         mockUserId,
-        dto as UpdateIdentityDto,
+        dto as UpdateIdentityRequestDto,
       );
 
       // Assert
@@ -514,7 +517,11 @@ describe('IdentitiesService', () => {
 
       // Act & Assert
       await expect(
-        service.update(mockIdentityId, mockUserId, dto as UpdateIdentityDto),
+        service.update(
+          mockIdentityId,
+          mockUserId,
+          dto as UpdateIdentityRequestDto,
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -609,7 +616,7 @@ describe('IdentitiesService', () => {
       await expect(
         service.update(mockIdentityId, mockUserId, {
           publicValue: 'new@example.com',
-        } as UpdateIdentityDto),
+        } as UpdateIdentityRequestDto),
       ).rejects.toThrow(NotFoundException);
 
       expect(encryption.processPublicValue).not.toHaveBeenCalled();

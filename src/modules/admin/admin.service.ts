@@ -1,7 +1,7 @@
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 @Injectable()

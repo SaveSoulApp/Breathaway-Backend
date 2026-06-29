@@ -13,7 +13,11 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import { DevicesService } from '../devices.service';
-import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
+import {
+  CreateDeviceRequestDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
+} from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('DevicesService', () => {
@@ -73,7 +77,7 @@ describe('DevicesService', () => {
   };
 
   describe('createDevice', () => {
-    const createDto: CreateDeviceDto = {
+    const createDto: CreateDeviceRequestDto = {
       deviceId: 'device-123',
       token: 'fcm-token',
       platform: Platform.IOS,
@@ -101,7 +105,7 @@ describe('DevicesService', () => {
     });
 
     it('should create a new device successfully (ANDROID)', async () => {
-      const androidDto: CreateDeviceDto = {
+      const androidDto: CreateDeviceRequestDto = {
         ...createDto,
         platform: Platform.ANDROID,
       };
@@ -124,7 +128,7 @@ describe('DevicesService', () => {
     });
 
     it('should fallback to ANDROID if platform is unknown', async () => {
-      const unknownDto: CreateDeviceDto = {
+      const unknownDto: CreateDeviceRequestDto = {
         ...createDto,
         platform: 'UNKNOWN_PLATFORM' as Platform,
       };
@@ -218,7 +222,7 @@ describe('DevicesService', () => {
   });
 
   describe('updateDevice', () => {
-    const updateDto: UpdateDeviceDto = {
+    const updateDto: UpdateDeviceRequestDto = {
       deviceId: 'device-123-updated',
       token: 'fcm-token-updated',
       platform: Platform.IOS,
@@ -255,7 +259,7 @@ describe('DevicesService', () => {
 
     it('should update the device successfully (ANDROID)', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
-      const androidDto: UpdateDeviceDto = {
+      const androidDto: UpdateDeviceRequestDto = {
         ...updateDto,
         platform: Platform.ANDROID,
       };
@@ -284,7 +288,7 @@ describe('DevicesService', () => {
 
     it('should fallback to ANDROID if platform is unknown on update', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
-      const unknownDto: UpdateDeviceDto = {
+      const unknownDto: UpdateDeviceRequestDto = {
         ...updateDto,
         platform: 'UNKNOWN' as Platform,
       };
@@ -349,7 +353,7 @@ describe('DevicesService', () => {
   });
 
   describe('patchDevice', () => {
-    const patchDto: PatchDeviceDto = {
+    const patchDto: PatchDeviceRequestDto = {
       platform: Platform.IOS,
       appVersion: '1.0.2',
     };
@@ -384,7 +388,7 @@ describe('DevicesService', () => {
 
     it('should patch the device successfully (ANDROID)', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
-      const androidDto: PatchDeviceDto = {
+      const androidDto: PatchDeviceRequestDto = {
         ...patchDto,
         platform: Platform.ANDROID,
       };
@@ -413,7 +417,7 @@ describe('DevicesService', () => {
 
     it('should patch the device and fallback to ANDROID if platform is unknown', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
-      const unknownDto: PatchDeviceDto = {
+      const unknownDto: PatchDeviceRequestDto = {
         ...patchDto,
         platform: 'UNKNOWN' as Platform,
       };
@@ -450,7 +454,7 @@ describe('DevicesService', () => {
 
     it('should throw ConflictException on P2002 error', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
-      const patchDtoWithToken: PatchDeviceDto = { token: 'new-token' };
+      const patchDtoWithToken: PatchDeviceRequestDto = { token: 'new-token' };
       const error = new Error('Unique constraint failed');
       (error as unknown as { code: string }).code = 'P2002';
       prisma.device.update.mockRejectedValue(error);

@@ -11,7 +11,11 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
-import { CreateProfileDto, PatchProfileDto, UpdateProfileDto } from '../dto';
+import {
+  CreateProfileRequestDto,
+  PatchProfileRequestDto,
+  UpdateProfileRequestDto,
+} from '../dto';
 import { ProfilesService } from '../profiles.service';
 import { ClsService } from 'nestjs-cls';
 
@@ -64,7 +68,7 @@ describe('ProfilesService', () => {
   });
 
   describe('createProfile', () => {
-    const createDto: CreateProfileDto = {
+    const createDto: CreateProfileRequestDto = {
       firstName: 'John',
       lastName: 'Doe',
       dateOfBirth: '1990-01-01T00:00:00.000Z',
@@ -94,7 +98,7 @@ describe('ProfilesService', () => {
 
     it('should successfully create a profile without dateOfBirth', async () => {
       // Arrange
-      const dtoWithoutDob: CreateProfileDto = {
+      const dtoWithoutDob: CreateProfileRequestDto = {
         firstName: 'John',
         lastName: 'Doe',
       };
@@ -206,7 +210,7 @@ describe('ProfilesService', () => {
   });
 
   describe('updateProfile', () => {
-    const updateDto: UpdateProfileDto = {
+    const updateDto: UpdateProfileRequestDto = {
       firstName: 'Jane',
       lastName: 'Doe',
       dateOfBirth: '1995-01-01T00:00:00.000Z',
@@ -241,7 +245,7 @@ describe('ProfilesService', () => {
 
     it('should handle update without dateOfBirth', async () => {
       // Arrange
-      const dtoWithoutDob: UpdateProfileDto = {
+      const dtoWithoutDob: UpdateProfileRequestDto = {
         firstName: 'Jane',
         lastName: 'Doe',
       };
@@ -295,7 +299,7 @@ describe('ProfilesService', () => {
   });
 
   describe('patchProfile', () => {
-    const patchDto: PatchProfileDto = {
+    const patchDto: PatchProfileRequestDto = {
       firstName: 'Jane',
     };
 
@@ -321,7 +325,7 @@ describe('ProfilesService', () => {
 
     it('should handle patching dateOfBirth', async () => {
       // Arrange
-      const dtoWithDob: PatchProfileDto = {
+      const dtoWithDob: PatchProfileRequestDto = {
         dateOfBirth: '1995-01-01T00:00:00.000Z',
       };
       const patchedProfile = {

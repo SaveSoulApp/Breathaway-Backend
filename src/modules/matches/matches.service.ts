@@ -2,10 +2,10 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto/audit-event.dto';
+import { AuditActionType } from '@modules/audit/dto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { GenderType, IntentType, MatchStatus } from '@prisma/client';
-import { MatchListQueryDto } from './dto';
+import { MatchListQueryRequestDto } from './dto';
 
 /**
  * Minimal database projection for a match record with both participants and
@@ -72,7 +72,7 @@ export class MatchesService extends BaseService {
    * @param query  - Pagination options (`page`, `limit`).
    * @returns A paginated envelope with match summaries and pagination metadata.
    */
-  async findAllForUser(userId: string, query: MatchListQueryDto) {
+  async findAllForUser(userId: string, query: MatchListQueryRequestDto) {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 

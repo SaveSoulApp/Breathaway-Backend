@@ -55,7 +55,7 @@ export enum AuditActionType {
  * a downstream consumer to reconstruct what changed and why, without querying
  * the primary database.
  */
-export class AuditEventDto {
+export class AuditEventRequestDto {
   /** The category of action being recorded; used as a Pub/Sub message attribute for filtering. */
   @IsEnum(AuditActionType)
   @IsNotEmpty()

@@ -23,11 +23,12 @@ import {
 import { CreditsService } from '../credits.service';
 import {
   ConsumeCreditsRequestDto,
-  CreditLedgerQueryDto,
+  CreditLedgerQueryRequestDto,
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
 import { ClsService } from 'nestjs-cls';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 describe('CreditsService', () => {
   let service: CreditsService;
@@ -58,6 +59,7 @@ describe('CreditsService', () => {
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: NotificationsService, useValue: { dispatch: jest.fn() } },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -163,7 +165,7 @@ describe('CreditsService', () => {
 
     it('should apply filters correctly', async () => {
       // Arrange
-      const query: CreditLedgerQueryDto = {
+      const query: CreditLedgerQueryRequestDto = {
         page: 2,
         limit: 10,
         transactionType: CreditTransactionType.CREDIT,
@@ -197,7 +199,7 @@ describe('CreditsService', () => {
 
     it('should handle EXPIRED credit status filter', async () => {
       // Arrange
-      const query: CreditLedgerQueryDto = {
+      const query: CreditLedgerQueryRequestDto = {
         creditStatus: CreditStatusFilter.EXPIRED,
       };
       prisma.creditLedger.count.mockResolvedValue(1);
@@ -218,7 +220,9 @@ describe('CreditsService', () => {
 
     it('should handle dates with T included', async () => {
       // Arrange
-      const query: CreditLedgerQueryDto = { createdTo: '2023-12-31T12:00:00Z' };
+      const query: CreditLedgerQueryRequestDto = {
+        createdTo: '2023-12-31T12:00:00Z',
+      };
       prisma.creditLedger.count.mockResolvedValue(1);
       prisma.creditLedger.findMany.mockResolvedValue([mockLedgerEntry]);
 

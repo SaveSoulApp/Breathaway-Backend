@@ -8,7 +8,11 @@ import { LoggerService } from '@core/logger';
 
 import { DevicesController } from '../devices.controller';
 import { DevicesService } from '../devices.service';
-import { CreateDeviceDto, PatchDeviceDto, UpdateDeviceDto } from '../dto';
+import {
+  CreateDeviceRequestDto,
+  PatchDeviceRequestDto,
+  UpdateDeviceRequestDto,
+} from '../dto';
 import { ClsService } from 'nestjs-cls';
 
 describe('DevicesController', () => {
@@ -70,7 +74,7 @@ describe('DevicesController', () => {
 
   describe('registerDevice', () => {
     it('should register a device overriding fields with header values (all if branches covered)', async () => {
-      const createDto: CreateDeviceDto = {
+      const createDto: CreateDeviceRequestDto = {
         deviceId: 'old-id',
         token: 'fcm-token',
         platform: Platform.ANDROID,
@@ -100,7 +104,7 @@ describe('DevicesController', () => {
     });
 
     it('should register a device covering edge cases for empty header values', async () => {
-      const createDto: CreateDeviceDto = {
+      const createDto: CreateDeviceRequestDto = {
         deviceId: 'old-id',
         token: 'fcm-token',
         platform: Platform.ANDROID,
@@ -130,7 +134,7 @@ describe('DevicesController', () => {
     });
 
     it('should register a device missing version and platform in user agent', async () => {
-      const createDto: CreateDeviceDto = {
+      const createDto: CreateDeviceRequestDto = {
         deviceId: 'original-id',
         token: 'fcm-token',
         platform: Platform.IOS,
@@ -185,7 +189,7 @@ describe('DevicesController', () => {
 
   describe('updateDevice', () => {
     it('should update device', async () => {
-      const updateDto: UpdateDeviceDto = {
+      const updateDto: UpdateDeviceRequestDto = {
         deviceId: 'device-123',
         token: 'fcm-token-updated',
         platform: Platform.IOS,
@@ -214,7 +218,7 @@ describe('DevicesController', () => {
 
   describe('patchDevice', () => {
     it('should patch device', async () => {
-      const patchDto: PatchDeviceDto = {
+      const patchDto: PatchDeviceRequestDto = {
         appVersion: '1.0.2',
       };
 

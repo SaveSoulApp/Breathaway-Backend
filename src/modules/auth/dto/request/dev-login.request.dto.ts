@@ -7,7 +7,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
  * This DTO is strictly utilized in development or staging environments to facilitate rapid testing
  * without requiring live SMS or external provider authentication tokens.
  */
-export class DevLoginDto {
+export class DevLoginRequestDto {
   /**
    * The developer or test user identifier (e.g., pre-seeded email or test phone number).
    * Must be a non-empty string configured in the local seed or test databases.

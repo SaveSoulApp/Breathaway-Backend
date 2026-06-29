@@ -6,7 +6,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { AUDIT_LOG_EVENT } from './constants';
-import { AuditEventDto } from './dto/audit-event.dto';
+import { AuditEventRequestDto } from './dto';
 
 /**
  * Listens for internal `audit.log` application events and forwards them as
@@ -44,7 +44,7 @@ export class AuditService extends BaseService {
    *                  optional resource and metadata context.
    */
   @OnEvent(AUDIT_LOG_EVENT)
-  async handleAuditLogEvent(payload: AuditEventDto) {
+  async handleAuditLogEvent(payload: AuditEventRequestDto) {
     try {
       await this.pubSubPublisher.publish(
         this.auditTopic,

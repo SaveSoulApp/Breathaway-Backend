@@ -22,11 +22,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
-  CreateIdentityDto,
+  CreateIdentityRequestDto,
   IdentityCompleteResponseDto,
   IdentityResponseDto,
   LookupIdentityRequestDto,
-  UpdateIdentityDto,
+  UpdateIdentityRequestDto,
 } from './dto';
 import { IdentitiesService } from './identities.service';
 
@@ -75,7 +75,7 @@ export class IdentitiesController extends BaseController {
   @SerializeExpose(IdentityResponseDto)
   async create(
     @CurrentUserId() userId: string,
-    @Body() dto: CreateIdentityDto,
+    @Body() dto: CreateIdentityRequestDto,
   ) {
     return this.identitiesService.create(userId, dto);
   }
@@ -209,7 +209,7 @@ export class IdentitiesController extends BaseController {
   async update(
     @CurrentUserId() userId: string,
     @Param('id') id: string,
-    @Body() dto: UpdateIdentityDto,
+    @Body() dto: UpdateIdentityRequestDto,
   ) {
     return this.identitiesService.update(id, userId, dto);
   }

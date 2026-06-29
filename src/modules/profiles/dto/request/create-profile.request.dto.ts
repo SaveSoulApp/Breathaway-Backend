@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export class CreateProfileDto {
+export class CreateProfileRequestDto {
   @ApiProperty({
     description: 'First name of the user',
     example: 'John',

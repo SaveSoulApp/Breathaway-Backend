@@ -3,6 +3,14 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 import {
+  CreatePlanPriceRequestDto,
+  CreatePlanRequestDto,
+  SubscriptionPlanPriceResponseDto,
+  SubscriptionPlanResponseDto,
+  UpdatePlanRequestDto,
+} from '@modules/subscriptions/dto';
+import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
+import {
   Body,
   Controller,
   Delete,
@@ -20,14 +28,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import {
-  CreatePlanPriceRequestDto,
-  CreatePlanRequestDto,
-  SubscriptionPlanPriceResponseDto,
-  SubscriptionPlanResponseDto,
-  UpdatePlanRequestDto,
-} from './dto';
-import { SubscriptionPlansService } from './services/subscription-plans.service';
 
 /**
  * Handles HTTP operations for the /admin/subscriptions resource.

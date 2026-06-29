@@ -4,12 +4,12 @@ import { IdentityType } from '@prisma/client';
 export const mockUserId = 'user-123';
 export const mockIdentityId = 'identity-123';
 
-export const mockCreateIdentityDto = {
+export const mockCreateIdentityRequestDto = {
   type: IdentityType.EMAIL,
   publicValue: 'test@example.com',
 };
 
-export const mockUpdateIdentityDto = {
+export const mockUpdateIdentityRequestDto = {
   publicValue: 'updated@example.com',
 };
 

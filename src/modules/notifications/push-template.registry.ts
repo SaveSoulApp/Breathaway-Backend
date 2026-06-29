@@ -34,4 +34,10 @@ export const PUSH_TEMPLATE_MAP: Partial<
     title: Handlebars.compile('{{alertTitle}}'),
     body: Handlebars.compile('{{alertBody}}'),
   },
+  [NotificationType.BUNDLE_EXPIRY_WARNING]: {
+    title: Handlebars.compile('Your likes are expiring soon ⏳'),
+    body: Handlebars.compile(
+      "You have unused likes that will expire in 7 days. Use them before they're gone!",
+    ),
+  },
 };
