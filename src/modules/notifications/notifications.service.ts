@@ -52,7 +52,7 @@ export class NotificationsService extends BaseService {
   async dispatch(dto: SendNotificationRequestDto): Promise<void> {
     const topicName =
       this.configService.get<string>('PUBSUB_NOTIFICATIONS_TOPIC') ||
-      'notifications';
+      'notifications-stream';
 
     try {
       await this.pubSubPublisherService.publish(
