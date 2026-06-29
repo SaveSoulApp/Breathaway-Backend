@@ -1,0 +1,231 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+  # Manual re-trigger (avoids burning API calls on every push)
+  workflow_dispatch:
+
+# Prevent parallel reviews for the same PR (avoids Gemini rate-limit races)
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 1. Get PR Diff ────────────────────────────────────────────────────
+      - name: Get PR Diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+          git diff \
+            origin/${{ github.event.pull_request.base.ref }}...HEAD \
+            -- . \
+            ':(exclude)package-lock.json' \
+            ':(exclude)pnpm-lock.yaml' \
+            ':(exclude)yarn.lock' \
+            ':(exclude)dist/**' \
+            ':(exclude)coverage/**' \
+            ':(exclude)generated/**' \
+            ':(exclude)node_modules/**' \
+            ':(exclude)*.test.ts' \
+            ':(exclude)*.spec.ts' \
+            ':(exclude)test/**' \
+            > diff.txt
+
+          # Guard against oversized diffs (Gemini context limit)
+          MAX_BYTES=900000   # ~900 KB — leaves room for the surrounding prompt
+          ACTUAL_BYTES=$(wc -c < diff.txt)
+          echo "Diff size: ${ACTUAL_BYTES} bytes"
+
+          if [ "$ACTUAL_BYTES" -gt "$MAX_BYTES" ]; then
+            echo "Diff exceeds ${MAX_BYTES} bytes — truncating to avoid context overflow"
+            head -c "$MAX_BYTES" diff.txt > diff_trimmed.txt
+            printf '\n\n... (diff truncated — PR is too large for a full review)\n' >> diff_trimmed.txt
+            mv diff_trimmed.txt diff.txt
+          fi
+
+      # ── 2. Generate Prompt ────────────────────────────────────────────────
+      # SECURITY: PR title and body are written via env vars — never interpolated
+      # directly into shell strings — to prevent command/heredoc injection.
+      - name: Generate Prompt
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Write dynamic values to files so they never touch shell interpolation
+          printf '%s' "$PR_TITLE" > pr_title.txt
+          printf '%s' "$PR_BODY"  > pr_body.txt
+
+          cat <<'HEADER' > prompt_header.txt
+          You are a senior NestJS backend engineer.
+
+          Review this Pull Request.
+
+          Repository Stack:
+          - NestJS
+          - Prisma
+          - PostgreSQL
+          - TypeScript
+
+          Look specifically for:
+          - NestJS dependency injection issues
+          - Prisma query mistakes
+          - N+1 queries
+          - Missing transactions for multi-step writes
+          - DTO validation
+          - Guards
+          - Interceptors
+          - Exception filters
+          - SQL performance and PostgreSQL indexes
+          - Breaking API changes
+          - Swagger changes
+
+          If the diff is trivial (e.g. only version bumps, comment changes, or
+          whitespace), respond with a one-line summary and skip unused sections.
+
+          Please generate a review with the following sections:
+
+          ## Summary
+          ## Major Changes
+          ## Potential Bugs
+          ## Security Concerns
+          ## Performance Concerns
+          ## Maintainability
+          ## Suggested Improvements
+
+          Pull Request Title:
+          HEADER
+
+          # Concatenate: static header + dynamic title + static separator + dynamic body + diff
+          {
+            cat prompt_header.txt
+            cat pr_title.txt
+            printf '\n\nDescription:\n'
+            cat pr_body.txt
+            printf '\n\nGit Diff:\n'
+            cat diff.txt
+          } > prompt.txt
+
+      # ── 3. Call Gemini ────────────────────────────────────────────────────
+      - name: Call Gemini
+        id: gemini
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # jq safely JSON-encodes the full prompt (handles special chars, newlines, etc.)
+          jq -Rs \
+            '{contents:[{parts:[{text:.}]}]}' \
+            prompt.txt \
+            > body.json
+
+          # SECURITY: API key is passed as a header, NOT in the URL query string,
+          # to prevent it from appearing in runner logs or network proxies.
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          HTTP_STATUS=0
+
+          while [ $RETRY_COUNT -le $MAX_RETRIES ]; do
+            HTTP_STATUS=$(curl \
+              -s \
+              -o response.json \
+              -w "%{http_code}" \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent" \
+              -H "Content-Type: application/json" \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+              -d @body.json)
+
+            echo "Gemini HTTP status: ${HTTP_STATUS}"
+
+            if [ "$HTTP_STATUS" == "200" ]; then
+              break
+            elif [ "$HTTP_STATUS" == "503" ] || [ "$HTTP_STATUS" == "429" ]; then
+              if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+                echo "Max retries reached. Failing."
+                break
+              fi
+              echo "API is busy or rate limited. Retrying in 10 seconds..."
+              sleep 10
+              RETRY_COUNT=$((RETRY_COUNT+1))
+            else
+              # Stop retrying on other errors (like 400 Bad Request)
+              break
+            fi
+          done
+
+          # Fail fast so the workflow errors cleanly instead of posting "null" as a review
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Gemini API error response:"
+            cat response.json
+            exit 1
+          fi
+
+          # Log token usage for cost/observability tracking
+          echo "Token usage:"
+          jq '.usageMetadata' response.json
+
+          # Extract the generated review text
+          jq -r \
+            '.candidates[0].content.parts[0].text' \
+            response.json \
+            > review.md
+
+      # ── 4. Post PR Comment ────────────────────────────────────────────────
+      - name: Post PR Comment
+        if: steps.gemini.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('review.md', 'utf8');
+
+            // Unique marker — prevents collision with other bots that may also
+            // post comments containing "## Summary"
+            const MARKER = '<!-- ai-pr-review-bot -->';
+
+            const sha   = context.sha.slice(0, 7);
+            const runAt = new Date().toUTCString();
+
+            // Find existing AI review comment by our unique marker
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.body.includes(MARKER)
+            );
+
+            if (botComment) {
+              // Update existing comment — include commit SHA and timestamp for traceability
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: `${MARKER}\n*(Updated at ${runAt} — ${sha})*\n\n` + body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `${MARKER}\n### 🤖 AI PR Review\n\n` + body
+              });
+            }
