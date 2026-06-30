@@ -122,21 +122,19 @@ jobs:
           ## 🤖 AI Summary & Walkthrough
           Provide a high-level summary of what this PR accomplishes.
 
-          ### 🗺️ Architecture / Flow Diagram
+          ## 🗺️ Architecture / Flow Diagram
           Generate a Mermaid.js `graph TD` or `sequenceDiagram` that visualizes the changes in this PR. 
           Use valid mermaid syntax enclosed in ```mermaid code blocks.
 
-          ### 📂 File Walkthrough
+          ## 📂 File Walkthrough
           Provide a bulleted list explaining the key changes file-by-file.
 
-          ### 🔍 Code Review
-          Include the following subsections for your code review:
-          - **Major Changes**
-          - **Potential Bugs**
-          - **Security Concerns**
-          - **Performance Concerns**
-          - **Maintainability**
-          - **Suggested Improvements**
+          ## Major Changes
+          ## Potential Bugs
+          ## Security Concerns
+          ## Performance Concerns
+          ## Maintainability
+          ## Suggested Improvements
 
           Pull Request Title:
           HEADER
