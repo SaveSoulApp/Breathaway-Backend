@@ -117,15 +117,26 @@ jobs:
           If the diff is trivial (e.g. only version bumps, comment changes, or
           whitespace), respond with a one-line summary and skip unused sections.
 
-          Please generate a review with the following sections:
+          Please generate a review with the following sections. Output MUST be valid Markdown.
 
-          ## Summary
-          ## Major Changes
-          ## Potential Bugs
-          ## Security Concerns
-          ## Performance Concerns
-          ## Maintainability
-          ## Suggested Improvements
+          ## 🤖 AI Summary & Walkthrough
+          Provide a high-level summary of what this PR accomplishes.
+
+          ### 🗺️ Architecture / Flow Diagram
+          Generate a Mermaid.js `graph TD` or `sequenceDiagram` that visualizes the changes in this PR. 
+          Use valid mermaid syntax enclosed in ```mermaid code blocks.
+
+          ### 📂 File Walkthrough
+          Provide a bulleted list explaining the key changes file-by-file.
+
+          ### 🔍 Code Review
+          Include the following subsections for your code review:
+          - **Major Changes**
+          - **Potential Bugs**
+          - **Security Concerns**
+          - **Performance Concerns**
+          - **Maintainability**
+          - **Suggested Improvements**
 
           Pull Request Title:
           HEADER
@@ -205,8 +216,8 @@ jobs:
             response.json \
             > review.md
 
-      # ── 4. Post PR Comment ────────────────────────────────────────────────
-      - name: Post PR Comment
+      # ── 4. Update PR Description ────────────────────────────────────────────
+      - name: Update PR Description
         if: steps.gemini.outcome == 'success'
         uses: actions/github-script@v8
         env:
@@ -214,41 +225,42 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const body = fs.readFileSync('review.md', 'utf8');
+            const newReviewBody = fs.readFileSync('review.md', 'utf8');
 
-            // Unique marker — prevents collision with other bots that may also
-            // post comments containing "## Summary"
-            const MARKER = '<!-- ai-pr-review-bot -->';
+            const MARKER_START = '<!-- ai-pr-review-start -->';
+            const MARKER_END = '<!-- ai-pr-review-end -->';
 
             const sha   = context.sha.slice(0, 7);
             const runAt = new Date().toUTCString();
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
 
-            // Find existing AI review comment by our unique marker
-            const comments = await github.rest.issues.listComments({
+            // Fetch the current PR details to get the existing body
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issue_number,
+              pull_number: issue_number,
             });
 
-            const botComment = comments.data.find(comment =>
-              comment.body.includes(MARKER)
-            );
+            let currentBody = pr.body || '';
+            let newBody = '';
 
-            if (botComment) {
-              // Update existing comment — include commit SHA and timestamp for traceability
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: `${MARKER}\n*(Updated at ${runAt} — ${sha})*\n\n` + body
-              });
+            // The block we want to insert
+            const aiBlock = `\n\n${MARKER_START}\n---\n### 🤖 AI PR Review *(Updated at ${runAt} — ${sha})*\n\n${newReviewBody}\n${MARKER_END}`;
+
+            // Check if we already have an AI review in the description
+            if (currentBody.includes(MARKER_START) && currentBody.includes(MARKER_END)) {
+              // Replace the existing AI block with the new one
+              const regex = new RegExp(`${MARKER_START}[\\s\\S]*?${MARKER_END}`, 'g');
+              newBody = currentBody.replace(regex, aiBlock.trim());
             } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue_number,
-                body: `${MARKER}\n### 🤖 AI PR Review\n\n` + body
-              });
+              // Append to the bottom of the existing description
+              newBody = currentBody + aiBlock;
             }
+
+            // Update the PR description
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issue_number,
+              body: newBody
+            });
