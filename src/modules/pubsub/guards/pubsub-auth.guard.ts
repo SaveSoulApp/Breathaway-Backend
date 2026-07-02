@@ -3,8 +3,8 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
+import { MissingPubSubConfigException, InvalidPubSubTokenException } from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 
@@ -30,9 +30,9 @@ export class PubSubAuthGuard implements CanActivate {
    * is treated as a server configuration error rather than a silent bypass.
    *
    * @returns `true` when the token is valid.
-   * @throws {UnauthorizedException} When `PUBSUB_VERIFICATION_TOKEN` is not set
+   * @throws {MissingPubSubConfigException} When `PUBSUB_VERIFICATION_TOKEN` is not set
    *   in the environment.
-   * @throws {UnauthorizedException} When the request token is absent or does not
+   * @throws {InvalidPubSubTokenException} When the request token is absent or does not
    *   match the expected value.
    */
   canActivate(context: ExecutionContext): boolean {
@@ -50,14 +50,14 @@ export class PubSubAuthGuard implements CanActivate {
       this.logger.error(
         'PUBSUB_VERIFICATION_TOKEN is not configured in the environment.',
       );
-      throw new UnauthorizedException('Server configuration error');
+      throw new MissingPubSubConfigException();
     }
 
     if (!requestToken || requestToken !== expectedToken) {
       this.logger.warn(
         'Unauthorized Pub/Sub ingest attempt. Invalid or missing token.',
       );
-      throw new UnauthorizedException('Invalid Pub/Sub verification token');
+      throw new InvalidPubSubTokenException();
     }
 
     return true;

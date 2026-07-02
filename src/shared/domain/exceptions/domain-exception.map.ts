@@ -42,4 +42,6 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   MissingInstagramConfigException: HttpStatus.INTERNAL_SERVER_ERROR,
   OtpRateLimitExceededException: HttpStatus.TOO_MANY_REQUESTS,
   InvalidOtpException: HttpStatus.BAD_REQUEST,
+  MissingPubSubConfigException: HttpStatus.INTERNAL_SERVER_ERROR,
+  InvalidPubSubTokenException: HttpStatus.UNAUTHORIZED,
 };

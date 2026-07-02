@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
+import { MissingPubSubConfigException, InvalidPubSubTokenException } from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PubSubAuthGuard } from '../guards/pubsub-auth.guard';
@@ -61,11 +62,11 @@ describe('PubSubAuthGuard', () => {
   };
 
   describe('canActivate', () => {
-    it('should throw UnauthorizedException if PUBSUB_VERIFICATION_TOKEN is not configured', () => {
+    it('should throw MissingPubSubConfigException if PUBSUB_VERIFICATION_TOKEN is not configured', () => {
       configService.get.mockReturnValue(undefined);
       const context = createMockContext('some_token');
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      expect(() => guard.canActivate(context)).toThrow(MissingPubSubConfigException);
       expect(() => guard.canActivate(context)).toThrow(
         'Server configuration error',
       );
@@ -74,11 +75,11 @@ describe('PubSubAuthGuard', () => {
       );
     });
 
-    it('should throw UnauthorizedException if request token is missing', () => {
+    it('should throw InvalidPubSubTokenException if request token is missing', () => {
       configService.get.mockReturnValue('valid_token');
       const context = createMockContext(undefined);
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      expect(() => guard.canActivate(context)).toThrow(InvalidPubSubTokenException);
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );
@@ -87,11 +88,11 @@ describe('PubSubAuthGuard', () => {
       );
     });
 
-    it('should throw UnauthorizedException if request token does not match expected token', () => {
+    it('should throw InvalidPubSubTokenException if request token does not match expected token', () => {
       configService.get.mockReturnValue('valid_token');
       const context = createMockContext('invalid_token');
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      expect(() => guard.canActivate(context)).toThrow(InvalidPubSubTokenException);
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );
