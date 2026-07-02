@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ActiveSubscriptionNotFoundException } from '../application/exceptions';
 import { StorePlatform } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
@@ -143,13 +143,13 @@ describe('SubscriptionsController', () => {
       expect(result).toEqual(mockSubscription);
     });
 
-    it('should throw NotFoundException if no active subscription exists', async () => {
+    it('should throw ActiveSubscriptionNotFoundException if no active subscription exists', async () => {
       // Arrange
       subscriptionsService.getActiveSubscription.mockResolvedValue(null);
 
       // Act & Assert
       await expect(controller.getMySubscription(userId)).rejects.toThrow(
-        new NotFoundException('No active subscription found'),
+        new ActiveSubscriptionNotFoundException(),
       );
     });
   });

@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NotFoundException } from '@nestjs/common';
+import { SubscriptionPlanNotFoundException, SubscriptionPlanPriceNotFoundException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -157,13 +157,13 @@ describe('SubscriptionPlansService', () => {
       expect(result).toEqual(mockPlan);
     });
 
-    it('should throw NotFoundException if plan is not found', async () => {
+    it('should throw Exception if plan is not found', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.getPlanById('non-existent')).rejects.toThrow(
-        new NotFoundException(
+        new SubscriptionPlanNotFoundException(
           'Subscription plan with ID "non-existent" not found',
         ),
       );
@@ -207,7 +207,7 @@ describe('SubscriptionPlansService', () => {
       expect(result).toEqual(mockPlan);
     });
 
-    it('should throw NotFoundException if no plan matches product ID', async () => {
+    it('should throw Exception if no plan matches product ID', async () => {
       // Arrange
       prisma.subscriptionPlan.findFirst.mockResolvedValue(null);
 
@@ -215,7 +215,7 @@ describe('SubscriptionPlansService', () => {
       await expect(
         service.getPlanByStoreProductId(StorePlatform.APPLE, 'unknown-prod'),
       ).rejects.toThrow(
-        new NotFoundException(
+        new SubscriptionPlanNotFoundException(
           'Subscription plan not found for APPLE product ID "unknown-prod"',
         ),
       );
@@ -370,7 +370,7 @@ describe('SubscriptionPlansService', () => {
       });
     });
 
-    it('should throw NotFoundException if price entry is not associated with plan', async () => {
+    it('should throw Exception if price entry is not associated with plan', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
       prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(null);
@@ -379,7 +379,7 @@ describe('SubscriptionPlansService', () => {
       await expect(
         service.removePlanPrice('plan-uuid-111', 'invalid-price-id'),
       ).rejects.toThrow(
-        new NotFoundException(
+        new SubscriptionPlanNotFoundException(
           'Price entry "invalid-price-id" not found for plan "plan-uuid-111"',
         ),
       );

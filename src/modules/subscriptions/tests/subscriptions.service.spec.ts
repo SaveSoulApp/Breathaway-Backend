@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { SubscriptionNotFoundException, InvalidSubscriptionDatesException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditSource,
@@ -233,7 +233,7 @@ describe('SubscriptionsService', () => {
       expect(result).toEqual(mockSubscription);
     });
 
-    it('should throw BadRequestException if expiresDate is before or equal to purchaseDate', async () => {
+    it('should throw InvalidSubscriptionDatesException if expiresDate is before or equal to purchaseDate', async () => {
       // Arrange
       prisma.userSubscription.findFirst.mockResolvedValue(null);
       const invalidDto = {
@@ -246,7 +246,7 @@ describe('SubscriptionsService', () => {
       await expect(
         service.verifyAndCreateSubscription(userId, invalidDto),
       ).rejects.toThrow(
-        new BadRequestException('expiresDate must be after purchaseDate'),
+        new InvalidSubscriptionDatesException(),
       );
     });
 
@@ -694,7 +694,7 @@ describe('SubscriptionsService', () => {
       expect(result).toEqual(mockSubscription);
     });
 
-    it('should throw NotFoundException if not found', async () => {
+    it('should throw SubscriptionNotFoundException if not found', async () => {
       // Arrange
       prisma.userSubscription.findFirst.mockResolvedValue(null);
 
@@ -702,7 +702,7 @@ describe('SubscriptionsService', () => {
       await expect(
         service.findSubscriptionByStoreTransaction('unknown-tx'),
       ).rejects.toThrow(
-        new NotFoundException(
+        new SubscriptionNotFoundException(
           'Subscription with store transaction ID "unknown-tx" not found',
         ),
       );

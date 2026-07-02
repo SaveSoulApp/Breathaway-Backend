@@ -8,12 +8,12 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Param,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SubscriptionPlanNotFoundException, ActiveSubscriptionNotFoundException, InvalidSubscriptionDatesException } from './application/exceptions';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -87,7 +87,7 @@ export class SubscriptionsController extends BaseController {
    *
    * @param id - UUID of the subscription plan.
    * @returns The requested subscription plan.
-   * @throws {NotFoundException} When no plan exists with the given id.
+   * @throws {SubscriptionPlanNotFoundException} When no plan exists with the given id.
    */
   @Get('plans/:id')
   @ApiOperation({ summary: 'Get a single subscription plan by ID' })
@@ -111,8 +111,8 @@ export class SubscriptionsController extends BaseController {
    * @param userId - ID of the authenticated user purchasing the subscription.
    * @param dto - Token and product IDs returned by the mobile storefront SDK.
    * @returns The newly created or existing subscription record.
-   * @throws {BadRequestException} When expiration date precedes purchase date.
-   * @throws {NotFoundException} When the corresponding plan is not found.
+   * @throws {InvalidSubscriptionDatesException} When expiration date precedes purchase date.
+   * @throws {SubscriptionPlanNotFoundException} When the corresponding plan is not found.
    */
   @Post('verify-purchase')
   @HttpCode(HttpStatus.OK)
@@ -142,7 +142,7 @@ export class SubscriptionsController extends BaseController {
    *
    * @param userId - ID of the authenticated user requesting their active subscription.
    * @returns The active subscription entity, including current plan and prices.
-   * @throws {NotFoundException} When the user does not have an active subscription.
+   * @throws {ActiveSubscriptionNotFoundException} When the user does not have an active subscription.
    */
   @Get('me')
   @ApiOperation({ summary: "Get current user's active subscription" })
@@ -157,7 +157,7 @@ export class SubscriptionsController extends BaseController {
       await this.subscriptionsService.getActiveSubscription(userId);
 
     if (!subscription) {
-      throw new NotFoundException('No active subscription found');
+      throw new ActiveSubscriptionNotFoundException();
     }
 
     return subscription as unknown as UserSubscriptionResponseDto;

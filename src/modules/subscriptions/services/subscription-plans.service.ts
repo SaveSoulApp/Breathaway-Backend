@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { SubscriptionPlanNotFoundException, SubscriptionPlanPriceNotFoundException } from '../application/exceptions';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 
 import { BaseService } from '@core/base';
@@ -68,7 +69,7 @@ export class SubscriptionPlansService extends BaseService {
    *
    * @param id - Internal UUID of the plan.
    * @returns The requested plan along with all its configured prices.
-   * @throws {NotFoundException} When no plan is found.
+   * @throws {SubscriptionPlanNotFoundException} When no plan is found.
    */
   async getPlanById(id: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
@@ -77,7 +78,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
-      throw new NotFoundException(
+      throw new SubscriptionPlanNotFoundException(
         `Subscription plan with ID "${id}" not found`,
       );
     }
@@ -94,7 +95,7 @@ export class SubscriptionPlansService extends BaseService {
    * @param platform - The storefront (APPLE or GOOGLE).
    * @param productId - The product ID registered in the respective storefront.
    * @returns The internal plan mapped to this product.
-   * @throws {NotFoundException} When no plan is configured for the given product ID.
+   * @throws {SubscriptionPlanNotFoundException} When no plan is configured for the given product ID.
    */
   async getPlanByStoreProductId(platform: StorePlatform, productId: string) {
     const where =
@@ -108,7 +109,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
-      throw new NotFoundException(
+      throw new SubscriptionPlanNotFoundException(
         `Subscription plan not found for ${platform} product ID "${productId}"`,
       );
     }
@@ -159,7 +160,7 @@ export class SubscriptionPlansService extends BaseService {
    * @param id - Internal UUID of the plan to modify.
    * @param dto - Partial payload of fields to update.
    * @returns The updated plan.
-   * @throws {NotFoundException} When the target plan does not exist.
+   * @throws {SubscriptionPlanNotFoundException} When the target plan does not exist.
    */
   async updatePlan(id: string, dto: UpdatePlanRequestDto) {
     await this.getPlanById(id);
@@ -207,7 +208,7 @@ export class SubscriptionPlansService extends BaseService {
    * @param planId - UUID of the target plan.
    * @param dto - Currency, country, and price amount.
    * @returns The newly created price record.
-   * @throws {NotFoundException} When the target plan does not exist.
+   * @throws {SubscriptionPlanNotFoundException} When the target plan does not exist.
    */
   async addPlanPrice(planId: string, dto: CreatePlanPriceRequestDto) {
     await this.getPlanById(planId);
@@ -229,7 +230,7 @@ export class SubscriptionPlansService extends BaseService {
    *
    * @param planId - UUID of the target plan.
    * @param priceId - UUID of the price record to remove.
-   * @throws {NotFoundException} When the plan or price record does not exist.
+   * @throws {SubscriptionPlanNotFoundException} When the plan or price record does not exist.
    */
   async removePlanPrice(planId: string, priceId: string) {
     await this.getPlanById(planId);
@@ -239,7 +240,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!price) {
-      throw new NotFoundException(
+      throw new SubscriptionPlanNotFoundException(
         `Price entry "${priceId}" not found for plan "${planId}"`,
       );
     }

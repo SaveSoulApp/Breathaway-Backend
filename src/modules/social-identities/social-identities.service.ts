@@ -1,9 +1,7 @@
 import {
-  BadGatewayException,
-  BadRequestException,
   Injectable,
-  InternalServerErrorException,
 } from '@nestjs/common';
+import { MissingSocialIdentityConfigException, SocialIdentityApiException, SocialIdentityNetworkException } from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -58,9 +56,7 @@ export class SocialidentitiesService extends BaseService {
       this.logger.error(
         'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
       );
-      throw new InternalServerErrorException(
-        'Instagram verification is currently unavailable.',
-      );
+      throw new MissingSocialIdentityConfigException();
     }
 
     const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
@@ -88,7 +84,7 @@ export class SocialidentitiesService extends BaseService {
         // We throw BadRequest if client provided a bad ID/token according to IG, otherwise BadGateway.
         const errorMessage =
           data?.error?.message || 'Failed to verify Instagram identity';
-        throw new BadRequestException(`Instagram API Error: ${errorMessage}`);
+        throw new SocialIdentityApiException(`Instagram API Error: ${errorMessage}`);
       }
 
       if (userId) {
@@ -115,15 +111,13 @@ export class SocialidentitiesService extends BaseService {
         platform: 'instagram',
       } as SocialIdentityResponseDto;
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof SocialIdentityApiException) {
         throw error;
       }
       this.logger.error(
         `Network or unexpected error while calling Instagram API: ${(error as Error).message}`,
       );
-      throw new BadGatewayException(
-        'Error connecting to Instagram validation service.',
-      );
+      throw new SocialIdentityNetworkException();
     }
   }
 }
