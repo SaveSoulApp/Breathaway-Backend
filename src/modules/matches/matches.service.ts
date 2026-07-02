@@ -3,7 +3,8 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { MatchNotFoundException } from './application/exceptions';
 import { GenderType, IntentType, MatchStatus } from '@prisma/client';
 import { MatchListQueryRequestDto } from './dto';
 
@@ -161,7 +162,7 @@ export class MatchesService extends BaseService {
    * @param matchId - UUID of the match to retrieve.
    * @param userId  - The authenticated user's ID; used to assert participation.
    * @returns The match detail DTO from the caller's perspective.
-   * @throws {NotFoundException} When no non-deleted match with the given ID
+   * @throws {MatchNotFoundException} When no non-deleted match with the given ID
    *   exists where the caller is either userOne or userTwo.
    */
   async findOneForUser(matchId: string, userId: string) {
@@ -219,7 +220,7 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
-      throw new NotFoundException('Match not found');
+      throw new MatchNotFoundException('Match not found');
     }
 
     return this.mapToResponseDto(match, userId);
@@ -235,7 +236,7 @@ export class MatchesService extends BaseService {
    * @param matchId - UUID of the match to dissolve.
    * @param userId  - ID of the user initiating the unmatch.
    * @returns `{ success: true }` upon completion.
-   * @throws {NotFoundException} When no active, non-deleted match exists with
+   * @throws {MatchNotFoundException} When no active, non-deleted match exists with
    *   the given ID where the caller is a participant.
    */
   async unmatch(matchId: string, userId: string) {
@@ -249,7 +250,7 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
-      throw new NotFoundException('Match not found or already inactive');
+      throw new MatchNotFoundException('Match not found or already inactive');
     }
 
     await this.prisma.match.update({

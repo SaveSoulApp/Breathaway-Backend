@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
   InternalServerErrorException,
-  NotFoundException,
 } from '@nestjs/common';
+import { MessageNotFoundException } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
 import { createClient } from '@supabase/supabase-js';
 import * as chatUtils from '../utils/chats.utils';
@@ -156,7 +156,7 @@ describe('ChatsService', () => {
 
       await expect(
         service.markMessageRead('user-1', 'room-1', { messageId: 'msg-1' }),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(MessageNotFoundException);
     });
   });
 });
