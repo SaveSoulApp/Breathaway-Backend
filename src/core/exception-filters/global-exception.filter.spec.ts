@@ -1,13 +1,14 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ArgumentsHost } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter';
 import { LoggerService } from '@core/logger';
 import { ProfileAlreadyExistsException } from '../../modules/profiles/application/exceptions/profile-already-exists.exception';
 
-function mockArgumentsHost(mockResponse: object, url = '/test-path', method = 'GET'): ArgumentsHost {
+function mockArgumentsHost(
+  mockResponse: object,
+  url = '/test-path',
+  method = 'GET',
+): ArgumentsHost {
   return {
     switchToHttp: () => ({
       getResponse: () => mockResponse,
@@ -32,7 +33,13 @@ describe('GlobalExceptionFilter', () => {
       json: jest.fn().mockReturnThis(),
       type: jest.fn().mockReturnThis(),
     };
-    loggerMock = { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn(), log: jest.fn() } as any;
+    loggerMock = {
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+    } as any;
 
     const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue(loggerMock),
@@ -40,7 +47,7 @@ describe('GlobalExceptionFilter', () => {
 
     filter = new GlobalExceptionFilter(
       loggerServiceMock,
-      { get: jest.fn().mockReturnValue('test') } as any,   // NODE_ENV = 'test'
+      { get: jest.fn().mockReturnValue('test') } as any, // NODE_ENV = 'test'
       clsMock as any,
     );
   });
@@ -54,7 +61,9 @@ describe('GlobalExceptionFilter', () => {
       // Act
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
-      expect(mockResponse.type).toHaveBeenCalledWith('application/problem+json');
+      expect(mockResponse.type).toHaveBeenCalledWith(
+        'application/problem+json',
+      );
     });
 
     it('should include requestId from CLS in the response', () => {
@@ -73,13 +82,15 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(404);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'NOT_FOUND',
-        title: 'Not Found',
-        status: 404,
-        detail: 'Profile not found',
-        instance: '/test-path',
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'NOT_FOUND',
+          title: 'Not Found',
+          status: 404,
+          detail: 'Profile not found',
+          instance: '/test-path',
+        }),
+      );
       expect(loggerMock.warn).toHaveBeenCalled();
       expect(loggerMock.error).not.toHaveBeenCalled();
     });
@@ -94,10 +105,15 @@ describe('GlobalExceptionFilter', () => {
       // Act
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'One or more fields failed validation.',
-        invalid_params: ['email must be an email', 'firstName should not be empty'],
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'One or more fields failed validation.',
+          invalid_params: [
+            'email must be an email',
+            'firstName should not be empty',
+          ],
+        }),
+      );
     });
   });
 
@@ -109,10 +125,12 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(409);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'CONFLICT',
-        status: 409,
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CONFLICT',
+          status: 409,
+        }),
+      );
     });
   });
 
@@ -122,13 +140,18 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'INTERNAL_SERVER_ERROR',
-        status: 500,
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INTERNAL_SERVER_ERROR',
+          status: 500,
+        }),
+      );
       expect(loggerMock.error).toHaveBeenCalledWith(
         exception,
-        expect.objectContaining({ statusCode: 500, requestId: 'test-request-id' }),
+        expect.objectContaining({
+          statusCode: 500,
+          requestId: 'test-request-id',
+        }),
       );
     });
 
@@ -140,11 +163,16 @@ describe('GlobalExceptionFilter', () => {
         clsMock as any,
       );
       // Act
-      prodFilter.catch(new Error('Sensitive internal detail'), mockArgumentsHost(mockResponse));
+      prodFilter.catch(
+        new Error('Sensitive internal detail'),
+        mockArgumentsHost(mockResponse),
+      );
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'An unexpected error occurred.',
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'An unexpected error occurred.',
+        }),
+      );
     });
 
     it('should NOT sanitize 4xx detail in production', () => {
@@ -155,11 +183,16 @@ describe('GlobalExceptionFilter', () => {
         clsMock as any,
       );
       // Act
-      prodFilter.catch(new NotFoundException('Profile not found'), mockArgumentsHost(mockResponse));
+      prodFilter.catch(
+        new NotFoundException('Profile not found'),
+        mockArgumentsHost(mockResponse),
+      );
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'Profile not found',   // NOT sanitized — 4xx, not 5xx
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'Profile not found', // NOT sanitized — 4xx, not 5xx
+        }),
+      );
     });
   });
 });

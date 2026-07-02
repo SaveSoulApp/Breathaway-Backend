@@ -10,11 +10,12 @@ import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
-  ExceptionLoggingFilter,
   LoggerModule,
   LoggerService,
 } from '@core/logger';
-import { ClsModule } from 'nestjs-cls';
+import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
+import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
+import { ClsModule, ClsService } from 'nestjs-cls';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -92,7 +93,7 @@ export async function createAuthTestApp(
   const originalForContext = logger.forContext.bind(logger);
   jest.spyOn(logger, 'forContext').mockImplementation((context: string) => {
     const contextualLogger = originalForContext(context);
-    if (context === 'ExceptionLoggingFilter') {
+    if (context === 'GlobalExceptionFilter' || context === 'PrismaExceptionFilter') {
       const originalError = contextualLogger.error.bind(contextualLogger);
       contextualLogger.error = (
         message: unknown,
@@ -112,7 +113,10 @@ export async function createAuthTestApp(
     return contextualLogger;
   });
 
-  app.useGlobalFilters(new ExceptionLoggingFilter(logger));
+  app.useGlobalFilters(
+    new GlobalExceptionFilter(logger, app.get(ConfigService), app.get(ClsService)),
+    new PrismaExceptionFilter(logger, app.get(ClsService)),
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client';
 import { PrismaExceptionFilter } from './prisma-exception.filter';
 import { LoggerService } from '@core/logger';
 
-function mockArgumentsHost(mockResponse: object, url = '/test-path', method = 'GET'): ArgumentsHost {
+function mockArgumentsHost(
+  mockResponse: object,
+  url = '/test-path',
+  method = 'GET',
+): ArgumentsHost {
   return {
     switchToHttp: () => ({
       getResponse: () => mockResponse,
@@ -23,17 +27,26 @@ describe('PrismaExceptionFilter', () => {
       json: jest.fn().mockReturnThis(),
       type: jest.fn().mockReturnThis(),
     };
-    loggerMock = { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn(), log: jest.fn() } as any;
+    loggerMock = {
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+    } as any;
 
     filter = new PrismaExceptionFilter(
       { forContext: jest.fn().mockReturnValue(loggerMock) } as any,
-      { isActive: jest.fn().mockReturnValue(true), get: jest.fn().mockReturnValue('req-id') } as any,
+      {
+        isActive: jest.fn().mockReturnValue(true),
+        get: jest.fn().mockReturnValue('req-id'),
+      } as any,
     );
   });
 
   afterEach(() => jest.clearAllMocks());
 
-  const makePrismaError = (code: string, meta?: object) => {
+  const makePrismaError = (code: string, meta?: Record<string, unknown>) => {
     const err = new Prisma.PrismaClientKnownRequestError('DB error', {
       code,
       clientVersion: '5.0.0',
@@ -53,21 +66,29 @@ describe('PrismaExceptionFilter', () => {
     ['P2003', 400, 'BAD_REQUEST'],
     ['P2000', 400, 'BAD_REQUEST'],
     ['P2014', 400, 'BAD_REQUEST'],
-  ])('should map %s to status %d with type %s', (code, expectedStatus, expectedType) => {
-    // Arrange
-    const exception = makePrismaError(code);
-    // Act
-    filter.catch(exception, mockArgumentsHost(mockResponse));
-    // Assert
-    expect(mockResponse.status).toHaveBeenCalledWith(expectedStatus);
-    expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-      type: expectedType,
-      status: expectedStatus,
-    }));
-  });
+  ])(
+    'should map %s to status %d with type %s',
+    (code, expectedStatus, expectedType) => {
+      // Arrange
+      const exception = makePrismaError(code);
+      // Act
+      filter.catch(exception, mockArgumentsHost(mockResponse));
+      // Assert
+      expect(mockResponse.status).toHaveBeenCalledWith(expectedStatus);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: expectedType,
+          status: expectedStatus,
+        }),
+      );
+    },
+  );
 
   it('should log known Prisma errors at warn, not error', () => {
-    filter.catch(makePrismaError('P2002', { target: ['email'] }), mockArgumentsHost(mockResponse));
+    filter.catch(
+      makePrismaError('P2002', { target: ['email'] }),
+      mockArgumentsHost(mockResponse),
+    );
     expect(loggerMock.warn).toHaveBeenCalled();
     expect(loggerMock.error).not.toHaveBeenCalled();
   });

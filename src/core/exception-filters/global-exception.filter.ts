@@ -127,7 +127,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           type,
           title,
           detail: 'One or more fields failed validation.',
-          invalidParams: res.message as string[],
+          invalidParams: res.message,
         };
       }
 

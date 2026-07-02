@@ -9,10 +9,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
-  ExceptionLoggingFilter,
   LoggerModule,
   LoggerService,
 } from '@core/logger';
+import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
+import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
+import { ClsModule, ClsService } from 'nestjs-cls';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { AppController } from 'src/app.controller';
 import { AppService } from 'src/app.service';
@@ -61,6 +63,7 @@ describe('AppController (e2e)', () => {
         }),
         LoggerModule,
         PrismaModule,
+        ClsModule.forRoot({ global: true }),
       ],
       controllers: [AppController],
       providers: [
@@ -101,7 +104,10 @@ describe('AppController (e2e)', () => {
       return contextualLogger;
     });
 
-    app.useGlobalFilters(new ExceptionLoggingFilter(logger));
+    app.useGlobalFilters(
+      new GlobalExceptionFilter(logger, app.get(ConfigService), app.get(ClsService)),
+      new PrismaExceptionFilter(logger, app.get(ClsService)),
+    );
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
