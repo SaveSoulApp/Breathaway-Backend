@@ -1,7 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { HttpException, InternalServerErrorException } from '@nestjs/common';
+import { InstagramGraphApiException, MissingInstagramConfigException } from '../application/exceptions';
 import axios from 'axios';
 import { LoggerService } from '@core/logger';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
@@ -129,7 +129,7 @@ describe('InstagramService', () => {
       mockedAxios.get.mockRejectedValueOnce(mockError);
 
       await expect(service.refreshAccessToken(currentToken)).rejects.toThrow(
-        new HttpException({ error: 'Invalid token' }, 400),
+        new InstagramGraphApiException({ error: 'Invalid token' }),
       );
     });
 
@@ -139,7 +139,7 @@ describe('InstagramService', () => {
       mockedAxios.get.mockRejectedValueOnce(mockError);
 
       await expect(service.refreshAccessToken(currentToken)).rejects.toThrow(
-        new HttpException('Failed to refresh token', 500),
+        new InstagramGraphApiException('Failed to refresh token'),
       );
     });
   });
@@ -175,9 +175,7 @@ describe('InstagramService', () => {
       configService.get.mockReturnValueOnce(undefined);
 
       await expect(service.refreshSystemAccessToken()).rejects.toThrow(
-        new InternalServerErrorException(
-          'Instagram access token not configured.',
-        ),
+        new MissingInstagramConfigException(),
       );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(

@@ -38,4 +38,6 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   InvalidCreditSourceException: HttpStatus.BAD_REQUEST,
   DeviceNotFoundException: HttpStatus.NOT_FOUND,
   DeviceTokenAlreadyExistsException: HttpStatus.CONFLICT,
+  InstagramGraphApiException: HttpStatus.BAD_GATEWAY,
+  MissingInstagramConfigException: HttpStatus.INTERNAL_SERVER_ERROR,
 };
