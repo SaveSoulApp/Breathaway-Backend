@@ -5,7 +5,9 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AccountAlreadyExistsException } from '../application/exceptions';
+
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { AuthMethod } from '../utils/auth-method.utils';
 
@@ -86,9 +88,7 @@ export class AuthCredentialService extends BaseService {
       if (existingIdentity) {
         if (existingIdentity.userId !== null) {
           // Ghost identity already claimed by a different user — real conflict.
-          throw new ConflictException(
-            `An account for this ${identityType.toLowerCase()} already exists`,
-          );
+          throw new AccountAlreadyExistsException();
         }
 
         // "Ghost" identity created by the likes flow (userId=null). Claim it by

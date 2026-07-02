@@ -1,8 +1,8 @@
+import { Injectable } from '@nestjs/common';
 import {
-  HttpException,
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  InstagramGraphApiException,
+  MissingInstagramConfigException,
+} from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { BaseService } from '@core/base';
@@ -65,9 +65,8 @@ export class InstagramService extends BaseService {
       const err = error as {
         response?: { data?: string | Record<string, unknown>; status?: number };
       };
-      throw new HttpException(
+      throw new InstagramGraphApiException(
         err.response?.data || 'Failed to refresh token',
-        err.response?.status || 500,
       );
     }
   }
@@ -93,9 +92,7 @@ export class InstagramService extends BaseService {
       this.logger.error(
         'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
       );
-      throw new InternalServerErrorException(
-        'Instagram access token not configured.',
-      );
+      throw new MissingInstagramConfigException();
     }
 
     return this.refreshAccessToken(accessToken);

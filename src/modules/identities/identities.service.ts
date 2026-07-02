@@ -6,11 +6,13 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { Injectable } from '@nestjs/common';
 import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  IdentityAlreadyExistsException,
+  IdentityAlreadyClaimedException,
+  IdentityNotFoundException,
+} from './application/exceptions';
+
 import { Identity, IdentityType, Prisma } from '@prisma/client';
 import {
   CreateIdentityRequestDto,
@@ -86,9 +88,7 @@ export class IdentitiesService extends BaseService {
     });
     if (existing) {
       if (existing.userId !== null) {
-        throw new ConflictException(
-          `An identity of type ${dto.type} with this value or platform ID already exists`,
-        );
+        throw new IdentityAlreadyExistsException();
       }
 
       const updated = await this.prisma.identity.update({
@@ -319,9 +319,7 @@ export class IdentitiesService extends BaseService {
         },
       });
       if (duplicate) {
-        throw new ConflictException(
-          `Another identity of type ${identity.type} with this value or platform ID already exists`,
-        );
+        throw new IdentityAlreadyExistsException();
       }
     }
 
@@ -428,7 +426,7 @@ export class IdentitiesService extends BaseService {
 
     if (existing) {
       if (existing.userId && existing.userId !== userId) {
-        throw new ConflictException('Identity already claimed by another user');
+        throw new IdentityAlreadyClaimedException();
       }
 
       const updated = await this.prisma.identity.update({
@@ -508,9 +506,7 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
-      throw new NotFoundException(
-        `No ${dto.type} identity with the provided value found for this user`,
-      );
+      throw new IdentityNotFoundException();
     }
 
     const publicValue = await this.encryption.decryptPublicValue({
@@ -581,7 +577,7 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
-      throw new NotFoundException(`Identity ${identityId} not found`);
+      throw new IdentityNotFoundException();
     }
 
     return this.encryption.decryptPublicValue({
@@ -608,7 +604,7 @@ export class IdentitiesService extends BaseService {
       where: { id, userId, deletedAt: null },
     });
     if (!identity) {
-      throw new NotFoundException(`Identity ${id} not found`);
+      throw new IdentityNotFoundException();
     }
     return identity;
   }

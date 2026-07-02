@@ -1,9 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+  SelfBlockException,
+  BlockTargetNotFoundException,
+  AlreadyBlockedException,
+  BlockNotFoundException,
+} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { User } from '@prisma/client';
 
@@ -84,21 +85,21 @@ describe('BlocksService', () => {
   describe('create', () => {
     const createDto: CreateBlockDto = { blockedUserId };
 
-    it('should throw BadRequestException if blocking self', async () => {
+    it('should throw SelfBlockException if blocking self', async () => {
       // Act & Assert
       await expect(
         service.create(userId, { blockedUserId: userId }),
-      ).rejects.toThrow(new BadRequestException('You cannot block yourself'));
+      ).rejects.toThrow(new SelfBlockException());
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException if blocked user does not exist', async () => {
+    it('should throw BlockTargetNotFoundException if blocked user does not exist', async () => {
       // Arrange
       prisma.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.create(userId, createDto)).rejects.toThrow(
-        new NotFoundException('User to block not found'),
+        new BlockTargetNotFoundException(),
       );
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: blockedUserId },
@@ -107,14 +108,14 @@ describe('BlocksService', () => {
       expect(prisma.block.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should throw ConflictException if block already exists and is active', async () => {
+    it('should throw AlreadyBlockedException if block already exists and is active', async () => {
       // Arrange
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.block.findUnique.mockResolvedValue(mockBlockData);
 
       // Act & Assert
       await expect(service.create(userId, createDto)).rejects.toThrow(
-        new ConflictException('User already blocked'),
+        new AlreadyBlockedException(),
       );
       expect(prisma.block.findUnique).toHaveBeenCalledWith({
         where: {
@@ -271,13 +272,13 @@ describe('BlocksService', () => {
       expect(result).toEqual(mockResponseData);
     });
 
-    it('should throw NotFoundException if not found', async () => {
+    it('should throw BlockNotFoundException if not found', async () => {
       // Arrange
       prisma.block.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.findOneForUser(blockId, userId)).rejects.toThrow(
-        new NotFoundException('Block not found'),
+        new BlockNotFoundException(),
       );
     });
   });
@@ -311,13 +312,13 @@ describe('BlocksService', () => {
       expect(result).toEqual({ success: true });
     });
 
-    it('should throw NotFoundException if block not found', async () => {
+    it('should throw BlockNotFoundException if block not found', async () => {
       // Arrange
       prisma.block.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.delete(blockId, userId)).rejects.toThrow(
-        new NotFoundException('Block not found'),
+        new BlockNotFoundException(),
       );
       expect(prisma.block.update).not.toHaveBeenCalled();
     });

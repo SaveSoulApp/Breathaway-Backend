@@ -6,12 +6,18 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { Injectable } from '@nestjs/common';
 import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+  AccountAlreadyExistsException,
+  AccountNotFoundException,
+  UnverifiedAccountException,
+  SocialAccountAlreadyLinkedException,
+  DeletedAccountReverificationException,
+  AuthTypeMismatchException,
+  UserNotFoundException,
+  UnsupportedAuthMethodException,
+} from './application/exceptions';
+
 import { IdentityType } from '@prisma/client';
 import {
   AddSecondaryAuthRequestDto,
@@ -96,14 +102,10 @@ export class AuthService extends BaseService {
 
     if (existingCred) {
       if (existingCred.identity.isVerified) {
-        throw new ConflictException(
-          `An account with this ${authMethod.method.toLowerCase()} already exists`,
-        );
+        throw new AccountAlreadyExistsException();
       }
       // Unverified – resend OTP (handled by the controller / frontend)
-      throw new ConflictException(
-        'Verification pending. Please verify your account.',
-      );
+      throw new UnverifiedAccountException();
     }
 
     const { user } = await this.authCredentialService.createUserWithCredential(
@@ -166,14 +168,12 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      throw new NotFoundException('No account found with this credential');
+      throw new AccountNotFoundException();
     }
 
     if (!credential.identity.isVerified) {
       // Resend OTP / magic link – frontend should show verification screen
-      throw new UnauthorizedException(
-        'Account not verified. Verification code resent.',
-      );
+      throw new UnverifiedAccountException();
     }
 
     // At this point the user exists and is verified. Proceed to send OTP/link.
@@ -251,9 +251,7 @@ export class AuthService extends BaseService {
 
     // Existing credential
     if (!credential.identity.isVerified) {
-      throw new UnauthorizedException(
-        'Account not verified. Verification code resent.',
-      );
+      throw new UnverifiedAccountException();
     }
 
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -294,9 +292,7 @@ export class AuthService extends BaseService {
 
     if (identity) {
       if (identity.userId === null) {
-        throw new ConflictException(
-          'This account has been deleted. Please re‑verify to recover it.',
-        );
+        throw new DeletedAccountReverificationException();
       }
       // User exists and is verified – log them in
       const user = await this.prisma.user.findUniqueOrThrow({
@@ -337,9 +333,7 @@ export class AuthService extends BaseService {
 
       if (ghostIdentity) {
         if (ghostIdentity.userId !== null) {
-          throw new ConflictException(
-            `This ${type.toLowerCase()} account is already linked to another user.`,
-          );
+          throw new SocialAccountAlreadyLinkedException();
         }
 
         await tx.identity.update({
@@ -431,9 +425,7 @@ export class AuthService extends BaseService {
         authMethod.method !== AuthMethod.PHONE) ||
       (authType === AuthMethod.EMAIL && authMethod.method !== AuthMethod.EMAIL)
     ) {
-      throw new ConflictException(
-        `Token does not match the expected ${authType} method`,
-      );
+      throw new AuthTypeMismatchException();
     }
 
     const value = authMethod.identifier;
@@ -451,16 +443,14 @@ export class AuthService extends BaseService {
       where: { valueHash: publicValueData.publicValueHash },
     });
     if (existingCred) {
-      throw new ConflictException(
-        `This ${authType} is already associated with an account`,
-      );
+      throw new AccountAlreadyExistsException();
     }
 
     // 3. Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new UserNotFoundException();
 
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
@@ -478,9 +468,7 @@ export class AuthService extends BaseService {
 
       if (existingIdentity) {
         if (existingIdentity.userId !== null) {
-          throw new ConflictException(
-            `This ${authType} is already linked to another user`,
-          );
+          throw new SocialAccountAlreadyLinkedException();
         }
 
         const updatedIdentity = await tx.identity.update({
@@ -559,7 +547,7 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      throw new NotFoundException('User not found');
+      throw new UserNotFoundException();
     }
 
     return this.authTokenService.generateAuthResponse(credential.user, {
@@ -577,9 +565,7 @@ export class AuthService extends BaseService {
 
   private ensurePhoneOrEmail(method: AuthMethod) {
     if (method !== AuthMethod.PHONE && method !== AuthMethod.EMAIL) {
-      throw new ConflictException(
-        'Only phone or email authentication is allowed for this endpoint',
-      );
+      throw new UnsupportedAuthMethodException();
     }
   }
 

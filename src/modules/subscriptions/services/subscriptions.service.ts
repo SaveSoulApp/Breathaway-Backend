@@ -1,8 +1,8 @@
+import { Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  SubscriptionNotFoundException,
+  InvalidSubscriptionDatesException,
+} from '../application/exceptions';
 import {
   CreditSource,
   CurrencyCode,
@@ -160,7 +160,7 @@ export class SubscriptionsService extends BaseService {
    * @param userId - ID of the authenticated user.
    * @param dto - Token and product details from the client SDK.
    * @returns The newly created or existing user subscription.
-   * @throws {BadRequestException} When expiration date precedes purchase date.
+   * @throws {InvalidSubscriptionDatesException} When expiration date precedes purchase date.
    */
   async verifyAndCreateSubscription(
     userId: string,
@@ -203,7 +203,7 @@ export class SubscriptionsService extends BaseService {
     }
 
     if (expiresDate <= purchaseDate) {
-      throw new BadRequestException('expiresDate must be after purchaseDate');
+      throw new InvalidSubscriptionDatesException();
     }
 
     return this.handleInitialPurchase({
@@ -680,7 +680,7 @@ export class SubscriptionsService extends BaseService {
    *
    * @param storeTransactionId - The transaction ID to search for.
    * @returns The matching subscription entity.
-   * @throws {NotFoundException} When no matching subscription exists.
+   * @throws {SubscriptionNotFoundException} When no matching subscription exists.
    */
   async findSubscriptionByStoreTransaction(storeTransactionId: string) {
     const subscription = await this.prisma.userSubscription.findFirst({
@@ -690,7 +690,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (!subscription) {
-      throw new NotFoundException(
+      throw new SubscriptionNotFoundException(
         `Subscription with store transaction ID "${storeTransactionId}" not found`,
       );
     }

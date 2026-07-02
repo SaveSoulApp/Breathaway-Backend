@@ -1,9 +1,10 @@
+import { Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  SelfBlockException,
+  BlockTargetNotFoundException,
+  AlreadyBlockedException,
+  BlockNotFoundException,
+} from './application/exceptions';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -45,16 +46,16 @@ export class BlocksService extends BaseService {
    * @param blockerUserId - ID of the authenticated user initiating the block.
    * @param createBlockDto - Payload containing the ID of the user to block.
    * @returns The mapped block response including the blocked user's profile.
-   * @throws {BadRequestException} When `blockerUserId` equals `blockedUserId` (self-block).
-   * @throws {NotFoundException} When the target user does not exist.
-   * @throws {ConflictException} When an active block for this pair already exists.
+   * @throws {SelfBlockException} When `blockerUserId` equals `blockedUserId` (self-block).
+   * @throws {BlockTargetNotFoundException} When the target user does not exist.
+   * @throws {AlreadyBlockedException} When an active block for this pair already exists.
    */
   async create(blockerUserId: string, createBlockDto: CreateBlockDto) {
     const { blockedUserId } = createBlockDto;
 
     // 1. Prevent self-block
     if (blockerUserId === blockedUserId) {
-      throw new BadRequestException('You cannot block yourself');
+      throw new SelfBlockException();
     }
 
     // 2. Verify blocked user exists
@@ -64,7 +65,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!blockedUserExists) {
-      throw new NotFoundException('User to block not found');
+      throw new BlockTargetNotFoundException();
     }
 
     // 3. Check for existing block
@@ -79,7 +80,7 @@ export class BlocksService extends BaseService {
 
     if (existingBlock) {
       if (existingBlock.deletedAt === null) {
-        throw new ConflictException('User already blocked');
+        throw new AlreadyBlockedException();
       }
 
       // Reactivate soft-deleted block
@@ -190,7 +191,7 @@ export class BlocksService extends BaseService {
    * @param blockId - ID of the block record to retrieve.
    * @param userId - ID of the authenticated user; used to enforce ownership.
    * @returns The mapped block response including the blocked user's profile.
-   * @throws {NotFoundException} When no active block with the given ID exists for this user.
+   * @throws {BlockNotFoundException} When no active block with the given ID exists for this user.
    */
   async findOneForUser(blockId: string, userId: string) {
     const block = await this.prisma.block.findFirst({
@@ -217,7 +218,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
-      throw new NotFoundException('Block not found');
+      throw new BlockNotFoundException();
     }
 
     return this.mapToResponseDto(block);
@@ -229,7 +230,7 @@ export class BlocksService extends BaseService {
    *
    * @param blockId - ID of the block record to remove.
    * @param userId - ID of the authenticated user; enforces ownership before deletion.
-   * @throws {NotFoundException} When no active block with the given ID exists or is not owned by `userId`.
+   * @throws {BlockNotFoundException} When no active block with the given ID exists or is not owned by `userId`.
    */
   async delete(blockId: string, userId: string) {
     const block = await this.prisma.block.findFirst({
@@ -241,7 +242,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
-      throw new NotFoundException('Block not found');
+      throw new BlockNotFoundException();
     }
 
     await this.prisma.block.update({

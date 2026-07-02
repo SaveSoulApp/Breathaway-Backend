@@ -1,9 +1,13 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+  AlreadyLikedException,
+  IdentityNotFoundException,
+  InsufficientCreditsException,
+  InvalidLikeStateException,
+  LikeNotFoundException,
+  MissingTargetIdentityException,
+  SelfLikeException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
@@ -165,14 +169,10 @@ describe('LikesService', () => {
       intent: IntentType.RELATIONSHIP,
     };
 
-    it('should throw BadRequestException if neither targetIdentityId nor targetIdentity is provided', async () => {
+    it('should throw MissingTargetIdentityException if neither targetIdentityId nor targetIdentity is provided', async () => {
       // Act & Assert
-      await expect(
-        service.create(userId, { intent: IntentType.RELATIONSHIP }),
-      ).rejects.toThrow(
-        new BadRequestException(
-          'Either targetIdentityId or targetIdentity must be provided',
-        ),
+      await expect(service.create(userId, {} as any)).rejects.toThrow(
+        new MissingTargetIdentityException(),
       );
     });
 
@@ -276,17 +276,17 @@ describe('LikesService', () => {
       expect(result).toEqual(mockLikeResponse);
     });
 
-    it('should throw NotFoundException if target identity not found', async () => {
+    it('should throw IdentityNotFoundException if target identity not found', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.create(userId, dtoWithId)).rejects.toThrow(
-        new NotFoundException('Target identity not found'),
+        new IdentityNotFoundException(),
       );
     });
 
-    it('should throw BadRequestException if trying to like self', async () => {
+    it('should throw SelfLikeException if trying to like self', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue({
         ...mockTargetIdentity,
@@ -295,18 +295,18 @@ describe('LikesService', () => {
 
       // Act & Assert
       await expect(service.create(userId, dtoWithId)).rejects.toThrow(
-        new BadRequestException('You cannot like yourself'),
+        new SelfLikeException(),
       );
     });
 
-    it('should throw ConflictException if already liked', async () => {
+    it('should throw AlreadyLikedException if already liked', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
       prisma.like.findFirst.mockResolvedValue(mockLikeData);
 
       // Act & Assert
       await expect(service.create(userId, dtoWithId)).rejects.toThrow(
-        new ConflictException({ message: 'You already liked this person' }),
+        new AlreadyLikedException(),
       );
     });
 
@@ -420,29 +420,29 @@ describe('LikesService', () => {
       expect(result).toEqual(mockLikeResponse);
     });
 
-    it('should throw NotFoundException if not found', async () => {
+    it('should throw LikeNotFoundException if not found', async () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.findOneForUser(likeId, userId)).rejects.toThrow(
-        new NotFoundException(`Like ${likeId} not found`),
+        new LikeNotFoundException(likeId),
       );
     });
   });
 
   describe('delete', () => {
-    it('should throw NotFoundException if like not found', async () => {
+    it('should throw LikeNotFoundException if like not found', async () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.delete(likeId, userId)).rejects.toThrow(
-        new NotFoundException(`Like ${likeId} not found`),
+        new LikeNotFoundException(likeId),
       );
     });
 
-    it('should throw BadRequestException if like is not PENDING', async () => {
+    it('should throw InvalidLikeStateException if like is not PENDING', async () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue({
         ...mockLikeData,
@@ -451,7 +451,7 @@ describe('LikesService', () => {
 
       // Act & Assert
       await expect(service.delete(likeId, userId)).rejects.toThrow(
-        new BadRequestException('Only PENDING likes can be deleted'),
+        new InvalidLikeStateException(),
       );
     });
 

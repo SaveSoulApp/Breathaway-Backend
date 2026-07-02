@@ -45,7 +45,7 @@ export class OneTimePasswordsController extends BaseController {
    * once and never stored — only its hash is persisted in Redis.
    *
    * @returns The generated OTP string and its TTL in seconds.
-   * @throws {HttpException(429)} When the user has already generated an OTP
+   * @throws {OtpRateLimitExceededException} When the user has already generated an OTP
    *   within the active rate-limit window.
    */
   @Post('generate')
@@ -81,7 +81,7 @@ export class OneTimePasswordsController extends BaseController {
    *
    * @param body - Contains the plaintext OTP string to verify.
    * @returns The user ID associated with the verified OTP.
-   * @throws {BadRequestException} When the OTP does not exist in Redis (never
+   * @throws {InvalidOtpException} When the OTP does not exist in Redis (never
    *   issued, already consumed, or expired).
    */
   @Post('verify')

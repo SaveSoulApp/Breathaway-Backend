@@ -2,8 +2,8 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
+import { MessageNotFoundException } from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -147,7 +147,7 @@ export class ChatsService {
       .single();
 
     if (fetchError || !refMessage) {
-      throw new NotFoundException('Message not found');
+      throw new MessageNotFoundException(dto.messageId);
     }
 
     // Update all unread messages in this room sent by the OTHER person, older than or equal to the ref message

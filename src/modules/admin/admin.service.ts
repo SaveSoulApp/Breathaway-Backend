@@ -2,7 +2,8 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AdminUserNotFoundException } from './application/exceptions';
 
 @Injectable()
 export class AdminService extends BaseService {
@@ -19,9 +20,7 @@ export class AdminService extends BaseService {
     });
 
     if (!existingUser || existingUser.deletedAt) {
-      throw new NotFoundException(
-        `User not found or already deleted: ${targetUserId}`,
-      );
+      throw new AdminUserNotFoundException();
     }
 
     const now = new Date();

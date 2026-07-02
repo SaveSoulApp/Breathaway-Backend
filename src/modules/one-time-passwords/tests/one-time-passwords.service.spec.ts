@@ -1,5 +1,9 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
+import {
+  OtpRateLimitExceededException,
+  InvalidOtpException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';
@@ -105,10 +109,7 @@ describe('OneTimePasswordsService', () => {
 
       // Act & Assert
       await expect(service.generateAndStoreOtp(userId)).rejects.toThrow(
-        new HttpException(
-          'Please wait before requesting a new OTP',
-          HttpStatus.TOO_MANY_REQUESTS,
-        ),
+        new OtpRateLimitExceededException(),
       );
 
       expect(redisClientMock.get).toHaveBeenCalledWith(
@@ -134,13 +135,13 @@ describe('OneTimePasswordsService', () => {
       expect(result).toBe(userId);
     });
 
-    it('should throw BadRequestException if OTP is invalid or expired', async () => {
+    it('should throw InvalidOtpException if OTP is invalid or expired', async () => {
       // Arrange
       redisClientMock.get.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.verifyAndConsumeOtp(plainOtp)).rejects.toThrow(
-        new BadRequestException('Invalid or expired OTP'),
+        new InvalidOtpException(),
       );
 
       expect(hashString).toHaveBeenCalledWith(plainOtp);

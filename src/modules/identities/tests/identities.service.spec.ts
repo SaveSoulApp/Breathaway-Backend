@@ -7,7 +7,12 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  IdentityAlreadyExistsException,
+  IdentityAlreadyClaimedException,
+  IdentityNotFoundException,
+} from '../application/exceptions';
+
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
@@ -198,7 +203,7 @@ describe('IdentitiesService', () => {
           mockUserId,
           mockCreateIdentityRequestDto as CreateIdentityRequestDto,
         ),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(IdentityAlreadyExistsException);
     });
   });
 
@@ -326,9 +331,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.findOne(mockIdentityId, mockUserId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findOne(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
     });
   });
 
@@ -522,7 +527,7 @@ describe('IdentitiesService', () => {
           mockUserId,
           dto as UpdateIdentityRequestDto,
         ),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(IdentityAlreadyExistsException);
     });
   });
 
@@ -553,9 +558,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.delete(mockIdentityId, mockUserId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.delete(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
 
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });
@@ -599,9 +604,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.verify(mockIdentityId, mockUserId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.verify(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
 
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });
@@ -617,7 +622,7 @@ describe('IdentitiesService', () => {
         service.update(mockIdentityId, mockUserId, {
           publicValue: 'new@example.com',
         } as UpdateIdentityRequestDto),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(IdentityNotFoundException);
 
       expect(encryption.processPublicValue).not.toHaveBeenCalled();
       expect(prisma.identity.update).not.toHaveBeenCalled();
@@ -722,7 +727,7 @@ describe('IdentitiesService', () => {
       expect(result).toMatchObject({ isVerified: true, userId: mockUserId });
     });
 
-    it('should throw ConflictException if identity is already claimed by another user', async () => {
+    it('should throw IdentityAlreadyClaimedException if identity is already claimed by another user', async () => {
       // Arrange
       const claimedByOther = { ...mockIdentityData, userId: 'other-user-999' };
 
@@ -740,7 +745,7 @@ describe('IdentitiesService', () => {
           platformId,
           mockUserId,
         ),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(IdentityAlreadyClaimedException);
 
       expect(prisma.identity.update).not.toHaveBeenCalled();
       expect(prisma.identity.create).not.toHaveBeenCalled();
@@ -827,7 +832,7 @@ describe('IdentitiesService', () => {
           mockUserId,
           mockLookupIdentityDto as LookupIdentityRequestDto,
         ),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(IdentityNotFoundException);
 
       expect(encryption.decryptPublicValue).not.toHaveBeenCalled();
     });

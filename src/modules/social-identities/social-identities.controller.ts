@@ -36,9 +36,9 @@ export class SocialIdentitiesController extends BaseController {
    * @param verifyInstagramDto - Contains the Instagram user ID to verify.
    * @returns Public Instagram profile fields including follower count, verification
    *   status, and follow-back indicators relative to the business account.
-   * @throws {BadRequestException} When the Instagram API rejects the provided ID
+   * @throws {SocialIdentityApiException} When the Instagram API rejects the provided ID
    *   (e.g., account does not exist or the token lacks permission).
-   * @throws {BadGatewayException} When the Instagram Graph API is unreachable or
+   * @throws {SocialIdentityNetworkException} When the Instagram Graph API is unreachable or
    *   returns an unexpected network-level error.
    */
   @Post('verify/instagram')

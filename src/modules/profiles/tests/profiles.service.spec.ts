@@ -1,4 +1,7 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ProfileAlreadyExistsException,
+  ProfileNotFoundException,
+} from '../application/exceptions';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
@@ -121,13 +124,13 @@ describe('ProfilesService', () => {
       expect(result).toEqual(profileWithoutDob);
     });
 
-    it('should throw ConflictException if profile already exists', async () => {
+    it('should throw ProfileAlreadyExistsException if profile already exists', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
 
       // Act & Assert
       await expect(service.createProfile(userId, createDto)).rejects.toThrow(
-        ConflictException,
+        ProfileAlreadyExistsException,
       );
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { userId },
@@ -166,13 +169,13 @@ describe('ProfilesService', () => {
       expect(result).toEqual(mockUserProfile);
     });
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should throw ProfileNotFoundException if profile does not exist', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.getProfileByUserId(userId)).rejects.toThrow(
-        NotFoundException,
+        ProfileNotFoundException,
       );
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { userId },
@@ -195,13 +198,13 @@ describe('ProfilesService', () => {
       expect(result).toEqual(mockUserProfile);
     });
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should throw ProfileNotFoundException if profile does not exist', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.getProfileById(profileId)).rejects.toThrow(
-        NotFoundException,
+        ProfileNotFoundException,
       );
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { id: profileId },
@@ -271,13 +274,13 @@ describe('ProfilesService', () => {
       expect(result).toEqual(updatedProfile);
     });
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should throw ProfileNotFoundException if profile does not exist', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.updateProfile(userId, updateDto)).rejects.toThrow(
-        NotFoundException,
+        ProfileNotFoundException,
       );
       expect(prisma.userProfile.update).not.toHaveBeenCalled();
     });
@@ -348,13 +351,13 @@ describe('ProfilesService', () => {
       expect(result).toEqual(patchedProfile);
     });
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should throw ProfileNotFoundException if profile does not exist', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.patchProfile(userId, patchDto)).rejects.toThrow(
-        NotFoundException,
+        ProfileNotFoundException,
       );
       expect(prisma.userProfile.update).not.toHaveBeenCalled();
     });
@@ -418,13 +421,13 @@ describe('ProfilesService', () => {
       });
     });
 
-    it('should throw NotFoundException if user does not exist or already deleted', async () => {
+    it('should throw ProfileNotFoundException if user does not exist or already deleted', async () => {
       // Arrange
       prisma.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.deleteProfile(userId)).rejects.toThrow(
-        NotFoundException,
+        ProfileNotFoundException,
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });

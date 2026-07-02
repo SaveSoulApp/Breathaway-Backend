@@ -73,7 +73,11 @@ in this order:
    sanitized standard-shape response to the client.
 
 ```typescript
-// main.ts — order matters, Prisma filter must be first (inner = runs last on catch chain)
+// main.ts — Note on Registration Order:
+// NestJS evaluates global filters in reverse order of registration (last registered runs first).
+// Therefore, the catch-all GlobalExceptionFilter MUST be registered FIRST in the arguments list.
+// Any specific filters (like PrismaExceptionFilter or future custom filters) MUST be registered
+// AFTER GlobalExceptionFilter so they get priority before the catch-all consumes the exception.
 app.useGlobalFilters(
   new GlobalExceptionFilter(app.get(LoggerService), app.get(ConfigService), app.get(ClsService)),
   new PrismaExceptionFilter(app.get(LoggerService), app.get(ClsService)),
@@ -82,18 +86,36 @@ app.useGlobalFilters(
 
 See `references/exception-filters.md` for full implementations.
 
-### 2. Standard Error Response Shape
-All error responses across the entire API must conform to this exact shape — no raw NestJS
-default responses, no one-off custom formats:
+### 2. Standard Error Response Shape — RFC 7807
+This project uses RFC 7807 Problem Details (`application/problem+json`) as its error response
+standard, established by the original `ExceptionLoggingFilter`. All exception filters must
+produce this shape — never the generic NestJS `{ statusCode, error, message }` shape:
 
 ```json
 {
-  "statusCode": 404,
-  "error": "Not Found",
-  "message": "Profile not found for user abc-123",
-  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "NOT_FOUND",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Profile not found for user abc-123",
+  "instance": "/v1/profiles/abc-123",
   "timestamp": "2024-01-15T10:30:00.000Z",
-  "path": "/v1/profiles/abc-123"
+  "requestId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+For validation errors, `invalid_params` is added as a structured array — never collapsed into
+a joined string, which loses field-level error information that clients need for form display:
+
+```json
+{
+  "type": "BAD_REQUEST",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "One or more fields failed validation.",
+  "instance": "/v1/profiles",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "invalid_params": ["email must be an email", "firstName should not be empty"]
 }
 ```
 
@@ -126,10 +148,18 @@ never caught and re-thrown as `HttpException` subclasses inside services:
 | Unknown | 500 Internal Server Error | Unmapped Prisma error — log at `error`, sanitize message |
 
 ### 5. Production vs Development Error Responses
-In production (`NODE_ENV=production`), the `message` field in the error response must be
-sanitized for unexpected errors — never expose raw exception messages from Prisma, internal
-file paths, or stack traces. In development/staging, more detail can be surfaced to aid
-debugging. The `GlobalExceptionFilter` controls this via `ConfigService`.
+In production (`NODE_ENV=production`), the `detail` field in the error response must be
+sanitized for 5xx errors — never expose raw exception messages from Prisma, internal file
+paths, or stack traces. 4xx errors retain their real `detail` in production since they
+describe client mistakes, not internal state. In development/staging, 5xx `detail` can
+surface more context to aid debugging. The `GlobalExceptionFilter` controls this gate via
+`ConfigService`.
+
+## 6. Engineering Best Practices for Error Handling
+
+**Automated Registry Testing**: When using a centralized configuration or registry for exceptions (like mapping classes to HTTP statuses), you must implement an automated unit test that dynamically reflects over the codebase (e.g., scanning the file system for `*.exception.ts` files). This test must enforce 1-to-1 parity between the registry keys and the actual classes, preventing dead code or unregistered exceptions from sneaking into production.
+
+**Strict Typing at Boundaries**: When exception filters parse error responses from third-party libraries (e.g., `class-validator` payloads inside NestJS `HttpException`), never rely on `any` or `Record<string, unknown>`. Always define and cast to a specific, strict TypeScript interface (e.g., `ValidationErrorResponse`) to protect against upstream dependency changes and ensure safe property access.
 
 ---
 
@@ -147,11 +177,16 @@ debugging. The `GlobalExceptionFilter` controls this via `ConfigService`.
 
 **Exception filters**
 - [ ] Both `GlobalExceptionFilter` and `PrismaExceptionFilter` registered globally in `main.ts`
-      in the correct order
+      in the correct order (Global first, Prisma second)
 - [ ] Every unhandled exception logs the full error object (stack trace) server-side with the
-      request correlation ID
-- [ ] Production responses never include stack traces or raw Prisma error messages
-- [ ] Standard error response shape used consistently — no one-off `{ error: '...' }` shapes
+      request correlation ID from CLS
+- [ ] Production `detail` field sanitized for 5xx — never exposes internal messages or stack traces
+- [ ] RFC 7807 shape used consistently (`type`, `title`, `status`, `detail`, `instance`,
+      `timestamp`, `requestId`) — no one-off `{ statusCode, error, message }` shapes
+- [ ] `Content-Type: application/problem+json` set on all error responses
+- [ ] `invalid_params` preserved as an array for validation errors — not joined into a string
+- [ ] Raw Prisma `exception.message` and `exception.meta` never appear in any response body
+- [ ] Error responses from external libraries are parsed using strict TypeScript interfaces, avoiding `any` or generic objects.
 
 **Testing**
 - [ ] Service tests assert the specific exception class thrown per business condition
@@ -159,3 +194,4 @@ debugging. The `GlobalExceptionFilter` controls this via `ConfigService`.
 - [ ] "Log and rethrow" test case present for all mutating methods (per `test-automation-expert`)
 - [ ] Exception filter has its own unit test asserting: correct HTTP status, correct response
       shape, logging called with full error, production sanitization
+- [ ] Centralized exception registries have an automated test asserting 100% parity with the codebase classes.

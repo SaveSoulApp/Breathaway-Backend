@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NotFoundException } from '@nestjs/common';
+import { MatchNotFoundException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
 
@@ -334,7 +334,7 @@ describe('MatchesService', () => {
       // Act & Assert
       await expect(
         service.findOneForUser(matchId, currentUserId),
-      ).rejects.toThrow(new NotFoundException('Match not found'));
+      ).rejects.toThrow(new MatchNotFoundException('Match not found'));
     });
   });
 
@@ -378,7 +378,7 @@ describe('MatchesService', () => {
 
       // Act & Assert
       await expect(service.unmatch(matchId, currentUserId)).rejects.toThrow(
-        new NotFoundException('Match not found or already inactive'),
+        new MatchNotFoundException('Match not found or already inactive'),
       );
       expect(prisma.match.update).not.toHaveBeenCalled();
     });

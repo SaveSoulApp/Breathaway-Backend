@@ -1,7 +1,8 @@
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { NotFoundException } from '@nestjs/common';
+import { AdminUserNotFoundException } from '../application/exceptions';
+
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
@@ -62,21 +63,21 @@ describe('AdminService', () => {
     const userId = 'user-uuid';
     const reason = 'Violation of terms';
 
-    it('should throw NotFoundException if user does not exist', async () => {
+    it('should throw AdminUserNotFoundException if user does not exist', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(service.deleteAccount(userId, reason)).rejects.toThrow(
-        NotFoundException,
+        AdminUserNotFoundException,
       );
     });
 
-    it('should throw NotFoundException if user is already deleted', async () => {
+    it('should throw AdminUserNotFoundException if user is already deleted', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         deletedAt: new Date(),
       } as any);
 
       await expect(service.deleteAccount(userId, reason)).rejects.toThrow(
-        NotFoundException,
+        AdminUserNotFoundException,
       );
     });
 
