@@ -67,12 +67,12 @@ export class IdentityWorkflowsService extends BaseService {
     const { otp: extractedOtp, senderId } = data;
 
     try {
-      this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
+      this.logger.debug(`OTP extracted: ${extractedOtp}. Verifying...`);
       // Note: verifyAndConsumeOtp automatically handles hashing the OTP
       const userId =
         await this.oneTimePasswordsService.verifyAndConsumeOtp(extractedOtp);
 
-      this.logger.log(
+      this.logger.debug(
         `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${senderId}`,
       );
       const identity =
@@ -84,8 +84,8 @@ export class IdentityWorkflowsService extends BaseService {
       const username = identity.username;
 
       if (username) {
-        this.logger.log(
-          `Found Instagram username: ${username}. Linking identity to user ${userId}...`,
+        this.logger.debug(
+          `Found Instagram username: ${username}. Linking identity to user ${userId}`,
         );
         await this.identitiesService.claimOrCreateIdentity(
           IdentityType.INSTAGRAM,
@@ -202,7 +202,7 @@ export class IdentityWorkflowsService extends BaseService {
       return;
     }
 
-    this.logger.log(
+    this.logger.debug(
       `[${messageId}] Running match resolution for ${actionableLikes.length} actionable like(s) targeting user ${userId}.`,
     );
 

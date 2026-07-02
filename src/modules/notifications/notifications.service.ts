@@ -60,7 +60,7 @@ export class NotificationsService extends BaseService {
         PubSubEvent.NOTIFICATION_SEND_REQUESTED,
         dto as unknown as Record<string, unknown>,
       );
-      this.logger.log(
+      this.logger.debug(
         `Dispatched notification request for ${dto.userIds.length} users`,
       );
     } catch (error) {

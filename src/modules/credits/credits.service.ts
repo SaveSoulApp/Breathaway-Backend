@@ -474,7 +474,7 @@ export class CreditsService extends BaseService {
   async handleExpiryBatch(payload: CreditExpiryBatchRequestDto): Promise<void> {
     const asOf = DateUtil.parse(payload.asOf);
 
-    this.logger.log(
+    this.logger.debug(
       `Processing credit expiry batch: ${payload.userIds.length} users, asOf=${payload.asOf}`,
     );
 
@@ -500,7 +500,7 @@ export class CreditsService extends BaseService {
     // Target window end is asOf + 7 days
     const targetEnd = DateUtil.addDays(asOf, 7);
 
-    this.logger.log(
+    this.logger.debug(
       `Processing credit expiry warning batch: ${payload.userIds.length} users, targetEnd=${targetEnd.toISOString()}`,
     );
 

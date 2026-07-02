@@ -64,7 +64,7 @@ export class SocialidentitiesService extends BaseService {
     const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
 
     try {
-      this.logger.log(`Fetching identity for instagramId: ${instagramId}`);
+      this.logger.debug(`Fetching identity for instagramId: ${instagramId}`);
       const response = await fetch(url);
 
       const data = (await response.json()) as {

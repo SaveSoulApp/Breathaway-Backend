@@ -19,7 +19,7 @@ export class GenericMessageHandler
   }
 
   canHandle(message: ParsedInstagramMessage): boolean {
-    this.logger.log(
+    this.logger.debug(
       `Checking if generic message event for message ${message.messageId}`,
     );
     return true; // Fallback handler handles everything that reaches it
@@ -38,7 +38,7 @@ export class GenericMessageHandler
           timestamp: message.timestamp,
         },
       );
-      this.logger.log(
+      this.logger.debug(
         `Published generic message event for message ${message.messageId}`,
       );
     } catch (error) {

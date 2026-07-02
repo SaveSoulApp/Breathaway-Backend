@@ -99,7 +99,7 @@ describe('DevicesService', () => {
         },
       });
       expect(result).toEqual(mockDevice);
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Registering device for user: user-1',
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
@@ -192,7 +192,7 @@ describe('DevicesService', () => {
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual([mockDevice]);
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Fetching devices for user: user-1',
       );
     });
@@ -208,7 +208,7 @@ describe('DevicesService', () => {
         where: { id: 'device-id-123', userId: 'user-1' },
       });
       expect(result).toEqual(mockDevice);
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Fetching device device-id-123 for user: user-1',
       );
     });

@@ -186,7 +186,7 @@ describe('MatchResolverService', () => {
         mockNewLike.intent,
         mockReverseLike.intent,
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining('Intents are incompatible between Like like-1'),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
@@ -198,7 +198,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(blocksService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining(
           'Block exists between users user-1 and user-2. Suppressing match.',
         ),

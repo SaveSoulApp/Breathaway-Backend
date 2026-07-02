@@ -99,7 +99,7 @@ export class WebhooksService extends BaseService {
   private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
       // 1. Logging
-      this.logger.log('Instagram message received', {
+      this.logger.debug('Instagram message received', {
         senderId: message.senderId,
         recipientId: message.recipientId,
         messageId: message.messageId,

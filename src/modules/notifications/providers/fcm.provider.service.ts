@@ -52,7 +52,7 @@ export class FcmProviderService
       }
     });
 
-    this.logger.log(
+    this.logger.debug(
       `Found ${iosTokens.length} iOS and ${androidTokens.length} Android devices for FCM`,
     );
 

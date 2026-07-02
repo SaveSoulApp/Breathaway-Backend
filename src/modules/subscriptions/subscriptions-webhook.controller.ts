@@ -226,7 +226,7 @@ export class SubscriptionsWebhookController extends BaseController {
             await this.subscriptionsService.findSubscriptionByStoreTransaction(
               storeTransactionId,
             );
-          this.logger.log(
+          this.logger.debug(
             `INITIAL_PURCHASE webhook: subscription "${existing.id}" already exists — no action needed`,
           );
         } catch {

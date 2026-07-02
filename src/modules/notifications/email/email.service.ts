@@ -102,7 +102,7 @@ export class EmailService extends BaseService implements OnModuleInit {
       return;
     }
 
-    this.logger.log(
+    this.logger.debug(
       `[EmailService] Dispatching ${emailType} to ${resolvedEmails.length} recipient(s)`,
     );
 
@@ -187,7 +187,7 @@ export class EmailService extends BaseService implements OnModuleInit {
       Handlebars.registerPartial(name, source);
     });
 
-    this.logger.log(
+    this.logger.debug(
       `[EmailService] Registered ${partialFiles.length} Handlebars partial(s): ${partialFiles.join(', ')}`,
     );
   }

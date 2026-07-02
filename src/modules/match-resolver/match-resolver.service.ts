@@ -82,7 +82,7 @@ export class MatchResolverService extends BaseService {
         return;
       }
 
-      this.logger.log(
+      this.logger.debug(
         `Reverse like found: ${reverseLike.id} for new like: ${newLike.id}.`,
       );
 
@@ -246,7 +246,7 @@ export class MatchResolverService extends BaseService {
         reverseLike.intent,
       )
     ) {
-      this.logger.log(
+      this.logger.debug(
         `Intents are incompatible between Like ${newLike.id} (${newLike.intent}) and Like ${reverseLike.id} (${reverseLike.intent}).`,
       );
       return { valid: false, existingMatch: null };
@@ -258,7 +258,7 @@ export class MatchResolverService extends BaseService {
     );
 
     if (isBlocked) {
-      this.logger.log(
+      this.logger.debug(
         `Block exists between users ${newLike.senderUserId} and ${targetUserId}. Suppressing match.`,
       );
       return { valid: false, existingMatch: null };

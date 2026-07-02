@@ -176,7 +176,7 @@ export class ChatsService {
     content: string,
   ) {
     // TODO: Integrate with existing push notification service
-    this.logger.log(
+    this.logger.debug(
       `[Push Notification Simulation] Sending to ${targetUserId}: ${content.substring(0, 20)}...`,
     );
     return Promise.resolve();

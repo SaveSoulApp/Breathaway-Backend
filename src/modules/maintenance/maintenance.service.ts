@@ -100,7 +100,7 @@ export class MaintenanceService extends BaseService {
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.log(
+    this.logger.debug(
       `Credit expiry fan-out started. batchSize=${this.expiryBatchSize}, asOf=${asOf}`,
     );
 
@@ -184,7 +184,7 @@ export class MaintenanceService extends BaseService {
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.log(
+    this.logger.debug(
       `Credit expiry warning fan-out started. batchSize=${this.expiryBatchSize}, window=[${targetStart.toISOString()}, ${targetEnd.toISOString()})`,
     );
 

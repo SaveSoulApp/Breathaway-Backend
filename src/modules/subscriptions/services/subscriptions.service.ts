@@ -174,7 +174,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
+      this.logger.debug(
         `Subscription already exists for purchaseToken "${dto.purchaseToken}", returning existing`,
       );
       return existing;
@@ -237,7 +237,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
+      this.logger.debug(
         `Subscription already exists for storeTransactionId "${params.storeTransactionId}" — skipping initial purchase`,
       );
       return existing;
@@ -583,7 +583,7 @@ export class SubscriptionsService extends BaseService {
       subscription.status === SubscriptionStatus.EXPIRED ||
       subscription.status === SubscriptionStatus.REVOKED
     ) {
-      this.logger.log(
+      this.logger.debug(
         `Subscription "${subscription.id}" already in terminal state "${subscription.status}" — skipping expiry`,
       );
       return subscription;
@@ -718,7 +718,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
+      this.logger.debug(
         `Duplicate webhook event "${storeEventId}" — already processed, skipping`,
       );
       return true;

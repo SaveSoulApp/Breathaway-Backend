@@ -151,7 +151,7 @@ describe('SocialidentitiesService', () => {
         platform: 'instagram',
       });
 
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Fetching identity for instagramId: 123',
       );
     });

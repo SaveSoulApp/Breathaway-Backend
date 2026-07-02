@@ -47,7 +47,7 @@ export class DevicesService extends BaseService {
     userId: string,
     createDeviceDto: CreateDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Registering device for user: ${userId}`);
+    this.logger.debug(`Registering device for user: ${userId}`);
 
     const platform = this.mapPlatformToDevicePlatform(createDeviceDto.platform);
 
@@ -99,7 +99,7 @@ export class DevicesService extends BaseService {
    * @returns An array of Device entities; empty array if the user has no registered devices.
    */
   async getUserDevices(userId: string): Promise<Device[]> {
-    this.logger.log(`Fetching devices for user: ${userId}`);
+    this.logger.debug(`Fetching devices for user: ${userId}`);
 
     return this.prisma.device.findMany({
       where: { userId },
@@ -119,7 +119,7 @@ export class DevicesService extends BaseService {
    * @throws {NotFoundException} When no device with the given ID exists for this user.
    */
   async getDeviceById(userId: string, deviceId: string): Promise<Device> {
-    this.logger.log(`Fetching device ${deviceId} for user: ${userId}`);
+    this.logger.debug(`Fetching device ${deviceId} for user: ${userId}`);
 
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
@@ -150,7 +150,7 @@ export class DevicesService extends BaseService {
     deviceId: string,
     updateDeviceDto: UpdateDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Updating device ${deviceId} for user: ${userId}`);
+    this.logger.debug(`Updating device ${deviceId} for user: ${userId}`);
 
     const platform = this.mapPlatformToDevicePlatform(updateDeviceDto.platform);
 
@@ -207,7 +207,7 @@ export class DevicesService extends BaseService {
     deviceId: string,
     patchDeviceDto: PatchDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Patching device ${deviceId} for user: ${userId}`);
+    this.logger.debug(`Patching device ${deviceId} for user: ${userId}`);
 
     const platform = this.mapPlatformToDevicePlatform(patchDeviceDto.platform);
 
@@ -257,7 +257,7 @@ export class DevicesService extends BaseService {
    * @throws {NotFoundException} When no device with the given ID exists for this user.
    */
   async deleteDevice(userId: string, deviceId: string): Promise<void> {
-    this.logger.log(`Deleting device ${deviceId} for user: ${userId}`);
+    this.logger.debug(`Deleting device ${deviceId} for user: ${userId}`);
 
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },

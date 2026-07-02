@@ -39,12 +39,15 @@ describe('SubscriptionsService', () => {
   const storeTransactionId = 'store-tx-999';
   const storeProductId = 'prod-premium';
 
+  const mockLogger = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+
   const mockLoggerService = {
-    forContext: jest.fn().mockReturnValue({
-      log: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-    }),
+    forContext: jest.fn().mockReturnValue(mockLogger),
   };
 
   const mockPlan = {
