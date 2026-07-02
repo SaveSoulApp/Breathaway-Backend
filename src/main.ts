@@ -4,13 +4,12 @@ import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
+import { ClsService } from 'nestjs-cls';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
-import {
-  ExceptionLoggingFilter,
-  LoggerService,
-  LoggingInterceptor,
-} from './core/logger';
+import { GlobalExceptionFilter } from './core/exception-filters/global-exception.filter';
+import { LoggerService, LoggingInterceptor } from './core/logger';
+import { PrismaExceptionFilter } from './infrastructure/database/exception-filters/prisma-exception.filter';
 
 async function bootstrap(): Promise<void> {
   const app: INestApplication = await NestFactory.create(AppModule, {
@@ -25,7 +24,10 @@ async function bootstrap(): Promise<void> {
 
   // 2. Global Middleware & Interceptors
   app.useGlobalInterceptors(app.get(LoggingInterceptor));
-  app.useGlobalFilters(new ExceptionLoggingFilter(logger));
+  app.useGlobalFilters(
+    new GlobalExceptionFilter(logger, configService, app.get(ClsService)),
+    new PrismaExceptionFilter(logger, app.get(ClsService)),
+  );
 
   app.use(
     helmet({

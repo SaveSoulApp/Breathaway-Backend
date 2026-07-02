@@ -1,14 +1,14 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma, UserProfile } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
+import { Injectable } from '@nestjs/common';
+import { Prisma, UserProfile } from '@prisma/client';
+import {
+  ProfileAlreadyExistsException,
+  ProfileNotFoundException,
+} from './application/exceptions';
 import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
@@ -59,7 +59,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (existingProfile) {
-      throw new ConflictException(`Profile already exists for user: ${userId}`);
+      throw new ProfileAlreadyExistsException(userId);
     }
 
     try {
@@ -108,7 +108,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (!profile) {
-      throw new NotFoundException(`Profile not found for user: ${userId}`);
+      throw new ProfileNotFoundException(userId);
     }
 
     return profile;
@@ -133,7 +133,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (!profile) {
-      throw new NotFoundException(`Profile not found with ID: ${id}`);
+      throw new ProfileNotFoundException(id);
     }
 
     return profile;
@@ -164,7 +164,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (!existingProfile) {
-      throw new NotFoundException(`Profile not found for user: ${userId}`);
+      throw new ProfileNotFoundException(userId);
     }
 
     try {
@@ -218,7 +218,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (!existingProfile) {
-      throw new NotFoundException(`Profile not found for user: ${userId}`);
+      throw new ProfileNotFoundException(userId);
     }
 
     // Handle special case for dateOfBirth transformation
@@ -271,9 +271,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (!existingUser || existingUser.deletedAt) {
-      throw new NotFoundException(
-        `User not found or already deleted: ${userId}`,
-      );
+      throw new ProfileNotFoundException(userId);
     }
 
     try {

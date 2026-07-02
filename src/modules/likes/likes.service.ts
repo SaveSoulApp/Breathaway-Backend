@@ -1,13 +1,15 @@
-import {
-  BadRequestException,
-  ConflictException,
-  HttpException,
-  HttpStatus,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LikeStatus, Prisma } from '@prisma/client';
+import {
+  AlreadyLikedException,
+  IdentityNotFoundException,
+  InsufficientCreditsException,
+  InvalidLikeStateException,
+  LikeNotFoundException,
+  MissingTargetIdentityException,
+  SelfLikeException,
+} from './application/exceptions';
 
 import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
@@ -85,10 +87,7 @@ export class LikesService extends BaseService {
           requiredAmount: LikesConfig.CREDITS_PER_LIKE,
         },
       });
-      throw new HttpException(
-        'Insufficient credits',
-        HttpStatus.PAYMENT_REQUIRED,
-      );
+      throw new InsufficientCreditsException();
     }
 
     let targetIdentityId = dto.targetIdentityId;
@@ -132,9 +131,7 @@ export class LikesService extends BaseService {
     }
 
     if (!targetIdentityId) {
-      throw new BadRequestException(
-        'Either targetIdentityId or targetIdentity must be provided',
-      );
+      throw new MissingTargetIdentityException();
     }
 
     const targetIdentity = await this.prisma.identity.findUnique({
@@ -142,11 +139,11 @@ export class LikesService extends BaseService {
     });
 
     if (!targetIdentity) {
-      throw new NotFoundException('Target identity not found');
+      throw new IdentityNotFoundException();
     }
 
     if (targetIdentity.userId === userId) {
-      throw new BadRequestException('You cannot like yourself');
+      throw new SelfLikeException();
     }
 
     // Prevent duplicate
@@ -160,7 +157,7 @@ export class LikesService extends BaseService {
     });
 
     if (existingLike) {
-      throw new ConflictException({ message: 'You already liked this person' });
+      throw new AlreadyLikedException();
     }
 
     const expiresAt = DateUtil.now();
@@ -306,7 +303,7 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
-      throw new NotFoundException(`Like ${id} not found`);
+      throw new LikeNotFoundException(id);
     }
 
     return this.attachPublicValue(like);
@@ -331,11 +328,11 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
-      throw new NotFoundException(`Like ${id} not found`);
+      throw new LikeNotFoundException(id);
     }
 
     if (like.status !== LikeStatus.PENDING) {
-      throw new BadRequestException('Only PENDING likes can be deleted');
+      throw new InvalidLikeStateException();
     }
 
     await this.prisma.like.update({
@@ -378,7 +375,7 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
-      throw new NotFoundException(`Like ${id} not found`);
+      throw new LikeNotFoundException(id);
     }
 
     // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)

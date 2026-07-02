@@ -22,6 +22,8 @@ presentation layer.
 ### Target pattern — domain exceptions in the application layer
 ```typescript
 // application/exceptions/profile-already-exists.exception.ts
+import { DomainException } from '@shared/domain/exceptions/domain.exception';
+
 export class ProfileAlreadyExistsException extends DomainException {
   constructor(userId: string) {
     super(`A profile already exists for user ${userId}`);
@@ -123,6 +125,24 @@ export class ProfileAlreadyExistsException extends DomainException {
 }
 ```
 
+### Barrel Exports (index.ts)
+Always create an `index.ts` file in the `application/exceptions/` folder that exports all exceptions for the module:
+
+```typescript
+// application/exceptions/index.ts
+export * from './profile-not-found.exception';
+export * from './profile-already-exists.exception';
+```
+
+Services and spec files must import exceptions from this consolidated barrel file rather than importing each file individually:
+
+```typescript
+import {
+  ProfileAlreadyExistsException,
+  ProfileNotFoundException,
+} from './application/exceptions';
+```
+
 ### HTTP mapping registry
 The `GlobalExceptionFilter` needs to know which domain exception maps to which HTTP status.
 Centralize this in one place, not scattered across individual filter `@Catch()` decorators:
@@ -189,12 +209,13 @@ whose only purpose is to gate HTTP access.
 
 When migrating an existing service from HTTP exceptions to domain exceptions:
 
-1. Create the domain exception class(es) in `application/exceptions/`
-2. Add the HTTP mapping entry to `DOMAIN_EXCEPTION_HTTP_MAP`
-3. Replace `throw new ConflictException(...)` with `throw new DomainExceptionClass(...)`
-4. Update the service tests — assertions change from `rejects.toThrow(ConflictException)` to
+1. Create the domain exception class(es) in `application/exceptions/` (importing `DomainException` via the `@shared/domain/exceptions/domain.exception` alias)
+2. Create an `index.ts` barrel file in `application/exceptions/` to export all exceptions
+3. Add the HTTP mapping entry to `DOMAIN_EXCEPTION_HTTP_MAP`
+4. Replace `throw new ConflictException(...)` with `throw new DomainExceptionClass(...)` imported from the barrel file
+5. Update the service tests — assertions change from `rejects.toThrow(ConflictException)` to
    `rejects.toThrow(ProfileAlreadyExistsException)`
-5. Verify the E2E test still gets a 409 (the HTTP mapping should route it correctly)
+6. Verify the E2E test still gets a 409 (the HTTP mapping should route it correctly)
 
 Do **not** do this migration across the whole codebase in one PR — it's high-blast-radius and
 easy to miss an unmapped exception. Migrate one module at a time, with a test run between each.
