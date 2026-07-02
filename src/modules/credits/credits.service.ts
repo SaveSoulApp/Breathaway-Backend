@@ -1,8 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import {
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
-import { LedgerEntryNotFoundException, InvalidCreditSourceException, InsufficientCreditsException } from './application/exceptions';
+  LedgerEntryNotFoundException,
+  InvalidCreditSourceException,
+  InsufficientCreditsException,
+} from './application/exceptions';
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';

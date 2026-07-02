@@ -6,12 +6,9 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import {
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   AccountAlreadyExistsException,
-  RegistrationPendingException,
   AccountNotFoundException,
   UnverifiedAccountException,
   SocialAccountAlreadyLinkedException,

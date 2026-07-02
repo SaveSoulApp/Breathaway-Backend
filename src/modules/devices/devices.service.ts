@@ -1,7 +1,8 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-} from '@nestjs/common';
-import { DeviceNotFoundException, DeviceTokenAlreadyExistsException } from './application/exceptions';
+  DeviceNotFoundException,
+  DeviceTokenAlreadyExistsException,
+} from './application/exceptions';
 import { Device, DevicePlatform } from '@prisma/client';
 import { BaseService } from '@core/base';
 import { Platform } from '@common/interfaces';

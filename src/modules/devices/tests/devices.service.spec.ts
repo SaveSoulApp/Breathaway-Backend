@@ -1,5 +1,8 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DeviceNotFoundException, DeviceTokenAlreadyExistsException } from '../application/exceptions';
+import {
+  DeviceNotFoundException,
+  DeviceTokenAlreadyExistsException,
+} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
 
@@ -158,8 +161,7 @@ describe('DevicesService', () => {
       (error as unknown as { code: string }).code = 'P2002';
       prisma.device.create.mockRejectedValue(error);
 
-      await expect(service.createDevice('user-1', createDto)).rejects.toThrow(
-            );
+      await expect(service.createDevice('user-1', createDto)).rejects.toThrow();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Device token already exists: fcm-token',
       );

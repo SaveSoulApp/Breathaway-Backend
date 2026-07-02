@@ -1,5 +1,8 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SubscriptionNotFoundException, InvalidSubscriptionDatesException } from '../application/exceptions';
+import {
+  SubscriptionNotFoundException,
+  InvalidSubscriptionDatesException,
+} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditSource,
@@ -245,9 +248,7 @@ describe('SubscriptionsService', () => {
       // Act & Assert
       await expect(
         service.verifyAndCreateSubscription(userId, invalidDto),
-      ).rejects.toThrow(
-        new InvalidSubscriptionDatesException(),
-      );
+      ).rejects.toThrow(new InvalidSubscriptionDatesException());
     });
 
     it('should calculate dates from plan validityDays if not provided in dto', async () => {

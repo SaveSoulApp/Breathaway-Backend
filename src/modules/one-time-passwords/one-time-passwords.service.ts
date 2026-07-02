@@ -2,12 +2,11 @@ import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
 import { LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto';
+import { Inject, Injectable } from '@nestjs/common';
 import {
-  HttpStatus,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
-import { OtpRateLimitExceededException, InvalidOtpException } from './application/exceptions';
+  OtpRateLimitExceededException,
+  InvalidOtpException,
+} from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';

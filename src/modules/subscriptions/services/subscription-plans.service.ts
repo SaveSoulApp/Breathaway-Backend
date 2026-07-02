@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SubscriptionPlanNotFoundException, SubscriptionPlanPriceNotFoundException } from '../application/exceptions';
+import { SubscriptionPlanNotFoundException } from '../application/exceptions';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 
 import { BaseService } from '@core/base';

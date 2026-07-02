@@ -1,6 +1,9 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HttpStatus } from '@nestjs/common';
-import { OtpRateLimitExceededException, InvalidOtpException } from '../application/exceptions';
+import {
+  OtpRateLimitExceededException,
+  InvalidOtpException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoggerService } from '@core/logger';

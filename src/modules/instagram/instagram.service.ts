@@ -1,7 +1,8 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-} from '@nestjs/common';
-import { InstagramGraphApiException, MissingInstagramConfigException } from './application/exceptions';
+  InstagramGraphApiException,
+  MissingInstagramConfigException,
+} from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { BaseService } from '@core/base';
@@ -64,7 +65,9 @@ export class InstagramService extends BaseService {
       const err = error as {
         response?: { data?: string | Record<string, unknown>; status?: number };
       };
-      throw new InstagramGraphApiException(err.response?.data || 'Failed to refresh token');
+      throw new InstagramGraphApiException(
+        err.response?.data || 'Failed to refresh token',
+      );
     }
   }
 

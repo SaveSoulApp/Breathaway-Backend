@@ -5,7 +5,6 @@ import { AuditActionType } from '@modules/audit/dto';
 import { Injectable } from '@nestjs/common';
 import { AdminUserNotFoundException } from './application/exceptions';
 
-
 @Injectable()
 export class AdminService extends BaseService {
   constructor(

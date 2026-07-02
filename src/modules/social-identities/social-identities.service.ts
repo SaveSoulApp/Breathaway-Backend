@@ -1,7 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-} from '@nestjs/common';
-import { MissingSocialIdentityConfigException, SocialIdentityApiException, SocialIdentityNetworkException } from './application/exceptions';
+  MissingSocialIdentityConfigException,
+  SocialIdentityApiException,
+  SocialIdentityNetworkException,
+} from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -84,7 +86,9 @@ export class SocialidentitiesService extends BaseService {
         // We throw BadRequest if client provided a bad ID/token according to IG, otherwise BadGateway.
         const errorMessage =
           data?.error?.message || 'Failed to verify Instagram identity';
-        throw new SocialIdentityApiException(`Instagram API Error: ${errorMessage}`);
+        throw new SocialIdentityApiException(
+          `Instagram API Error: ${errorMessage}`,
+        );
       }
 
       if (userId) {

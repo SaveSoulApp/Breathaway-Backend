@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import {
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { InternalServerErrorException } from '@nestjs/common';
 import { MessageNotFoundException } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
 import { createClient } from '@supabase/supabase-js';

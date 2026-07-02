@@ -1,7 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { InstagramGraphApiException, MissingInstagramConfigException } from '../application/exceptions';
+import {
+  InstagramGraphApiException,
+  MissingInstagramConfigException,
+} from '../application/exceptions';
 import axios from 'axios';
 import { LoggerService } from '@core/logger';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';

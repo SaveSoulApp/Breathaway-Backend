@@ -1,6 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MissingSocialIdentityConfigException, SocialIdentityApiException, SocialIdentityNetworkException } from '../application/exceptions';
+import {
+  MissingSocialIdentityConfigException,
+  SocialIdentityApiException,
+  SocialIdentityNetworkException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '@core/logger';
 import { SocialidentitiesService } from '../social-identities.service';

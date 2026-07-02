@@ -1,8 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { HttpStatus } from '@nestjs/common';
 import {
-  HttpStatus,
-} from '@nestjs/common';
-import { LedgerEntryNotFoundException, InvalidCreditSourceException, InsufficientCreditsException } from '../application/exceptions';
+  LedgerEntryNotFoundException,
+  InvalidCreditSourceException,
+  InsufficientCreditsException,
+} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditLedger,
@@ -279,9 +281,7 @@ describe('CreditsService', () => {
       // Act & Assert
       await expect(
         service.grantCredits({ ...dto, source: CreditSource.LIKE_USAGE }),
-      ).rejects.toThrow(
-        new InvalidCreditSourceException(),
-      );
+      ).rejects.toThrow(new InvalidCreditSourceException());
     });
 
     it('should grant credits successfully', async () => {

@@ -13,7 +13,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { SubscriptionPlanNotFoundException, ActiveSubscriptionNotFoundException, InvalidSubscriptionDatesException } from './application/exceptions';
+import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
   ApiBearerAuth,
   ApiOperation,

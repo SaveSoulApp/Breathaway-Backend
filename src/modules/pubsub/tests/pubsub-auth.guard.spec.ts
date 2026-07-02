@@ -1,7 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '@core/logger';
 import { ExecutionContext } from '@nestjs/common';
-import { MissingPubSubConfigException, InvalidPubSubTokenException } from '../application/exceptions';
+import {
+  MissingPubSubConfigException,
+  InvalidPubSubTokenException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PubSubAuthGuard } from '../guards/pubsub-auth.guard';
@@ -66,7 +69,9 @@ describe('PubSubAuthGuard', () => {
       configService.get.mockReturnValue(undefined);
       const context = createMockContext('some_token');
 
-      expect(() => guard.canActivate(context)).toThrow(MissingPubSubConfigException);
+      expect(() => guard.canActivate(context)).toThrow(
+        MissingPubSubConfigException,
+      );
       expect(() => guard.canActivate(context)).toThrow(
         'Server configuration error',
       );
@@ -79,7 +84,9 @@ describe('PubSubAuthGuard', () => {
       configService.get.mockReturnValue('valid_token');
       const context = createMockContext(undefined);
 
-      expect(() => guard.canActivate(context)).toThrow(InvalidPubSubTokenException);
+      expect(() => guard.canActivate(context)).toThrow(
+        InvalidPubSubTokenException,
+      );
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );
@@ -92,7 +99,9 @@ describe('PubSubAuthGuard', () => {
       configService.get.mockReturnValue('valid_token');
       const context = createMockContext('invalid_token');
 
-      expect(() => guard.canActivate(context)).toThrow(InvalidPubSubTokenException);
+      expect(() => guard.canActivate(context)).toThrow(
+        InvalidPubSubTokenException,
+      );
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );

@@ -1,7 +1,8 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-} from '@nestjs/common';
-import { SubscriptionNotFoundException, InvalidSubscriptionDatesException } from '../application/exceptions';
+  SubscriptionNotFoundException,
+  InvalidSubscriptionDatesException,
+} from '../application/exceptions';
 import {
   CreditSource,
   CurrencyCode,

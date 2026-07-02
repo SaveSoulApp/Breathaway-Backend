@@ -1,5 +1,8 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SubscriptionPlanNotFoundException, SubscriptionPlanPriceNotFoundException } from '../application/exceptions';
+import {
+  SubscriptionPlanNotFoundException,
+  SubscriptionPlanPriceNotFoundException,
+} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';

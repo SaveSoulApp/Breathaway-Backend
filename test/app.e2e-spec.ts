@@ -8,10 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import {
-  LoggerModule,
-  LoggerService,
-} from '@core/logger';
+import { LoggerModule, LoggerService } from '@core/logger';
 import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { ClsModule, ClsService } from 'nestjs-cls';
@@ -105,7 +102,11 @@ describe('AppController (e2e)', () => {
     });
 
     app.useGlobalFilters(
-      new GlobalExceptionFilter(logger, app.get(ConfigService), app.get(ClsService)),
+      new GlobalExceptionFilter(
+        logger,
+        app.get(ConfigService),
+        app.get(ClsService),
+      ),
       new PrismaExceptionFilter(logger, app.get(ClsService)),
     );
     app.useGlobalPipes(

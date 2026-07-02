@@ -13,7 +13,6 @@ import {
   IdentityNotFoundException,
 } from '../application/exceptions';
 
-
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
@@ -332,8 +331,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.findOne(mockIdentityId, mockUserId)).rejects.toThrow(
-            );
+      await expect(
+        service.findOne(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
     });
   });
 
@@ -558,8 +558,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.delete(mockIdentityId, mockUserId)).rejects.toThrow(
-            );
+      await expect(
+        service.delete(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
 
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });
@@ -603,8 +604,9 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.verify(mockIdentityId, mockUserId)).rejects.toThrow(
-            );
+      await expect(
+        service.verify(mockIdentityId, mockUserId),
+      ).rejects.toThrow();
 
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });

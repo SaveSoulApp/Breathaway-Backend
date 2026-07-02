@@ -1,10 +1,9 @@
 import { LoggerService } from '@core/logger';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-} from '@nestjs/common';
-import { MissingPubSubConfigException, InvalidPubSubTokenException } from '../application/exceptions';
+  MissingPubSubConfigException,
+  InvalidPubSubTokenException,
+} from '../application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 
