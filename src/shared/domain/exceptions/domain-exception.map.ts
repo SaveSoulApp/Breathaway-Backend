@@ -40,4 +40,6 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   DeviceTokenAlreadyExistsException: HttpStatus.CONFLICT,
   InstagramGraphApiException: HttpStatus.BAD_GATEWAY,
   MissingInstagramConfigException: HttpStatus.INTERNAL_SERVER_ERROR,
+  OtpRateLimitExceededException: HttpStatus.TOO_MANY_REQUESTS,
+  InvalidOtpException: HttpStatus.BAD_REQUEST,
 };

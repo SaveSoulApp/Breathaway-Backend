@@ -3,12 +3,11 @@ import { hashString } from '@core/crypto/crypto.utils';
 import { LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto';
 import {
-  BadRequestException,
-  HttpException,
   HttpStatus,
   Inject,
   Injectable,
 } from '@nestjs/common';
+import { OtpRateLimitExceededException, InvalidOtpException } from './application/exceptions';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
@@ -109,7 +108,7 @@ export class OneTimePasswordsService extends BaseService {
     const userId = await this.redisClient.get(redisKey);
 
     if (!userId) {
-      throw new BadRequestException('Invalid or expired OTP');
+      throw new InvalidOtpException();
     }
 
     // OTP is valid, consume it by deleting the key
@@ -138,10 +137,7 @@ export class OneTimePasswordsService extends BaseService {
     const rateLimitExceeded = await this.redisClient.get(rateLimitKey);
 
     if (rateLimitExceeded) {
-      throw new HttpException(
-        'Please wait before requesting a new OTP',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new OtpRateLimitExceededException();
     }
     return rateLimitKey;
   }
