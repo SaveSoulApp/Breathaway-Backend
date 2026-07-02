@@ -1,8 +1,7 @@
 import {
-  ConflictException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
+import { DeviceNotFoundException, DeviceTokenAlreadyExistsException } from './application/exceptions';
 import { Device, DevicePlatform } from '@prisma/client';
 import { BaseService } from '@core/base';
 import { Platform } from '@common/interfaces';
@@ -83,7 +82,7 @@ export class DevicesService extends BaseService {
         this.logger.warn(
           `Device token already exists: ${createDeviceDto.token}`,
         );
-        throw new ConflictException('A device with this token already exists');
+        throw new DeviceTokenAlreadyExistsException();
       }
       this.logger.error(`Failed to register device for user ${userId}`, {
         stack: err.stack,
@@ -126,9 +125,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
-      throw new NotFoundException(
-        `Device not found or does not belong to user`,
-      );
+      throw new DeviceNotFoundException();
     }
 
     return device;
@@ -161,9 +158,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
-      throw new NotFoundException(
-        `Device not found or does not belong to user`,
-      );
+      throw new DeviceNotFoundException();
     }
 
     try {
@@ -183,7 +178,7 @@ export class DevicesService extends BaseService {
         this.logger.warn(
           `Device token conflict during update: ${updateDeviceDto.token}`,
         );
-        throw new ConflictException('A device with this token already exists');
+        throw new DeviceTokenAlreadyExistsException();
       }
       this.logger.error(`Failed to update device ${deviceId}`, {
         stack: err.stack,
@@ -220,9 +215,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
-      throw new NotFoundException(
-        `Device not found or does not belong to user`,
-      );
+      throw new DeviceNotFoundException();
     }
 
     try {
@@ -242,7 +235,7 @@ export class DevicesService extends BaseService {
         this.logger.warn(
           `Device token conflict during patch: ${patchDeviceDto.token}`,
         );
-        throw new ConflictException('A device with this token already exists');
+        throw new DeviceTokenAlreadyExistsException();
       }
       this.logger.error(`Failed to patch device ${deviceId}`, {
         stack: err.stack,
@@ -270,9 +263,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
-      throw new NotFoundException(
-        `Device not found or does not belong to user`,
-      );
+      throw new DeviceNotFoundException();
     }
 
     await this.prisma.device.delete({

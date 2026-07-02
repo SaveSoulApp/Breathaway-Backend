@@ -34,4 +34,8 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   PrimaryCredentialUnlinkException: HttpStatus.CONFLICT,
   CredentialAlreadyLinkedException: HttpStatus.CONFLICT,
   PrimaryIdentityConstraintViolationException: HttpStatus.CONFLICT,
+  LedgerEntryNotFoundException: HttpStatus.NOT_FOUND,
+  InvalidCreditSourceException: HttpStatus.BAD_REQUEST,
+  DeviceNotFoundException: HttpStatus.NOT_FOUND,
+  DeviceTokenAlreadyExistsException: HttpStatus.CONFLICT,
 };

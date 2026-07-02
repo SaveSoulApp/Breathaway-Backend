@@ -1,10 +1,8 @@
 import {
-  BadRequestException,
-  HttpException,
   HttpStatus,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
+import { LedgerEntryNotFoundException, InvalidCreditSourceException, InsufficientCreditsException } from './application/exceptions';
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
@@ -240,7 +238,7 @@ export class CreditsService extends BaseService {
     });
 
     if (!entry) {
-      throw new NotFoundException('Ledger entry not found');
+      throw new LedgerEntryNotFoundException();
     }
 
     return entry;
@@ -266,7 +264,7 @@ export class CreditsService extends BaseService {
     tx?: Prisma.TransactionClient,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
-      throw new BadRequestException('Cannot manually grant LIKE_USAGE credits');
+      throw new InvalidCreditSourceException();
     }
 
     const client = tx ?? this.prisma;
@@ -323,10 +321,7 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
-      throw new HttpException(
-        'Insufficient credits',
-        HttpStatus.PAYMENT_REQUIRED,
-      );
+      throw new InsufficientCreditsException();
     }
 
     const ledger = await client.creditLedger.create({

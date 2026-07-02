@@ -1,10 +1,8 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
-  BadRequestException,
-  NotFoundException,
-  HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { LedgerEntryNotFoundException, InvalidCreditSourceException, InsufficientCreditsException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditLedger,
@@ -258,13 +256,13 @@ describe('CreditsService', () => {
       expect(result).toEqual(mockLedgerEntry);
     });
 
-    it('should throw NotFoundException if entry not found', async () => {
+    it('should throw LedgerEntryNotFoundException if entry not found', async () => {
       // Arrange
       prisma.creditLedger.findFirst.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.getLedgerEntry(userId, entryId)).rejects.toThrow(
-        new NotFoundException('Ledger entry not found'),
+        new LedgerEntryNotFoundException(),
       );
     });
   });
@@ -277,12 +275,12 @@ describe('CreditsService', () => {
       expiresAt: '2025-01-01',
     };
 
-    it('should throw BadRequestException if source is LIKE_USAGE', async () => {
+    it('should throw InvalidCreditSourceException if source is LIKE_USAGE', async () => {
       // Act & Assert
       await expect(
         service.grantCredits({ ...dto, source: CreditSource.LIKE_USAGE }),
       ).rejects.toThrow(
-        new BadRequestException('Cannot manually grant LIKE_USAGE credits'),
+        new InvalidCreditSourceException(),
       );
     });
 
@@ -315,13 +313,13 @@ describe('CreditsService', () => {
       referenceId: 'like-ref-123',
     };
 
-    it('should throw HttpException if insufficient credits', async () => {
+    it('should throw InsufficientCreditsException if insufficient credits', async () => {
       // Arrange
       jest.spyOn(service, 'getBalance').mockResolvedValue(5);
 
       // Act & Assert
       await expect(service.consumeCredits(dto)).rejects.toThrow(
-        new HttpException('Insufficient credits', HttpStatus.PAYMENT_REQUIRED),
+        new InsufficientCreditsException(),
       );
     });
 

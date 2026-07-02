@@ -1,5 +1,5 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { DeviceNotFoundException, DeviceTokenAlreadyExistsException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
 
@@ -153,14 +153,13 @@ describe('DevicesService', () => {
       expect(result).toEqual(androidMockDevice);
     });
 
-    it('should throw ConflictException on P2002 error', async () => {
+    it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
       const error = new Error('Unique constraint failed');
       (error as unknown as { code: string }).code = 'P2002';
       prisma.device.create.mockRejectedValue(error);
 
       await expect(service.createDevice('user-1', createDto)).rejects.toThrow(
-        ConflictException,
-      );
+            );
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Device token already exists: fcm-token',
       );
@@ -212,12 +211,12 @@ describe('DevicesService', () => {
       );
     });
 
-    it('should throw NotFoundException if device is missing', async () => {
+    it('should throw DeviceNotFoundException if device is missing', async () => {
       prisma.device.findFirst.mockResolvedValue(null);
 
       await expect(
         service.getDeviceById('user-1', 'device-id-123'),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(DeviceNotFoundException);
     });
   });
 
@@ -315,15 +314,15 @@ describe('DevicesService', () => {
       expect(result).toEqual(updatedMock);
     });
 
-    it('should throw NotFoundException if device does not exist', async () => {
+    it('should throw DeviceNotFoundException if device does not exist', async () => {
       prisma.device.findFirst.mockResolvedValue(null);
 
       await expect(
         service.updateDevice('user-1', 'device-id-123', updateDto),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(DeviceNotFoundException);
     });
 
-    it('should throw ConflictException on P2002 error', async () => {
+    it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const error = new Error('Unique constraint failed');
       (error as unknown as { code: string }).code = 'P2002';
@@ -331,7 +330,7 @@ describe('DevicesService', () => {
 
       await expect(
         service.updateDevice('user-1', 'device-id-123', updateDto),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(DeviceTokenAlreadyExistsException);
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Device token conflict during update: fcm-token-updated',
       );
@@ -444,15 +443,15 @@ describe('DevicesService', () => {
       expect(result).toEqual(patchedMock);
     });
 
-    it('should throw NotFoundException if device does not exist', async () => {
+    it('should throw DeviceNotFoundException if device does not exist', async () => {
       prisma.device.findFirst.mockResolvedValue(null);
 
       await expect(
         service.patchDevice('user-1', 'device-id-123', patchDto),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(DeviceNotFoundException);
     });
 
-    it('should throw ConflictException on P2002 error', async () => {
+    it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
       prisma.device.findFirst.mockResolvedValue(mockDevice);
       const patchDtoWithToken: PatchDeviceRequestDto = { token: 'new-token' };
       const error = new Error('Unique constraint failed');
@@ -461,7 +460,7 @@ describe('DevicesService', () => {
 
       await expect(
         service.patchDevice('user-1', 'device-id-123', patchDtoWithToken),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(DeviceTokenAlreadyExistsException);
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Device token conflict during patch: new-token',
       );
@@ -500,12 +499,12 @@ describe('DevicesService', () => {
       );
     });
 
-    it('should throw NotFoundException if device does not exist', async () => {
+    it('should throw DeviceNotFoundException if device does not exist', async () => {
       prisma.device.findFirst.mockResolvedValue(null);
 
       await expect(
         service.deleteDevice('user-1', 'device-id-123'),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(DeviceNotFoundException);
     });
   });
 });
