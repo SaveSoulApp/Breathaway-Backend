@@ -73,7 +73,11 @@ in this order:
    sanitized standard-shape response to the client.
 
 ```typescript
-// main.ts — order matters, Prisma filter must be first (inner = runs last on catch chain)
+// main.ts — Note on Registration Order:
+// NestJS evaluates global filters in reverse order of registration (last registered runs first).
+// Therefore, the catch-all GlobalExceptionFilter MUST be registered FIRST in the arguments list.
+// Any specific filters (like PrismaExceptionFilter or future custom filters) MUST be registered
+// AFTER GlobalExceptionFilter so they get priority before the catch-all consumes the exception.
 app.useGlobalFilters(
   new GlobalExceptionFilter(app.get(LoggerService), app.get(ConfigService), app.get(ClsService)),
   new PrismaExceptionFilter(app.get(LoggerService), app.get(ClsService)),
@@ -151,6 +155,12 @@ describe client mistakes, not internal state. In development/staging, 5xx `detai
 surface more context to aid debugging. The `GlobalExceptionFilter` controls this gate via
 `ConfigService`.
 
+## 6. Engineering Best Practices for Error Handling
+
+**Automated Registry Testing**: When using a centralized configuration or registry for exceptions (like mapping classes to HTTP statuses), you must implement an automated unit test that dynamically reflects over the codebase (e.g., scanning the file system for `*.exception.ts` files). This test must enforce 1-to-1 parity between the registry keys and the actual classes, preventing dead code or unregistered exceptions from sneaking into production.
+
+**Strict Typing at Boundaries**: When exception filters parse error responses from third-party libraries (e.g., `class-validator` payloads inside NestJS `HttpException`), never rely on `any` or `Record<string, unknown>`. Always define and cast to a specific, strict TypeScript interface (e.g., `ValidationErrorResponse`) to protect against upstream dependency changes and ensure safe property access.
+
 ---
 
 ## Review Checklist
@@ -176,6 +186,7 @@ surface more context to aid debugging. The `GlobalExceptionFilter` controls this
 - [ ] `Content-Type: application/problem+json` set on all error responses
 - [ ] `invalid_params` preserved as an array for validation errors — not joined into a string
 - [ ] Raw Prisma `exception.message` and `exception.meta` never appear in any response body
+- [ ] Error responses from external libraries are parsed using strict TypeScript interfaces, avoiding `any` or generic objects.
 
 **Testing**
 - [ ] Service tests assert the specific exception class thrown per business condition
@@ -183,3 +194,4 @@ surface more context to aid debugging. The `GlobalExceptionFilter` controls this
 - [ ] "Log and rethrow" test case present for all mutating methods (per `test-automation-expert`)
 - [ ] Exception filter has its own unit test asserting: correct HTTP status, correct response
       shape, logging called with full error, production sanitization
+- [ ] Centralized exception registries have an automated test asserting 100% parity with the codebase classes.

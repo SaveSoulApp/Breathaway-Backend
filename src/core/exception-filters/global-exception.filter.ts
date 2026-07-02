@@ -13,6 +13,12 @@ import { ClsService } from 'nestjs-cls';
 import { DOMAIN_EXCEPTION_HTTP_MAP } from '@shared/domain/exceptions/domain-exception.map';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
 
+export interface ValidationErrorResponse {
+  statusCode?: number;
+  error?: string;
+  message?: string | string[];
+}
+
 interface ResolvedError {
   status: number;
   type: string;
@@ -106,7 +112,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Object response (NestJS default shape: { statusCode, error, message })
     if (rawResponse && typeof rawResponse === 'object') {
-      const res = rawResponse as Record<string, unknown>;
+      const res = rawResponse as ValidationErrorResponse;
 
       const title =
         typeof res.error === 'string'

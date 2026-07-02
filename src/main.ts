@@ -24,6 +24,10 @@ async function bootstrap(): Promise<void> {
 
   // 2. Global Middleware & Interceptors
   app.useGlobalInterceptors(app.get(LoggingInterceptor));
+  // Note: NestJS evaluates global filters in reverse order of registration (last registered runs first).
+  // Therefore, the catch-all GlobalExceptionFilter MUST be registered FIRST in the arguments list.
+  // Any specific filters (like PrismaExceptionFilter or future custom filters) MUST be registered
+  // AFTER GlobalExceptionFilter so they get priority to handle exceptions before the catch-all consumes them.
   app.useGlobalFilters(
     new GlobalExceptionFilter(logger, configService, app.get(ClsService)),
     new PrismaExceptionFilter(logger, app.get(ClsService)),
