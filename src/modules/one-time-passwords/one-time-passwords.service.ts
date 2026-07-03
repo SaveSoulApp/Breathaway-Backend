@@ -107,6 +107,8 @@ export class OneTimePasswordsService extends BaseService {
     const userId = await this.redisClient.get(redisKey);
 
     if (!userId) {
+      // Deliberately log no OTP value — the hashed key is safe; the plain value must never appear in logs
+      this.logger.warn('OTP verification failed: OTP invalid, expired, or already consumed');
       throw new InvalidOtpException();
     }
 
@@ -136,6 +138,7 @@ export class OneTimePasswordsService extends BaseService {
     const rateLimitExceeded = await this.redisClient.get(rateLimitKey);
 
     if (rateLimitExceeded) {
+      this.logger.warn('OTP rate limit exceeded', { userId });
       throw new OtpRateLimitExceededException();
     }
     return rateLimitKey;

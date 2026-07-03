@@ -77,6 +77,8 @@ export class MatchesService extends BaseService {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
+    this.logger.debug('Fetching matches for user', { userId, page, limit });
+
     const where = {
       OR: [{ userOneId: userId }, { userTwoId: userId }],
       status: MatchStatus.ACTIVE,
@@ -166,6 +168,8 @@ export class MatchesService extends BaseService {
    *   exists where the caller is either userOne or userTwo.
    */
   async findOneForUser(matchId: string, userId: string) {
+    this.logger.debug('Fetching match for user', { matchId, userId });
+
     const match = await this.prisma.match.findFirst({
       where: {
         id: matchId,
@@ -220,6 +224,7 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
+      this.logger.warn('Match not found', { matchId, userId });
       throw new MatchNotFoundException('Match not found');
     }
 
@@ -240,6 +245,8 @@ export class MatchesService extends BaseService {
    *   the given ID where the caller is a participant.
    */
   async unmatch(matchId: string, userId: string) {
+    this.logger.debug('Unmatching match', { matchId, userId });
+
     const match = await this.prisma.match.findFirst({
       where: {
         id: matchId,
@@ -250,6 +257,7 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
+      this.logger.warn('Match not found or already inactive for unmatch', { matchId, userId });
       throw new MatchNotFoundException('Match not found or already inactive');
     }
 
@@ -267,6 +275,7 @@ export class MatchesService extends BaseService {
       resourceId: matchId,
     });
 
+    this.logger.log('Match unmatched successfully', { matchId, userId });
     return { success: true };
   }
 

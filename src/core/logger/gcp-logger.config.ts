@@ -22,10 +22,6 @@ export const createGcpLoggerConfig = (
     }),
     bindings: (bindings) => ({
       ...bindings,
-      serviceContext: {
-        service: appName,
-        version: appVersion,
-      },
     }),
   },
   messageKey: 'message',

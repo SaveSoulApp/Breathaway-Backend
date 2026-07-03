@@ -126,6 +126,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found', { deviceId, userId });
       throw new DeviceNotFoundException();
     }
 
@@ -159,6 +160,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found for update', { deviceId, userId });
       throw new DeviceNotFoundException();
     }
 
@@ -216,6 +218,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found for patch', { deviceId, userId });
       throw new DeviceNotFoundException();
     }
 
@@ -264,6 +267,7 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found for deletion', { deviceId, userId });
       throw new DeviceNotFoundException();
     }
 

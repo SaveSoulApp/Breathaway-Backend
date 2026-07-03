@@ -337,7 +337,7 @@ export class AuthService extends BaseService {
 
       if (ghostIdentity) {
         if (ghostIdentity.userId !== null) {
-          this.logger.warn('Social link failed: already linked to another user', { existingUserId: existingIdentity.userId });
+          this.logger.warn('Social link failed: already linked to another user', { existingUserId: ghostIdentity.userId });
           throw new SocialAccountAlreadyLinkedException();
         }
 

@@ -88,15 +88,18 @@ export class LoggingInterceptor implements NestInterceptor {
 
           logger.debug(`Completed request: ${method} ${url}`, logMeta);
         },
-        // error: (err) => {
-        //   const delay = Date.now() - start;
-        //   logger.error(`Failed request: ${method} ${url}`, {
-        //     requestId,
-        //     statusCode: res.statusCode,
-        //     latencyMs: delay,
-        //     error: { message: err.message, stack: err.stack },
-        //   });
-        // },
+        error: (err: Error) => {
+          const delay = Date.now() - start;
+          // Intentionally warn-level: the global exception filter already emits
+          // error-level with the full stack trace. The interceptor's sole added
+          // value here is latency — something only it can measure.
+          logger.warn(`Failed request: ${method} ${url}`, {
+            requestId,
+            statusCode: res.statusCode,
+            latencyMs: delay,
+            errorType: err.constructor.name,
+          });
+        },
       }),
     );
   }
