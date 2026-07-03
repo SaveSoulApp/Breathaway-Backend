@@ -57,6 +57,7 @@ import { ReportsModule } from './modules/reports/reports.module';
       middleware: {
         mount: true,
         setup: (cls, req: Request) => {
+          cls.set('requestStart', Date.now());
           cls.set('ipAddress', req.ip);
           cls.set('userAgent', req.headers['user-agent']);
           
