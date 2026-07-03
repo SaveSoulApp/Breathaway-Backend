@@ -89,6 +89,13 @@ describe('IdentitiesService', () => {
     prisma = module.get(PrismaService);
     encryption = module.get(IdentityCryptoService);
     pubSubPublisher = module.get(PubSubPublisherService);
+
+    prisma.$transaction.mockImplementation(async (cb: any) => {
+      if (typeof cb === 'function') {
+        return cb(prisma);
+      }
+      return cb;
+    });
   });
 
   afterEach(() => {
