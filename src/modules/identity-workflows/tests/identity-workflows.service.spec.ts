@@ -129,7 +129,7 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(contextualLogger.info).toHaveBeenCalledWith(
-        'Received Instagram OTP event for messageId msg_1',
+        'Received Instagram OTP event', expect.objectContaining({ messageId: 'msg_1' }),
       );
       expect(oneTimePasswordsService.verifyAndConsumeOtp).toHaveBeenCalledWith(
         '123456',
@@ -144,7 +144,7 @@ describe('IdentityWorkflowsService', () => {
         'user_123',
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Successfully linked Instagram identity (test_user) to user (user_123).',
+        'Successfully linked Instagram identity', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1', userId: 'user_123', username: 'test_user' }),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -164,7 +164,7 @@ describe('IdentityWorkflowsService', () => {
 
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Could not extract a valid username from Instagram identity payload.',
+        'Could not extract a valid username from Instagram identity payload', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1' }),
       );
     });
 
@@ -179,7 +179,7 @@ describe('IdentityWorkflowsService', () => {
       ).not.toHaveBeenCalled();
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Error during OTP verification flow for sender sender_1: OTP verification failed',
+        'Error during OTP verification flow', expect.objectContaining({ error: 'OTP verification failed', messageId: 'msg_1', senderId: 'sender_1' }),
       );
     });
 
@@ -239,7 +239,7 @@ describe('IdentityWorkflowsService', () => {
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(notificationsService.dispatch).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Could not extract a valid username from Instagram identity payload.',
+        'Could not extract a valid username from Instagram identity payload', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1' }),
       );
     });
 
@@ -257,7 +257,7 @@ describe('IdentityWorkflowsService', () => {
       // Assert
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        `Error during OTP verification flow for sender ${defaultData.senderId}: ${socialError.message}`,
+        'Error during OTP verification flow', expect.objectContaining({ error: socialError.message, messageId: 'msg_1', senderId: defaultData.senderId }),
       );
     });
   });
@@ -285,7 +285,7 @@ describe('IdentityWorkflowsService', () => {
       expect(prisma.like.findMany).not.toHaveBeenCalled();
       expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('No active identities'),
+        'No active identities found, skipping', expect.objectContaining({ messageId: 'msg_claim_1' }),
       );
     });
 
@@ -343,7 +343,7 @@ describe('IdentityWorkflowsService', () => {
         pendingLike,
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Match resolution complete'),
+        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
       );
     });
 
@@ -387,7 +387,7 @@ describe('IdentityWorkflowsService', () => {
       );
       // Final completion log still emitted
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Match resolution complete'),
+        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
       );
     });
 
@@ -442,7 +442,7 @@ describe('IdentityWorkflowsService', () => {
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(2);
       expect(contextualLogger.error).not.toHaveBeenCalled();
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Match resolution complete'),
+        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
       );
     });
   });

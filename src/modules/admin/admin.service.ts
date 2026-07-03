@@ -20,6 +20,7 @@ export class AdminService extends BaseService {
     });
 
     if (!existingUser || existingUser.deletedAt) {
+      this.logger.warn('Admin delete account failed: user not found or already deleted', { targetUserId, reason });
       throw new AdminUserNotFoundException();
     }
 
@@ -51,9 +52,7 @@ export class AdminService extends BaseService {
       });
     });
 
-    this.logger.log(
-      `Admin deleted account for user: ${targetUserId}. Reason: ${reason}`,
-    );
+    this.logger.log('Admin deleted account', { targetUserId, reason });
 
     this.emitAuditLog({
       actionType: AuditActionType.ADMIN_ACCOUNT_DELETED,

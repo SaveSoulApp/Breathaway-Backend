@@ -79,7 +79,15 @@ for a narrowly scoped task (e.g., "just fix the log levels in this service").
 - Cross-reference `test-automation-expert`'s "log and rethrow" required test case — that
   pattern exists specifically so error logging coverage is enforced, not optional.
 
-### 4. Error Tracking
+### 4. Context & PII Redaction (CRITICAL)
+- **Log Contextual Breadcrumbs:** Every `.log()`, `.debug()`, `.warn()`, and `.error()` MUST include a structured payload (second argument) containing relevant entity IDs (e.g., `{ userId, likeId, orderId }`). Do not log empty strings or just messages without IDs. We need to know *who* and *what* was affected.
+- **Before Domain Exceptions:** When throwing a DomainException (e.g., `ProfileAlreadyExistsException`, `InsufficientCreditsException`), you SHOULD emit a `.warn()` log right before throwing it to capture local variable context (e.g., `this.logger.warn('Profile creation failed: already exists', { userId, attemptedDateOfBirth })`). The global filter catches the error, but the service-level `.warn()` preserves the execution state.
+- **State Changes:** Every successful write operation (Create, Update, Delete) MUST emit a `.log()` indicating completion and the affected IDs (e.g., `Like created successfully`, `{ likeId, targetIdentityId }`).
+- **Strict PII Prohibition:** You MUST NEVER log Personally Identifiable Information (PII) or customer data.
+  - **Forbidden:** Names, email addresses, raw phone numbers, plaintext passwords, full auth tokens, exact physical addresses, raw device push tokens.
+  - **Allowed:** System-generated UUIDs/ULIDs, hashed values, generic status flags, numeric amounts (e.g., credits), error codes.
+
+### 5. Error Tracking
 - Unhandled exceptions reaching the global exception filter must be logged with full stack
   trace server-side (never returned to the client — cross-reference `security-reviewer`'s
   sanitized error response rule) and tagged with the request correlation ID.
@@ -87,7 +95,7 @@ for a narrowly scoped task (e.g., "just fix the log levels in this service").
   Cloud Logging with the right payload shape) for aggregation, deduplication, and alerting on
   new/regressed error signatures — distinct from routine log volume.
 
-### 5. Metrics & Dashboards
+### 6. Metrics & Dashboards
 - Rely on Cloud Run's built-in request metrics (latency, request count, container instance
   count, CPU/memory utilization) as the baseline — don't reinvent these with custom
   instrumentation.
@@ -98,7 +106,7 @@ for a narrowly scoped task (e.g., "just fix the log levels in this service").
   over direct custom metric API calls where possible — keeps instrumentation as a logging
   concern rather than adding a second instrumentation surface to maintain.
 
-### 6. Alerting & SLOs
+### 7. Alerting & SLOs
 - Define alerting policies for: error rate above threshold, p95/p99 latency above threshold,
   `/ready` failures (DB connectivity), Cloud Run instance count pinned at `max-instances`
   (signals either a traffic spike or a scaling misconfiguration).
@@ -124,7 +132,9 @@ When doing a full observability review of a module or PR, verify all of the foll
       `security-reviewer`'s secrets section) — verify redaction covers new sensitive fields,
       including the `req` serializer's header handling specifically (section 4 of `pino-logging.md`)
 - [ ] `debug`-level logs don't fire in production (log level gated by `LOG_LEVEL` env var)
-- [ ] Business-meaningful events logged at `info` — not logged for every request indiscriminately
+- [ ] Business-meaningful events and ALL state changes (CRUD) logged at `info` (via `.log()`) with relevant ID context.
+- [ ] Explicit `.warn()` emitted with local context before throwing Domain Exceptions in services.
+- [ ] STRICT PII CHECK: No names, emails, raw phone numbers, or cleartext customer data are included in ANY log payload.
 - [ ] `serviceContext` field not stripped from the GCP logger config (breaks Error Reporting
       aggregation silently if removed)
 

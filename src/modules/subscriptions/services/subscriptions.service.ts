@@ -203,6 +203,7 @@ export class SubscriptionsService extends BaseService {
     }
 
     if (expiresDate <= purchaseDate) {
+      this.logger.warn('Process client purchase failed: invalid subscription dates', { userId, expiresDate, purchaseDate });
       throw new InvalidSubscriptionDatesException();
     }
 
@@ -237,9 +238,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.debug(
-        `Subscription already exists for storeTransactionId "${params.storeTransactionId}" — skipping initial purchase`,
-      );
+      this.logger.debug('Subscription already exists, skipping initial purchase', { storeTransactionId: params.storeTransactionId });
       return existing;
     }
 
@@ -690,6 +689,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (!subscription) {
+      this.logger.warn('Subscription not found by store transaction ID', { storeTransactionId });
       throw new SubscriptionNotFoundException(
         `Subscription with store transaction ID "${storeTransactionId}" not found`,
       );
@@ -718,9 +718,7 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.debug(
-        `Duplicate webhook event "${storeEventId}" — already processed, skipping`,
-      );
+      this.logger.debug('Duplicate webhook event, already processed, skipping', { storeEventId });
       return true;
     }
 

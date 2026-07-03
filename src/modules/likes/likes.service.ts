@@ -87,6 +87,7 @@ export class LikesService extends BaseService {
           requiredAmount: LikesConfig.CREDITS_PER_LIKE,
         },
       });
+      this.logger.warn('Like creation failed: insufficient credits', { userId, requiredAmount: LikesConfig.CREDITS_PER_LIKE });
       throw new InsufficientCreditsException();
     }
 
@@ -131,6 +132,7 @@ export class LikesService extends BaseService {
     }
 
     if (!targetIdentityId) {
+      this.logger.warn('Like creation failed: missing target identity', { userId });
       throw new MissingTargetIdentityException();
     }
 
@@ -139,10 +141,12 @@ export class LikesService extends BaseService {
     });
 
     if (!targetIdentity) {
+      this.logger.warn('Like creation failed: target identity not found', { targetIdentityId, userId });
       throw new IdentityNotFoundException();
     }
 
     if (targetIdentity.userId === userId) {
+      this.logger.warn('Like creation failed: cannot like self', { targetIdentityId, userId });
       throw new SelfLikeException();
     }
 
@@ -157,6 +161,7 @@ export class LikesService extends BaseService {
     });
 
     if (existingLike) {
+      this.logger.warn('Like creation failed: already liked', { targetIdentityId, userId });
       throw new AlreadyLikedException();
     }
 
@@ -217,6 +222,7 @@ export class LikesService extends BaseService {
       },
     });
 
+    this.logger.log('Like created successfully', { likeId: like.id, senderUserId: userId, targetIdentityId: targetIdentity.id });
     return this.attachPublicValue(like);
   }
 
@@ -303,6 +309,7 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
+      this.logger.warn('Like not found', { likeId: id, userId });
       throw new LikeNotFoundException(id);
     }
 
@@ -328,10 +335,12 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
+      this.logger.warn('Like not found for deletion', { likeId: id, userId });
       throw new LikeNotFoundException(id);
     }
 
     if (like.status !== LikeStatus.PENDING) {
+      this.logger.warn('Like deletion failed: invalid status', { likeId: id, status: like.status });
       throw new InvalidLikeStateException();
     }
 
@@ -349,6 +358,7 @@ export class LikesService extends BaseService {
       resourceId: id,
     });
 
+    this.logger.log('Like soft-deleted successfully', { likeId: id, userId });
     return { success: true };
   }
 
@@ -375,6 +385,7 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
+      this.logger.warn('Like not found for label update', { likeId: id, userId });
       throw new LikeNotFoundException(id);
     }
 
@@ -386,6 +397,7 @@ export class LikesService extends BaseService {
       select: LIKE_SELECT,
     });
 
+    this.logger.log('Like label updated successfully', { likeId: updated.id, userId });
     return this.attachPublicValue(updated);
   }
 

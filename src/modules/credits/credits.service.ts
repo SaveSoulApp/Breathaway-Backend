@@ -239,6 +239,7 @@ export class CreditsService extends BaseService {
     });
 
     if (!entry) {
+      this.logger.warn('Ledger entry not found', { entryId: id, userId });
       throw new LedgerEntryNotFoundException();
     }
 
@@ -265,6 +266,7 @@ export class CreditsService extends BaseService {
     tx?: Prisma.TransactionClient,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
+      this.logger.warn('Grant credits failed: invalid source', { source: dto.source, userId: dto.userId });
       throw new InvalidCreditSourceException();
     }
 
@@ -291,6 +293,7 @@ export class CreditsService extends BaseService {
       },
     });
 
+    this.logger.log('Credits granted successfully', { userId: dto.userId, amount: dto.amount, ledgerId: ledger.id });
     return ledger;
   }
 
@@ -322,6 +325,7 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
+      this.logger.warn('Consume credits failed: insufficient credits', { userId: dto.userId, amount: dto.amount });
       throw new InsufficientCreditsException();
     }
 
@@ -345,6 +349,7 @@ export class CreditsService extends BaseService {
       },
     });
 
+    this.logger.log('Credits consumed successfully', { userId: dto.userId, amount: dto.amount, ledgerId: ledger.id });
     return ledger;
   }
 

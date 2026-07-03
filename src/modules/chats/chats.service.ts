@@ -59,7 +59,7 @@ export class ChatsService {
     const { data, error } = await query;
 
     if (error) {
-      this.logger.error(`Failed to fetch messages: ${error.message}`, error);
+      this.logger.error('Failed to fetch messages', { error: error.message, roomId, cursor, limit });
       throw new InternalServerErrorException('Failed to fetch messages');
     }
 
@@ -91,10 +91,7 @@ export class ChatsService {
     const room = roomData as { id: string } | null;
 
     if (roomError || !room) {
-      this.logger.error(
-        `Failed to upsert chat room: ${roomError?.message}`,
-        roomError,
-      );
+      this.logger.error('Failed to process chat room', { error: roomError?.message, senderId, targetUserId });
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
@@ -113,20 +110,14 @@ export class ChatsService {
     const message = data as Record<string, unknown>;
 
     if (msgError) {
-      this.logger.error(
-        `Failed to send message: ${msgError.message}`,
-        msgError,
-      );
+      this.logger.error('Failed to send message', { error: msgError.message, roomId: room.id, senderId, targetUserId });
       throw new InternalServerErrorException('Failed to send message');
     }
 
     // 3. Fire-and-forget push notification
     this.triggerPushNotification(targetUserId, senderId, content).catch(
       (err: Error) => {
-        this.logger.error(
-          `Failed to send push notification: ${err.message}`,
-          err,
-        );
+        this.logger.error('Failed to send push notification', { error: err.message, targetUserId, senderId });
       },
     );
 
@@ -147,6 +138,7 @@ export class ChatsService {
       .single();
 
     if (fetchError || !refMessage) {
+      this.logger.warn('Failed to mark message read: message not found', { messageId: dto.messageId, roomId, userId });
       throw new MessageNotFoundException(dto.messageId);
     }
 
@@ -160,10 +152,7 @@ export class ChatsService {
       .lte('createdAt', refMessage.createdAt);
 
     if (updateError) {
-      this.logger.error(
-        `Failed to mark messages as read: ${updateError.message}`,
-        updateError,
-      );
+      this.logger.error('Failed to mark messages as read', { error: updateError.message, roomId, userId });
       throw new InternalServerErrorException('Failed to mark messages as read');
     }
 
@@ -176,9 +165,7 @@ export class ChatsService {
     content: string,
   ) {
     // TODO: Integrate with existing push notification service
-    this.logger.debug(
-      `[Push Notification Simulation] Sending to ${targetUserId}: ${content.substring(0, 20)}...`,
-    );
+    this.logger.debug('Push Notification Simulation', { targetUserId, senderId, contentPreview: content.substring(0, 20) });
     return Promise.resolve();
   }
 }

@@ -62,19 +62,17 @@ export class IdentityWorkflowsService extends BaseService {
     data: { otp: string; senderId: string; timestamp: string },
     messageId: string,
   ): Promise<void> {
-    this.logger.info(`Received Instagram OTP event for messageId ${messageId}`);
+    this.logger.info('Received Instagram OTP event', { messageId });
 
     const { otp: extractedOtp, senderId } = data;
 
     try {
-      this.logger.debug(`OTP extracted: ${extractedOtp}. Verifying...`);
+      this.logger.debug('Verifying extracted OTP', { messageId, senderId });
       // Note: verifyAndConsumeOtp automatically handles hashing the OTP
       const userId =
         await this.oneTimePasswordsService.verifyAndConsumeOtp(extractedOtp);
 
-      this.logger.debug(
-        `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${senderId}`,
-      );
+      this.logger.debug('OTP verified successfully, fetching identity', { userId, senderId, messageId });
       const identity =
         await this.socialidentitiesService.verifyInstagramIdentity(
           userId,
@@ -84,18 +82,14 @@ export class IdentityWorkflowsService extends BaseService {
       const username = identity.username;
 
       if (username) {
-        this.logger.debug(
-          `Found Instagram username: ${username}. Linking identity to user ${userId}`,
-        );
+        this.logger.debug('Found Instagram username, linking identity', { username, userId, senderId, messageId });
         await this.identitiesService.claimOrCreateIdentity(
           IdentityType.INSTAGRAM,
           username,
           senderId,
           userId,
         );
-        this.logger.log(
-          `Successfully linked Instagram identity (${username}) to user (${userId}).`,
-        );
+        this.logger.log('Successfully linked Instagram identity', { username, userId, senderId, messageId });
 
         // TODO: take the next steps
         this.notificationsService
@@ -115,14 +109,10 @@ export class IdentityWorkflowsService extends BaseService {
             );
           });
       } else {
-        this.logger.warn(
-          `Could not extract a valid username from Instagram identity payload.`,
-        );
+        this.logger.warn('Could not extract a valid username from Instagram identity payload', { senderId, messageId, userId });
       }
     } catch (error) {
-      this.logger.error(
-        `Error during OTP verification flow for sender ${senderId}: ${(error as Error).message}`,
-      );
+      this.logger.error('Error during OTP verification flow', { error: (error as Error).message, senderId, messageId });
     }
   }
 
@@ -140,9 +130,7 @@ export class IdentityWorkflowsService extends BaseService {
     messageId: string,
   ): Promise<void> {
     const { userId } = data;
-    this.logger.info(
-      `[${messageId}] Processing identity.claimed for user ${userId}`,
-    );
+    this.logger.info('Processing identity.claimed', { messageId, userId });
 
     const userIdentities = await this.prisma.identity.findMany({
       where: { userId, deletedAt: null },
@@ -150,9 +138,7 @@ export class IdentityWorkflowsService extends BaseService {
     });
 
     if (userIdentities.length === 0) {
-      this.logger.debug(
-        `[${messageId}] No active identities found for user ${userId}. Skipping.`,
-      );
+      this.logger.debug('No active identities found, skipping', { messageId, userId });
       return;
     }
 
@@ -196,15 +182,11 @@ export class IdentityWorkflowsService extends BaseService {
     });
 
     if (actionableLikes.length === 0) {
-      this.logger.debug(
-        `[${messageId}] No actionable likes to resolve for user ${userId}.`,
-      );
+      this.logger.debug('No actionable likes to resolve', { messageId, userId });
       return;
     }
 
-    this.logger.debug(
-      `[${messageId}] Running match resolution for ${actionableLikes.length} actionable like(s) targeting user ${userId}.`,
-    );
+    this.logger.debug('Running match resolution for actionable likes', { count: actionableLikes.length, messageId, userId });
 
     // resolveFromLike is already idempotent: it suppresses P2002 race conditions,
     // validates intent compatibility, and checks blocks internally.
@@ -221,8 +203,6 @@ export class IdentityWorkflowsService extends BaseService {
       ),
     );
 
-    this.logger.log(
-      `[${messageId}] Match resolution complete for user ${userId}.`,
-    );
+    this.logger.log('Match resolution complete', { messageId, userId });
   }
 }

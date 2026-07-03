@@ -88,6 +88,7 @@ export class IdentitiesService extends BaseService {
     });
     if (existing) {
       if (existing.userId !== null) {
+        this.logger.warn('Identity creation failed: already exists', { identityType: dto.type, existingUserId: existing.userId });
         throw new IdentityAlreadyExistsException();
       }
 
@@ -112,6 +113,7 @@ export class IdentitiesService extends BaseService {
         },
       });
 
+      this.logger.log('Identity created (from ghost)', { identityId: updated.id, userId });
       return this.toMaskedResponse(updated);
     }
 
@@ -136,6 +138,7 @@ export class IdentitiesService extends BaseService {
       },
     });
 
+    this.logger.log('Identity created successfully', { identityId: identity.id, userId });
     return this.toMaskedResponse(identity);
   }
 
@@ -319,6 +322,7 @@ export class IdentitiesService extends BaseService {
         },
       });
       if (duplicate) {
+        this.logger.warn('Identity update failed: duplicate found', { identityType: identity.type, duplicateId: duplicate.id });
         throw new IdentityAlreadyExistsException();
       }
     }
@@ -328,6 +332,7 @@ export class IdentitiesService extends BaseService {
       data: updateData,
     });
 
+    this.logger.log('Identity updated successfully', { identityId: updated.id, userId });
     return this.toMaskedResponse(updated);
   }
 
@@ -350,6 +355,7 @@ export class IdentitiesService extends BaseService {
         userId: null,
       },
     });
+    this.logger.log('Identity soft-deleted successfully', { identityId: id, userId });
   }
 
   /**
@@ -373,6 +379,7 @@ export class IdentitiesService extends BaseService {
         verifiedAt: DateUtil.now(),
       },
     });
+    this.logger.log('Identity verified successfully', { identityId: id, userId });
 
     this.emitAuditLog({
       actionType: AuditActionType.IDENTITY_VERIFIED,
@@ -426,6 +433,7 @@ export class IdentitiesService extends BaseService {
 
     if (existing) {
       if (existing.userId && existing.userId !== userId) {
+        this.logger.warn('Identity claim failed: already claimed by another user', { identityType: type, existingUserId: existing.userId, requestedUserId: userId });
         throw new IdentityAlreadyClaimedException();
       }
 
@@ -453,6 +461,7 @@ export class IdentitiesService extends BaseService {
         },
       });
 
+      this.logger.log('Identity claimed successfully', { identityId: updated.id, userId });
       return this.toMaskedResponse(updated);
     }
 
@@ -480,6 +489,7 @@ export class IdentitiesService extends BaseService {
       },
     });
 
+    this.logger.log('Identity created and claimed successfully', { identityId: identity.id, userId });
     return this.toMaskedResponse(identity);
   }
 
@@ -506,6 +516,7 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
+      this.logger.warn('Find by public value failed: identity not found', { identityType: dto.type, userId });
       throw new IdentityNotFoundException();
     }
 
@@ -577,6 +588,7 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
+      this.logger.warn('Get decrypted public value failed: identity not found', { identityId });
       throw new IdentityNotFoundException();
     }
 
@@ -604,6 +616,7 @@ export class IdentitiesService extends BaseService {
       where: { id, userId, deletedAt: null },
     });
     if (!identity) {
+      this.logger.warn('Identity not found or already deleted', { identityId: id, userId });
       throw new IdentityNotFoundException();
     }
     return identity;

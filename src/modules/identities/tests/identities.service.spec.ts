@@ -47,12 +47,7 @@ describe('IdentitiesService', () => {
   };
 
   beforeEach(async () => {
-    contextualLogger = {
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
-    };
+    contextualLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), log: jest.fn() };
 
     const mockEncryptionService = {
       processPublicValue: jest.fn(),

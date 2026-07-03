@@ -55,6 +55,7 @@ export class BlocksService extends BaseService {
 
     // 1. Prevent self-block
     if (blockerUserId === blockedUserId) {
+      this.logger.warn('Block creation failed: cannot block self', { blockerUserId, blockedUserId });
       throw new SelfBlockException();
     }
 
@@ -65,6 +66,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!blockedUserExists) {
+      this.logger.warn('Block creation failed: target user not found', { blockerUserId, blockedUserId });
       throw new BlockTargetNotFoundException();
     }
 
@@ -80,6 +82,7 @@ export class BlocksService extends BaseService {
 
     if (existingBlock) {
       if (existingBlock.deletedAt === null) {
+        this.logger.warn('Block creation failed: already blocked', { blockerUserId, blockedUserId });
         throw new AlreadyBlockedException();
       }
 
@@ -114,6 +117,7 @@ export class BlocksService extends BaseService {
         metadata: { blockedUserId },
       });
 
+      this.logger.log('Block reactivated successfully', { blockId: reactivatedBlock.id, blockerUserId, blockedUserId });
       return this.mapToResponseDto(reactivatedBlock);
     }
 
@@ -147,6 +151,7 @@ export class BlocksService extends BaseService {
       metadata: { blockedUserId },
     });
 
+    this.logger.log('Block created successfully', { blockId: newBlock.id, blockerUserId, blockedUserId });
     return this.mapToResponseDto(newBlock);
   }
 
@@ -218,6 +223,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
+      this.logger.warn('Block not found', { blockId, userId });
       throw new BlockNotFoundException();
     }
 
@@ -242,6 +248,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
+      this.logger.warn('Block not found for deletion', { blockId, userId });
       throw new BlockNotFoundException();
     }
 
@@ -252,6 +259,7 @@ export class BlocksService extends BaseService {
       },
     });
 
+    this.logger.log('Block soft-deleted successfully', { blockId: block.id, blockerUserId: userId, blockedUserId: block.blockedUserId });
     this.emitAuditLog({
       actionType: AuditActionType.BLOCK_DELETED,
       userId: userId,

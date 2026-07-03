@@ -51,7 +51,7 @@ export class ProfilesService extends BaseService {
     userId: string,
     createProfileDto: CreateProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.debug(`Creating profile for user: ${userId}`);
+    this.logger.debug('Creating profile', { userId });
 
     // Check if profile already exists
     const existingProfile = await this.prisma.userProfile.findUnique({
@@ -59,6 +59,7 @@ export class ProfilesService extends BaseService {
     });
 
     if (existingProfile) {
+      this.logger.warn('Profile creation failed: already exists', { userId });
       throw new ProfileAlreadyExistsException(userId);
     }
 
@@ -78,7 +79,7 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log(`Profile created successfully for user: ${userId}`);
+      this.logger.log('Profile created successfully', { userId });
       return profile;
     } catch (error) {
       const err = error as { stack?: string };
@@ -101,13 +102,14 @@ export class ProfilesService extends BaseService {
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async getProfileByUserId(userId: string): Promise<UserProfile> {
-    this.logger.debug(`Fetching profile for user: ${userId}`);
+    this.logger.debug('Fetching profile', { userId });
 
     const profile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!profile) {
+      this.logger.warn('Profile not found', { userId });
       throw new ProfileNotFoundException(userId);
     }
 
@@ -126,13 +128,14 @@ export class ProfilesService extends BaseService {
    * @throws {NotFoundException} When no profile exists with the given ID.
    */
   async getProfileById(id: string): Promise<UserProfile> {
-    this.logger.debug(`Fetching profile with ID: ${id}`);
+    this.logger.debug('Fetching profile by id', { profileId: id });
 
     const profile = await this.prisma.userProfile.findUnique({
       where: { id },
     });
 
     if (!profile) {
+      this.logger.warn('Profile not found by id', { profileId: id });
       throw new ProfileNotFoundException(id);
     }
 
@@ -157,13 +160,14 @@ export class ProfilesService extends BaseService {
     userId: string,
     updateProfileDto: UpdateProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.debug(`Updating profile for user: ${userId}`);
+    this.logger.debug('Updating profile', { userId });
 
     const existingProfile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!existingProfile) {
+      this.logger.warn('Profile not found for update', { userId });
       throw new ProfileNotFoundException(userId);
     }
 
@@ -183,7 +187,7 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log(`Profile updated successfully for user: ${userId}`);
+      this.logger.log('Profile updated successfully', { userId });
       return updatedProfile;
     } catch (error) {
       const err = error as { stack?: string };
@@ -211,13 +215,14 @@ export class ProfilesService extends BaseService {
     userId: string,
     patchProfileDto: PatchProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.debug(`Patching profile for user: ${userId}`);
+    this.logger.debug('Patching profile', { userId });
 
     const existingProfile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!existingProfile) {
+      this.logger.warn('Profile not found for patch', { userId });
       throw new ProfileNotFoundException(userId);
     }
 
@@ -238,7 +243,7 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log(`Profile patched successfully for user: ${userId}`);
+      this.logger.log('Profile patched successfully', { userId });
       return patchedProfile;
     } catch (error) {
       const err = error as { stack?: string };
@@ -264,13 +269,14 @@ export class ProfilesService extends BaseService {
    *   (either not found or already soft-deleted).
    */
   async deleteProfile(userId: string): Promise<void> {
-    this.logger.debug(`Soft-deleting account for user: ${userId}`);
+    this.logger.debug('Soft-deleting account', { userId });
 
     const existingUser = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
     if (!existingUser || existingUser.deletedAt) {
+      this.logger.warn('User not found or already deleted', { userId });
       throw new ProfileNotFoundException(userId);
     }
 
@@ -308,7 +314,7 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log(`Account soft-deleted successfully for user: ${userId}`);
+      this.logger.log('Account soft-deleted successfully', { userId });
     } catch (error) {
       const err = error as { stack?: string };
       this.logger.error(`Failed to soft-delete account for user ${userId}`, {

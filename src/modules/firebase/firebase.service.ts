@@ -153,6 +153,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
 
       // Verify that the UID matches the token
       if (decodedToken.uid !== uid) {
+        this.logger.warn('Firebase validation failed: UID mismatch', { expectedUid: uid, actualUid: decodedToken.uid });
         throw new UnauthorizedException(
           `UID does not match token${contextInfo}`,
         );
@@ -166,8 +167,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
         authMethod,
       };
     } catch (error) {
-      // Log the error for debugging
-      console.error(`Firebase validation failed${contextInfo}:`, error);
+      this.logger.error('Firebase validation failed', { error: error instanceof Error ? error.message : String(error), uid });
 
       if (error instanceof UnauthorizedException) {
         throw error;

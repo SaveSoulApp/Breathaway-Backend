@@ -88,6 +88,7 @@ export class AuthCredentialService extends BaseService {
       if (existingIdentity) {
         if (existingIdentity.userId !== null) {
           // Ghost identity already claimed by a different user — real conflict.
+          this.logger.warn('Identity creation failed: already claimed by another user', { existingUserId: existingIdentity.userId, identityId: existingIdentity.id });
           throw new AccountAlreadyExistsException();
         }
 
@@ -105,9 +106,7 @@ export class AuthCredentialService extends BaseService {
         });
         identityId = updatedIdentity.id;
 
-        this.logger.log(
-          `Claimed ghost identity ${identityId} for new user ${newUser.id}`,
-        );
+        this.logger.log('Claimed ghost identity for new user', { identityId, userId: newUser.id });
 
         // A ghost identity was claimed — publish the event so the
         // identity-workflows handler can attempt match resolution for any

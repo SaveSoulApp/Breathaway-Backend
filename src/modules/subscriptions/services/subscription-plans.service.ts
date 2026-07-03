@@ -78,6 +78,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
+      this.logger.warn('Get plan failed: plan not found', { planId: id });
       throw new SubscriptionPlanNotFoundException(
         `Subscription plan with ID "${id}" not found`,
       );
@@ -109,6 +110,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
+      this.logger.warn('Get plan by product ID failed: plan not found', { platform, productId });
       throw new SubscriptionPlanNotFoundException(
         `Subscription plan not found for ${platform} product ID "${productId}"`,
       );
@@ -240,6 +242,7 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!price) {
+      this.logger.warn('Remove plan price failed: price not found', { planId, priceId });
       throw new SubscriptionPlanNotFoundException(
         `Price entry "${priceId}" not found for plan "${planId}"`,
       );

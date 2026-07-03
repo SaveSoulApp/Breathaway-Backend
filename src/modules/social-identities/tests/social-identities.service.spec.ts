@@ -62,7 +62,7 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(MissingSocialIdentityConfigException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
+        'INSTAGRAM_ACCESS_TOKEN is not defined', expect.any(Object),
       );
     });
 
@@ -82,7 +82,7 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(SocialIdentityApiException);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Instagram API returned error: 400'),
+        'Instagram API returned error', expect.objectContaining({ status: 400 }),
       );
     });
 
@@ -113,7 +113,7 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(SocialIdentityNetworkException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Network or unexpected error while calling Instagram API: Network error',
+        'Network or unexpected error while calling Instagram API', expect.objectContaining({ error: 'Network error' }),
       );
     });
 
@@ -152,7 +152,7 @@ describe('SocialidentitiesService', () => {
       });
 
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Fetching identity for instagramId: 123',
+        'Fetching identity', expect.objectContaining({ instagramId: '123' }),
       );
     });
   });

@@ -55,16 +55,14 @@ export class SocialidentitiesService extends BaseService {
       'INSTAGRAM_ACCESS_TOKEN',
     );
     if (!accessToken) {
-      this.logger.error(
-        'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
-      );
+      this.logger.error('INSTAGRAM_ACCESS_TOKEN is not defined', { userId });
       throw new MissingSocialIdentityConfigException();
     }
 
     const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
 
     try {
-      this.logger.debug(`Fetching identity for instagramId: ${instagramId}`);
+      this.logger.debug('Fetching identity', { instagramId, userId });
       const response = await fetch(url);
 
       const data = (await response.json()) as {
@@ -80,9 +78,7 @@ export class SocialidentitiesService extends BaseService {
       };
 
       if (!response.ok) {
-        this.logger.warn(
-          `Instagram API returned error: ${response.status} - ${JSON.stringify(data)}`,
-        );
+        this.logger.warn('Instagram API returned error', { status: response.status, data, instagramId, userId });
         // We throw BadRequest if client provided a bad ID/token according to IG, otherwise BadGateway.
         const errorMessage =
           data?.error?.message || 'Failed to verify Instagram identity';
@@ -118,9 +114,7 @@ export class SocialidentitiesService extends BaseService {
       if (error instanceof SocialIdentityApiException) {
         throw error;
       }
-      this.logger.error(
-        `Network or unexpected error while calling Instagram API: ${(error as Error).message}`,
-      );
+      this.logger.error('Network or unexpected error while calling Instagram API', { error: (error as Error).message, instagramId, userId });
       throw new SocialIdentityNetworkException();
     }
   }

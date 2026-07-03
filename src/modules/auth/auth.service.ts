@@ -102,9 +102,11 @@ export class AuthService extends BaseService {
 
     if (existingCred) {
       if (existingCred.identity.isVerified) {
+        this.logger.warn('Account creation failed: already exists', { method: authMethod.method });
         throw new AccountAlreadyExistsException();
       }
       // Unverified – resend OTP (handled by the controller / frontend)
+      this.logger.warn('Account creation failed: already unverified', { method: authMethod.method });
       throw new UnverifiedAccountException();
     }
 
@@ -115,9 +117,7 @@ export class AuthService extends BaseService {
     );
 
     // TODO: Send OTP / magic link to the value
-    this.logger.log(
-      `Created user ${user.id} with ${authMethod.method} – OTP pending.`,
-    );
+    this.logger.log('User created - OTP pending', { userId: user.id, method: authMethod.method });
 
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
@@ -168,11 +168,13 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
+      this.logger.warn('Signin failed: account not found', { uid: dto.uid });
       throw new AccountNotFoundException();
     }
 
     if (!credential.identity.isVerified) {
       // Resend OTP / magic link – frontend should show verification screen
+      this.logger.warn('Signin failed: account unverified', { userId: credential.userId });
       throw new UnverifiedAccountException();
     }
 
@@ -251,6 +253,7 @@ export class AuthService extends BaseService {
 
     // Existing credential
     if (!credential.identity.isVerified) {
+      this.logger.warn('Verify OTP failed: account unverified', { userId: credential.userId });
       throw new UnverifiedAccountException();
     }
 
@@ -292,6 +295,7 @@ export class AuthService extends BaseService {
 
     if (identity) {
       if (identity.userId === null) {
+        this.logger.warn('Social auth failed: deleted account needs reverification', { type, platformIdHash: platformIdData.platformIdHash });
         throw new DeletedAccountReverificationException();
       }
       // User exists and is verified – log them in
@@ -333,6 +337,7 @@ export class AuthService extends BaseService {
 
       if (ghostIdentity) {
         if (ghostIdentity.userId !== null) {
+          this.logger.warn('Social link failed: already linked to another user', { existingUserId: existingIdentity.userId });
           throw new SocialAccountAlreadyLinkedException();
         }
 
@@ -425,6 +430,7 @@ export class AuthService extends BaseService {
         authMethod.method !== AuthMethod.PHONE) ||
       (authType === AuthMethod.EMAIL && authMethod.method !== AuthMethod.EMAIL)
     ) {
+      this.logger.warn('Add credential failed: auth type mismatch', { authType, method: authMethod.method });
       throw new AuthTypeMismatchException();
     }
 
@@ -443,6 +449,7 @@ export class AuthService extends BaseService {
       where: { valueHash: publicValueData.publicValueHash },
     });
     if (existingCred) {
+      this.logger.warn('Add credential failed: account already exists', { authType, userId });
       throw new AccountAlreadyExistsException();
     }
 
@@ -450,7 +457,10 @@ export class AuthService extends BaseService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
-    if (!user) throw new UserNotFoundException();
+    if (!user) {
+      this.logger.warn('Add credential failed: user not found', { userId });
+      throw new UserNotFoundException();
+    }
 
     // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
     // 5. Encrypt and create Identity + AuthCredential
@@ -468,6 +478,7 @@ export class AuthService extends BaseService {
 
       if (existingIdentity) {
         if (existingIdentity.userId !== null) {
+          this.logger.warn('Add credential failed: social account already linked', { existingUserId: existingIdentity.userId, userId });
           throw new SocialAccountAlreadyLinkedException();
         }
 
@@ -547,6 +558,7 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
+      this.logger.warn('Dev login failed: user not found', { valueHash });
       throw new UserNotFoundException();
     }
 
@@ -565,6 +577,7 @@ export class AuthService extends BaseService {
 
   private ensurePhoneOrEmail(method: AuthMethod) {
     if (method !== AuthMethod.PHONE && method !== AuthMethod.EMAIL) {
+      this.logger.warn('Auth method unsupported', { method });
       throw new UnsupportedAuthMethodException();
     }
   }

@@ -60,9 +60,7 @@ export class NotificationsService extends BaseService {
         PubSubEvent.NOTIFICATION_SEND_REQUESTED,
         dto as unknown as Record<string, unknown>,
       );
-      this.logger.debug(
-        `Dispatched notification request for ${dto.userIds.length} users`,
-      );
+      this.logger.debug('Dispatched notification request', { userCount: dto.userIds.length, notificationType: dto.type });
     } catch (error) {
       this.logger.error('Failed to dispatch notification request to Pub/Sub:', {
         error: error instanceof Error ? error.message : String(error),
@@ -76,9 +74,7 @@ export class NotificationsService extends BaseService {
    */
   @PubSubListener(PubSubEvent.NOTIFICATION_SEND_REQUESTED)
   async processSendRequest(dto: SendNotificationRequestDto): Promise<void> {
-    this.logger.log(
-      `Processing notification request for ${dto.userIds?.length || 0} users`,
-    );
+    this.logger.log('Processing notification request', { userCount: dto.userIds?.length || 0, notificationType: dto.type });
 
     if (!dto.userIds || dto.userIds.length === 0) {
       return;
@@ -142,9 +138,7 @@ export class NotificationsService extends BaseService {
             }),
           );
         } else {
-          this.logger.warn(
-            `No email template mapped for NotificationType: ${dto.type} — skipping email channel`,
-          );
+          this.logger.warn('No email template mapped, skipping email channel', { notificationType: dto.type });
         }
       }
     }
@@ -166,9 +160,7 @@ export class NotificationsService extends BaseService {
     const results = await Promise.allSettled(promises);
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        this.logger.error(`Notification provider at index ${index} failed:`, {
-          error: result.reason,
-        });
+        this.logger.error('Notification provider failed', { providerIndex: index, error: result.reason });
       }
     });
   }

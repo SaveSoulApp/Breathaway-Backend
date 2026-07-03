@@ -62,9 +62,7 @@ export class MaintenanceService extends BaseService {
       },
     });
 
-    this.logger.log(
-      `Expiration job complete. Voided ${result.count} pending likes older than 90 days.`,
-    );
+    this.logger.log('Expiration job complete, voided pending likes', { count: result.count, days: 90 });
 
     return { voidedCount: result.count };
   }
@@ -100,9 +98,7 @@ export class MaintenanceService extends BaseService {
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.debug(
-      `Credit expiry fan-out started. batchSize=${this.expiryBatchSize}, asOf=${asOf}`,
-    );
+    this.logger.debug('Credit expiry fan-out started', { batchSize: this.expiryBatchSize, asOf });
 
     while (hasMore) {
       // Cursor-paginate distinct userIds with expired CREDIT rows.
@@ -138,9 +134,7 @@ export class MaintenanceService extends BaseService {
       batchesPublished++;
       totalUsersEnqueued += userIds.length;
 
-      this.logger.debug(
-        `Published batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
-      );
+      this.logger.debug('Published credit expiry batch', { batchNumber: batchesPublished, userCount: userIds.length, cursor });
 
       // If we fetched fewer rows than the requested batch size, we've reached the end.
       if (rows.length < this.expiryBatchSize) {
@@ -148,9 +142,7 @@ export class MaintenanceService extends BaseService {
       }
     }
 
-    this.logger.log(
-      `Credit expiry fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
-    );
+    this.logger.log('Credit expiry fan-out complete', { batchesPublished, totalUsersEnqueued });
 
     return { batchesPublished, totalUsersEnqueued };
   }
@@ -184,9 +176,7 @@ export class MaintenanceService extends BaseService {
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.debug(
-      `Credit expiry warning fan-out started. batchSize=${this.expiryBatchSize}, window=[${targetStart.toISOString()}, ${targetEnd.toISOString()})`,
-    );
+    this.logger.debug('Credit expiry warning fan-out started', { batchSize: this.expiryBatchSize, windowStart: targetStart.toISOString(), windowEnd: targetEnd.toISOString() });
 
     while (hasMore) {
       const rows: Array<{ userId: string }> =
@@ -222,18 +212,14 @@ export class MaintenanceService extends BaseService {
       batchesPublished++;
       totalUsersEnqueued += userIds.length;
 
-      this.logger.debug(
-        `Published warning batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
-      );
+      this.logger.debug('Published credit expiry warning batch', { batchNumber: batchesPublished, userCount: userIds.length, cursor });
 
       if (rows.length < this.expiryBatchSize) {
         hasMore = false;
       }
     }
 
-    this.logger.log(
-      `Credit expiry warning fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
-    );
+    this.logger.log('Credit expiry warning fan-out complete', { batchesPublished, totalUsersEnqueued });
 
     return { batchesPublished, totalUsersEnqueued };
   }

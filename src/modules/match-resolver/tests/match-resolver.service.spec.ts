@@ -145,7 +145,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(likeMissingTarget);
 
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `Like like-1 target identity is unresolved. Skipping match resolution.`,
+        'Target identity unresolved, skipping match resolution', expect.objectContaining({ likeId: 'like-1' }),
       );
       expect(prisma.like.findFirst).not.toHaveBeenCalled();
     });
@@ -173,7 +173,7 @@ describe('MatchResolverService', () => {
         },
       });
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        `No reverse like found for users user-1 and user-2.`,
+        'No reverse like found', expect.objectContaining({ senderUserId: 'user-1', targetUserId: 'user-2' }),
       );
     });
 
@@ -228,10 +228,10 @@ describe('MatchResolverService', () => {
       prisma.$transaction.mockImplementation(
         async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
-            match: { create: jest.fn() },
+            match: { create: jest.fn().mockResolvedValue({ id: 'match-1' }) },
             like: { update: jest.fn() },
           };
-          await cb(executedTx as unknown as Prisma.TransactionClient);
+          return cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -260,7 +260,7 @@ describe('MatchResolverService', () => {
         data: { status: LikeStatus.MATCHED },
       });
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        `Match created successfully between users user-1 and user-2.`,
+        'Match created successfully', expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
       );
     });
 
@@ -292,10 +292,10 @@ describe('MatchResolverService', () => {
       prisma.$transaction.mockImplementation(
         async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
-            match: { create: jest.fn() },
+            match: { create: jest.fn().mockResolvedValue({ id: 'match-1' }) },
             like: { update: jest.fn() },
           };
-          await cb(executedTx as unknown as Prisma.TransactionClient);
+          return cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -327,10 +327,10 @@ describe('MatchResolverService', () => {
       prisma.$transaction.mockImplementation(
         async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
           executedTx = {
-            match: { update: jest.fn() },
+            match: { update: jest.fn().mockResolvedValue({ id: 'match-1' }) },
             like: { update: jest.fn() },
           };
-          await cb(executedTx as unknown as Prisma.TransactionClient);
+          return cb(executedTx as unknown as Prisma.TransactionClient);
         },
       );
 
@@ -362,7 +362,7 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Race condition caught: Unique constraint violation while creating Match for like like-1.`,
+        'Race condition caught: Unique constraint violation', expect.objectContaining({ likeId: 'like-1' }),
       );
       // Ensures it doesn't log it as an error
       expect(contextualLogger.error).not.toHaveBeenCalled();
@@ -376,8 +376,8 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        `Failed to resolve match for Like like-1`,
-        { stack: generalError.stack },
+        'Failed to resolve match',
+        expect.objectContaining({ likeId: 'like-1', stack: generalError.stack }),
       );
     });
   });

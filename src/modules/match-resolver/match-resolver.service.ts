@@ -64,9 +64,7 @@ export class MatchResolverService extends BaseService {
       const targetUserId = newLike.targetIdentity.userId;
 
       if (!targetUserId) {
-        this.logger.debug(
-          `Like ${newLike.id} target identity is unresolved. Skipping match resolution.`,
-        );
+        this.logger.debug('Target identity unresolved, skipping match resolution', { likeId: newLike.id });
         return;
       }
 
@@ -76,15 +74,11 @@ export class MatchResolverService extends BaseService {
       );
 
       if (!reverseLike) {
-        this.logger.debug(
-          `No reverse like found for users ${newLike.senderUserId} and ${targetUserId}.`,
-        );
+        this.logger.debug('No reverse like found', { senderUserId: newLike.senderUserId, targetUserId });
         return;
       }
 
-      this.logger.debug(
-        `Reverse like found: ${reverseLike.id} for new like: ${newLike.id}.`,
-      );
+      this.logger.debug('Reverse like found', { reverseLikeId: reverseLike.id, newLikeId: newLike.id });
 
       const [userOneId, userTwoId] = [
         newLike.senderUserId,
@@ -114,9 +108,7 @@ export class MatchResolverService extends BaseService {
         isEligible.existingMatch,
       );
 
-      this.logger.log(
-        `Match created successfully between users ${userOneId} and ${userTwoId}.`,
-      );
+      this.logger.log('Match created successfully', { userOneId, userTwoId, matchId: match.id });
 
       this.emitAuditLog({
         actionType: AuditActionType.MATCH_RESOLVED,
@@ -133,15 +125,11 @@ export class MatchResolverService extends BaseService {
     } catch (error) {
       const err = error as { code?: string; stack?: string };
       if (err?.code === 'P2002') {
-        this.logger.warn(
-          `Race condition caught: Unique constraint violation while creating Match for like ${newLike.id}.`,
-        );
+        this.logger.warn('Race condition caught: Unique constraint violation', { likeId: newLike.id });
         return;
       }
 
-      this.logger.error(`Failed to resolve match for Like ${newLike.id}`, {
-        stack: err.stack,
-      });
+      this.logger.error('Failed to resolve match', { likeId: newLike.id, stack: err.stack });
     }
   }
 
@@ -182,12 +170,7 @@ export class MatchResolverService extends BaseService {
         payload: { name: userOneName, matchId },
       });
     } catch (error) {
-      this.logger.error(
-        `Failed to dispatch match notifications for match ${matchId}:`,
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
+      this.logger.error('Failed to dispatch match notifications', { matchId, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
