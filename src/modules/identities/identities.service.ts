@@ -49,6 +49,41 @@ export class IdentitiesService extends BaseService {
   }
 
   /**
+   * Evaluates an existing identity during a create or claim flow to ensure it isn't
+   * actively owned by someone else. Logs a warning if an unverified identity is being reassigned.
+   *
+   * @throws {IdentityAlreadyExistsException} during create if the identity is verified.
+   * @throws {IdentityAlreadyClaimedException} during claim if the identity is verified and owned by someone else.
+   */
+  private checkAndLogReassignment(
+    existing: Identity,
+    userId: string,
+    context: 'create' | 'claim',
+  ) {
+    if (context === 'create' && this.isActivelyOwned(existing)) {
+      throw new IdentityAlreadyExistsException();
+    }
+    if (
+      context === 'claim' &&
+      this.isActivelyOwned(existing) &&
+      existing.userId !== userId
+    ) {
+      throw new IdentityAlreadyClaimedException();
+    }
+
+    if (existing.userId && existing.userId !== userId) {
+      this.logger.warn(
+        `Reassigning unverified identity from another user during ${context}`,
+        {
+          identityId: existing.id,
+          previousUserId: existing.userId,
+          newUserId: userId,
+        },
+      );
+    }
+  }
+
+  /**
    * Registers a new identity for a user, or claims an existing unowned record.
    *
    * If an active identity of the same type already exists with a matching `publicValueHash`
@@ -91,15 +126,7 @@ export class IdentitiesService extends BaseService {
         },
       });
       if (existing) {
-        if (this.isActivelyOwned(existing)) {
-          throw new IdentityAlreadyExistsException();
-        }
-
-        if (existing.userId && existing.userId !== userId) {
-          this.logger.warn(
-            `Reassigning unverified identity ${existing.id} from user ${existing.userId} to ${userId} during create`,
-          );
-        }
+        this.checkAndLogReassignment(existing, userId, 'create');
 
         return await tx.identity.update({
           where: { id: existing.id },
@@ -322,7 +349,12 @@ export class IdentitiesService extends BaseService {
             throw new IdentityAlreadyExistsException();
           }
           this.logger.warn(
-            `Hard deleting unverified duplicate identity ${duplicate.id} (owned by ${duplicate.userId}) during update`,
+            `Hard deleting unverified duplicate identity during update`,
+            {
+              identityId: duplicate.id,
+              previousUserId: duplicate.userId,
+              newUserId: userId,
+            },
           );
           await tx.identity.delete({
             where: { id: duplicate.id },
@@ -433,15 +465,7 @@ export class IdentitiesService extends BaseService {
       });
 
       if (existing) {
-        if (this.isActivelyOwned(existing) && existing.userId !== userId) {
-          throw new IdentityAlreadyClaimedException();
-        }
-
-        if (existing.userId && existing.userId !== userId) {
-          this.logger.warn(
-            `Reassigning unverified identity ${existing.id} from user ${existing.userId} to ${userId} during claim`,
-          );
-        }
+        this.checkAndLogReassignment(existing, userId, 'claim');
 
         return await tx.identity.update({
           where: { id: existing.id },
