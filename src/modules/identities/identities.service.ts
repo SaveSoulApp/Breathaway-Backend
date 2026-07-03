@@ -83,11 +83,10 @@ export class IdentitiesService extends BaseService {
       where: {
         type: dto.type,
         OR: orConditions,
-        deletedAt: null,
       },
     });
     if (existing) {
-      if (existing.userId !== null) {
+      if (existing.userId !== null && existing.isVerified) {
         throw new IdentityAlreadyExistsException();
       }
 
@@ -96,6 +95,7 @@ export class IdentitiesService extends BaseService {
         data: {
           userId,
           isVerified: false,
+          deletedAt: null,
           ...publicValueData,
           ...platformIdData,
         },
@@ -313,13 +313,17 @@ export class IdentitiesService extends BaseService {
       const duplicate = await this.prisma.identity.findFirst({
         where: {
           type: identity.type,
-          deletedAt: null,
           id: { not: id },
           OR: orConditions,
         },
       });
       if (duplicate) {
-        throw new IdentityAlreadyExistsException();
+        if (duplicate.userId !== null && duplicate.isVerified) {
+          throw new IdentityAlreadyExistsException();
+        }
+        await this.prisma.identity.delete({
+          where: { id: duplicate.id },
+        });
       }
     }
 
@@ -420,12 +424,15 @@ export class IdentitiesService extends BaseService {
       where: {
         type,
         publicValueHash: publicValueData.publicValueHash,
-        deletedAt: null,
       },
     });
 
     if (existing) {
-      if (existing.userId && existing.userId !== userId) {
+      if (
+        existing.userId &&
+        existing.userId !== userId &&
+        existing.isVerified
+      ) {
         throw new IdentityAlreadyClaimedException();
       }
 
@@ -435,6 +442,7 @@ export class IdentitiesService extends BaseService {
           userId,
           isVerified: true,
           verifiedAt: DateUtil.now(),
+          deletedAt: null,
           ...publicValueData,
           ...platformIdData,
         },
