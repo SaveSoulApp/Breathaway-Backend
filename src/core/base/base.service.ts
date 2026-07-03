@@ -28,15 +28,17 @@ export abstract class BaseService {
   /**
    * Emits a standardized audit log event for compliance and tracking purposes.
    *
-   * Automatically enriches the provided payload with the current request's IP address
-   * and User-Agent, extracted securely from the CLS context. This guarantees that audit trails
-   * always contain network origin data even when triggered deeply within nested service calls.
+   * Automatically enriches the provided payload with the current request's IP address,
+   * User-Agent, and request ID — all extracted from the CLS context. The `requestId`
+   * in `metadata` allows any downstream Pub/Sub consumer to correlate an audit event
+   * back to its originating Cloud Logging trace with a single query.
    *
    * @param payload - The base audit event details (action, resource, user, etc.) to be recorded.
    */
   protected emitAuditLog(payload: AuditEventRequestDto): void {
     const ipAddress = this.cls.get<string | undefined>('ipAddress');
     const userAgent = this.cls.get<string | undefined>('userAgent');
+    const requestId = this.cls.get<string | undefined>('requestId');
 
     const enrichedPayload: AuditEventRequestDto = {
       ...payload,
@@ -44,6 +46,7 @@ export abstract class BaseService {
       metadata: {
         ...payload.metadata,
         ...(userAgent && { userAgent }),
+        ...(requestId && { requestId }),
       },
     };
 
