@@ -89,6 +89,13 @@ describe('IdentitiesService', () => {
     prisma = module.get(PrismaService);
     encryption = module.get(IdentityCryptoService);
     pubSubPublisher = module.get(PubSubPublisherService);
+
+    prisma.$transaction.mockImplementation(async (cb: any) => {
+      if (typeof cb === 'function') {
+        return cb(prisma);
+      }
+      return cb;
+    });
   });
 
   afterEach(() => {
@@ -122,7 +129,6 @@ describe('IdentitiesService', () => {
         where: {
           type: mockCreateIdentityRequestDto.type,
           OR: [{ publicValueHash: mockEncryptedData.publicValueHash }],
-          deletedAt: null,
         },
       });
 
@@ -174,7 +180,6 @@ describe('IdentitiesService', () => {
             { publicValueHash: mockEncryptedData.publicValueHash },
             { platformIdHash: mockPlatformIdData.platformIdHash },
           ],
-          deletedAt: null,
         },
       });
 
@@ -195,7 +200,10 @@ describe('IdentitiesService', () => {
 
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
 
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
+      prisma.identity.findFirst.mockResolvedValue({
+        ...mockIdentityData,
+        isVerified: true,
+      } as Identity);
 
       // Act & Assert
       await expect(
@@ -518,6 +526,7 @@ describe('IdentitiesService', () => {
       prisma.identity.findFirst.mockResolvedValueOnce({
         ...mockIdentityData,
         id: 'other-id',
+        isVerified: true,
       } as Identity); // Duplicate found
 
       // Act & Assert
@@ -667,7 +676,6 @@ describe('IdentitiesService', () => {
         where: {
           type,
           publicValueHash: mockEncryptedData.publicValueHash,
-          deletedAt: null,
         },
       });
       expect(prisma.identity.create).toHaveBeenCalledWith({
@@ -719,6 +727,7 @@ describe('IdentitiesService', () => {
           userId: mockUserId,
           isVerified: true,
           verifiedAt: expect.any(Date),
+          deletedAt: null,
           ...mockEncryptedData,
           ...mockPlatformIdData,
         },
@@ -729,7 +738,11 @@ describe('IdentitiesService', () => {
 
     it('should throw IdentityAlreadyClaimedException if identity is already claimed by another user', async () => {
       // Arrange
-      const claimedByOther = { ...mockIdentityData, userId: 'other-user-999' };
+      const claimedByOther = {
+        ...mockIdentityData,
+        userId: 'other-user-999',
+        isVerified: true,
+      };
 
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
       encryption.processPlatformId.mockResolvedValue(mockPlatformIdData);
