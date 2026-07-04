@@ -1,8 +1,10 @@
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
@@ -10,15 +12,14 @@ import { Injectable } from '@nestjs/common';
 import {
   AccountAlreadyExistsException,
   AccountNotFoundException,
-  UnverifiedAccountException,
-  SocialAccountAlreadyLinkedException,
-  DeletedAccountReverificationException,
   AuthTypeMismatchException,
-  UserNotFoundException,
+  DeletedAccountReverificationException,
+  SocialAccountAlreadyLinkedException,
   UnsupportedAuthMethodException,
+  UnverifiedAccountException,
+  UserNotFoundException,
 } from './application/exceptions';
-
-import { IdentityType } from '@prisma/client';
+import { IdentityType, User } from '@prisma/client';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
@@ -29,7 +30,7 @@ import {
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthMethod } from './utils/auth-method.utils';
-import { AuditActionType } from '@modules/audit/dto';
+import { DomainException } from '@shared/domain/exceptions/domain.exception';
 
 /**
  * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
@@ -69,10 +70,10 @@ export class AuthService extends BaseService {
    * @throws {ConflictException} When registration is pending verification for the same credential.
    */
   async signup(dto: AuthSignupRequestDto) {
-    const { authMethod } = await this.validateFirebaseToken(
-      dto.uid,
-      dto.uidToken,
-    );
+    const ctx: Record<string, unknown> = { uid: dto.uid };
+    this.logger.log('Signup started', { ...ctx, step: 'init' });
+
+    const { authMethod } = await this.validateFirebaseToken(dto.uid, dto.uidToken);
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier; // raw phone or email
@@ -81,11 +82,15 @@ export class AuthService extends BaseService {
         ? IdentityType.PHONE
         : IdentityType.EMAIL;
 
+    Object.assign(ctx, { method: authMethod.method, identityType });
+    this.logger.debug('Firebase token validated', { ...ctx, step: 'firebase_validation' });
+
     // Normalize before hashing so Auth and Likes flows produce the same hash
     const { publicValueHash } = await this.encryptionService.processPublicValue(
       value,
       identityType,
     );
+    this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential' });
 
     // Check global uniqueness via AuthCredential
     const existingCred = await this.prisma.authCredential.findUnique({
@@ -102,29 +107,30 @@ export class AuthService extends BaseService {
 
     if (existingCred) {
       if (existingCred.identity.isVerified) {
-        this.logger.warn('Account creation failed: already exists', { method: authMethod.method });
+        this.logger.warn('Signup failed: account already exists', { ...ctx, step: 'duplicate_check' });
         throw new AccountAlreadyExistsException();
       }
       // Unverified – resend OTP (handled by the controller / frontend)
-      this.logger.warn('Account creation failed: already unverified', { method: authMethod.method });
+      this.logger.warn('Signup failed: account pending verification', { ...ctx, step: 'duplicate_check' });
       throw new UnverifiedAccountException();
     }
+    this.logger.debug('Duplicate check passed', { ...ctx, step: 'duplicate_check' });
 
     const { user } = await this.authCredentialService.createUserWithCredential(
       value,
       authMethod.method,
       false,
     );
+    this.logger.debug('User provisioned', { ...ctx, step: 'create_user', userId: user.id });
 
     // TODO: Send OTP / magic link to the value
-    this.logger.log('User created - OTP pending', { userId: user.id, method: authMethod.method });
-
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
       metadata: { method: authMethod.method },
     });
 
+    this.logger.log('Signup complete', { ...ctx, step: 'complete', userId: user.id });
     return { userId: user.id, status: 'pending_verification' };
   }
 
@@ -141,10 +147,10 @@ export class AuthService extends BaseService {
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
   async signin(dto: AuthSigninRequestDto) {
-    const { authMethod } = await this.validateFirebaseToken(
-      dto.uid,
-      dto.uidToken,
-    );
+    const ctx: Record<string, unknown> = { uid: dto.uid };
+    this.logger.log('Signin started', { ...ctx, step: 'init' });
+
+    const { authMethod } = await this.validateFirebaseToken(dto.uid, dto.uidToken);
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
@@ -154,6 +160,9 @@ export class AuthService extends BaseService {
         : IdentityType.EMAIL;
     const { publicValueHash: valueHash } =
       await this.encryptionService.processPublicValue(value, identityType);
+
+    Object.assign(ctx, { method: authMethod.method, identityType });
+    this.logger.debug('Firebase token validated and credential hashed', { ...ctx, step: 'firebase_validation' });
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -168,22 +177,28 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      this.logger.warn('Signin failed: account not found', { uid: dto.uid });
+      this.logger.warn('Signin failed: account not found', { ...ctx, step: 'credential_lookup' });
       throw new AccountNotFoundException();
     }
 
     if (!credential.identity.isVerified) {
       // Resend OTP / magic link – frontend should show verification screen
-      this.logger.warn('Signin failed: account unverified', { userId: credential.userId });
+      this.logger.warn('Signin failed: account unverified', {
+        ...ctx,
+        step: 'credential_lookup',
+        userId: credential.userId,
+      });
       throw new UnverifiedAccountException();
     }
+    this.logger.debug('Credential verified', { ...ctx, step: 'credential_lookup', userId: credential.userId });
 
-    // At this point the user exists and is verified. Proceed to send OTP/link.
-    // For simplicity, we issue a JWT directly (in real app you'd send OTP and then confirm).
+    // At this point the user exists and is verified.
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: credential.userId },
     });
+    this.logger.debug('User record fetched', { ...ctx, step: 'fetch_user', userId: user.id });
 
+    this.logger.log('Signin complete', { ...ctx, step: 'complete', userId: user.id });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
@@ -203,10 +218,10 @@ export class AuthService extends BaseService {
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
   async signInOrSignUp(dto: AuthSigninRequestDto) {
-    const { authMethod } = await this.validateFirebaseToken(
-      dto.uid,
-      dto.uidToken,
-    );
+    const ctx: Record<string, unknown> = { uid: dto.uid };
+    this.logger.log('Sign-in or sign-up started', { ...ctx, step: 'init' });
+
+    const { authMethod } = await this.validateFirebaseToken(dto.uid, dto.uidToken);
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
@@ -216,6 +231,9 @@ export class AuthService extends BaseService {
         : IdentityType.EMAIL;
     const { publicValueHash: valueHash } =
       await this.encryptionService.processPublicValue(value, identityType);
+
+    Object.assign(ctx, { method: authMethod.method, identityType });
+    this.logger.debug('Firebase token validated and credential hashed', { ...ctx, step: 'firebase_validation' });
 
     const credential = await this.prisma.authCredential.findUnique({
       where: { valueHash },
@@ -237,13 +255,15 @@ export class AuthService extends BaseService {
           true,
         );
 
-      this.logger.log(`New signup via signInOrSignUp for user ${user.id}`);
+      this.logger.debug('New user provisioned', { ...ctx, step: 'create_user', userId: user.id, isNewUser: true });
 
       this.emitAuditLog({
         actionType: AuditActionType.USER_REGISTERED,
         userId: user.id,
         metadata: { method: authMethod.method },
       });
+
+      this.logger.log('Sign-in or sign-up complete', { ...ctx, step: 'complete', userId: user.id, isNewUser: true });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
         publicValueHash: normalizedHash,
@@ -253,13 +273,20 @@ export class AuthService extends BaseService {
 
     // Existing credential
     if (!credential.identity.isVerified) {
-      this.logger.warn('Verify OTP failed: account unverified', { userId: credential.userId });
+      this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
+        ...ctx,
+        step: 'credential_lookup',
+        userId: credential.userId,
+      });
       throw new UnverifiedAccountException();
     }
+    this.logger.debug('Existing credential verified', { ...ctx, step: 'credential_lookup', userId: credential.userId });
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: credential.userId },
     });
+
+    this.logger.log('Sign-in or sign-up complete', { ...ctx, step: 'complete', userId: user.id, isNewUser: false });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
@@ -281,12 +308,17 @@ export class AuthService extends BaseService {
    * @throws {ConflictException} When the account has been deleted and requires re-verification.
    */
   async socialAuth(dto: SocialAuthRequestDto) {
-    const { type, platformUserId, handle } = dto; // type: 'INSTAGRAM' | 'LINKEDIN' etc.
+    const { type, platformUserId, handle } = dto;
+    const ctx: Record<string, unknown> = { type };
+    this.logger.log('Social auth started', { ...ctx, step: 'init' });
 
     // Normalize and hash via the same helpers used everywhere else so that
     // platformIdHash and publicValueHash are always canonical values.
     const platformIdData =
       await this.encryptionService.processPlatformId(platformUserId);
+
+    Object.assign(ctx, { platformIdHash: platformIdData.platformIdHash });
+    this.logger.debug('Platform ID hashed', { ...ctx, step: 'platform_id_hash' });
 
     const identity = await this.prisma.identity.findFirst({
       where: { type, platformIdHash: platformIdData.platformIdHash },
@@ -295,13 +327,24 @@ export class AuthService extends BaseService {
 
     if (identity) {
       if (identity.userId === null) {
-        this.logger.warn('Social auth failed: deleted account needs reverification', { type, platformIdHash: platformIdData.platformIdHash });
+        this.logger.warn('Social auth failed: deleted account requires reverification', {
+          ...ctx,
+          step: 'identity_lookup',
+          identityId: identity.id,
+        });
         throw new DeletedAccountReverificationException();
       }
       // User exists and is verified – log them in
+      this.logger.debug('Existing social user found', {
+        ...ctx,
+        step: 'identity_lookup',
+        identityId: identity.id,
+        userId: identity.userId,
+      });
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: identity.userId },
       });
+      this.logger.log('Social auth complete', { ...ctx, step: 'complete', userId: user.id, isNewUser: false });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: type,
         platformIdHash: platformIdData.platformIdHash,
@@ -309,63 +352,98 @@ export class AuthService extends BaseService {
       });
     }
 
+    this.logger.debug('No existing identity — proceeding with new social registration', {
+      ...ctx,
+      step: 'identity_lookup',
+    });
+
     // processPublicValue normalizes handle (strips leading '@', lowercases) and
     // encryptPublicValue before hashing – consistent with the likes flow.
     const publicValueData = await this.encryptionService.processPublicValue(
       handle,
       type as IdentityType,
     );
+    this.logger.debug('Public value hashed', { ...ctx, step: 'public_value_hash' });
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      // New social identity
-      const newUser = await tx.user.create({
-        data: {
-          notificationPreference: {
-            create: {},
+    let user: User;
+    try {
+      user = await this.prisma.$transaction(async (tx) => {
+        // New social identity
+        const newUser = await tx.user.create({
+          data: {
+            notificationPreference: {
+              create: {},
+            },
           },
-        },
-      });
+        });
 
-      const ghostIdentity = await tx.identity.findUnique({
-        where: {
-          type_publicValueHash: {
-            type,
-            publicValueHash: publicValueData.publicValueHash,
+        const ghostIdentity = await tx.identity.findUnique({
+          where: {
+            type_publicValueHash: {
+              type,
+              publicValueHash: publicValueData.publicValueHash,
+            },
           },
-        },
-      });
+        });
 
-      if (ghostIdentity) {
-        if (ghostIdentity.userId !== null) {
-          this.logger.warn('Social link failed: already linked to another user', { existingUserId: ghostIdentity.userId });
-          throw new SocialAccountAlreadyLinkedException();
+        if (ghostIdentity) {
+          if (ghostIdentity.userId !== null) {
+            this.logger.warn('Social auth failed: handle already linked to another user', {
+              ...ctx,
+              step: 'create_social_user',
+              existingUserId: ghostIdentity.userId,
+            });
+            throw new SocialAccountAlreadyLinkedException();
+          }
+
+          await tx.identity.update({
+            where: { id: ghostIdentity.id },
+            data: {
+              userId: newUser.id,
+              isVerified: true,
+              verifiedAt: DateUtil.now(),
+              ...publicValueData,
+              ...platformIdData,
+            },
+          });
+          this.logger.debug('Ghost identity claimed', {
+            ...ctx,
+            step: 'create_social_user',
+            identityId: ghostIdentity.id,
+            userId: newUser.id,
+          });
+        } else {
+          const newIdentity = await tx.identity.create({
+            data: {
+              type,
+              ...publicValueData,
+              ...platformIdData,
+              userId: newUser.id,
+              isVerified: true, // social accounts are pre‑verified
+              verifiedAt: DateUtil.now(),
+            },
+          });
+          this.logger.debug('New social identity created', {
+            ...ctx,
+            step: 'create_social_user',
+            identityId: newIdentity.id,
+            userId: newUser.id,
+          });
         }
 
-        await tx.identity.update({
-          where: { id: ghostIdentity.id },
-          data: {
-            userId: newUser.id,
-            isVerified: true,
-            verifiedAt: DateUtil.now(),
-            ...publicValueData,
-            ...platformIdData,
-          },
-        });
-      } else {
-        await tx.identity.create({
-          data: {
-            type,
-            ...publicValueData,
-            ...platformIdData,
-            userId: newUser.id,
-            isVerified: true, // social accounts are pre‑verified
-            verifiedAt: DateUtil.now(),
-          },
-        });
-      }
-
-      return newUser;
-    });
+        return newUser;
+      });
+    } catch (err) {
+      // Domain exceptions (e.g. SocialAccountAlreadyLinkedException) already have a
+      // warn log at the throw site — only log at error for unexpected infra failures.
+      if (err instanceof DomainException) throw err;
+      this.logger.error('Social auth transaction failed', {
+        ...ctx,
+        step: 'create_social_user',
+        err: serializeError(err),
+      });
+      throw err;
+    }
 
     // A ghost identity was claimed — trigger match resolution so any pending
     // likes that targeted this social handle are evaluated now that the
@@ -374,22 +452,24 @@ export class AuthService extends BaseService {
       .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
         userId: user.id,
       })
-      .catch((err: Error) => {
-        this.logger.error(
-          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for social user ${user.id}`,
-          { error: err.message },
-        );
+      .catch((err: unknown) => {
+        this.logger.error('Failed to publish IDENTITY_CLAIMED event', {
+          ...ctx,
+          step: 'pubsub_publish',
+          userId: user.id,
+          err: serializeError(err),
+        });
       });
+    this.logger.debug('IDENTITY_CLAIMED event dispatched', { ...ctx, step: 'pubsub_publish', userId: user.id });
 
     // No AuthCredential for social types.
-
-    this.logger.log(`New social sign‑up (${type}) for user ${user.id}`);
-
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
       metadata: { method: type },
     });
+
+    this.logger.log('Social auth complete', { ...ctx, step: 'complete', userId: user.id, isNewUser: true });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
       platformIdHash: platformIdData.platformIdHash,
@@ -418,21 +498,27 @@ export class AuthService extends BaseService {
     dto: AddSecondaryAuthRequestDto,
     authType: AuthMethod.PHONE | AuthMethod.EMAIL,
   ) {
+    const ctx: Record<string, unknown> = { userId, authType };
+    this.logger.log('Add secondary auth started', { ...ctx, step: 'init' });
+
     // 1. Validate Firebase token and get identifier
-    const { authMethod } = await this.validateFirebaseToken(
-      dto.uid,
-      dto.uidToken,
-    );
+    const { authMethod } = await this.validateFirebaseToken(dto.uid, dto.uidToken);
     this.ensurePhoneOrEmail(authMethod.method);
+    this.logger.debug('Firebase token validated', { ...ctx, step: 'firebase_validation', method: authMethod.method });
 
     if (
       (authType === AuthMethod.PHONE &&
         authMethod.method !== AuthMethod.PHONE) ||
       (authType === AuthMethod.EMAIL && authMethod.method !== AuthMethod.EMAIL)
     ) {
-      this.logger.warn('Add credential failed: auth type mismatch', { authType, method: authMethod.method });
+      this.logger.warn('Add secondary auth failed: auth type mismatch', {
+        ...ctx,
+        step: 'type_check',
+        method: authMethod.method,
+      });
       throw new AuthTypeMismatchException();
     }
+    this.logger.debug('Auth type check passed', { ...ctx, step: 'type_check' });
 
     const value = authMethod.identifier;
     const identityType =
@@ -443,85 +529,118 @@ export class AuthService extends BaseService {
       value,
       identityType,
     );
+    this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential', identityType });
 
     // 2. Check global uniqueness
     const existingCred = await this.prisma.authCredential.findUnique({
       where: { valueHash: publicValueData.publicValueHash },
     });
     if (existingCred) {
-      this.logger.warn('Add credential failed: account already exists', { authType, userId });
+      this.logger.warn('Add secondary auth failed: credential already in use', {
+        ...ctx,
+        step: 'uniqueness_check',
+      });
       throw new AccountAlreadyExistsException();
     }
+    this.logger.debug('Uniqueness check passed', { ...ctx, step: 'uniqueness_check' });
 
     // 3. Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
     if (!user) {
-      this.logger.warn('Add credential failed: user not found', { userId });
+      this.logger.warn('Add secondary auth failed: user not found', { ...ctx, step: 'user_lookup' });
       throw new UserNotFoundException();
     }
+    this.logger.debug('User found', { ...ctx, step: 'user_lookup' });
 
-    // 4. If user already has a primary of this type? For now we allow only one per type – enforce later.
-    // 5. Encrypt and create Identity + AuthCredential
-    await this.prisma.$transaction(async (tx) => {
-      const existingIdentity = await tx.identity.findUnique({
-        where: {
-          type_publicValueHash: {
-            type: this.authCredentialService.toCredentialType(authType),
-            publicValueHash: publicValueData.publicValueHash,
+    // 4. Encrypt and create Identity + AuthCredential atomically
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const existingIdentity = await tx.identity.findUnique({
+          where: {
+            type_publicValueHash: {
+              type: this.authCredentialService.toCredentialType(authType),
+              publicValueHash: publicValueData.publicValueHash,
+            },
           },
-        },
-      });
+        });
 
-      let identityId: string;
+        let identityId: string;
 
-      if (existingIdentity) {
-        if (existingIdentity.userId !== null) {
-          this.logger.warn('Add credential failed: social account already linked', { existingUserId: existingIdentity.userId, userId });
-          throw new SocialAccountAlreadyLinkedException();
+        if (existingIdentity) {
+          if (existingIdentity.userId !== null) {
+            this.logger.warn('Add secondary auth failed: identity already linked to another user', {
+              ...ctx,
+              step: 'link_credential',
+              existingUserId: existingIdentity.userId,
+            });
+            throw new SocialAccountAlreadyLinkedException();
+          }
+
+          const updatedIdentity = await tx.identity.update({
+            where: { id: existingIdentity.id },
+            data: {
+              userId: user.id,
+              isVerified: false,
+              ...publicValueData,
+            },
+          });
+          identityId = updatedIdentity.id;
+          this.logger.debug('Ghost identity claimed for secondary auth', {
+            ...ctx,
+            step: 'link_credential',
+            identityId,
+          });
+        } else {
+          const newIdentity = await tx.identity.create({
+            data: {
+              type: this.authCredentialService.toCredentialType(authType),
+              ...publicValueData,
+              userId: user.id,
+              isVerified: false, // will need verification
+            },
+          });
+          identityId = newIdentity.id;
+          this.logger.debug('New identity created for secondary auth', {
+            ...ctx,
+            step: 'link_credential',
+            identityId,
+          });
         }
 
-        const updatedIdentity = await tx.identity.update({
-          where: { id: existingIdentity.id },
+        // Determine if this should be primary (if user has no primary credential yet, set true)
+        const primaryCount = await tx.authCredential.count({
+          where: { userId: user.id, isPrimary: true },
+        });
+        const isPrimary = primaryCount === 0;
+
+        await tx.authCredential.create({
           data: {
             userId: user.id,
-            isVerified: false,
-            ...publicValueData,
-          },
-        });
-        identityId = updatedIdentity.id;
-      } else {
-        const newIdentity = await tx.identity.create({
-          data: {
             type: this.authCredentialService.toCredentialType(authType),
-            ...publicValueData,
-            userId: user.id,
-            isVerified: false, // will need verification
+            valueHash: publicValueData.publicValueHash,
+            valueMasked: publicValueData.publicValueMasked ?? null,
+            isPrimary,
+            identityId: identityId,
           },
         });
-        identityId = newIdentity.id;
-      }
-
-      // Determine if this should be primary (if user has no primary credential yet, set true)
-      const primaryCount = await tx.authCredential.count({
-        where: { userId: user.id, isPrimary: true },
+        this.logger.debug('Auth credential linked', { ...ctx, step: 'link_credential', identityId, isPrimary });
       });
-      const isPrimary = primaryCount === 0;
-
-      await tx.authCredential.create({
-        data: {
-          userId: user.id,
-          type: this.authCredentialService.toCredentialType(authType),
-          valueHash: publicValueData.publicValueHash,
-          valueMasked: publicValueData.publicValueMasked ?? null,
-          isPrimary,
-          identityId: identityId,
-        },
+    } catch (err) {
+      // Domain exceptions (e.g. SocialAccountAlreadyLinkedException) already have a
+      // warn log at the throw site — only log at error for unexpected infra failures.
+      if (err instanceof DomainException) throw err;
+      this.logger.error('Add secondary auth transaction failed', {
+        ...ctx,
+        step: 'link_credential',
+        err: serializeError(err),
       });
-    });
+      throw err;
+    }
 
     // TODO: Send verification code to the new value
+    this.logger.log('Add secondary auth complete', { ...ctx, step: 'complete' });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
       publicValueHash: publicValueData.publicValueHash,
@@ -549,8 +668,13 @@ export class AuthService extends BaseService {
     const identityType = value.includes('@')
       ? IdentityType.EMAIL
       : IdentityType.PHONE;
+
+    const ctx = { identityType };
+    this.logger.debug('Dev login started', { ...ctx, step: 'init' });
+
     const { publicValueHash: valueHash } =
       await this.encryptionService.processPublicValue(value, identityType);
+    this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential' });
 
     const credential = await this.prisma.authCredential.findFirst({
       where: { valueHash },
@@ -558,10 +682,11 @@ export class AuthService extends BaseService {
     });
 
     if (!credential) {
-      this.logger.warn('Dev login failed: user not found', { valueHash });
+      this.logger.warn('Dev login failed: credential not found', { ...ctx, step: 'credential_lookup' });
       throw new UserNotFoundException();
     }
 
+    this.logger.debug('Dev login complete', { ...ctx, step: 'complete', userId: credential.user.id });
     return this.authTokenService.generateAuthResponse(credential.user, {
       authMethod: 'DEV_LOGIN',
       publicValueHash: valueHash,
@@ -592,6 +717,7 @@ export class AuthService extends BaseService {
    * @returns A confirmation message object.
    */
   signout(userId: string) {
+    this.logger.log('User signed out', { userId, step: 'complete' });
     // Token revocation can be implemented later
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,

@@ -1,4 +1,5 @@
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -7,7 +8,7 @@ import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { Injectable } from '@nestjs/common';
 import { AccountAlreadyExistsException } from '../application/exceptions';
-
+import { DomainException } from '@shared/domain/exceptions/domain.exception';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 import { AuthMethod } from '../utils/auth-method.utils';
 
@@ -53,6 +54,9 @@ export class AuthCredentialService extends BaseService {
     authMethod: AuthMethod,
     isVerified = false,
   ): Promise<CreateUserResult> {
+    const ctx: Record<string, unknown> = { authMethod, isVerified };
+    this.logger.log('User provisioning started', { ...ctx, step: 'init' });
+
     const identityType =
       authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
 
@@ -64,95 +68,132 @@ export class AuthCredentialService extends BaseService {
       value,
       identityType,
     );
+    this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential', identityType });
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          notificationPreference: {
-            create: {},
+    let user: User;
+    try {
+      user = await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            notificationPreference: {
+              create: {},
+            },
           },
-        },
-      });
+        });
 
-      const existingIdentity = await tx.identity.findUnique({
-        where: {
-          type_publicValueHash: {
-            type: identityType,
-            publicValueHash: publicValueData.publicValueHash,
+        const existingIdentity = await tx.identity.findUnique({
+          where: {
+            type_publicValueHash: {
+              type: identityType,
+              publicValueHash: publicValueData.publicValueHash,
+            },
           },
-        },
-      });
+        });
 
-      let identityId: string;
+        let identityId: string;
 
-      if (existingIdentity) {
-        if (existingIdentity.userId !== null) {
-          // Ghost identity already claimed by a different user — real conflict.
-          this.logger.warn('Identity creation failed: already claimed by another user', { existingUserId: existingIdentity.userId, identityId: existingIdentity.id });
-          throw new AccountAlreadyExistsException();
+        if (existingIdentity) {
+          if (existingIdentity.userId !== null) {
+            // Ghost identity already claimed by a different user — real conflict.
+            this.logger.warn('User provisioning failed: identity already claimed by another user', {
+              ...ctx,
+              step: 'provision_user',
+              existingUserId: existingIdentity.userId,
+              identityId: existingIdentity.id,
+            });
+            throw new AccountAlreadyExistsException();
+          }
+
+          // "Ghost" identity created by the likes flow (userId=null). Claim it by
+          // attaching the new user. We also refresh all encrypted fields so the
+          // new user's key rotation applies going forward.
+          const updatedIdentity = await tx.identity.update({
+            where: { id: existingIdentity.id },
+            data: {
+              ...publicValueData,
+              userId: newUser.id,
+              isVerified,
+              verifiedAt: isVerified ? DateUtil.now() : null,
+            },
+          });
+          identityId = updatedIdentity.id;
+          this.logger.debug('Ghost identity claimed', {
+            ...ctx,
+            step: 'provision_user',
+            identityId,
+            userId: newUser.id,
+          });
+
+          // A ghost identity was claimed — publish the event so the
+          // identity-workflows handler can attempt match resolution for any
+          // pending likes that targeted this identity.
+          // Fire-and-forget; Pub/Sub provides delivery durability.
+          this.pubSubPublisher
+            .publish(
+              PubSubTopic.IDENTITY_WORKFLOWS,
+              PubSubEvent.IDENTITY_CLAIMED,
+              {
+                userId: newUser.id,
+              },
+            )
+            .catch((err: unknown) => {
+              this.logger.error('Failed to publish IDENTITY_CLAIMED event', {
+                ...ctx,
+                step: 'pubsub_publish',
+                userId: newUser.id,
+                err: serializeError(err),
+              });
+            });
+        } else {
+          const newIdentity = await tx.identity.create({
+            data: {
+              type: identityType,
+              ...publicValueData,
+              userId: newUser.id,
+              isVerified,
+              verifiedAt: isVerified ? DateUtil.now() : null,
+            },
+          });
+          identityId = newIdentity.id;
+          this.logger.debug('New identity created', {
+            ...ctx,
+            step: 'provision_user',
+            identityId,
+            userId: newUser.id,
+          });
         }
 
-        // "Ghost" identity created by the likes flow (userId=null). Claim it by
-        // attaching the new user. We also refresh all encrypted fields so the
-        // new user's key rotation applies going forward.
-        const updatedIdentity = await tx.identity.update({
-          where: { id: existingIdentity.id },
+        await tx.authCredential.create({
           data: {
-            ...publicValueData,
             userId: newUser.id,
-            isVerified,
-            verifiedAt: isVerified ? DateUtil.now() : null,
+            type: this.toCredentialType(authMethod),
+            valueHash: publicValueData.publicValueHash,
+            valueMasked: publicValueData.publicValueMasked,
+            isPrimary: true,
+            identityId: identityId,
           },
         });
-        identityId = updatedIdentity.id;
-
-        this.logger.log('Claimed ghost identity for new user', { identityId, userId: newUser.id });
-
-        // A ghost identity was claimed — publish the event so the
-        // identity-workflows handler can attempt match resolution for any
-        // pending likes that targeted this identity.
-        // Fire-and-forget; Pub/Sub provides delivery durability.
-        this.pubSubPublisher
-          .publish(
-            PubSubTopic.IDENTITY_WORKFLOWS,
-            PubSubEvent.IDENTITY_CLAIMED,
-            {
-              userId: newUser.id,
-            },
-          )
-          .catch((err: Error) => {
-            this.logger.error(
-              `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for new user ${newUser.id}`,
-              { error: err.message },
-            );
-          });
-      } else {
-        const newIdentity = await tx.identity.create({
-          data: {
-            type: identityType,
-            ...publicValueData,
-            userId: newUser.id,
-            isVerified,
-            verifiedAt: isVerified ? DateUtil.now() : null,
-          },
-        });
-        identityId = newIdentity.id;
-      }
-
-      await tx.authCredential.create({
-        data: {
+        this.logger.debug('Auth credential created', {
+          ...ctx,
+          step: 'provision_user',
           userId: newUser.id,
-          type: this.toCredentialType(authMethod),
-          valueHash: publicValueData.publicValueHash,
-          valueMasked: publicValueData.publicValueMasked,
-          isPrimary: true,
-          identityId: identityId,
-        },
+        });
+
+        return newUser;
       });
+    } catch (err) {
+      // Domain exceptions (e.g. AccountAlreadyExistsException) already have a
+      // warn log at the throw site — only log at error for unexpected infra failures.
+      if (err instanceof DomainException) throw err;
+      this.logger.error('User provisioning transaction failed', {
+        ...ctx,
+        step: 'provision_user',
+        err: serializeError(err),
+      });
+      throw err;
+    }
 
-      return newUser;
-    });
-
+    this.logger.log('User provisioning complete', { ...ctx, step: 'complete', userId: user.id });
     return { user, normalizedHash: publicValueData.publicValueHash };
   }
 
