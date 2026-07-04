@@ -44,6 +44,7 @@ describe('IdentitiesService', () => {
     error: jest.Mock;
     warn: jest.Mock;
     debug: jest.Mock;
+    log: jest.Mock;
   };
 
   beforeEach(async () => {

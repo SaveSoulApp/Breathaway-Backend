@@ -178,7 +178,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const requestStart = this.cls.isActive()
       ? this.cls.get<number | undefined>('requestStart')
       : undefined;
-    const latencyMs = requestStart !== undefined ? Date.now() - requestStart : undefined;
+    const latencyMs =
+      requestStart !== undefined ? Date.now() - requestStart : undefined;
 
     const exceptionType =
       exception != null && typeof exception === 'object'
@@ -209,4 +210,3 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
   }
 }
-

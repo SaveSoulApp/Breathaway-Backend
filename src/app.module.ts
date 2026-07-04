@@ -60,10 +60,10 @@ import { ReportsModule } from './modules/reports/reports.module';
           cls.set('requestStart', Date.now());
           cls.set('ipAddress', req.ip);
           cls.set('userAgent', req.headers['user-agent']);
-          
+
           const requestId = req.headers['x-request-id'] || randomUUID();
           cls.set('requestId', requestId);
-          
+
           const traceContext = req.headers['x-cloud-trace-context'];
           if (traceContext) {
             cls.set('traceContext', traceContext);

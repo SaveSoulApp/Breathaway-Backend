@@ -70,7 +70,11 @@ describe('WhatsAppProviderService', () => {
 
       const mockContextualLogger = (loggerService.forContext as jest.Mock)();
       expect(mockContextualLogger.warn).toHaveBeenCalledWith(
-        'WhatsApp provider not yet fully implemented. Would send to 2 users.',
+        'WhatsApp provider not yet fully implemented. Skipping send.',
+        {
+          userCount: 2,
+          step: 'send',
+        },
       );
     });
   });
