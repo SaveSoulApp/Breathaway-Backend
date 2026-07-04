@@ -1,10 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  DeviceNotFoundException,
-  DeviceTokenAlreadyExistsException,
-} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { Platform } from '@common/interfaces';
 import { DateUtil } from '@common/utils/date.utils';
@@ -15,13 +12,16 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
+import {
+  DeviceNotFoundException,
+  DeviceTokenAlreadyExistsException,
+} from '../application/exceptions';
 import { DevicesService } from '../devices.service';
 import {
   CreateDeviceRequestDto,
   PatchDeviceRequestDto,
   UpdateDeviceRequestDto,
 } from '../dto';
-import { ClsService } from 'nestjs-cls';
 
 describe('DevicesService', () => {
   let service: DevicesService;
@@ -99,11 +99,27 @@ describe('DevicesService', () => {
         },
       });
       expect(result).toEqual(mockDevice);
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Device registration started',
+        { userId: 'user-1', devicePlatform: Platform.IOS, step: 'init' },
+      );
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Registering device for user: user-1',
+        'Device record persisted',
+        {
+          userId: 'user-1',
+          devicePlatform: Platform.IOS,
+          step: 'persist_device',
+          deviceId: 'device-id-123',
+        },
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device registered successfully for user: user-1 (device: device-id-123)',
+        'Device registered successfully',
+        {
+          userId: 'user-1',
+          devicePlatform: Platform.IOS,
+          step: 'complete',
+          deviceId: 'device-id-123',
+        },
       );
     });
 
@@ -144,7 +160,8 @@ describe('DevicesService', () => {
       const result = await service.createDevice('user-1', unknownDto);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Unknown platform: UNKNOWN_PLATFORM, defaulting to ANDROID',
+        'Unknown platform, defaulting to ANDROID',
+        { platform: 'UNKNOWN_PLATFORM', step: 'map_platform' },
       );
       expect(prisma.device.create).toHaveBeenCalledWith({
         data: {
@@ -163,7 +180,12 @@ describe('DevicesService', () => {
 
       await expect(service.createDevice('user-1', createDto)).rejects.toThrow();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Device token already exists: fcm-token',
+        'Device token already exists',
+        {
+          userId: 'user-1',
+          devicePlatform: Platform.IOS,
+          step: 'duplicate_check',
+        },
       );
     });
 
@@ -175,8 +197,17 @@ describe('DevicesService', () => {
         error,
       );
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Failed to register device for user user-1',
-        { stack: error.stack },
+        'Failed to register device',
+        expect.objectContaining({
+          userId: 'user-1',
+          devicePlatform: Platform.IOS,
+          step: 'persist_device',
+          err: expect.objectContaining({
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          }),
+        }),
       );
     });
   });
@@ -193,7 +224,19 @@ describe('DevicesService', () => {
       });
       expect(result).toEqual([mockDevice]);
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Fetching devices for user: user-1',
+        'Fetching user devices',
+        {
+          userId: 'user-1',
+          step: 'fetch',
+        },
+      );
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'User devices fetched successfully',
+        {
+          userId: 'user-1',
+          step: 'complete',
+          count: 1,
+        },
       );
     });
   });
@@ -209,7 +252,20 @@ describe('DevicesService', () => {
       });
       expect(result).toEqual(mockDevice);
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Fetching device device-id-123 for user: user-1',
+        'Fetching device by ID',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'fetch',
+        },
+      );
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Device fetched successfully',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'complete',
+        },
       );
     });
 
@@ -219,6 +275,11 @@ describe('DevicesService', () => {
       await expect(
         service.getDeviceById('user-1', 'device-id-123'),
       ).rejects.toThrow(DeviceNotFoundException);
+      expect(contextualLogger.warn).toHaveBeenCalledWith('Device not found', {
+        userId: 'user-1',
+        deviceId: 'device-id-123',
+        step: 'fetch',
+      });
     });
   });
 
@@ -254,7 +315,20 @@ describe('DevicesService', () => {
       });
       expect(result).toEqual(updatedMock);
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device device-id-123 updated successfully',
+        'Device update started',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'init',
+        },
+      );
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Device updated successfully',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'complete',
+        },
       );
     });
 
@@ -322,6 +396,14 @@ describe('DevicesService', () => {
       await expect(
         service.updateDevice('user-1', 'device-id-123', updateDto),
       ).rejects.toThrow(DeviceNotFoundException);
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Device not found for update',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'existence_check',
+        },
+      );
     });
 
     it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
@@ -334,7 +416,12 @@ describe('DevicesService', () => {
         service.updateDevice('user-1', 'device-id-123', updateDto),
       ).rejects.toThrow(DeviceTokenAlreadyExistsException);
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Device token conflict during update: fcm-token-updated',
+        'Device token conflict during update',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'duplicate_check',
+        },
       );
     });
 
@@ -347,8 +434,17 @@ describe('DevicesService', () => {
         service.updateDevice('user-1', 'device-id-123', updateDto),
       ).rejects.toThrow(error);
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Failed to update device device-id-123',
-        { stack: error.stack },
+        'Failed to update device',
+        expect.objectContaining({
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'persist_device',
+          err: expect.objectContaining({
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          }),
+        }),
       );
     });
   });
@@ -383,7 +479,20 @@ describe('DevicesService', () => {
       });
       expect(result).toEqual(patchedMock);
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device device-id-123 patched successfully',
+        'Device patch started',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'init',
+        },
+      );
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Device patched successfully',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'complete',
+        },
       );
     });
 
@@ -451,6 +560,14 @@ describe('DevicesService', () => {
       await expect(
         service.patchDevice('user-1', 'device-id-123', patchDto),
       ).rejects.toThrow(DeviceNotFoundException);
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Device not found for patch',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'existence_check',
+        },
+      );
     });
 
     it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
@@ -464,7 +581,12 @@ describe('DevicesService', () => {
         service.patchDevice('user-1', 'device-id-123', patchDtoWithToken),
       ).rejects.toThrow(DeviceTokenAlreadyExistsException);
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Device token conflict during patch: new-token',
+        'Device token conflict during patch',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'duplicate_check',
+        },
       );
     });
 
@@ -477,8 +599,17 @@ describe('DevicesService', () => {
         service.patchDevice('user-1', 'device-id-123', patchDto),
       ).rejects.toThrow(error);
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Failed to patch device device-id-123',
-        { stack: error.stack },
+        'Failed to patch device',
+        expect.objectContaining({
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'persist_device',
+          err: expect.objectContaining({
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          }),
+        }),
       );
     });
   });
@@ -497,7 +628,20 @@ describe('DevicesService', () => {
         where: { id: 'device-id-123' },
       });
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device device-id-123 deleted successfully',
+        'Device deletion started',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'init',
+        },
+      );
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Device deleted successfully',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'complete',
+        },
       );
     });
 
@@ -507,6 +651,14 @@ describe('DevicesService', () => {
       await expect(
         service.deleteDevice('user-1', 'device-id-123'),
       ).rejects.toThrow(DeviceNotFoundException);
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Device not found for deletion',
+        {
+          userId: 'user-1',
+          deviceId: 'device-id-123',
+          step: 'existence_check',
+        },
+      );
     });
   });
 });

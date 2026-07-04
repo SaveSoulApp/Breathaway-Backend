@@ -1,11 +1,13 @@
-import { LoggerService } from '@core/logger';
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
+
+import { ContextualLogger, LoggerService } from '@core/logger';
+
 import {
   MissingPubSubConfigException,
   InvalidPubSubTokenException,
 } from '../application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { Request } from 'express';
 
 /**
  * Protects the Pub/Sub ingestion endpoint by validating a shared-secret token
@@ -17,10 +19,14 @@ import { Request } from 'express';
  */
 @Injectable()
 export class PubSubAuthGuard implements CanActivate {
+  private readonly logger: ContextualLogger;
+
   constructor(
     private readonly configService: ConfigService,
-    private readonly logger: LoggerService,
-  ) {}
+    loggerService: LoggerService,
+  ) {
+    this.logger = loggerService.forContext(this.constructor.name);
+  }
 
   /**
    * Grants access when the `?token` query parameter matches `PUBSUB_VERIFICATION_TOKEN`.
@@ -45,16 +51,23 @@ export class PubSubAuthGuard implements CanActivate {
       'PUBSUB_VERIFICATION_TOKEN',
     );
 
+    const ctx = {};
+
     if (!expectedToken) {
-      this.logger.error(
-        'PUBSUB_VERIFICATION_TOKEN is not configured in the environment.',
-      );
+      this.logger.error('PUBSUB_VERIFICATION_TOKEN is not configured', {
+        ...ctx,
+        step: 'auth_check',
+      });
       throw new MissingPubSubConfigException();
     }
 
     if (!requestToken || requestToken !== expectedToken) {
       this.logger.warn(
-        'Unauthorized Pub/Sub ingest attempt. Invalid or missing token.',
+        'Unauthorized Pub/Sub ingest attempt: invalid or missing token',
+        {
+          ...ctx,
+          step: 'auth_check',
+        },
       );
       throw new InvalidPubSubTokenException();
     }

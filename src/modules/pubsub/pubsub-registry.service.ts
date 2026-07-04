@@ -1,7 +1,9 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
+
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { PUBSUB_LISTENER_KEY } from './pubsub.decorator';
 
 /**
@@ -72,16 +74,20 @@ export class PubSubRegistryService extends BaseService implements OnModuleInit {
         if (eventType) {
           if (this.registry.has(eventType)) {
             this.logger.warn(
-              `Duplicate @PubSubListener found for event type: ${eventType}. Overwriting existing handler.`,
+              'Duplicate @PubSubListener found, overwriting existing handler',
+              { eventType, step: 'explore' },
             );
           }
           this.registry.set(eventType, { target: instance, method: methodRef });
           const className = instance.constructor
             ? instance.constructor.name
             : 'UnknownClass';
-          this.logger.debug(
-            `Registered PubSub Listener for event type '${eventType}' on ${className}.${methodName}`,
-          );
+          this.logger.debug('Registered PubSub Listener', {
+            eventType,
+            className,
+            methodName,
+            step: 'explore',
+          });
         }
       }
     });

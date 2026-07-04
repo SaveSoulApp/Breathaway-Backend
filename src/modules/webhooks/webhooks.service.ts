@@ -1,8 +1,11 @@
-import { DateUtil } from '@common/utils/date.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
 import { WebhookMessageHandler } from './handlers/webhook-message.handler.interface';
@@ -26,14 +29,26 @@ export class WebhooksService extends BaseService {
     token: string,
     challenge: string,
   ): Promise<string> {
+    const ctx = { mode };
+    this.logger.debug('Meta webhook verification started', {
+      ...ctx,
+      step: 'verify',
+    });
+
     const VERIFY_TOKEN = this.configService.get<string>('META_VERIFY_TOKEN');
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      this.logger.log('Meta webhook verified successfully');
+      this.logger.log('Meta webhook verified successfully', {
+        ...ctx,
+        step: 'verify',
+      });
       return Promise.resolve(challenge); // MUST return raw string
     }
 
-    this.logger.warn('Meta webhook verification failed');
+    this.logger.warn('Meta webhook verification failed', {
+      ...ctx,
+      step: 'verify',
+    });
     return Promise.resolve('Verification failed');
   }
 
@@ -71,6 +86,12 @@ export class WebhooksService extends BaseService {
    */
   async handleMetaWebhookEvents(results: MetaWebhookResult[]): Promise<void> {
     for (const result of results) {
+      const ctx = {
+        entryId: result.entryId,
+        platform: result.platform,
+        intent: result.intent,
+      };
+
       switch (result.intent) {
         case MetaWebhookIntent.MESSAGE:
           await this.handleMessageIntent(result);
@@ -79,8 +100,8 @@ export class WebhooksService extends BaseService {
         case MetaWebhookIntent.UNKNOWN:
         default:
           this.logger.warn('Unhandled webhook intent', {
-            intent: result.intent,
-            entryId: result.entryId,
+            ...ctx,
+            step: 'intent_routing',
           });
           break;
       }
@@ -98,19 +119,35 @@ export class WebhooksService extends BaseService {
    */
   private async handleMessageIntent(result: MetaWebhookResult): Promise<void> {
     for (const message of result.messages) {
-      // 1. Logging
-      this.logger.debug('Instagram message received', {
+      const ctx = {
         senderId: message.senderId,
         recipientId: message.recipientId,
         messageId: message.messageId,
-        text: message.text,
-        timestamp: DateUtil.parse(message.timestamp).toISOString(),
+      };
+
+      // 1. Logging (PII Compliant - text is not logged)
+      this.logger.debug('Instagram message received', {
+        ...ctx,
+        step: 'receive_message',
+        hasText: !!message.text,
+        textLength: message.text?.length ?? 0,
+        messageTimestamp: DateUtil.parse(message.timestamp).toISOString(),
       });
 
       // 2. Delegate to Composite Handlers
       for (const handler of this.messageHandlers) {
         if (handler.canHandle(message)) {
-          await handler.handle(message);
+          try {
+            await handler.handle(message);
+          } catch (error) {
+            this.logger.error('Failed to handle Instagram message', {
+              ...ctx,
+              step: 'handle_message',
+              handler: handler.constructor.name,
+              err: serializeError(error),
+            });
+            throw error;
+          }
           break; // Stop at the first handler that processes the message
         }
       }
