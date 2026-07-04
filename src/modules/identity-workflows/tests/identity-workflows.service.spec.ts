@@ -129,7 +129,12 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(contextualLogger.info).toHaveBeenCalledWith(
-        'Received Instagram OTP event', expect.objectContaining({ messageId: 'msg_1' }),
+        'Received Instagram OTP event',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          step: 'init',
+        }),
       );
       expect(oneTimePasswordsService.verifyAndConsumeOtp).toHaveBeenCalledWith(
         '123456',
@@ -144,7 +149,13 @@ describe('IdentityWorkflowsService', () => {
         'user_123',
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Successfully linked Instagram identity', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1', userId: 'user_123', username: 'test_user' }),
+        'Successfully linked Instagram identity',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'complete',
+        }),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -164,7 +175,13 @@ describe('IdentityWorkflowsService', () => {
 
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Could not extract a valid username from Instagram identity payload', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1' }),
+        'Could not extract a valid username from Instagram identity payload',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'claim_identity',
+        }),
       );
     });
 
@@ -179,7 +196,13 @@ describe('IdentityWorkflowsService', () => {
       ).not.toHaveBeenCalled();
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Error during OTP verification flow', expect.objectContaining({ error: 'OTP verification failed', messageId: 'msg_1', senderId: 'sender_1' }),
+        'Error during OTP verification flow',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          step: 'verify_otp',
+          err: expect.objectContaining({ message: 'OTP verification failed' }),
+        }),
       );
     });
 
@@ -218,10 +241,14 @@ describe('IdentityWorkflowsService', () => {
       // Assert — identity still linked, error logged via .catch
       expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'Failed to dispatch identity claimed notification',
-        ),
-        expect.objectContaining({ error: dispatchError.message }),
+        'Failed to dispatch identity claimed notification',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'notify',
+          err: expect.objectContaining({ message: dispatchError.message }),
+        }),
       );
     });
 
@@ -239,7 +266,13 @@ describe('IdentityWorkflowsService', () => {
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(notificationsService.dispatch).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Could not extract a valid username from Instagram identity payload', expect.objectContaining({ messageId: 'msg_1', senderId: 'sender_1' }),
+        'Could not extract a valid username from Instagram identity payload',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'claim_identity',
+        }),
       );
     });
 
@@ -257,7 +290,13 @@ describe('IdentityWorkflowsService', () => {
       // Assert
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Error during OTP verification flow', expect.objectContaining({ error: socialError.message, messageId: 'msg_1', senderId: defaultData.senderId }),
+        'Error during OTP verification flow',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: defaultData.senderId,
+          step: 'verify_otp',
+          err: expect.objectContaining({ message: socialError.message }),
+        }),
       );
     });
   });
@@ -285,7 +324,12 @@ describe('IdentityWorkflowsService', () => {
       expect(prisma.like.findMany).not.toHaveBeenCalled();
       expect(matchResolverService.resolveFromLike).not.toHaveBeenCalled();
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'No active identities found, skipping', expect.objectContaining({ messageId: 'msg_claim_1' }),
+        'No active identities found, skipping match resolution',
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+          step: 'resolve_likes',
+        }),
       );
     });
 
@@ -343,7 +387,12 @@ describe('IdentityWorkflowsService', () => {
         pendingLike,
       );
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
+        'Match resolution complete for claimed identities',
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+          step: 'complete',
+        }),
       );
     });
 
@@ -382,12 +431,23 @@ describe('IdentityWorkflowsService', () => {
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(2);
       // Error logged for the failing like
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('like_1'),
-        expect.objectContaining({ error: 'resolution error' }),
+        'resolveFromLike failed for Like',
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+          likeId: 'like_1',
+          step: 'resolve_likes',
+          err: expect.objectContaining({ message: 'resolution error' }),
+        }),
       );
       // Final completion log still emitted
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
+        'Match resolution complete for claimed identities',
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+          step: 'complete',
+        }),
       );
     });
 
@@ -442,7 +502,12 @@ describe('IdentityWorkflowsService', () => {
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(2);
       expect(contextualLogger.error).not.toHaveBeenCalled();
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete', expect.objectContaining({ messageId: 'msg_claim_1' }),
+        'Match resolution complete for claimed identities',
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+          step: 'complete',
+        }),
       );
     });
   });

@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
+import { LoggerService } from '@core/logger';
+
 import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from './application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import { BaseService } from '@core/base';
-import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
-import { LoggerService } from '@core/logger';
 
 /**
  * Manages Instagram access token lifecycle by communicating directly with the
@@ -43,6 +46,8 @@ export class InstagramService extends BaseService {
    *   the token refresh request fails (e.g., token expired, invalid, or revoked).
    */
   async refreshAccessToken(currentToken: string): Promise<unknown> {
+    this.logger.log('Refreshing Instagram access token', { step: 'init' });
+
     try {
       const response = await axios.get(`${this.baseUrl}/refresh_access_token`, {
         params: {
@@ -58,10 +63,20 @@ export class InstagramService extends BaseService {
           'access-token-instagram',
           newToken,
         );
+        this.logger.debug('Refreshed token persisted in Secret Manager', {
+          step: 'persist_secret',
+        });
       }
 
+      this.logger.log('Instagram access token refreshed successfully', {
+        step: 'complete',
+      });
       return data;
     } catch (error) {
+      this.logger.error('Failed to refresh Instagram access token', {
+        step: 'refresh',
+        err: serializeError(error),
+      });
       const err = error as {
         response?: { data?: string | Record<string, unknown>; status?: number };
       };
@@ -85,16 +100,24 @@ export class InstagramService extends BaseService {
    * @throws {HttpException} When the Graph API rejects the stored token.
    */
   async refreshSystemAccessToken(): Promise<unknown> {
+    this.logger.log('Refreshing system Instagram access token', {
+      step: 'init',
+    });
+
     const accessToken = this.configService.get<string>(
       'INSTAGRAM_ACCESS_TOKEN',
     );
     if (!accessToken) {
-      this.logger.error(
-        'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
-      );
+      this.logger.error('INSTAGRAM_ACCESS_TOKEN is not configured', {
+        step: 'refresh_system',
+      });
       throw new MissingInstagramConfigException();
     }
 
-    return this.refreshAccessToken(accessToken);
+    const result = await this.refreshAccessToken(accessToken);
+    this.logger.log('System Instagram access token refreshed successfully', {
+      step: 'complete',
+    });
+    return result;
   }
 }

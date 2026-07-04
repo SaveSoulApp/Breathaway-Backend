@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
+
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import {
@@ -49,16 +51,20 @@ export class FirebaseService extends BaseService implements OnModuleInit {
    * call to an Admin SDK method will fail fast if initialisation was skipped.
    */
   onModuleInit() {
+    this.logger.log('Initializing Firebase Admin SDK', { step: 'init' });
+
     try {
       if (!admin.apps.length) {
         this.initializeFirebase();
       }
-      this.logger.log('Firebase Admin SDK initialized successfully');
+      this.logger.log('Firebase Admin SDK initialized successfully', {
+        step: 'complete',
+      });
     } catch (error) {
-      this.logger.error(
-        'Failed to initialize Firebase Admin SDK:',
-        error as Record<string, unknown>,
-      );
+      this.logger.error('Failed to initialize Firebase Admin SDK', {
+        step: 'init',
+        err: serializeError(error),
+      });
     }
   }
 
@@ -101,7 +107,11 @@ export class FirebaseService extends BaseService implements OnModuleInit {
   async verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
     try {
       return await admin.auth().verifyIdToken(idToken);
-    } catch {
+    } catch (error) {
+      this.logger.error('Firebase ID token verification failed', {
+        step: 'verify_token',
+        err: serializeError(error),
+      });
       throw new UnauthorizedException('Invalid Firebase ID token');
     }
   }
@@ -119,7 +129,12 @@ export class FirebaseService extends BaseService implements OnModuleInit {
   async getUser(uid: string): Promise<admin.auth.UserRecord> {
     try {
       return await admin.auth().getUser(uid);
-    } catch {
+    } catch (error) {
+      this.logger.error('Failed to fetch Firebase user', {
+        uid,
+        step: 'get_user',
+        err: serializeError(error),
+      });
       throw new UnauthorizedException('Firebase user not found');
     }
   }
@@ -146,14 +161,24 @@ export class FirebaseService extends BaseService implements OnModuleInit {
     context?: string,
   ): Promise<FirebaseValidationResult> {
     const contextInfo = context ? ` [${context}]` : '';
+    const ctx = { uid, context };
 
     try {
+      this.logger.debug('Validating Firebase ID token', {
+        ...ctx,
+        step: 'validate',
+      });
+
       // Verify the Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(idToken);
 
       // Verify that the UID matches the token
       if (decodedToken.uid !== uid) {
-        this.logger.warn('Firebase validation failed: UID mismatch', { expectedUid: uid, actualUid: decodedToken.uid });
+        this.logger.warn('Firebase validation failed: UID mismatch', {
+          ...ctx,
+          actualUid: decodedToken.uid,
+          step: 'validate',
+        });
         throw new UnauthorizedException(
           `UID does not match token${contextInfo}`,
         );
@@ -167,7 +192,11 @@ export class FirebaseService extends BaseService implements OnModuleInit {
         authMethod,
       };
     } catch (error) {
-      this.logger.error('Firebase validation failed', { error: error instanceof Error ? error.message : String(error), uid });
+      this.logger.error('Firebase validation failed', {
+        ...ctx,
+        step: 'validate',
+        err: serializeError(error),
+      });
 
       if (error instanceof UnauthorizedException) {
         throw error;

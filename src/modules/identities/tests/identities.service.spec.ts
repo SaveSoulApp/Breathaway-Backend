@@ -47,7 +47,13 @@ describe('IdentitiesService', () => {
   };
 
   beforeEach(async () => {
-    contextualLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), log: jest.fn() };
+    contextualLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+    };
 
     const mockEncryptionService = {
       processPublicValue: jest.fn(),
@@ -872,8 +878,12 @@ describe('IdentitiesService', () => {
 
       // Assert — error logged, exception swallowed
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to publish'),
-        expect.objectContaining({ error: pubSubError.message }),
+        'Failed to publish IDENTITY_CLAIMED event',
+        expect.objectContaining({
+          userId: mockUserId,
+          step: 'publish_event',
+          err: expect.objectContaining({ message: pubSubError.message }),
+        }),
       );
     });
   });

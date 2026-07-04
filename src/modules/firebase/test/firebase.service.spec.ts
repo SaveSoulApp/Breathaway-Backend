@@ -100,6 +100,7 @@ describe('FirebaseService', () => {
       expect(admin.initializeApp).toHaveBeenCalled();
       expect(mockLoggerService.log).toHaveBeenCalledWith(
         'Firebase Admin SDK initialized successfully',
+        { step: 'complete' },
       );
     });
 
@@ -111,6 +112,7 @@ describe('FirebaseService', () => {
       expect(admin.initializeApp).not.toHaveBeenCalled();
       expect(mockLoggerService.log).toHaveBeenCalledWith(
         'Firebase Admin SDK initialized successfully',
+        { step: 'complete' },
       );
     });
 
@@ -124,8 +126,11 @@ describe('FirebaseService', () => {
       service.onModuleInit();
 
       expect(mockLoggerService.error).toHaveBeenCalledWith(
-        'Failed to initialize Firebase Admin SDK:',
-        error,
+        'Failed to initialize Firebase Admin SDK',
+        expect.objectContaining({
+          step: 'init',
+          err: expect.objectContaining({ message: error.message }),
+        }),
       );
     });
   });
