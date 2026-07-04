@@ -4,6 +4,7 @@ import { SubscriptionEventType } from '@prisma/client';
 import axios from 'axios';
 import { GoogleAuth } from 'google-auth-library';
 
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -121,10 +122,12 @@ export class GoogleSubscriptionService extends BaseService {
 
       return response.data;
     } catch (error) {
-      this.logger.warn(
-        `Failed to verify Google purchase for package "${packageName}", ` +
-          `subscription "${subscriptionId}": ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.error('Failed to verify Google purchase', {
+        packageName,
+        subscriptionId,
+        step: 'verify_purchase',
+        err: serializeError(error),
+      });
       throw error;
     }
   }
@@ -173,9 +176,10 @@ export class GoogleSubscriptionService extends BaseService {
         return SubscriptionEventType.EXPIRY;
 
       default:
-        this.logger.warn(
-          `Unmapped Google notification type: ${notificationType}. Defaulting to EXPIRY.`,
-        );
+        this.logger.warn('Unmapped Google notification type', {
+          notificationType,
+          step: 'map_notification',
+        });
         return SubscriptionEventType.EXPIRY;
     }
   }

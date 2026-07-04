@@ -24,6 +24,8 @@ import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 
+import { AppleSubscriptionService } from '../services/apple-subscription.service';
+import { GoogleSubscriptionService } from '../services/google-subscription.service';
 import { SubscriptionPlansService } from '../services/subscription-plans.service';
 import { SubscriptionsService } from '../services/subscriptions.service';
 
@@ -112,6 +114,20 @@ describe('SubscriptionsService', () => {
         {
           provide: SubscriptionPlansService,
           useValue: mockSubscriptionPlansService,
+        },
+        {
+          provide: AppleSubscriptionService,
+          useValue: {
+            parseNotification: jest.fn(),
+            mapNotificationType: jest.fn(),
+          },
+        },
+        {
+          provide: GoogleSubscriptionService,
+          useValue: {
+            verifyPurchase: jest.fn(),
+            mapNotificationType: jest.fn(),
+          },
         },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ClsService, useValue: mockClsService },

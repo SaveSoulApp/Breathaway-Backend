@@ -4,6 +4,9 @@ import { InternalServerErrorException } from '@nestjs/common';
 import { MessageNotFoundException } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
 import { createClient } from '@supabase/supabase-js';
+import { LoggerService } from '@core/logger';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ClsService } from 'nestjs-cls';
 import * as chatUtils from '../utils/chats.utils';
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -14,6 +17,14 @@ describe('ChatsService', () => {
   let service: ChatsService;
   let configService: ConfigService;
   let mockSupabaseClient: any;
+
+  const mockLoggerService = {
+    forContext: jest.fn().mockReturnThis(),
+    log: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  };
 
   beforeEach(async () => {
     mockSupabaseClient = {
@@ -37,6 +48,9 @@ describe('ChatsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatsService,
+        { provide: LoggerService, useValue: mockLoggerService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: ClsService, useValue: { get: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

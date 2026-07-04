@@ -122,6 +122,7 @@ describe('AppleSubscriptionService', () => {
       expect(result.notificationType).toBeUndefined();
       expect(mockLoggerService.forContext().warn).toHaveBeenCalledWith(
         'Invalid JWS format: expected 3 parts separated by dots',
+        { step: 'decode_jws' },
       );
     });
   });

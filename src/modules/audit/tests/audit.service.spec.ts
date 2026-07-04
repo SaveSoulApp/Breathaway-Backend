@@ -70,7 +70,12 @@ describe('AuditService', () => {
         { actionType: AuditActionType.USER_LOGIN },
       );
       expect(loggerService.debug).toHaveBeenCalledWith(
-        `Audit event published: USER_LOGIN for user test-user-id`,
+        'Audit event published successfully',
+        expect.objectContaining({
+          userId: 'test-user-id',
+          actionType: AuditActionType.USER_LOGIN,
+          step: 'publish_event',
+        }),
       );
     });
 
@@ -86,8 +91,13 @@ describe('AuditService', () => {
       await service.handleAuditLogEvent(payload);
 
       expect(loggerService.error).toHaveBeenCalledWith(
-        `Failed to publish audit event: Publish error`,
-        { stack: error.stack },
+        'Failed to publish audit event',
+        expect.objectContaining({
+          userId: 'test-user-id',
+          actionType: AuditActionType.USER_LOGIN,
+          step: 'publish_event',
+          err: expect.objectContaining({ message: error.message }),
+        }),
       );
     });
   });

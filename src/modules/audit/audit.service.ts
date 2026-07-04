@@ -1,10 +1,13 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { OnEvent } from '@nestjs/event-emitter';
+
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { OnEvent } from '@nestjs/event-emitter';
+
 import { AUDIT_LOG_EVENT } from './constants';
 import { AuditEventRequestDto } from './dto';
 
@@ -53,16 +56,18 @@ export class AuditService extends BaseService {
         { actionType: payload.actionType },
       );
 
-      this.logger.debug(
-        `Audit event published: ${payload.actionType} for user ${payload.userId}`,
-      );
+      this.logger.debug('Audit event published successfully', {
+        userId: payload.userId,
+        actionType: payload.actionType,
+        step: 'publish_event',
+      });
     } catch (error: unknown) {
-      this.logger.error(
-        `Failed to publish audit event: ${(error as Error)?.message}`,
-        {
-          stack: (error as Error)?.stack,
-        },
-      );
+      this.logger.error('Failed to publish audit event', {
+        userId: payload.userId,
+        actionType: payload.actionType,
+        step: 'publish_event',
+        err: serializeError(error),
+      });
     }
   }
 }

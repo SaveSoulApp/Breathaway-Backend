@@ -138,7 +138,10 @@ describe('SubscriptionsWebhookController', () => {
       expect(result).toEqual({ status: 'error' });
       expect(mockLoggerService.forContext().error).toHaveBeenCalledWith(
         'Failed to process Apple notification',
-        { error: 'JWS Parse Fail' },
+        expect.objectContaining({
+          step: 'handle_apple_notification',
+          err: expect.objectContaining({ message: 'JWS Parse Fail' }),
+        }),
       );
     });
 
@@ -336,7 +339,10 @@ describe('SubscriptionsWebhookController', () => {
       expect(result).toEqual({ status: 'verification_failed' });
       expect(mockLoggerService.forContext().warn).toHaveBeenCalledWith(
         'Failed to verify Google purchase — skipping event',
-        { purchaseToken: 'g-token-123' },
+        expect.objectContaining({
+          purchaseToken: 'g-token-123',
+          step: 'handle_google_notification',
+        }),
       );
     });
 
