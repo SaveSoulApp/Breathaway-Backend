@@ -1,3 +1,4 @@
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
@@ -88,13 +89,21 @@ export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
         headers: form.getHeaders(),
       });
 
-      this.logger.log(`[Mailgun] Email sent successfully to: ${payload.to}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`[Mailgun] Failed to send email to ${payload.to}:`, {
-        error: message,
+      this.logger.log('Email sent successfully', {
+        provider: 'mailgun',
+        step: 'complete',
       });
-      throw new Error(`Email delivery failed: ${message}`);
+    } catch (error) {
+      this.logger.error('Email send failed', {
+        provider: 'mailgun',
+        step: 'send',
+        err: serializeError(error),
+      });
+      throw new Error(
+        `Email delivery failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 }

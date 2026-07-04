@@ -73,7 +73,7 @@ export default tseslint.config(
       local: localRules,
     },
     rules: {
-      'local/no-missing-log-step': 'warn',
+      'local/no-missing-log-step': 'error',
     },
   },
 );
