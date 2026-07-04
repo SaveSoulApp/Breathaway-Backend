@@ -145,7 +145,8 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(likeMissingTarget);
 
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Target identity unresolved, skipping match resolution', expect.objectContaining({ likeId: 'like-1' }),
+        'Target identity unresolved — skipping match resolution',
+        expect.objectContaining({ likeId: 'like-1' }),
       );
       expect(prisma.like.findFirst).not.toHaveBeenCalled();
     });
@@ -173,7 +174,11 @@ describe('MatchResolverService', () => {
         },
       });
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'No reverse like found', expect.objectContaining({ senderUserId: 'user-1', targetUserId: 'user-2' }),
+        'No reverse like found — no match',
+        expect.objectContaining({
+          senderUserId: 'user-1',
+          targetUserId: 'user-2',
+        }),
       );
     });
 
@@ -187,7 +192,8 @@ describe('MatchResolverService', () => {
         mockReverseLike.intent,
       );
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Intents are incompatible between Like like-1'),
+        'Intents incompatible — match suppressed',
+        expect.objectContaining({ likeId: 'like-1' }),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -199,9 +205,8 @@ describe('MatchResolverService', () => {
 
       expect(blocksService.isBlocked).toHaveBeenCalledWith('user-1', 'user-2');
       expect(contextualLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'Block exists between users user-1 and user-2. Suppressing match.',
-        ),
+        'Block exists — match suppressed',
+        expect.objectContaining({ likeId: 'like-1' }),
       );
       expect(prisma.match.findUnique).not.toHaveBeenCalled();
     });
@@ -215,7 +220,8 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        `Active match already exists between user-1 and user-2. Duplicate prevented.`,
+        'Active match already exists — duplicate prevented',
+        expect.objectContaining({ likeId: 'like-1' }),
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -260,7 +266,8 @@ describe('MatchResolverService', () => {
         data: { status: LikeStatus.MATCHED },
       });
       expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match created successfully', expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
+        'Match resolved successfully',
+        expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
       );
     });
 
@@ -362,7 +369,15 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Race condition caught: Unique constraint violation', expect.objectContaining({ likeId: 'like-1' }),
+        'Race condition: match already created by concurrent resolution',
+        expect.objectContaining({
+          likeId: 'like-1',
+          err: expect.objectContaining({
+            message: p2002Error.message,
+            name: p2002Error.name,
+            stack: p2002Error.stack,
+          }),
+        }),
       );
       // Ensures it doesn't log it as an error
       expect(contextualLogger.error).not.toHaveBeenCalled();
@@ -376,8 +391,15 @@ describe('MatchResolverService', () => {
       await service.resolveFromLike(mockNewLike);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Failed to resolve match',
-        expect.objectContaining({ likeId: 'like-1', stack: generalError.stack }),
+        'Match resolution failed',
+        expect.objectContaining({
+          likeId: 'like-1',
+          err: expect.objectContaining({
+            message: generalError.message,
+            name: generalError.name,
+            stack: generalError.stack,
+          }),
+        }),
       );
     });
   });

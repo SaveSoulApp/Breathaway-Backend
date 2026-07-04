@@ -1,3 +1,6 @@
+import { Injectable } from '@nestjs/common';
+import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -10,8 +13,6 @@ import { NotificationCategory } from '@modules/notifications/enums/notification-
 import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
 import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { Injectable } from '@nestjs/common';
-import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 
 /**
  * Minimal like shape consumed by the match resolver.
@@ -72,10 +73,13 @@ export class MatchResolverService extends BaseService {
       const targetUserId = newLike.targetIdentity.userId;
 
       if (!targetUserId) {
-        this.logger.debug('Target identity unresolved — skipping match resolution', {
-          ...ctx,
-          step: 'identity_check',
-        });
+        this.logger.debug(
+          'Target identity unresolved — skipping match resolution',
+          {
+            ...ctx,
+            step: 'identity_check',
+          },
+        );
         return;
       }
 
@@ -87,7 +91,10 @@ export class MatchResolverService extends BaseService {
       );
 
       if (!reverseLike) {
-        this.logger.debug('No reverse like found — no match', { ...ctx, step: 'reverse_like_lookup' });
+        this.logger.debug('No reverse like found — no match', {
+          ...ctx,
+          step: 'reverse_like_lookup',
+        });
         return;
       }
       this.logger.debug('Reverse like found', {
@@ -152,15 +159,22 @@ export class MatchResolverService extends BaseService {
       // simultaneously. Harmless race condition: one of them already created the
       // match. Swallow silently after a warn so it's still queryable.
       if ((err as { code?: string }).code === 'P2002') {
-        this.logger.warn('Race condition: match already created by concurrent resolution', {
-          ...ctx,
-          step: 'complete',
-          err: serialized,
-        });
+        this.logger.warn(
+          'Race condition: match already created by concurrent resolution',
+          {
+            ...ctx,
+            step: 'complete',
+            err: serialized,
+          },
+        );
         return;
       }
 
-      this.logger.error('Match resolution failed', { ...ctx, step: 'complete', err: serialized });
+      this.logger.error('Match resolution failed', {
+        ...ctx,
+        step: 'complete',
+        err: serialized,
+      });
     }
   }
 
@@ -173,7 +187,10 @@ export class MatchResolverService extends BaseService {
     matchId: string,
   ): Promise<void> {
     const ctx = { matchId, userOneId, userTwoId };
-    this.logger.debug('Dispatching match notifications', { ...ctx, step: 'notify_init' });
+    this.logger.debug('Dispatching match notifications', {
+      ...ctx,
+      step: 'notify_init',
+    });
 
     try {
       const profiles = await this.prisma.userProfile.findMany({
@@ -195,7 +212,10 @@ export class MatchResolverService extends BaseService {
         category: NotificationCategory.SOCIAL,
         payload: { name: userTwoName, matchId },
       });
-      this.logger.debug('Notification dispatched to userOne', { ...ctx, step: 'notify_dispatch' });
+      this.logger.debug('Notification dispatched to userOne', {
+        ...ctx,
+        step: 'notify_dispatch',
+      });
 
       // Notify User Two
       await this.notificationsService.dispatch({
@@ -205,7 +225,10 @@ export class MatchResolverService extends BaseService {
         category: NotificationCategory.SOCIAL,
         payload: { name: userOneName, matchId },
       });
-      this.logger.debug('Notification dispatched to userTwo', { ...ctx, step: 'notify_dispatch' });
+      this.logger.debug('Notification dispatched to userTwo', {
+        ...ctx,
+        step: 'notify_dispatch',
+      });
     } catch (err) {
       // Notification failure must not surface to the caller — the match is
       // already persisted. Log and continue.
@@ -295,7 +318,10 @@ export class MatchResolverService extends BaseService {
     );
 
     if (isBlocked) {
-      this.logger.debug('Block exists — match suppressed', { ...ctx, step: 'block_check' });
+      this.logger.debug('Block exists — match suppressed', {
+        ...ctx,
+        step: 'block_check',
+      });
       return { valid: false, existingMatch: null };
     }
     this.logger.debug('Block check passed', { ...ctx, step: 'block_check' });
@@ -346,7 +372,12 @@ export class MatchResolverService extends BaseService {
     userTwoId: string,
     existingMatch: Match | null,
   ): Promise<Match> {
-    const ctx = { likeOneId: likeOne.id, likeTwoId: likeTwo.id, userOneId, userTwoId };
+    const ctx = {
+      likeOneId: likeOne.id,
+      likeTwoId: likeTwo.id,
+      userOneId,
+      userTwoId,
+    };
     const isReactivation = existingMatch !== null;
     this.logger.debug('Match transaction started', {
       ...ctx,
@@ -406,7 +437,10 @@ export class MatchResolverService extends BaseService {
         where: { id: likeTwo.id },
         data: { status: LikeStatus.MATCHED },
       });
-      this.logger.debug('Both likes marked MATCHED', { ...ctx, step: 'match_transaction' });
+      this.logger.debug('Both likes marked MATCHED', {
+        ...ctx,
+        step: 'match_transaction',
+      });
 
       return finalMatch;
     });

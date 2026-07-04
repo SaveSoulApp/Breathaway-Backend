@@ -459,7 +459,10 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
-      this.logger.warn('Like not found for deletion', { ...ctx, step: 'fetch' });
+      this.logger.warn('Like not found for deletion', {
+        ...ctx,
+        step: 'fetch',
+      });
       throw new LikeNotFoundException(id);
     }
 
@@ -479,13 +482,26 @@ export class LikesService extends BaseService {
       status: like.status,
     });
 
-    await this.prisma.like.update({
-      where: { id },
-      data: {
-        deletedAt: DateUtil.now(),
-        status: LikeStatus.DELETED,
-      },
-    });
+    try {
+      await this.prisma.like.update({
+        where: { id },
+        data: {
+          deletedAt: DateUtil.now(),
+          status: LikeStatus.DELETED,
+        },
+      });
+      this.logger.debug('Like record marked deleted', {
+        ...ctx,
+        step: 'persist_delete',
+      });
+    } catch (error) {
+      this.logger.error('Failed to soft-delete like', {
+        ...ctx,
+        step: 'persist_delete',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.LIKE_DELETED,
@@ -493,7 +509,10 @@ export class LikesService extends BaseService {
       resourceId: id,
     });
 
-    this.logger.log('Like soft-deleted successfully', { ...ctx, step: 'complete' });
+    this.logger.log('Like soft-deleted successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return { success: true };
   }
 
@@ -527,7 +546,10 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
-      this.logger.warn('Like not found for label update', { ...ctx, step: 'fetch' });
+      this.logger.warn('Like not found for label update', {
+        ...ctx,
+        step: 'fetch',
+      });
       throw new LikeNotFoundException(id);
     }
 
@@ -539,11 +561,25 @@ export class LikesService extends BaseService {
 
     // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
     // so the user can always personalise their history
-    const updated = await this.prisma.like.update({
-      where: { id },
-      data: { label: dto.label ?? null },
-      select: LIKE_SELECT,
-    });
+    let updated;
+    try {
+      updated = await this.prisma.like.update({
+        where: { id },
+        data: { label: dto.label ?? null },
+        select: LIKE_SELECT,
+      });
+      this.logger.debug('Like label record updated', {
+        ...ctx,
+        step: 'persist_label',
+      });
+    } catch (error) {
+      this.logger.error('Failed to update like label', {
+        ...ctx,
+        step: 'persist_label',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.logger.log('Like label updated successfully', {
       ...ctx,
