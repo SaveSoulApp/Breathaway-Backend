@@ -56,11 +56,19 @@ export class SocialidentitiesService extends BaseService {
     // instagramId is an opaque numeric platform ID — safe to include in ctx.
     // userId may be null in pre-auth flows; log the boolean presence instead.
     const ctx = { instagramId, hasUserId: userId !== null };
-    this.logger.log('Instagram identity verification started', { ...ctx, step: 'init' });
+    this.logger.log('Instagram identity verification started', {
+      ...ctx,
+      step: 'init',
+    });
 
-    const accessToken = this.configService.get<string>('INSTAGRAM_ACCESS_TOKEN');
+    const accessToken = this.configService.get<string>(
+      'INSTAGRAM_ACCESS_TOKEN',
+    );
     if (!accessToken) {
-      this.logger.error('INSTAGRAM_ACCESS_TOKEN not configured', { ...ctx, step: 'config_check' });
+      this.logger.error('INSTAGRAM_ACCESS_TOKEN not configured', {
+        ...ctx,
+        step: 'config_check',
+      });
       throw new MissingSocialIdentityConfigException();
     }
     this.logger.debug('Config check passed', { ...ctx, step: 'config_check' });
@@ -68,7 +76,10 @@ export class SocialidentitiesService extends BaseService {
     const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
 
     try {
-      this.logger.debug('Calling Instagram Graph API', { ...ctx, step: 'api_call' });
+      this.logger.debug('Calling Instagram Graph API', {
+        ...ctx,
+        step: 'api_call',
+      });
       const response = await fetch(url);
 
       const data = (await response.json()) as {
@@ -116,7 +127,10 @@ export class SocialidentitiesService extends BaseService {
         });
       }
 
-      this.logger.log('Instagram identity verification complete', { ...ctx, step: 'complete' });
+      this.logger.log('Instagram identity verification complete', {
+        ...ctx,
+        step: 'complete',
+      });
 
       // Map to standard response format
       return {

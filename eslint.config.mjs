@@ -3,6 +3,7 @@ import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import localRules from './eslint-rules/no-missing-log-step.js';
 
 export default tseslint.config(
   {
@@ -58,6 +59,21 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    // SERVICE OBSERVABILITY — enforce step-level logging discipline
+    // Every logger.log/warn/error call inside a Service class must include a `step`
+    // field in the metadata object. This keeps Cloud Logging queries actionable:
+    // `jsonPayload.step="duplicate_check"` pinpoints exactly which phase failed.
+    // Set as 'warn' for progressive adoption — escalate to 'error' once all
+    // existing call sites are updated.
+    files: ['**/*.service.ts'],
+    plugins: {
+      local: localRules,
+    },
+    rules: {
+      'local/no-missing-log-step': 'warn',
     },
   },
 );

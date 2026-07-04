@@ -68,7 +68,11 @@ export class AuthCredentialService extends BaseService {
       value,
       identityType,
     );
-    this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential', identityType });
+    this.logger.debug('Credential hashed', {
+      ...ctx,
+      step: 'hash_credential',
+      identityType,
+    });
 
     let user: User;
     try {
@@ -95,12 +99,15 @@ export class AuthCredentialService extends BaseService {
         if (existingIdentity) {
           if (existingIdentity.userId !== null) {
             // Ghost identity already claimed by a different user — real conflict.
-            this.logger.warn('User provisioning failed: identity already claimed by another user', {
-              ...ctx,
-              step: 'provision_user',
-              existingUserId: existingIdentity.userId,
-              identityId: existingIdentity.id,
-            });
+            this.logger.warn(
+              'User provisioning failed: identity already claimed by another user',
+              {
+                ...ctx,
+                step: 'provision_user',
+                existingUserId: existingIdentity.userId,
+                identityId: existingIdentity.id,
+              },
+            );
             throw new AccountAlreadyExistsException();
           }
 
@@ -193,7 +200,11 @@ export class AuthCredentialService extends BaseService {
       throw err;
     }
 
-    this.logger.log('User provisioning complete', { ...ctx, step: 'complete', userId: user.id });
+    this.logger.log('User provisioning complete', {
+      ...ctx,
+      step: 'complete',
+      userId: user.id,
+    });
     return { user, normalizedHash: publicValueData.publicValueHash };
   }
 
