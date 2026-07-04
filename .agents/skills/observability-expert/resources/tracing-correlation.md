@@ -87,7 +87,8 @@ ClsModule.forRoot({
     idGenerator: (req: Request) =>
       (req.headers['x-request-id'] as string) ?? randomUUID(),
     setup: (cls, req: Request, res: Response) => {
-      cls.set('requestId', cls.id);   // nestjs-cls exposes the generated/extracted ID as cls.id
+      cls.set('requestStart', Date.now()); // ← wall-clock start for latency on both success and error paths
+      cls.set('requestId', cls.id);        // nestjs-cls exposes the generated/extracted ID as cls.id
       res.setHeader('x-request-id', cls.id);
     },
   },
@@ -95,6 +96,11 @@ ClsModule.forRoot({
 ```
 
 **Rules:**
+- `requestStart` must be set **first**, before anything else — it captures the true wall-clock
+  entry point before any middleware or interceptor overhead. Both `LoggingInterceptor` (success
+  path) and `GlobalExceptionFilter` (error path) read this value from CLS to compute `latencyMs`.
+  Using `Date.now()` here is intentional — this is millisecond arithmetic, not a stored timestamp.
+  Use `DateUtil.now()` for `Date` objects; use `Date.now()` for timing.
 - Prefer an incoming `x-request-id` header (from an upstream service or load balancer) over
   always generating a fresh one, to preserve cross-service correlation when this API is called
   by another internal service.
