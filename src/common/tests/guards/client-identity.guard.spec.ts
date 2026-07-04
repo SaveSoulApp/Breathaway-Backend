@@ -42,6 +42,7 @@ describe(ClientIdentityGuard.name, () => {
     logger = {
       warn: jest.fn(),
       error: jest.fn(),
+      forContext: jest.fn().mockReturnThis(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -313,9 +314,12 @@ describe(ClientIdentityGuard.name, () => {
       guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
-        'Failed to parse API_KEYS as JSON array. Check your environment variables.',
+        'Failed to parse config as JSON array',
+        { envKey: 'API_KEYS', step: 'parse_config' },
       );
-      expect(logger.warn).toHaveBeenCalledWith('No valid API keys configured.');
+      expect(logger.warn).toHaveBeenCalledWith('No valid API keys configured', {
+        step: 'init',
+      });
     });
 
     it('should handle non-array JSON and initialize empty sets', async () => {
@@ -341,7 +345,8 @@ describe(ClientIdentityGuard.name, () => {
       guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
-        'Failed to parse API_KEYS as JSON array. Check your environment variables.',
+        'Failed to parse config as JSON array',
+        { envKey: 'API_KEYS', step: 'parse_config' },
       );
     });
   });

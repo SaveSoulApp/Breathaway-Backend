@@ -1,4 +1,3 @@
-import { LoggerService } from '@core/logger';
 import {
   BadRequestException,
   CanActivate,
@@ -9,6 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+
+import { LoggerService } from '@core/logger';
+
 import {
   Platform,
   UserAgentData,
@@ -30,12 +32,14 @@ export class ClientIdentityGuard implements CanActivate {
   private readonly requiredPlatforms: Set<string>;
   private readonly minAppVersion: string;
   private readonly appName: string;
+  private readonly logger;
 
   constructor(
-    private readonly logger: LoggerService,
+    loggerService: LoggerService,
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
   ) {
+    this.logger = loggerService.forContext(ClientIdentityGuard.name);
     this.validApiKeys = this.parseJsonConfig('API_KEYS', '[]');
     this.validClientIds = this.parseJsonConfig('CLIENT_IDS', '[]');
     this.requiredPlatforms = this.parseJsonConfig('REQUIRED_PLATFORMS', '[]');
@@ -45,10 +49,12 @@ export class ClientIdentityGuard implements CanActivate {
     );
     this.appName = this.configService.get<string>('APP_NAME', '');
 
-    if (this.validApiKeys.size === 0)
-      this.logger.warn('No valid API keys configured.');
-    if (this.validClientIds.size === 0)
-      this.logger.warn('No valid Client IDs configured.');
+    if (this.validApiKeys.size === 0) {
+      this.logger.warn('No valid API keys configured', { step: 'init' });
+    }
+    if (this.validClientIds.size === 0) {
+      this.logger.warn('No valid Client IDs configured', { step: 'init' });
+    }
   }
 
   /**
@@ -167,9 +173,10 @@ export class ClientIdentityGuard implements CanActivate {
       if (!Array.isArray(parsed)) throw new Error();
       return new Set(parsed.map((item) => String(item).trim()).filter(Boolean));
     } catch {
-      this.logger.error(
-        `Failed to parse ${envKey} as JSON array. Check your environment variables.`,
-      );
+      this.logger.error('Failed to parse config as JSON array', {
+        envKey,
+        step: 'parse_config',
+      });
       return new Set();
     }
   }
