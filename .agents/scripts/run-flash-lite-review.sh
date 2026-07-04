@@ -1,7 +1,15 @@
 #!/bin/bash
 
+# Configuration defaults
+MODEL_NAME=${AI_REVIEW_MODEL:-"gemini-3.1-flash-lite"}
+API_ENDPOINT=${AI_REVIEW_ENDPOINT:-"https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent"}
+MAX_BYTES=${AI_REVIEW_MAX_BYTES:-900000}
+
 # Load environment variables if .env exists
 if [ -f .env ]; then
+  if ! git check-ignore -q .env; then
+    echo "Warning: .env file is not in .gitignore. Please add it to prevent secret leakage!"
+  fi
   set -a
   source .env
   set +a
@@ -39,7 +47,6 @@ if [ ! -s diff.txt ]; then
 fi
 
 ACTUAL_BYTES=$(wc -c < diff.txt)
-MAX_BYTES=900000
 
 if [ "$ACTUAL_BYTES" -gt "$MAX_BYTES" ]; then
   echo "Diff exceeds ${MAX_BYTES} bytes — truncating to avoid context overflow"
@@ -103,7 +110,7 @@ echo "Calling Gemini 3.1 Flash Lite API..."
 jq -Rs '{contents:[{parts:[{text:.}]}]}' prompt.txt > body.json
 
 HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X POST \
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent" \
+  "${API_ENDPOINT}" \
   -H "Content-Type: application/json" \
   -H "x-goog-api-key: ${GEMINI_API_KEY}" \
   -d @body.json)
