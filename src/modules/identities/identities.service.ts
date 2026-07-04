@@ -349,15 +349,23 @@ export class IdentitiesService extends BaseService {
             throw new IdentityAlreadyExistsException();
           }
           this.logger.warn(
-            `Hard deleting unverified duplicate identity during update`,
+            `Soft deleting and mangling hash for unverified duplicate identity during update`,
             {
               identityId: duplicate.id,
               previousUserId: duplicate.userId,
               newUserId: userId,
             },
           );
-          await tx.identity.delete({
+          await tx.identity.update({
             where: { id: duplicate.id },
+            data: {
+              deletedAt: DateUtil.now(),
+              userId: null, // Unbind the user
+              publicValueHash: `${duplicate.publicValueHash}-del-${duplicate.id}`,
+              ...(duplicate.platformIdHash && {
+                platformIdHash: `${duplicate.platformIdHash}-del-${duplicate.id}`,
+              }),
+            },
           });
         }
       }
