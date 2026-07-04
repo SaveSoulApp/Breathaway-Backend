@@ -1,14 +1,16 @@
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { AuditActionType } from '@modules/audit/dto';
+import { ConfigService } from '@nestjs/config';
 import { Injectable } from '@nestjs/common';
+import { DomainException } from '@shared/domain/exceptions/domain.exception';
+import { SocialIdentityResponseDto } from './dto';
 import {
   MissingSocialIdentityConfigException,
   SocialIdentityApiException,
   SocialIdentityNetworkException,
 } from './application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { AuditActionType } from '@modules/audit/dto';
-import { SocialIdentityResponseDto } from './dto';
 
 /**
  * Integrates with third-party social platforms to verify that a claimed
@@ -51,18 +53,22 @@ export class SocialidentitiesService extends BaseService {
     userId: string | null,
     instagramId: string,
   ): Promise<SocialIdentityResponseDto> {
-    const accessToken = this.configService.get<string>(
-      'INSTAGRAM_ACCESS_TOKEN',
-    );
+    // instagramId is an opaque numeric platform ID — safe to include in ctx.
+    // userId may be null in pre-auth flows; log the boolean presence instead.
+    const ctx = { instagramId, hasUserId: userId !== null };
+    this.logger.log('Instagram identity verification started', { ...ctx, step: 'init' });
+
+    const accessToken = this.configService.get<string>('INSTAGRAM_ACCESS_TOKEN');
     if (!accessToken) {
-      this.logger.error('INSTAGRAM_ACCESS_TOKEN is not defined', { userId });
+      this.logger.error('INSTAGRAM_ACCESS_TOKEN not configured', { ...ctx, step: 'config_check' });
       throw new MissingSocialIdentityConfigException();
     }
+    this.logger.debug('Config check passed', { ...ctx, step: 'config_check' });
 
     const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
 
     try {
-      this.logger.debug('Fetching identity', { instagramId, userId });
+      this.logger.debug('Calling Instagram Graph API', { ...ctx, step: 'api_call' });
       const response = await fetch(url);
 
       const data = (await response.json()) as {
@@ -78,14 +84,26 @@ export class SocialidentitiesService extends BaseService {
       };
 
       if (!response.ok) {
-        this.logger.warn('Instagram API returned error', { status: response.status, data, instagramId, userId });
-        // We throw BadRequest if client provided a bad ID/token according to IG, otherwise BadGateway.
+        // Log only the API status and sanitized error message — not the full
+        // data payload which may contain name/username (PII from Instagram).
+        this.logger.warn('Instagram API returned an error response', {
+          ...ctx,
+          step: 'api_call',
+          apiStatus: response.status,
+          apiErrorMessage: data?.error?.message ?? 'unknown',
+        });
         const errorMessage =
           data?.error?.message || 'Failed to verify Instagram identity';
         throw new SocialIdentityApiException(
           `Instagram API Error: ${errorMessage}`,
         );
       }
+      this.logger.debug('Instagram API call succeeded', {
+        ...ctx,
+        step: 'api_call',
+        apiStatus: response.status,
+        isVerifiedUser: data.is_verified_user ?? false,
+      });
 
       if (userId) {
         this.emitAuditLog({
@@ -93,10 +111,12 @@ export class SocialidentitiesService extends BaseService {
           userId: userId,
           metadata: {
             platform: 'instagram',
-            maskedPlatformId: instagramId, // The handle/ID used
+            maskedPlatformId: instagramId,
           },
         });
       }
+
+      this.logger.log('Instagram identity verification complete', { ...ctx, step: 'complete' });
 
       // Map to standard response format
       return {
@@ -110,11 +130,15 @@ export class SocialidentitiesService extends BaseService {
         isBusinessFollowUser: data.is_business_follow_user,
         platform: 'instagram',
       } as SocialIdentityResponseDto;
-    } catch (error) {
-      if (error instanceof SocialIdentityApiException) {
-        throw error;
-      }
-      this.logger.error('Network or unexpected error while calling Instagram API', { error: (error as Error).message, instagramId, userId });
+    } catch (err) {
+      // Re-throw domain exceptions (SocialIdentityApiException) without
+      // double-logging — the warn was already emitted above.
+      if (err instanceof DomainException) throw err;
+      this.logger.error('Network or unexpected error calling Instagram API', {
+        ...ctx,
+        step: 'api_call',
+        err: serializeError(err),
+      });
       throw new SocialIdentityNetworkException();
     }
   }
