@@ -175,7 +175,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     url: string,
     requestId: string | undefined,
   ): void {
-    const meta = { requestId, statusCode: status };
+    const requestStart = this.cls.isActive()
+      ? this.cls.get<number | undefined>('requestStart')
+      : undefined;
+    const latencyMs =
+      requestStart !== undefined ? Date.now() - requestStart : undefined;
+
+    const exceptionType =
+      exception != null && typeof exception === 'object'
+        ? exception.constructor.name
+        : 'UnknownException';
+
+    const meta = {
+      requestId,
+      statusCode: status,
+      exceptionType,
+      ...(latencyMs !== undefined && { latencyMs }),
+    };
 
     if (status >= 500) {
       // Full error object — LoggerService.write() serializes the stack trace automatically

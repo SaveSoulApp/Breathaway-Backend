@@ -119,7 +119,7 @@ describe('WebhooksController', () => {
 
       const result = await controller.handleMetaWebhook(payload);
 
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Meta webhook received',
         { object: payload.object },
       );

@@ -21,6 +21,10 @@ describe('PreferencesController', () => {
     const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
       }),
     };
 

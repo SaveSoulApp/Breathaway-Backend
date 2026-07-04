@@ -1,4 +1,7 @@
+import { Injectable } from '@nestjs/common';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -16,7 +19,6 @@ import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-pa
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
-import { Injectable } from '@nestjs/common';
 import { IdentityType, LikeStatus } from '@prisma/client';
 
 /**
@@ -62,19 +64,26 @@ export class IdentityWorkflowsService extends BaseService {
     data: { otp: string; senderId: string; timestamp: string },
     messageId: string,
   ): Promise<void> {
-    this.logger.info(`Received Instagram OTP event for messageId ${messageId}`);
-
     const { otp: extractedOtp, senderId } = data;
+    const ctx = { messageId, senderId };
+
+    this.logger.info('Received Instagram OTP event', { ...ctx, step: 'init' });
 
     try {
-      this.logger.log(`OTP extracted: ${extractedOtp}. Verifying...`);
+      this.logger.debug('Verifying extracted OTP', {
+        ...ctx,
+        step: 'verify_otp',
+      });
       // Note: verifyAndConsumeOtp automatically handles hashing the OTP
       const userId =
         await this.oneTimePasswordsService.verifyAndConsumeOtp(extractedOtp);
 
-      this.logger.log(
-        `OTP verified successfully for userId: ${userId}. Fetching identity for senderId: ${senderId}`,
-      );
+      const resolvedCtx = { ...ctx, userId };
+
+      this.logger.debug('OTP verified successfully, fetching identity', {
+        ...resolvedCtx,
+        step: 'fetch_social_identity',
+      });
       const identity =
         await this.socialidentitiesService.verifyInstagramIdentity(
           userId,
@@ -84,8 +93,12 @@ export class IdentityWorkflowsService extends BaseService {
       const username = identity.username;
 
       if (username) {
-        this.logger.log(
-          `Found Instagram username: ${username}. Linking identity to user ${userId}...`,
+        this.logger.debug(
+          'Instagram identity found, claiming/linking identity',
+          {
+            ...resolvedCtx,
+            step: 'claim_identity',
+          },
         );
         await this.identitiesService.claimOrCreateIdentity(
           IdentityType.INSTAGRAM,
@@ -93,9 +106,10 @@ export class IdentityWorkflowsService extends BaseService {
           senderId,
           userId,
         );
-        this.logger.log(
-          `Successfully linked Instagram identity (${username}) to user (${userId}).`,
-        );
+        this.logger.log('Successfully linked Instagram identity', {
+          ...resolvedCtx,
+          step: 'complete',
+        });
 
         // TODO: take the next steps
         this.notificationsService
@@ -110,19 +124,26 @@ export class IdentityWorkflowsService extends BaseService {
           })
           .catch((err) => {
             this.logger.error(
-              `Failed to dispatch identity claimed notification for user ${userId}`,
-              { error: err instanceof Error ? err.message : String(err) },
+              'Failed to dispatch identity claimed notification',
+              {
+                ...resolvedCtx,
+                step: 'notify',
+                err: serializeError(err),
+              },
             );
           });
       } else {
         this.logger.warn(
-          `Could not extract a valid username from Instagram identity payload.`,
+          'Could not extract a valid username from Instagram identity payload',
+          { ...resolvedCtx, step: 'claim_identity' },
         );
       }
     } catch (error) {
-      this.logger.error(
-        `Error during OTP verification flow for sender ${senderId}: ${(error as Error).message}`,
-      );
+      this.logger.error('Error during OTP verification flow', {
+        ...ctx,
+        step: 'verify_otp',
+        err: serializeError(error),
+      });
     }
   }
 
@@ -140,9 +161,12 @@ export class IdentityWorkflowsService extends BaseService {
     messageId: string,
   ): Promise<void> {
     const { userId } = data;
-    this.logger.info(
-      `[${messageId}] Processing identity.claimed for user ${userId}`,
-    );
+    const ctx = { messageId, userId };
+
+    this.logger.info('Processing identity claimed event', {
+      ...ctx,
+      step: 'init',
+    });
 
     const userIdentities = await this.prisma.identity.findMany({
       where: { userId, deletedAt: null },
@@ -151,7 +175,8 @@ export class IdentityWorkflowsService extends BaseService {
 
     if (userIdentities.length === 0) {
       this.logger.debug(
-        `[${messageId}] No active identities found for user ${userId}. Skipping.`,
+        'No active identities found, skipping match resolution',
+        { ...ctx, step: 'resolve_likes' },
       );
       return;
     }
@@ -178,6 +203,12 @@ export class IdentityWorkflowsService extends BaseService {
     identityIds: string[],
     messageId: string,
   ): Promise<void> {
+    const ctx = {
+      messageId,
+      userId,
+      identityIdsCount: identityIds.length,
+    };
+
     const actionableLikes = await this.prisma.like.findMany({
       where: {
         targetIdentityId: { in: identityIds },
@@ -196,15 +227,18 @@ export class IdentityWorkflowsService extends BaseService {
     });
 
     if (actionableLikes.length === 0) {
-      this.logger.debug(
-        `[${messageId}] No actionable likes to resolve for user ${userId}.`,
-      );
+      this.logger.debug('No actionable likes to resolve', {
+        ...ctx,
+        step: 'resolve_likes',
+      });
       return;
     }
 
-    this.logger.log(
-      `[${messageId}] Running match resolution for ${actionableLikes.length} actionable like(s) targeting user ${userId}.`,
-    );
+    this.logger.debug('Running match resolution for actionable likes', {
+      ...ctx,
+      step: 'resolve_likes',
+      count: actionableLikes.length,
+    });
 
     // resolveFromLike is already idempotent: it suppresses P2002 race conditions,
     // validates intent compatibility, and checks blocks internally.
@@ -213,16 +247,19 @@ export class IdentityWorkflowsService extends BaseService {
         this.matchResolverService
           .resolveFromLike(like as LikeSummary)
           .catch((err: Error) => {
-            this.logger.error(
-              `[${messageId}] resolveFromLike failed for Like ${like.id}`,
-              { error: err.message },
-            );
+            this.logger.error('resolveFromLike failed for Like', {
+              ...ctx,
+              step: 'resolve_likes',
+              likeId: like.id,
+              err: serializeError(err),
+            });
           }),
       ),
     );
 
-    this.logger.log(
-      `[${messageId}] Match resolution complete for user ${userId}.`,
-    );
+    this.logger.log('Match resolution complete for claimed identities', {
+      ...ctx,
+      step: 'complete',
+    });
   }
 }

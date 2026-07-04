@@ -1,19 +1,24 @@
 import { Injectable } from '@nestjs/common';
+import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
+
+import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
+import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
+
 import {
   LedgerEntryNotFoundException,
   InvalidCreditSourceException,
   InsufficientCreditsException,
 } from './application/exceptions';
-import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
-
-import { DateUtil } from '@common/utils/date.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto';
-import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
-import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
-
 import {
   ConsumeCreditsRequestDto,
   CreditExpiryBatchRequestDto,
@@ -22,11 +27,6 @@ import {
   PaginatedCreditLedgerResponseDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
-
-import { NotificationsService } from '@modules/notifications/notifications.service';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
 
 /**
  * Owns the credit economy domain — granting, consuming, querying, and expiring
@@ -239,6 +239,11 @@ export class CreditsService extends BaseService {
     });
 
     if (!entry) {
+      this.logger.warn('Ledger entry not found', {
+        entryId: id,
+        userId,
+        step: 'fetch',
+      });
       throw new LedgerEntryNotFoundException();
     }
 
@@ -265,20 +270,36 @@ export class CreditsService extends BaseService {
     tx?: Prisma.TransactionClient,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
+      this.logger.warn('Grant credits failed: invalid source', {
+        source: dto.source,
+        userId: dto.userId,
+        step: 'validate',
+      });
       throw new InvalidCreditSourceException();
     }
 
     const client = tx ?? this.prisma;
-    const ledger = await client.creditLedger.create({
-      data: {
+    let ledger;
+    try {
+      ledger = await client.creditLedger.create({
+        data: {
+          userId: dto.userId,
+          transactionType: CreditTransactionType.CREDIT,
+          amount: Math.abs(dto.amount),
+          source: dto.source,
+          referenceId: dto.referenceId,
+          expiresAt: dto.expiresAt ? DateUtil.parse(dto.expiresAt) : null,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to grant credits', {
         userId: dto.userId,
-        transactionType: CreditTransactionType.CREDIT,
-        amount: Math.abs(dto.amount),
-        source: dto.source,
-        referenceId: dto.referenceId,
-        expiresAt: dto.expiresAt ? DateUtil.parse(dto.expiresAt) : null,
-      },
-    });
+        amount: dto.amount,
+        step: 'persist_grant',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.CREDITS_GRANTED,
@@ -291,6 +312,12 @@ export class CreditsService extends BaseService {
       },
     });
 
+    this.logger.log('Credits granted successfully', {
+      userId: dto.userId,
+      amount: dto.amount,
+      ledgerId: ledger.id,
+      step: 'complete',
+    });
     return ledger;
   }
 
@@ -322,18 +349,34 @@ export class CreditsService extends BaseService {
     );
 
     if (!hasSufficient) {
+      this.logger.warn('Consume credits failed: insufficient credits', {
+        userId: dto.userId,
+        amount: dto.amount,
+        step: 'validate',
+      });
       throw new InsufficientCreditsException();
     }
 
-    const ledger = await client.creditLedger.create({
-      data: {
+    let ledger;
+    try {
+      ledger = await client.creditLedger.create({
+        data: {
+          userId: dto.userId,
+          transactionType: CreditTransactionType.DEBIT,
+          amount: Math.abs(dto.amount),
+          source: CreditSource.LIKE_USAGE,
+          referenceId: dto.referenceId,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to consume credits', {
         userId: dto.userId,
-        transactionType: CreditTransactionType.DEBIT,
-        amount: Math.abs(dto.amount),
-        source: CreditSource.LIKE_USAGE,
-        referenceId: dto.referenceId,
-      },
-    });
+        amount: dto.amount,
+        step: 'persist_consume',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.USAGE_TRIGGERED,
@@ -345,6 +388,12 @@ export class CreditsService extends BaseService {
       },
     });
 
+    this.logger.log('Credits consumed successfully', {
+      userId: dto.userId,
+      amount: dto.amount,
+      ledgerId: ledger.id,
+      step: 'complete',
+    });
     return ledger;
   }
 
@@ -445,10 +494,19 @@ export class CreditsService extends BaseService {
       }
 
       if (expirationsToInsert.length > 0) {
-        await this.prisma.creditLedger.createMany({
-          data: expirationsToInsert,
-        });
-        expiredDebitsInserted += expirationsToInsert.length;
+        try {
+          await this.prisma.creditLedger.createMany({
+            data: expirationsToInsert,
+          });
+          expiredDebitsInserted += expirationsToInsert.length;
+        } catch (error) {
+          this.logger.error('Failed to expire credits for user', {
+            userId,
+            step: 'persist_expire',
+            err: serializeError(error),
+          });
+          throw error;
+        }
       }
 
       processedUsers++;
@@ -473,17 +531,25 @@ export class CreditsService extends BaseService {
   @PubSubListener(PubSubEvent.CREDIT_EXPIRY_BATCH)
   async handleExpiryBatch(payload: CreditExpiryBatchRequestDto): Promise<void> {
     const asOf = DateUtil.parse(payload.asOf);
+    const ctx = {
+      userIdsCount: payload.userIds.length,
+      asOf: payload.asOf,
+    };
 
-    this.logger.log(
-      `Processing credit expiry batch: ${payload.userIds.length} users, asOf=${payload.asOf}`,
-    );
+    this.logger.debug('Processing credit expiry batch', {
+      ...ctx,
+      step: 'process_batch',
+    });
 
     const { processedUsers, expiredDebitsInserted } =
       await this.expireCreditsForUsers(payload.userIds, asOf);
 
-    this.logger.log(
-      `Batch complete. Processed ${processedUsers} users. Inserted ${expiredDebitsInserted} expiration debits.`,
-    );
+    this.logger.log('Credit expiry batch completed', {
+      ...ctx,
+      processedUsers,
+      expiredDebitsInserted,
+      step: 'complete',
+    });
   }
 
   /**
@@ -499,10 +565,16 @@ export class CreditsService extends BaseService {
     const asOf = DateUtil.parse(payload.asOf);
     // Target window end is asOf + 7 days
     const targetEnd = DateUtil.addDays(asOf, 7);
+    const ctx = {
+      userIdsCount: payload.userIds.length,
+      asOf: payload.asOf,
+      targetEnd: targetEnd.toISOString(),
+    };
 
-    this.logger.log(
-      `Processing credit expiry warning batch: ${payload.userIds.length} users, targetEnd=${targetEnd.toISOString()}`,
-    );
+    this.logger.debug('Processing credit expiry warning batch', {
+      ...ctx,
+      step: 'process_batch',
+    });
 
     let warnedUsers = 0;
 
@@ -551,18 +623,31 @@ export class CreditsService extends BaseService {
       }
 
       if (needsWarning) {
-        await this.notificationsService.dispatch({
-          type: NotificationType.BUNDLE_EXPIRY_WARNING,
-          category: NotificationCategory.SYSTEM,
-          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-          userIds: [userId],
-        });
+        await this.notificationsService
+          .dispatch({
+            type: NotificationType.BUNDLE_EXPIRY_WARNING,
+            category: NotificationCategory.SYSTEM,
+            channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+            userIds: [userId],
+          })
+          .catch((err) => {
+            this.logger.error(
+              'Failed to dispatch credit expiry warning notification',
+              {
+                userId,
+                step: 'notify',
+                err: serializeError(err),
+              },
+            );
+          });
         warnedUsers++;
       }
     }
 
-    this.logger.log(
-      `Warning batch complete. Dispatched warnings to ${warnedUsers} out of ${payload.userIds.length} users.`,
-    );
+    this.logger.log('Credit expiry warning batch completed', {
+      ...ctx,
+      warnedUsers,
+      step: 'complete',
+    });
   }
 }

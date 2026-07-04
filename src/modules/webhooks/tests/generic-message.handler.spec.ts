@@ -89,7 +89,7 @@ describe('GenericMessageHandler', () => {
           timestamp: message.timestamp,
         },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Published generic message event for message mid',
       );
     });

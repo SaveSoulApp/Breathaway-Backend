@@ -109,7 +109,7 @@ describe('OtpVerificationHandler', () => {
           timestamp: 123456,
         },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Published OTP verification event for sender 123',
       );
     });

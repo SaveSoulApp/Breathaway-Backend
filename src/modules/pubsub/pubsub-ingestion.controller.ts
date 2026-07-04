@@ -1,7 +1,3 @@
-import { ApiStandardErrors } from '@common/decorators';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -10,15 +6,22 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { serializeError } from '@common/utils/error.utils';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { PubSubPushRequestDto } from './dto';
 import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
 import { PubSubRegistryService } from './pubsub-registry.service';
-import {
-  ApiExcludeController,
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
 
 @ApiTags('PubSub (Internal)')
 @ApiExcludeController()
@@ -69,39 +72,43 @@ export class PubSubIngestionController extends BaseController {
   @HttpCode(HttpStatus.OK)
   async ingest(@Body() rawPayload: Record<string, unknown>): Promise<void> {
     const payload = rawPayload as unknown as PubSubPushRequestDto;
-    this.logger.info('Incoming Pub/Sub ingest payload', { payload });
+
+    // Do NOT log the full payload wholesale (PII safety). Log the metadata instead.
+    this.logger.info('Incoming Pub/Sub ingest payload', {
+      messageId: payload?.message?.messageId,
+      eventType: payload?.message?.attributes?.eventType,
+      step: 'init',
+    });
 
     if (!payload?.message) {
-      this.logger.warn('Ignored invalid payload: missing message object');
+      this.logger.warn('Ignored invalid payload: missing message object', {
+        step: 'ingest_check',
+      });
       return;
     }
 
     const { message } = payload;
     const { data, messageId, attributes } = message;
-
-    // The Pub/Sub eventType must be passed in the attributes map when publishing
     const eventType = attributes?.eventType;
+
+    const ctx = { messageId, eventType };
+
     if (!eventType) {
-      this.logger.warn(
-        `Ignored message ${messageId}: Missing 'eventType' attribute.`,
-      );
+      this.logger.warn("Ignored message: Missing 'eventType' attribute", {
+        ...ctx,
+        step: 'ingest_check',
+      });
       return;
     }
 
     const handlerContext = this.registryService.getHandler(eventType);
     if (!handlerContext) {
-      this.logger.warn(
-        `Ignored message ${messageId}: No handler registered for eventType '${eventType}'.`,
-      );
+      this.logger.warn('Ignored message: No handler registered for eventType', {
+        ...ctx,
+        step: 'routing_check',
+      });
       return;
     }
-
-    // [TODO] Idempotency Guard (Redis)
-    // Here you would check if messageId exists in Redis. If yes, return early.
-    // If no, set messageId in Redis with a TTL. Example:
-    // const isDuplicate = await this.redisService.setnx(`pubsub:processed:${messageId}`, '1');
-    // if (!isDuplicate) { return; }
-    // await this.redisService.expire(`pubsub:processed:${messageId}`, 86400); // 1 day
 
     try {
       let parsedData: unknown = {};
@@ -112,9 +119,11 @@ export class PubSubIngestionController extends BaseController {
           const decodedString = Buffer.from(data, 'base64').toString('utf-8');
           parsedData = JSON.parse(decodedString);
         } catch (e) {
-          this.logger.error(
-            `Failed to parse JSON data for message ${messageId}: ${e instanceof Error ? e.message : String(e)}`,
-          );
+          this.logger.error('Failed to parse JSON data for message', {
+            ...ctx,
+            step: 'decode_payload',
+            err: serializeError(e),
+          });
           return;
         }
       }
@@ -123,12 +132,11 @@ export class PubSubIngestionController extends BaseController {
       const { target, method } = handlerContext;
       await method.call(target, parsedData, messageId);
     } catch (error) {
-      this.logger.error(
-        `Error processing event '${eventType}' (messageId: ${messageId}):`,
-        { error: error instanceof Error ? error.message : String(error) },
-      );
-      // We return OK (200) or throw error based on retry strategy.
-      // If we throw, Pub/Sub will retry according to the subscription's retry policy.
+      this.logger.error('Error processing event', {
+        ...ctx,
+        step: 'execute_handler',
+        err: serializeError(error),
+      });
       throw error;
     }
   }

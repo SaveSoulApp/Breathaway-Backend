@@ -1,11 +1,12 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
-import { MessageNotFoundException } from './application/exceptions';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import { MessageNotFoundException } from './application/exceptions';
 import {
   CreateMessageRequestDto,
   GetMessagesRequestDto,
@@ -14,12 +15,15 @@ import {
 import { generateRoomParticipants } from './utils/chats.utils';
 
 @Injectable()
-export class ChatsService {
-  private readonly logger = new Logger(ChatsService.name);
+export class ChatsService extends BaseService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly supabase: SupabaseClient<any, 'public', any>;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    logger: LoggerService,
+    private readonly configService: ConfigService,
+  ) {
+    super(logger);
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey = this.configService.get<string>(
       'SUPABASE_SERVICE_ROLE_KEY',
@@ -28,6 +32,7 @@ export class ChatsService {
     if (!supabaseUrl || !supabaseKey) {
       this.logger.warn(
         'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing. ChatsService may fail.',
+        { step: 'init' },
       );
     }
 
@@ -56,10 +61,31 @@ export class ChatsService {
       query = query.lt('createdAt', cursor);
     }
 
-    const { data, error } = await query;
+    let data;
+    let error;
+    try {
+      const response = await query;
+      data = response.data;
+      error = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch messages', {
+        roomId,
+        cursor,
+        limit,
+        step: 'fetch_messages',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to fetch messages');
+    }
 
     if (error) {
-      this.logger.error(`Failed to fetch messages: ${error.message}`, error);
+      this.logger.error('Failed to fetch messages', {
+        roomId,
+        cursor,
+        limit,
+        step: 'fetch_messages',
+        err: serializeError(error),
+      });
       throw new InternalServerErrorException('Failed to fetch messages');
     }
 
@@ -82,51 +108,89 @@ export class ChatsService {
     );
 
     // 1. Ensure the room exists idempotently
-    const { data: roomData, error: roomError } = await this.supabase
-      .from('ChatRoom')
-      .upsert({ userOneId, userTwoId }, { onConflict: 'userOneId, userTwoId' })
-      .select('id')
-      .single();
+    let roomData;
+    let roomError;
+    try {
+      const response = await this.supabase
+        .from('ChatRoom')
+        .upsert(
+          { userOneId, userTwoId },
+          { onConflict: 'userOneId, userTwoId' },
+        )
+        .select('id')
+        .single();
+      roomData = response.data;
+      roomError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to process chat room', {
+        senderId,
+        targetUserId,
+        step: 'get_or_create_room',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to process chat room');
+    }
 
     const room = roomData as { id: string } | null;
 
     if (roomError || !room) {
-      this.logger.error(
-        `Failed to upsert chat room: ${roomError?.message}`,
-        roomError,
-      );
+      this.logger.error('Failed to process chat room', {
+        senderId,
+        targetUserId,
+        step: 'get_or_create_room',
+        err: serializeError(roomError),
+      });
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
     // 2. Insert the message
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const { data, error: msgError } = await this.supabase
-      .from('Message')
-      .insert({
+    let data: unknown;
+    let msgError;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .insert({
+          roomId: room.id,
+          senderId,
+          content,
+        })
+        .select('*')
+        .single();
+      data = response.data;
+      msgError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to send message', {
         roomId: room.id,
         senderId,
-        content,
-      })
-      .select('*')
-      .single();
+        targetUserId,
+        step: 'send_message',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to send message');
+    }
 
     const message = data as Record<string, unknown>;
 
     if (msgError) {
-      this.logger.error(
-        `Failed to send message: ${msgError.message}`,
-        msgError,
-      );
+      this.logger.error('Failed to send message', {
+        roomId: room.id,
+        senderId,
+        targetUserId,
+        step: 'send_message',
+        err: serializeError(msgError),
+      });
       throw new InternalServerErrorException('Failed to send message');
     }
 
     // 3. Fire-and-forget push notification
     this.triggerPushNotification(targetUserId, senderId, content).catch(
       (err: Error) => {
-        this.logger.error(
-          `Failed to send push notification: ${err.message}`,
-          err,
-        );
+        this.logger.error('Failed to send push notification', {
+          targetUserId,
+          senderId,
+          step: 'send_push',
+          err: serializeError(err),
+        });
       },
     );
 
@@ -139,31 +203,66 @@ export class ChatsService {
     dto: MarkMessageReadRequestDto,
   ) {
     // Fetch the reference message to get its createdAt timestamp
-    const { data: refMessage, error: fetchError } = await this.supabase
-      .from('Message')
-      .select('createdAt')
-      .eq('id', dto.messageId)
-      .eq('roomId', roomId)
-      .single();
+    let refMessage;
+    let fetchError;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .select('createdAt')
+        .eq('id', dto.messageId)
+        .eq('roomId', roomId)
+        .single();
+      refMessage = response.data;
+      fetchError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch reference message', {
+        messageId: dto.messageId,
+        roomId,
+        userId,
+        step: 'mark_read',
+        err: serializeError(err),
+      });
+      throw new MessageNotFoundException(dto.messageId);
+    }
 
     if (fetchError || !refMessage) {
+      this.logger.warn('Failed to mark message read: message not found', {
+        messageId: dto.messageId,
+        roomId,
+        userId,
+        step: 'mark_read',
+      });
       throw new MessageNotFoundException(dto.messageId);
     }
 
     // Update all unread messages in this room sent by the OTHER person, older than or equal to the ref message
-    const { error: updateError } = await this.supabase
-      .from('Message')
-      .update({ readAt: new Date().toISOString() })
-      .eq('roomId', roomId)
-      .neq('senderId', userId)
-      .is('readAt', null)
-      .lte('createdAt', refMessage.createdAt);
+    let updateError;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .update({ readAt: new Date().toISOString() })
+        .eq('roomId', roomId)
+        .neq('senderId', userId)
+        .is('readAt', null)
+        .lte('createdAt', refMessage.createdAt);
+      updateError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to mark messages as read', {
+        roomId,
+        userId,
+        step: 'mark_read',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to mark messages as read');
+    }
 
     if (updateError) {
-      this.logger.error(
-        `Failed to mark messages as read: ${updateError.message}`,
-        updateError,
-      );
+      this.logger.error('Failed to mark messages as read', {
+        roomId,
+        userId,
+        step: 'mark_read',
+        err: serializeError(updateError),
+      });
       throw new InternalServerErrorException('Failed to mark messages as read');
     }
 
@@ -176,9 +275,12 @@ export class ChatsService {
     content: string,
   ) {
     // TODO: Integrate with existing push notification service
-    this.logger.log(
-      `[Push Notification Simulation] Sending to ${targetUserId}: ${content.substring(0, 20)}...`,
-    );
+    this.logger.debug('Push Notification Simulation', {
+      targetUserId,
+      senderId,
+      contentPreview: content.substring(0, 20),
+      step: 'simulate_push',
+    });
     return Promise.resolve();
   }
 }

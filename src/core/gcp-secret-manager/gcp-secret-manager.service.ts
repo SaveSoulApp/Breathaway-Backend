@@ -28,6 +28,7 @@ export class GcpSecretManagerService extends BaseService {
    * @throws {Error} When the GCP API rejects the request (e.g., insufficient permissions, secret not found).
    */
   async upsertSecret(secretName: string, value: string): Promise<void> {
+    const ctx = { secretName };
     try {
       const projectId = await this.client.getProjectId();
       const parent = `projects/${projectId}/secrets/${secretName}`;
@@ -41,10 +42,12 @@ export class GcpSecretManagerService extends BaseService {
 
       this.logger.log(
         `Successfully updated secret '${secretName}' in GCP Secret Manager`,
+        { ...ctx, step: 'upsert_success' },
       );
     } catch (error) {
       this.logger.error(
         `Failed to update secret '${secretName}' in GCP Secret Manager: ${(error as Error).message}`,
+        { ...ctx, step: 'upsert_failed', error },
       );
       throw error;
     }

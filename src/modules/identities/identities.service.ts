@@ -1,4 +1,8 @@
+import { Injectable } from '@nestjs/common';
+import { Identity, IdentityType, Prisma } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -6,14 +10,12 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { Injectable } from '@nestjs/common';
+
 import {
   IdentityAlreadyExistsException,
   IdentityAlreadyClaimedException,
   IdentityNotFoundException,
 } from './application/exceptions';
-
-import { Identity, IdentityType, Prisma } from '@prisma/client';
 import {
   CreateIdentityRequestDto,
   LookupIdentityRequestDto,
@@ -72,14 +74,13 @@ export class IdentitiesService extends BaseService {
     }
 
     if (existing.userId && existing.userId !== userId) {
-      this.logger.warn(
-        `Reassigning unverified identity from another user during ${context}`,
-        {
-          identityId: existing.id,
-          previousUserId: existing.userId,
-          newUserId: userId,
-        },
-      );
+      this.logger.warn('Reassigning unverified identity from another user', {
+        identityId: existing.id,
+        previousUserId: existing.userId,
+        newUserId: userId,
+        step: 'reassign_check',
+        context,
+      });
     }
   }
 
@@ -98,6 +99,8 @@ export class IdentitiesService extends BaseService {
    *   platform ID is already owned by another user.
    */
   async create(userId: string, dto: CreateIdentityRequestDto) {
+    const ctx = { userId, identityType: dto.type };
+
     const publicValueData = await this.encryption.processPublicValue(
       dto.publicValue,
       dto.type,
@@ -117,39 +120,49 @@ export class IdentitiesService extends BaseService {
       });
     }
 
-    const identity = await this.prisma.$transaction(async (tx) => {
-      // Check for existing active identity of same type & hash
-      const existing = await tx.identity.findFirst({
-        where: {
-          type: dto.type,
-          OR: orConditions,
-        },
-      });
-      if (existing) {
-        this.checkAndLogReassignment(existing, userId, 'create');
+    let identity: Identity;
+    try {
+      identity = await this.prisma.$transaction(async (tx) => {
+        // Check for existing active identity of same type & hash
+        const existing = await tx.identity.findFirst({
+          where: {
+            type: dto.type,
+            OR: orConditions,
+          },
+        });
+        if (existing) {
+          this.checkAndLogReassignment(existing, userId, 'create');
 
-        return await tx.identity.update({
-          where: { id: existing.id },
+          return await tx.identity.update({
+            where: { id: existing.id },
+            data: {
+              userId,
+              isVerified: false,
+              deletedAt: null,
+              ...publicValueData,
+              ...platformIdData,
+            },
+          });
+        }
+
+        return await tx.identity.create({
           data: {
+            type: dto.type,
             userId,
             isVerified: false,
-            deletedAt: null,
             ...publicValueData,
             ...platformIdData,
           },
         });
-      }
-
-      return await tx.identity.create({
-        data: {
-          type: dto.type,
-          userId,
-          isVerified: false,
-          ...publicValueData,
-          ...platformIdData,
-        },
       });
-    });
+    } catch (error) {
+      this.logger.error('Failed to create identity', {
+        ...ctx,
+        step: 'persist_identity',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.IDENTITY_CREATED,
@@ -162,6 +175,11 @@ export class IdentitiesService extends BaseService {
       },
     });
 
+    this.logger.log('Identity created successfully', {
+      ...ctx,
+      identityId: identity.id,
+      step: 'complete',
+    });
     return this.toMaskedResponse(identity);
   }
 
@@ -335,47 +353,71 @@ export class IdentitiesService extends BaseService {
       updateData = { ...updateData, ...platformIdData };
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      if (orConditions.length > 0) {
-        const duplicate = await tx.identity.findFirst({
-          where: {
-            type: identity.type,
-            id: { not: id },
-            OR: orConditions,
-          },
-        });
-        if (duplicate) {
-          if (this.isActivelyOwned(duplicate)) {
-            throw new IdentityAlreadyExistsException();
-          }
-          this.logger.warn(
-            `Soft deleting and mangling hash for unverified duplicate identity during update`,
-            {
-              identityId: duplicate.id,
-              previousUserId: duplicate.userId,
-              newUserId: userId,
-            },
-          );
-          await tx.identity.update({
-            where: { id: duplicate.id },
-            data: {
-              deletedAt: DateUtil.now(),
-              userId: null, // Unbind the user
-              publicValueHash: `${duplicate.publicValueHash}-del-${duplicate.id}`,
-              ...(duplicate.platformIdHash && {
-                platformIdHash: `${duplicate.platformIdHash}-del-${duplicate.id}`,
-              }),
+    let updated: Identity;
+    try {
+      updated = await this.prisma.$transaction(async (tx) => {
+        if (orConditions.length > 0) {
+          const duplicate = await tx.identity.findFirst({
+            where: {
+              type: identity.type,
+              id: { not: id },
+              OR: orConditions,
             },
           });
+          if (duplicate) {
+            if (this.isActivelyOwned(duplicate)) {
+              this.logger.warn('Identity update failed: duplicate found', {
+                identityId: id,
+                userId,
+                identityType: identity.type,
+                duplicateId: duplicate.id,
+                step: 'duplicate_check',
+              });
+              throw new IdentityAlreadyExistsException();
+            }
+            this.logger.warn(
+              'Soft deleting and mangling hash for unverified duplicate identity during update',
+              {
+                identityId: duplicate.id,
+                previousUserId: duplicate.userId,
+                newUserId: userId,
+                step: 'duplicate_check',
+              },
+            );
+            await tx.identity.update({
+              where: { id: duplicate.id },
+              data: {
+                deletedAt: DateUtil.now(),
+                userId: null, // Unbind the user
+                publicValueHash: `${duplicate.publicValueHash}-del-${duplicate.id}`,
+                ...(duplicate.platformIdHash && {
+                  platformIdHash: `${duplicate.platformIdHash}-del-${duplicate.id}`,
+                }),
+              },
+            });
+          }
         }
-      }
 
-      return await tx.identity.update({
-        where: { id },
-        data: updateData,
+        return await tx.identity.update({
+          where: { id },
+          data: updateData,
+        });
       });
-    });
+    } catch (error) {
+      this.logger.error('Failed to update identity', {
+        identityId: id,
+        userId,
+        step: 'persist_update',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
+    this.logger.log('Identity updated successfully', {
+      identityId: updated.id,
+      userId,
+      step: 'complete',
+    });
     return this.toMaskedResponse(updated);
   }
 
@@ -391,12 +433,27 @@ export class IdentitiesService extends BaseService {
    */
   async delete(id: string, userId: string) {
     await this.findOwnedOrFail(id, userId);
-    await this.prisma.identity.update({
-      where: { id },
-      data: {
-        deletedAt: DateUtil.now(),
-        userId: null,
-      },
+    try {
+      await this.prisma.identity.update({
+        where: { id },
+        data: {
+          deletedAt: DateUtil.now(),
+          userId: null,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to delete identity', {
+        identityId: id,
+        userId,
+        step: 'persist_delete',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+    this.logger.log('Identity soft-deleted successfully', {
+      identityId: id,
+      userId,
+      step: 'complete',
     });
   }
 
@@ -414,12 +471,30 @@ export class IdentitiesService extends BaseService {
    */
   async verify(id: string, userId: string) {
     await this.findOwnedOrFail(id, userId);
-    const updated = await this.prisma.identity.update({
-      where: { id },
-      data: {
-        isVerified: true,
-        verifiedAt: DateUtil.now(),
-      },
+
+    let updated: Identity;
+    try {
+      updated = await this.prisma.identity.update({
+        where: { id },
+        data: {
+          isVerified: true,
+          verifiedAt: DateUtil.now(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to verify identity', {
+        identityId: id,
+        userId,
+        step: 'persist_verification',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Identity verified successfully', {
+      identityId: id,
+      userId,
+      step: 'complete',
     });
 
     this.emitAuditLog({
@@ -464,41 +539,52 @@ export class IdentitiesService extends BaseService {
     );
     const platformIdData = await this.encryption.processPlatformId(platformId);
 
-    const identity = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.identity.findFirst({
-        where: {
-          type,
-          publicValueHash: publicValueData.publicValueHash,
-        },
-      });
+    let identity: Identity;
+    try {
+      identity = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.identity.findFirst({
+          where: {
+            type,
+            publicValueHash: publicValueData.publicValueHash,
+          },
+        });
 
-      if (existing) {
-        this.checkAndLogReassignment(existing, userId, 'claim');
+        if (existing) {
+          this.checkAndLogReassignment(existing, userId, 'claim');
 
-        return await tx.identity.update({
-          where: { id: existing.id },
+          return await tx.identity.update({
+            where: { id: existing.id },
+            data: {
+              userId,
+              isVerified: true,
+              verifiedAt: DateUtil.now(),
+              deletedAt: null,
+              ...publicValueData,
+              ...platformIdData,
+            },
+          });
+        }
+
+        return await tx.identity.create({
           data: {
+            type,
             userId,
             isVerified: true,
             verifiedAt: DateUtil.now(),
-            deletedAt: null,
             ...publicValueData,
             ...platformIdData,
           },
         });
-      }
-
-      return await tx.identity.create({
-        data: {
-          type,
-          userId,
-          isVerified: true,
-          verifiedAt: DateUtil.now(),
-          ...publicValueData,
-          ...platformIdData,
-        },
       });
-    });
+    } catch (error) {
+      this.logger.error('Failed to claim or create identity', {
+        userId,
+        identityType: type,
+        step: 'persist_claim',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.publishIdentityClaimedEvent(userId);
 
@@ -513,6 +599,11 @@ export class IdentitiesService extends BaseService {
       },
     });
 
+    this.logger.log('Identity created and claimed successfully', {
+      identityId: identity.id,
+      userId,
+      step: 'complete',
+    });
     return this.toMaskedResponse(identity);
   }
 
@@ -539,6 +630,11 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
+      this.logger.warn('Find by public value failed: identity not found', {
+        identityType: dto.type,
+        userId,
+        step: 'lookup',
+      });
       throw new IdentityNotFoundException();
     }
 
@@ -587,10 +683,11 @@ export class IdentitiesService extends BaseService {
         userId,
       })
       .catch((err: Error) => {
-        this.logger.error(
-          `Failed to publish ${PubSubEvent.IDENTITY_CLAIMED} event for user ${userId}`,
-          { error: err.message },
-        );
+        this.logger.error('Failed to publish IDENTITY_CLAIMED event', {
+          userId,
+          step: 'publish_event',
+          err: serializeError(err),
+        });
       });
   }
 
@@ -610,6 +707,13 @@ export class IdentitiesService extends BaseService {
     });
 
     if (!identity) {
+      this.logger.warn(
+        'Get decrypted public value failed: identity not found',
+        {
+          identityId,
+          step: 'decrypt',
+        },
+      );
       throw new IdentityNotFoundException();
     }
 
@@ -637,6 +741,11 @@ export class IdentitiesService extends BaseService {
       where: { id, userId, deletedAt: null },
     });
     if (!identity) {
+      this.logger.warn('Identity not found or already deleted', {
+        identityId: id,
+        userId,
+        step: 'find_owned',
+      });
       throw new IdentityNotFoundException();
     }
     return identity;

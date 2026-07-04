@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { SubscriptionPlanNotFoundException } from '../application/exceptions';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
+import { SubscriptionPlanNotFoundException } from '../application/exceptions';
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
@@ -78,6 +79,10 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
+      this.logger.warn('Get plan failed: plan not found', {
+        planId: id,
+        step: 'fetch',
+      });
       throw new SubscriptionPlanNotFoundException(
         `Subscription plan with ID "${id}" not found`,
       );
@@ -109,6 +114,11 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!plan) {
+      this.logger.warn('Get plan by product ID failed: plan not found', {
+        platform,
+        productId,
+        step: 'fetch_by_store_id',
+      });
       throw new SubscriptionPlanNotFoundException(
         `Subscription plan not found for ${platform} product ID "${productId}"`,
       );
@@ -126,19 +136,34 @@ export class SubscriptionPlansService extends BaseService {
    * @returns The newly created plan.
    */
   async createPlan(dto: CreatePlanRequestDto) {
-    const plan = await this.prisma.subscriptionPlan.create({
-      data: {
+    let plan;
+    try {
+      plan = await this.prisma.subscriptionPlan.create({
+        data: {
+          name: dto.name,
+          slug: dto.slug,
+          description: dto.description,
+          appleProductId: dto.appleProductId,
+          googleProductId: dto.googleProductId,
+          creditsGranted: dto.creditsGranted,
+          validityDays: dto.validityDays,
+          trialDurationDays: dto.trialDurationDays ?? 0,
+          sortOrder: dto.sortOrder ?? 0,
+        },
+        include: { prices: true },
+      });
+    } catch (error) {
+      this.logger.error('Failed to create subscription plan', {
         name: dto.name,
-        slug: dto.slug,
-        description: dto.description,
-        appleProductId: dto.appleProductId,
-        googleProductId: dto.googleProductId,
-        creditsGranted: dto.creditsGranted,
-        validityDays: dto.validityDays,
-        trialDurationDays: dto.trialDurationDays ?? 0,
-        sortOrder: dto.sortOrder ?? 0,
-      },
-      include: { prices: true },
+        step: 'persist_create',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Subscription plan created successfully', {
+      planId: plan.id,
+      step: 'complete',
     });
 
     this.emitAuditLog({
@@ -165,31 +190,48 @@ export class SubscriptionPlansService extends BaseService {
   async updatePlan(id: string, dto: UpdatePlanRequestDto) {
     await this.getPlanById(id);
 
-    const plan = await this.prisma.subscriptionPlan.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.slug !== undefined && { slug: dto.slug }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.appleProductId !== undefined && {
-          appleProductId: dto.appleProductId,
-        }),
-        ...(dto.googleProductId !== undefined && {
-          googleProductId: dto.googleProductId,
-        }),
-        ...(dto.creditsGranted !== undefined && {
-          creditsGranted: dto.creditsGranted,
-        }),
-        ...(dto.validityDays !== undefined && {
-          validityDays: dto.validityDays,
-        }),
-        ...(dto.trialDurationDays !== undefined && {
-          trialDurationDays: dto.trialDurationDays,
-        }),
-        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
-        ...(dto.status !== undefined && { status: dto.status }),
-      },
-      include: { prices: true },
+    let plan;
+    try {
+      plan = await this.prisma.subscriptionPlan.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.slug !== undefined && { slug: dto.slug }),
+          ...(dto.description !== undefined && {
+            description: dto.description,
+          }),
+          ...(dto.appleProductId !== undefined && {
+            appleProductId: dto.appleProductId,
+          }),
+          ...(dto.googleProductId !== undefined && {
+            googleProductId: dto.googleProductId,
+          }),
+          ...(dto.creditsGranted !== undefined && {
+            creditsGranted: dto.creditsGranted,
+          }),
+          ...(dto.validityDays !== undefined && {
+            validityDays: dto.validityDays,
+          }),
+          ...(dto.trialDurationDays !== undefined && {
+            trialDurationDays: dto.trialDurationDays,
+          }),
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.status !== undefined && { status: dto.status }),
+        },
+        include: { prices: true },
+      });
+    } catch (error) {
+      this.logger.error('Failed to update subscription plan', {
+        planId: id,
+        step: 'persist_update',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Subscription plan updated successfully', {
+      planId: plan.id,
+      step: 'complete',
     });
 
     this.emitAuditLog({
@@ -213,13 +255,30 @@ export class SubscriptionPlansService extends BaseService {
   async addPlanPrice(planId: string, dto: CreatePlanPriceRequestDto) {
     await this.getPlanById(planId);
 
-    const price = await this.prisma.subscriptionPlanPrice.create({
-      data: {
+    let price;
+    try {
+      price = await this.prisma.subscriptionPlanPrice.create({
+        data: {
+          planId,
+          currencyCode: dto.currencyCode,
+          price: dto.price,
+          countryCode: dto.countryCode,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to add plan price', {
         planId,
         currencyCode: dto.currencyCode,
-        price: dto.price,
-        countryCode: dto.countryCode,
-      },
+        step: 'persist_add_price',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Plan price added successfully', {
+      planId,
+      priceId: price.id,
+      step: 'complete',
     });
 
     return price;
@@ -240,13 +299,34 @@ export class SubscriptionPlansService extends BaseService {
     });
 
     if (!price) {
+      this.logger.warn('Remove plan price failed: price not found', {
+        planId,
+        priceId,
+        step: 'remove_price',
+      });
       throw new SubscriptionPlanNotFoundException(
         `Price entry "${priceId}" not found for plan "${planId}"`,
       );
     }
 
-    await this.prisma.subscriptionPlanPrice.delete({
-      where: { id: priceId },
+    try {
+      await this.prisma.subscriptionPlanPrice.delete({
+        where: { id: priceId },
+      });
+    } catch (error) {
+      this.logger.error('Failed to remove plan price', {
+        planId,
+        priceId,
+        step: 'persist_remove_price',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Plan price removed successfully', {
+      planId,
+      priceId,
+      step: 'complete',
     });
   }
 }

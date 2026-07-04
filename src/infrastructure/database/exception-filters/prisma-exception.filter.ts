@@ -1,5 +1,3 @@
-import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
 import {
   ArgumentsHost,
   Catch,
@@ -9,6 +7,10 @@ import {
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
+
+import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
+import { LoggerService } from '@core/logger';
 
 interface PrismaErrorMapping {
   status: HttpStatus;
@@ -82,13 +84,16 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         prismaMeta: exception.meta, // field name etc. — safe to log, not to send to client
         requestId,
         path: request.url,
+        step: 'catch',
       });
     } else {
       // Unknown Prisma error — unexpected, log at error with full exception
-      this.logger.error(exception, {
+      this.logger.error('Unknown Prisma exception caught', {
         prismaCode: exception.code,
         requestId,
         path: request.url,
+        step: 'catch',
+        err: serializeError(exception),
       });
     }
 

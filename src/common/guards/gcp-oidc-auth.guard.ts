@@ -1,4 +1,3 @@
-import { LoggerService } from '@core/logger';
 import {
   CanActivate,
   ExecutionContext,
@@ -9,6 +8,9 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 
+import { serializeError } from '@common/utils/error.utils';
+import { LoggerService } from '@core/logger';
+
 /**
  * Authenticates service-to-service requests within GCP using OpenID Connect (OIDC) tokens.
  *
@@ -18,11 +20,14 @@ import { OAuth2Client, TokenPayload } from 'google-auth-library';
 @Injectable()
 export class GcpOidcAuthGuard implements CanActivate {
   private readonly oAuth2Client = new OAuth2Client();
+  private readonly logger;
 
   constructor(
-    private readonly logger: LoggerService,
+    loggerService: LoggerService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.logger = loggerService.forContext(GcpOidcAuthGuard.name);
+  }
 
   /**
    * Verifies the OIDC token from the Authorization header using Google's public JWKS.
@@ -38,10 +43,9 @@ export class GcpOidcAuthGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      this.logger.warn(
-        'Missing or invalid Authorization header format',
-        GcpOidcAuthGuard.name,
-      );
+      this.logger.warn('Missing or invalid Authorization header format', {
+        step: 'authenticate',
+      });
       throw new UnauthorizedException('Invalid or missing Bearer token');
     }
 
@@ -52,10 +56,9 @@ export class GcpOidcAuthGuard implements CanActivate {
     const audience = this.configService.get<string>('GCP_OIDC_AUDIENCE');
 
     if (!audience) {
-      this.logger.error(
-        'GCP_OIDC_AUDIENCE environment variable is not set',
-        GcpOidcAuthGuard.name,
-      );
+      this.logger.error('GCP_OIDC_AUDIENCE environment variable is not set', {
+        step: 'authenticate',
+      });
       throw new UnauthorizedException('Server configuration error');
     }
 
@@ -86,12 +89,10 @@ export class GcpOidcAuthGuard implements CanActivate {
 
       return true;
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `OIDC verification failed: ${errorMessage}`,
-        GcpOidcAuthGuard.name,
-      );
+      this.logger.error('OIDC verification failed', {
+        step: 'authenticate',
+        err: serializeError(error),
+      });
       throw new UnauthorizedException('Invalid OIDC token');
     }
   }

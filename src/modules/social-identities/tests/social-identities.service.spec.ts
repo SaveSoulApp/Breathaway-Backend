@@ -1,14 +1,16 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+
 import {
   MissingSocialIdentityConfigException,
   SocialIdentityApiException,
   SocialIdentityNetworkException,
 } from '../application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { LoggerService } from '@core/logger';
 import { SocialidentitiesService } from '../social-identities.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('SocialidentitiesService', () => {
   let service: SocialidentitiesService;
@@ -62,7 +64,8 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(MissingSocialIdentityConfigException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
+        'INSTAGRAM_ACCESS_TOKEN not configured',
+        expect.objectContaining({ step: 'config_check' }),
       );
     });
 
@@ -82,7 +85,11 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(SocialIdentityApiException);
 
       expect(contextualLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Instagram API returned error: 400'),
+        'Instagram API returned an error response',
+        expect.objectContaining({
+          apiStatus: 400,
+          apiErrorMessage: 'Invalid token',
+        }),
       );
     });
 
@@ -113,7 +120,8 @@ describe('SocialidentitiesService', () => {
       ).rejects.toThrow(SocialIdentityNetworkException);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Network or unexpected error while calling Instagram API: Network error',
+        'Network or unexpected error calling Instagram API',
+        expect.objectContaining({ step: 'api_call' }),
       );
     });
 
@@ -151,8 +159,9 @@ describe('SocialidentitiesService', () => {
         platform: 'instagram',
       });
 
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Fetching identity for instagramId: 123',
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Calling Instagram Graph API',
+        expect.objectContaining({ instagramId: '123' }),
       );
     });
   });

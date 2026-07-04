@@ -1,15 +1,18 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
+import { generateSlug } from 'random-word-slugs';
+
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
 import { LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto';
-import { Inject, Injectable } from '@nestjs/common';
+
 import {
   OtpRateLimitExceededException,
   InvalidOtpException,
 } from './application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
-import { generateSlug } from 'random-word-slugs';
 
 /**
  * Manages the full lifecycle of short-lived, single-use OTPs backed by Redis.
@@ -65,20 +68,34 @@ export class OneTimePasswordsService extends BaseService {
 
     const redisKey = `otp:${hashedOtp}`;
 
-    // Store in Redis with TTL (EX requires time in seconds)
-    await this.redisClient.set(redisKey, userId, 'EX', this.otpTtl);
+    const ctx = { userId };
 
-    // Set rate limit key for user
-    await this.redisClient.set(
-      rateLimitKey,
-      userId,
-      'EX',
-      this.otpRateLimitTtl,
-    );
+    try {
+      // Store in Redis with TTL (EX requires time in seconds)
+      await this.redisClient.set(redisKey, userId, 'EX', this.otpTtl);
 
-    this.logger.debug(
-      `Generated and stored OTP for user_id: ${userId} with TTL: ${this.otpTtl}s. Rate limit: ${this.otpRateLimitTtl}s`,
-    );
+      // Set rate limit key for user
+      await this.redisClient.set(
+        rateLimitKey,
+        userId,
+        'EX',
+        this.otpRateLimitTtl,
+      );
+
+      this.logger.debug('Generated and stored OTP', {
+        ...ctx,
+        step: 'persist_otp',
+        otpTtl: this.otpTtl,
+        rateLimitTtl: this.otpRateLimitTtl,
+      });
+    } catch (error) {
+      this.logger.error('Failed to store OTP in Redis', {
+        ...ctx,
+        step: 'persist_otp',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.IDENTITY_OTP_SENT,
@@ -104,20 +121,57 @@ export class OneTimePasswordsService extends BaseService {
     const hashedOtp = hashString(plainOtp);
     const redisKey = `otp:${hashedOtp}`;
 
-    const userId = await this.redisClient.get(redisKey);
+    const ctx = {};
+
+    this.logger.debug('OTP verification started', { ...ctx, step: 'verify' });
+
+    let userId: string | null = null;
+    try {
+      userId = await this.redisClient.get(redisKey);
+    } catch (error) {
+      this.logger.error('Failed to fetch OTP from Redis', {
+        ...ctx,
+        step: 'fetch_otp',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     if (!userId) {
+      // Deliberately log no OTP value — the hashed key is safe; the plain value must never appear in logs
+      this.logger.warn(
+        'OTP verification failed: OTP invalid, expired, or already consumed',
+        {
+          ...ctx,
+          step: 'verify',
+        },
+      );
       throw new InvalidOtpException();
     }
 
-    // OTP is valid, consume it by deleting the key
-    await this.redisClient.del(redisKey);
+    const resolvedCtx = { userId };
 
-    this.logger.debug(`Consumed OTP for user_id: ${userId}`);
+    // OTP is valid, consume it by deleting the key
+    try {
+      await this.redisClient.del(redisKey);
+      this.logger.debug('Consumed OTP', { ...resolvedCtx, step: 'consume' });
+    } catch (error) {
+      this.logger.error('Failed to consume OTP in Redis', {
+        ...resolvedCtx,
+        step: 'consume_otp',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.OTP_VERIFIED,
       userId: userId,
+    });
+
+    this.logger.log('OTP verified and consumed successfully', {
+      ...resolvedCtx,
+      step: 'complete',
     });
 
     return userId;
@@ -133,9 +187,25 @@ export class OneTimePasswordsService extends BaseService {
    */
   private async checkForRateLimits(userId: string) {
     const rateLimitKey = `rate_limit:otp:${userId}`;
-    const rateLimitExceeded = await this.redisClient.get(rateLimitKey);
+    const ctx = { userId };
+
+    let rateLimitExceeded: string | null = null;
+    try {
+      rateLimitExceeded = await this.redisClient.get(rateLimitKey);
+    } catch (error) {
+      this.logger.error('Failed to check rate limit in Redis', {
+        ...ctx,
+        step: 'rate_limit_check',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     if (rateLimitExceeded) {
+      this.logger.warn('OTP rate limit exceeded', {
+        ...ctx,
+        step: 'rate_limit_check',
+      });
       throw new OtpRateLimitExceededException();
     }
     return rateLimitKey;

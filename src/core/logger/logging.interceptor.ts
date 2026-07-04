@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Observable, tap } from 'rxjs';
 
 import {
@@ -9,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { ClsService } from 'nestjs-cls';
 import { LoggerService } from './logger.service';
 
 /**
@@ -26,6 +26,7 @@ export class LoggingInterceptor implements NestInterceptor {
   constructor(
     private readonly loggerService: LoggerService,
     private readonly configService: ConfigService,
+    private readonly cls: ClsService,
   ) {
     this.isProduction = this.configService.get('NODE_ENV') === 'production';
     this.shouldLogResponse =
@@ -53,7 +54,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const handler = context.getHandler().name;
     const contextName = `${controller}.${handler}`;
 
-    const requestId = headers['x-request-id'] || randomUUID();
+    const requestId = this.cls.get<string>('requestId');
     const start = Date.now();
 
     // Create a child logger for this interceptor context
@@ -70,32 +71,21 @@ export class LoggingInterceptor implements NestInterceptor {
     });
 
     return next.handle().pipe(
-      tap({
-        next: (responseBody: unknown) => {
-          const delay = Date.now() - start;
-          const baseMeta = {
-            requestId,
-            statusCode: res.statusCode,
-            latencyMs: delay,
-          };
+      tap((responseBody: unknown) => {
+        const delay = Date.now() - start;
+        const baseMeta = {
+          requestId,
+          statusCode: res.statusCode,
+          latencyMs: delay,
+        };
 
-          const shouldIncludeResponseBody =
-            !this.isProduction && this.shouldLogResponse;
-          const logMeta = shouldIncludeResponseBody
-            ? { ...baseMeta, responseBody }
-            : baseMeta;
+        const shouldIncludeResponseBody =
+          !this.isProduction && this.shouldLogResponse;
+        const logMeta = shouldIncludeResponseBody
+          ? { ...baseMeta, responseBody }
+          : baseMeta;
 
-          logger.debug(`Completed request: ${method} ${url}`, logMeta);
-        },
-        // error: (err) => {
-        //   const delay = Date.now() - start;
-        //   logger.error(`Failed request: ${method} ${url}`, {
-        //     requestId,
-        //     statusCode: res.statusCode,
-        //     latencyMs: delay,
-        //     error: { message: err.message, stack: err.stack },
-        //   });
-        // },
+        logger.debug(`Completed request: ${method} ${url}`, logMeta);
       }),
     );
   }

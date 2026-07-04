@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { Device, DevicePlatform } from '@prisma/client';
+
+import { Platform } from '@common/interfaces';
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
+
 import {
   DeviceNotFoundException,
   DeviceTokenAlreadyExistsException,
 } from './application/exceptions';
-import { Device, DevicePlatform } from '@prisma/client';
-import { BaseService } from '@core/base';
-import { Platform } from '@common/interfaces';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto';
 import {
   CreateDeviceRequestDto,
   PatchDeviceRequestDto,
@@ -47,7 +50,8 @@ export class DevicesService extends BaseService {
     userId: string,
     createDeviceDto: CreateDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Registering device for user: ${userId}`);
+    const ctx = { userId, devicePlatform: createDeviceDto.platform };
+    this.logger.log('Device registration started', { ...ctx, step: 'init' });
 
     const platform = this.mapPlatformToDevicePlatform(createDeviceDto.platform);
 
@@ -60,9 +64,11 @@ export class DevicesService extends BaseService {
         },
       });
 
-      this.logger.log(
-        `Device registered successfully for user: ${userId} (device: ${device.id})`,
-      );
+      this.logger.debug('Device record persisted', {
+        ...ctx,
+        step: 'persist_device',
+        deviceId: device.id,
+      });
 
       this.emitAuditLog({
         actionType: AuditActionType.DEVICE_REGISTERED,
@@ -75,18 +81,26 @@ export class DevicesService extends BaseService {
         },
       });
 
+      this.logger.log('Device registered successfully', {
+        ...ctx,
+        step: 'complete',
+        deviceId: device.id,
+      });
       return device;
     } catch (error) {
-      const err = error as { code?: string; stack?: string };
+      const err = error as { code?: string };
       if (err.code === 'P2002') {
-        // Unique constraint failed (likely token)
-        this.logger.warn(
-          `Device token already exists: ${createDeviceDto.token}`,
-        );
+        // Unique constraint failed (likely token). Do NOT log the token itself (PII compliance).
+        this.logger.warn('Device token already exists', {
+          ...ctx,
+          step: 'duplicate_check',
+        });
         throw new DeviceTokenAlreadyExistsException();
       }
-      this.logger.error(`Failed to register device for user ${userId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to register device', {
+        ...ctx,
+        step: 'persist_device',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -99,12 +113,20 @@ export class DevicesService extends BaseService {
    * @returns An array of Device entities; empty array if the user has no registered devices.
    */
   async getUserDevices(userId: string): Promise<Device[]> {
-    this.logger.log(`Fetching devices for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.debug('Fetching user devices', { ...ctx, step: 'fetch' });
 
-    return this.prisma.device.findMany({
+    const devices = await this.prisma.device.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
+
+    this.logger.debug('User devices fetched successfully', {
+      ...ctx,
+      step: 'complete',
+      count: devices.length,
+    });
+    return devices;
   }
 
   /**
@@ -119,16 +141,22 @@ export class DevicesService extends BaseService {
    * @throws {NotFoundException} When no device with the given ID exists for this user.
    */
   async getDeviceById(userId: string, deviceId: string): Promise<Device> {
-    this.logger.log(`Fetching device ${deviceId} for user: ${userId}`);
+    const ctx = { userId, deviceId };
+    this.logger.debug('Fetching device by ID', { ...ctx, step: 'fetch' });
 
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
     });
 
     if (!device) {
+      this.logger.warn('Device not found', { ...ctx, step: 'fetch' });
       throw new DeviceNotFoundException();
     }
 
+    this.logger.debug('Device fetched successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return device;
   }
 
@@ -150,7 +178,8 @@ export class DevicesService extends BaseService {
     deviceId: string,
     updateDeviceDto: UpdateDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Updating device ${deviceId} for user: ${userId}`);
+    const ctx = { userId, deviceId };
+    this.logger.log('Device update started', { ...ctx, step: 'init' });
 
     const platform = this.mapPlatformToDevicePlatform(updateDeviceDto.platform);
 
@@ -159,8 +188,16 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found for update', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new DeviceNotFoundException();
     }
+    this.logger.debug('Device existence verified', {
+      ...ctx,
+      step: 'existence_check',
+    });
 
     try {
       const updated = await this.prisma.device.update({
@@ -171,18 +208,30 @@ export class DevicesService extends BaseService {
         },
       });
 
-      this.logger.log(`Device ${deviceId} updated successfully`);
+      this.logger.debug('Device record updated', {
+        ...ctx,
+        step: 'persist_device',
+      });
+
+      this.logger.log('Device updated successfully', {
+        ...ctx,
+        step: 'complete',
+      });
       return updated;
     } catch (error) {
-      const err = error as { code?: string; stack?: string };
+      const err = error as { code?: string };
       if (err.code === 'P2002') {
-        this.logger.warn(
-          `Device token conflict during update: ${updateDeviceDto.token}`,
-        );
+        // Do NOT log the token itself (PII compliance)
+        this.logger.warn('Device token conflict during update', {
+          ...ctx,
+          step: 'duplicate_check',
+        });
         throw new DeviceTokenAlreadyExistsException();
       }
-      this.logger.error(`Failed to update device ${deviceId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to update device', {
+        ...ctx,
+        step: 'persist_device',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -207,7 +256,8 @@ export class DevicesService extends BaseService {
     deviceId: string,
     patchDeviceDto: PatchDeviceRequestDto,
   ): Promise<Device> {
-    this.logger.log(`Patching device ${deviceId} for user: ${userId}`);
+    const ctx = { userId, deviceId };
+    this.logger.log('Device patch started', { ...ctx, step: 'init' });
 
     const platform = this.mapPlatformToDevicePlatform(patchDeviceDto.platform);
 
@@ -216,8 +266,16 @@ export class DevicesService extends BaseService {
     });
 
     if (!device) {
+      this.logger.warn('Device not found for patch', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new DeviceNotFoundException();
     }
+    this.logger.debug('Device existence verified', {
+      ...ctx,
+      step: 'existence_check',
+    });
 
     try {
       const patched = await this.prisma.device.update({
@@ -228,18 +286,30 @@ export class DevicesService extends BaseService {
         },
       });
 
-      this.logger.log(`Device ${deviceId} patched successfully`);
+      this.logger.debug('Device record patched', {
+        ...ctx,
+        step: 'persist_device',
+      });
+
+      this.logger.log('Device patched successfully', {
+        ...ctx,
+        step: 'complete',
+      });
       return patched;
     } catch (error) {
-      const err = error as { code?: string; stack?: string };
+      const err = error as { code?: string };
       if (err.code === 'P2002') {
-        this.logger.warn(
-          `Device token conflict during patch: ${patchDeviceDto.token}`,
-        );
+        // Do NOT log the token itself (PII compliance)
+        this.logger.warn('Device token conflict during patch', {
+          ...ctx,
+          step: 'duplicate_check',
+        });
         throw new DeviceTokenAlreadyExistsException();
       }
-      this.logger.error(`Failed to patch device ${deviceId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to patch device', {
+        ...ctx,
+        step: 'persist_device',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -257,27 +327,53 @@ export class DevicesService extends BaseService {
    * @throws {NotFoundException} When no device with the given ID exists for this user.
    */
   async deleteDevice(userId: string, deviceId: string): Promise<void> {
-    this.logger.log(`Deleting device ${deviceId} for user: ${userId}`);
+    const ctx = { userId, deviceId };
+    this.logger.log('Device deletion started', { ...ctx, step: 'init' });
 
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, userId },
     });
 
     if (!device) {
+      this.logger.warn('Device not found for deletion', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new DeviceNotFoundException();
     }
-
-    await this.prisma.device.delete({
-      where: { id: deviceId },
+    this.logger.debug('Device existence verified', {
+      ...ctx,
+      step: 'existence_check',
     });
 
-    this.logger.log(`Device ${deviceId} deleted successfully`);
+    try {
+      await this.prisma.device.delete({
+        where: { id: deviceId },
+      });
 
-    this.emitAuditLog({
-      actionType: AuditActionType.DEVICE_DELETED,
-      userId: userId,
-      resourceId: deviceId,
-    });
+      this.logger.debug('Device record deleted from database', {
+        ...ctx,
+        step: 'delete_device',
+      });
+
+      this.emitAuditLog({
+        actionType: AuditActionType.DEVICE_DELETED,
+        userId: userId,
+        resourceId: deviceId,
+      });
+
+      this.logger.log('Device deleted successfully', {
+        ...ctx,
+        step: 'complete',
+      });
+    } catch (error) {
+      this.logger.error('Failed to delete device', {
+        ...ctx,
+        step: 'delete_device',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 
   private mapPlatformToDevicePlatform(
@@ -289,10 +385,10 @@ export class DevicesService extends BaseService {
       case Platform.ANDROID:
         return DevicePlatform.ANDROID;
       default:
-        // Fallback or throw if strict
-        this.logger.warn(
-          `Unknown platform: ${platform}, defaulting to ANDROID`,
-        );
+        this.logger.warn('Unknown platform, defaulting to ANDROID', {
+          platform,
+          step: 'map_platform',
+        });
         return DevicePlatform.ANDROID;
     }
   }

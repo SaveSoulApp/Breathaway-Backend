@@ -1,3 +1,4 @@
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
@@ -66,13 +67,21 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
         },
       );
 
-      this.logger.log(`[Brevo] Email sent successfully to: ${payload.to}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`[Brevo] Failed to send email to ${payload.to}:`, {
-        error: message,
+      this.logger.log('Email sent successfully', {
+        provider: 'brevo',
+        step: 'complete',
       });
-      throw new Error(`Email delivery failed: ${message}`);
+    } catch (error) {
+      this.logger.error('Email send failed', {
+        provider: 'brevo',
+        step: 'send',
+        err: serializeError(error),
+      });
+      throw new Error(
+        `Email delivery failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 }

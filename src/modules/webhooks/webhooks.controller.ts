@@ -41,7 +41,7 @@ export class WebhooksController extends BaseController {
     description: 'Events successfully received',
   })
   async handleMetaWebhook(@Body() body: MetaWebhookDto) {
-    this.logger.log('Meta webhook received', { object: body.object });
+    this.logger.debug('Meta webhook received', { object: body.object });
 
     const results = this.webhookService.parseMetaWebhook(body);
     await this.webhookService.handleMetaWebhookEvents(results);

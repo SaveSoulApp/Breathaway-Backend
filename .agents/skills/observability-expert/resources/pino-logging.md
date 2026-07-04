@@ -8,6 +8,10 @@ Reporting parse correctly.
 > (`core/logger/logger.service.ts` + `core/logger/gcp-logger.config.ts`) as the standard to
 > replicate and extend — it is not a generic Pino tutorial. If you're setting up logging for a
 > new service in this monorepo/org, copy this pattern, don't reach for `nestjs-pino`.
+>
+> For **how to write logs inside service methods** (ctx pattern, step field, level rules,
+> log-and-rethrow templates), see `service-logging-patterns.md` — this file covers the
+> infrastructure; that file covers the application-level usage patterns.
 
 ---
 
@@ -364,3 +368,74 @@ No change needed to this project's existing test mocking pattern
 implementation those mocks stand in for. The two-argument `error(message, meta)` signature
 (where `message` may be an `Error`) is compatible with the existing mock shape; no test
 file changes are required as a result of this reference update.
+
+---
+
+## 11. Error Serialization — `serializeError`
+
+All `catch` blocks across every service must use the shared `serializeError` utility from
+`src/common/utils/error.utils.ts`. Never cast error objects at call sites.
+
+```typescript
+import { serializeError } from '@common/utils/error.utils';
+
+// ✅ Correct — consistent shape, works with Error, plain objects, and primitives
+this.logger.error('Transaction failed', {
+  ...ctx,
+  step: 'persist_and_deduct',
+  err: serializeError(err),
+});
+
+// ❌ Wrong — one-off cast, loses .name, misses .code, not consistent
+this.logger.error('Transaction failed', {
+  stack: (err as { stack?: string }).stack,
+});
+```
+
+`serializeError` handles:
+- `Error` instances → `{ message, name, stack, code? }` (captures `code` from Prisma/Node errors)
+- Plain objects → passed through as-is
+- Primitives → `{ message: String(err) }`
+
+This shape is consistent with Pino's own `stdSerializers.err` (used by the GCP logger config
+for `error:`-keyed fields) but is safe to use at any call site, including in async `.catch()`
+callbacks and manual `catch (err)` blocks.
+
+**Rule:** Every `catch` block that logs must use `serializeError`. Every service that does a
+`try/catch` must import it. This is a project-wide standard — enforce it in PR review.
+
+---
+
+## 12. LoggingInterceptor — Error Tap Anti-Pattern
+
+The `LoggingInterceptor` **must not** have an `error` tap in its RxJS `tap()` call:
+
+```typescript
+// ❌ Anti-pattern — produces stale statusCode and duplicates the filter's log
+return next.handle().pipe(
+  tap({
+    next: (body) => { logger.debug('Completed request', { statusCode: res.statusCode, latencyMs }); },
+    error: (err) => { logger.warn('Failed request', { statusCode: res.statusCode, latencyMs }); },
+                      // ^^^ statusCode is 200 here — filter hasn't written the real status yet
+  }),
+);
+
+// ✅ Correct — success path only; error path is owned exclusively by GlobalExceptionFilter
+return next.handle().pipe(
+  tap((body) => { logger.debug('Completed request', { statusCode: res.statusCode, latencyMs }); }),
+);
+```
+
+**Why the error tap produces wrong data:** The interceptor's `error` tap fires in the RxJS error
+path, before the `GlobalExceptionFilter` writes the real HTTP status to the response. So
+`res.statusCode` at that point is still the default `200`, not the actual `404`/`409`/`500`.
+The log entry is both redundant (the filter logs the same event) and misleading (wrong status).
+
+**Where latency comes from on error paths:** The `GlobalExceptionFilter` reads `requestStart`
+from CLS (`cls.get<number>('requestStart')`) and computes `latencyMs = Date.now() - requestStart`.
+`requestStart` is set by the `ClsModule` middleware setup — before the interceptor runs —
+giving an accurate wall-clock start time available to both layers without any coupling between them.
+
+**`Date.now()` vs `DateUtil.now()` for timing:** Use `Date.now()` (returns `number`) for latency
+arithmetic. Use `DateUtil.now()` (returns `Date`) for timestamps written to the database or
+included in log payloads as ISO strings. These are different tools for different purposes.

@@ -126,7 +126,10 @@ describe('LikesService', () => {
     loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
+        warn: jest.fn(),
         error: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
       }),
     } as unknown as jest.Mocked<LoggerService>;
 

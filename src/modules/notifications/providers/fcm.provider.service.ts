@@ -1,3 +1,4 @@
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -35,7 +36,9 @@ export class FcmProviderService
     devices?: Device[],
   ): Promise<void> {
     if (!devices || devices.length === 0) {
-      this.logger.warn('No devices provided for FCM push notification');
+      this.logger.warn('No devices provided for FCM push notification', {
+        step: 'device_check',
+      });
       return;
     }
 
@@ -52,7 +55,7 @@ export class FcmProviderService
       }
     });
 
-    this.logger.log(
+    this.logger.debug(
       `Found ${iosTokens.length} iOS and ${androidTokens.length} Android devices for FCM`,
     );
 
@@ -73,8 +76,10 @@ export class FcmProviderService
     const results = await Promise.allSettled(promises);
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        this.logger.error(`FCM notification batch ${index} failed:`, {
-          error: result.reason,
+        this.logger.error(`FCM notification batch ${index} failed`, {
+          batchIndex: index,
+          step: 'send_batch',
+          err: serializeError(result.reason),
         });
       }
     });
@@ -105,15 +110,26 @@ export class FcmProviderService
 
         const batchResponse = await messaging.sendEachForMulticast(message);
         this.logger.log(
-          `Successfully sent ${batchResponse.successCount} FCM notifications, ${batchResponse.failureCount} failed`,
+          `FCM multicast sent: ${batchResponse.successCount} succeeded, ${batchResponse.failureCount} failed`,
+          {
+            platform,
+            successCount: batchResponse.successCount,
+            failureCount: batchResponse.failureCount,
+            step: 'fcm_multicast',
+          },
         );
 
         if (batchResponse.failureCount > 0) {
           batchResponse.responses.forEach((response, index) => {
             if (!response.success) {
               this.logger.error(
-                `Failed to send FCM to token ${tokens[index]}:`,
-                { error: response.error },
+                'FCM multicast: individual token delivery failed',
+                {
+                  platform,
+                  tokenIndex: index,
+                  step: 'fcm_multicast',
+                  err: serializeError(response.error),
+                },
               );
             }
           });
@@ -130,11 +146,16 @@ export class FcmProviderService
         };
 
         await messaging.send(message);
-        this.logger.log('Successfully sent FCM notification to single device');
+        this.logger.log('FCM single-device notification sent', {
+          platform,
+          step: 'fcm_single',
+        });
       }
     } catch (error) {
-      this.logger.error('Failed to send FCM notifications:', {
-        error: error instanceof Error ? error.message : String(error),
+      this.logger.error('FCM send failed', {
+        platform,
+        step: 'fcm_send',
+        err: serializeError(error),
       });
       throw error;
     }

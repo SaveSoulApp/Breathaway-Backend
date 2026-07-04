@@ -1,4 +1,9 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { CreditTransactionType, LikeStatus } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -7,9 +12,6 @@ import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { CreditTransactionType, LikeStatus } from '@prisma/client';
 
 /** Number of users processed per Pub/Sub batch message. Tunable via env. */
 const DEFAULT_EXPIRY_BATCH_SIZE = 100;
@@ -51,22 +53,39 @@ export class MaintenanceService extends BaseService {
    */
   async voidPendingLikes() {
     const ninetyDaysAgo = DateUtil.dayjs().subtract(90, 'days').toDate();
+    const ctx = { days: 90 };
 
-    const result = await this.prisma.like.updateMany({
-      where: {
-        status: LikeStatus.PENDING,
-        createdAt: { lte: ninetyDaysAgo },
-      },
-      data: {
-        status: LikeStatus.VOIDED,
-      },
+    this.logger.log('Expiration job for pending likes started', {
+      ...ctx,
+      step: 'init',
     });
 
-    this.logger.log(
-      `Expiration job complete. Voided ${result.count} pending likes older than 90 days.`,
-    );
+    try {
+      const result = await this.prisma.like.updateMany({
+        where: {
+          status: LikeStatus.PENDING,
+          createdAt: { lte: ninetyDaysAgo },
+        },
+        data: {
+          status: LikeStatus.VOIDED,
+        },
+      });
 
-    return { voidedCount: result.count };
+      this.logger.log('Expiration job for pending likes completed', {
+        ...ctx,
+        step: 'complete',
+        voidedCount: result.count,
+      });
+
+      return { voidedCount: result.count };
+    } catch (error) {
+      this.logger.error('Failed to void pending likes', {
+        ...ctx,
+        step: 'void_likes',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -94,69 +113,105 @@ export class MaintenanceService extends BaseService {
   }> {
     // Pin now once so every batch worker expires credits at the same instant.
     const asOf = DateUtil.now().toISOString();
+    const ctx = { batchSize: this.expiryBatchSize, asOf };
 
     let cursor: string | undefined = undefined;
     let batchesPublished = 0;
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.log(
-      `Credit expiry fan-out started. batchSize=${this.expiryBatchSize}, asOf=${asOf}`,
-    );
+    this.logger.log('Credit expiry fan-out started', {
+      ...ctx,
+      step: 'init',
+    });
 
-    while (hasMore) {
-      // Cursor-paginate distinct userIds with expired CREDIT rows.
-      // `cursor` advances to the last userId of the previous page, ensuring
-      // we never re-fetch the same page and hold no result set in memory.
-      const rows: Array<{ userId: string }> =
-        await this.prisma.creditLedger.findMany({
-          where: {
-            transactionType: CreditTransactionType.CREDIT,
-            expiresAt: { lte: new Date(asOf) },
-            ...(cursor ? { userId: { gt: cursor } } : {}),
-          },
-          select: { userId: true },
-          distinct: ['userId'],
-          orderBy: { userId: 'asc' },
-          take: this.expiryBatchSize,
+    try {
+      while (hasMore) {
+        // Cursor-paginate distinct userIds with expired CREDIT rows.
+        // `cursor` advances to the last userId of the previous page, ensuring
+        // we never re-fetch the same page and hold no result set in memory.
+        const rows: Array<{ userId: string }> =
+          await this.prisma.creditLedger.findMany({
+            where: {
+              transactionType: CreditTransactionType.CREDIT,
+              expiresAt: { lte: new Date(asOf) },
+              ...(cursor ? { userId: { gt: cursor } } : {}),
+            },
+            select: { userId: true },
+            distinct: ['userId'],
+            orderBy: { userId: 'asc' },
+            take: this.expiryBatchSize,
+          });
+
+        if (rows.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const userIds: string[] = rows.map((r) => r.userId);
+
+        await this.pubSubPublisher.publish(
+          PubSubTopic.CREDIT_EXPIRY,
+          PubSubEvent.CREDIT_EXPIRY_BATCH,
+          { userIds, asOf },
+        );
+
+        cursor = userIds[userIds.length - 1];
+        batchesPublished++;
+        totalUsersEnqueued += userIds.length;
+
+        this.logger.debug('Published credit expiry batch', {
+          ...ctx,
+          step: 'publish_batch',
+          batchNumber: batchesPublished,
+          userCount: userIds.length,
+          cursor,
         });
 
-      if (rows.length === 0) {
-        hasMore = false;
-        break;
+        // If we fetched fewer rows than the requested batch size, we've reached the end.
+        if (rows.length < this.expiryBatchSize) {
+          hasMore = false;
+        }
       }
 
-      const userIds: string[] = rows.map((r) => r.userId);
+      this.logger.log('Credit expiry fan-out completed', {
+        ...ctx,
+        step: 'complete',
+        batchesPublished,
+        totalUsersEnqueued,
+      });
 
-      await this.pubSubPublisher.publish(
-        PubSubTopic.CREDIT_EXPIRY,
-        PubSubEvent.CREDIT_EXPIRY_BATCH,
-        { userIds, asOf },
-      );
-
-      cursor = userIds[userIds.length - 1];
-      batchesPublished++;
-      totalUsersEnqueued += userIds.length;
-
-      this.logger.debug(
-        `Published batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
-      );
-
-      // If we fetched fewer rows than the requested batch size, we've reached the end.
-      if (rows.length < this.expiryBatchSize) {
-        hasMore = false;
-      }
+      return { batchesPublished, totalUsersEnqueued };
+    } catch (error) {
+      this.logger.error('Credit expiry fan-out failed', {
+        ...ctx,
+        step: 'fan_out',
+        err: serializeError(error),
+      });
+      throw error;
     }
-
-    this.logger.log(
-      `Credit expiry fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
-    );
-
-    return { batchesPublished, totalUsersEnqueued };
   }
 
   async expireSubscriptions() {
-    return this.subscriptionsService.expireSubscriptions();
+    this.logger.log('Subscription expiry job started', {
+      step: 'init',
+    });
+
+    try {
+      const result = await this.subscriptionsService.expireSubscriptions();
+
+      this.logger.log('Subscription expiry job completed', {
+        step: 'complete',
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Subscription expiry job failed', {
+        step: 'expire_subscriptions',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -179,62 +234,85 @@ export class MaintenanceService extends BaseService {
     const targetStart = DateUtil.addDays(asOf, 6);
     const targetEnd = DateUtil.addDays(asOf, 7);
 
+    const ctx = {
+      batchSize: this.expiryBatchSize,
+      windowStart: targetStart.toISOString(),
+      windowEnd: targetEnd.toISOString(),
+    };
+
     let cursor: string | undefined = undefined;
     let batchesPublished = 0;
     let totalUsersEnqueued = 0;
     let hasMore = true;
 
-    this.logger.log(
-      `Credit expiry warning fan-out started. batchSize=${this.expiryBatchSize}, window=[${targetStart.toISOString()}, ${targetEnd.toISOString()})`,
-    );
+    this.logger.log('Credit expiry warning fan-out started', {
+      ...ctx,
+      step: 'init',
+    });
 
-    while (hasMore) {
-      const rows: Array<{ userId: string }> =
-        await this.prisma.creditLedger.findMany({
-          where: {
-            transactionType: CreditTransactionType.CREDIT,
-            expiresAt: {
-              gte: targetStart,
-              lt: targetEnd,
+    try {
+      while (hasMore) {
+        const rows: Array<{ userId: string }> =
+          await this.prisma.creditLedger.findMany({
+            where: {
+              transactionType: CreditTransactionType.CREDIT,
+              expiresAt: {
+                gte: targetStart,
+                lt: targetEnd,
+              },
+              ...(cursor ? { userId: { gt: cursor } } : {}),
             },
-            ...(cursor ? { userId: { gt: cursor } } : {}),
-          },
-          select: { userId: true },
-          distinct: ['userId'],
-          orderBy: { userId: 'asc' },
-          take: this.expiryBatchSize,
+            select: { userId: true },
+            distinct: ['userId'],
+            orderBy: { userId: 'asc' },
+            take: this.expiryBatchSize,
+          });
+
+        if (rows.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const userIds: string[] = rows.map((r) => r.userId);
+
+        await this.pubSubPublisher.publish(
+          PubSubTopic.CREDIT_EXPIRY,
+          PubSubEvent.CREDIT_EXPIRY_WARNING_BATCH,
+          { userIds, asOf: asOf.toISOString() },
+        );
+
+        cursor = userIds[userIds.length - 1];
+        batchesPublished++;
+        totalUsersEnqueued += userIds.length;
+
+        this.logger.debug('Published credit expiry warning batch', {
+          ...ctx,
+          step: 'publish_batch',
+          batchNumber: batchesPublished,
+          userCount: userIds.length,
+          cursor,
         });
 
-      if (rows.length === 0) {
-        hasMore = false;
-        break;
+        if (rows.length < this.expiryBatchSize) {
+          hasMore = false;
+        }
       }
 
-      const userIds: string[] = rows.map((r) => r.userId);
+      this.logger.log('Credit expiry warning fan-out completed', {
+        ...ctx,
+        step: 'complete',
+        batchesPublished,
+        totalUsersEnqueued,
+      });
 
-      await this.pubSubPublisher.publish(
-        PubSubTopic.CREDIT_EXPIRY,
-        PubSubEvent.CREDIT_EXPIRY_WARNING_BATCH,
-        { userIds, asOf: asOf.toISOString() },
-      );
-
-      cursor = userIds[userIds.length - 1];
-      batchesPublished++;
-      totalUsersEnqueued += userIds.length;
-
-      this.logger.debug(
-        `Published warning batch #${batchesPublished} with ${userIds.length} users (cursor=${cursor})`,
-      );
-
-      if (rows.length < this.expiryBatchSize) {
-        hasMore = false;
-      }
+      return { batchesPublished, totalUsersEnqueued };
+    } catch (error) {
+      this.logger.error('Credit expiry warning fan-out failed', {
+        ...ctx,
+        step: 'fan_out',
+        err: serializeError(error),
+      });
+      throw error;
     }
-
-    this.logger.log(
-      `Credit expiry warning fan-out complete. Published ${batchesPublished} batches, enqueued ${totalUsersEnqueued} users.`,
-    );
-
-    return { batchesPublished, totalUsersEnqueued };
   }
 }

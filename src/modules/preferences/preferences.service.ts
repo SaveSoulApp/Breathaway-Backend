@@ -1,8 +1,11 @@
+import { Injectable } from '@nestjs/common';
+
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable } from '@nestjs/common';
+
 import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
 
 /**
@@ -38,14 +41,31 @@ export class PreferencesService extends BaseService {
    * @returns The persisted notification preference state, or system defaults if no record exists.
    */
   async getPreferences(userId: string): Promise<PreferencesResponseDto> {
+    const ctx = { userId };
+    this.logger.debug('Fetching notification preferences', {
+      ...ctx,
+      step: 'fetch',
+    });
+
     const preferences = await this.prisma.notificationPreference.findUnique({
       where: { userId },
     });
 
     if (!preferences) {
+      this.logger.debug(
+        'Notification preferences not found, returning defaults',
+        {
+          ...ctx,
+          step: 'fetch',
+        },
+      );
       return this.DEFAULT_PREFERENCES;
     }
 
+    this.logger.debug('Notification preferences fetched successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return preferences;
   }
 
@@ -59,6 +79,12 @@ export class PreferencesService extends BaseService {
   async getPreferencesMany(
     userIds: string[],
   ): Promise<Map<string, PreferencesResponseDto>> {
+    const ctx = { userIdsCount: userIds?.length ?? 0 };
+    this.logger.debug('Fetching bulk notification preferences', {
+      ...ctx,
+      step: 'fetch_many',
+    });
+
     if (!userIds || userIds.length === 0) {
       return new Map();
     }
@@ -81,6 +107,10 @@ export class PreferencesService extends BaseService {
       }
     }
 
+    this.logger.debug('Bulk notification preferences fetched successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return preferencesMap;
   }
 
@@ -99,37 +129,61 @@ export class PreferencesService extends BaseService {
     userId: string,
     dto: UpdatePreferencesRequestDto,
   ): Promise<PreferencesResponseDto> {
-    const updated = await this.prisma.notificationPreference.upsert({
-      where: { userId },
-      update: {
-        ...(dto.pushEnabled !== undefined && { pushEnabled: dto.pushEnabled }),
-        ...(dto.whatsappEnabled !== undefined && {
-          whatsappEnabled: dto.whatsappEnabled,
-        }),
-        ...(dto.smsEnabled !== undefined && { smsEnabled: dto.smsEnabled }),
-        ...(dto.emailEnabled !== undefined && {
-          emailEnabled: dto.emailEnabled,
-        }),
-      },
-      create: {
-        userId,
-        pushEnabled: dto.pushEnabled ?? true,
-        whatsappEnabled: dto.whatsappEnabled ?? true,
-        smsEnabled: dto.smsEnabled ?? true,
-        emailEnabled: dto.emailEnabled ?? true,
-      },
+    const ctx = { userId };
+    this.logger.log('Notification preferences update started', {
+      ...ctx,
+      step: 'init',
     });
 
-    this.logger.log(`Updated preferences for user ${userId}`);
+    try {
+      const updated = await this.prisma.notificationPreference.upsert({
+        where: { userId },
+        update: {
+          ...(dto.pushEnabled !== undefined && {
+            pushEnabled: dto.pushEnabled,
+          }),
+          ...(dto.whatsappEnabled !== undefined && {
+            whatsappEnabled: dto.whatsappEnabled,
+          }),
+          ...(dto.smsEnabled !== undefined && { smsEnabled: dto.smsEnabled }),
+          ...(dto.emailEnabled !== undefined && {
+            emailEnabled: dto.emailEnabled,
+          }),
+        },
+        create: {
+          userId,
+          pushEnabled: dto.pushEnabled ?? true,
+          whatsappEnabled: dto.whatsappEnabled ?? true,
+          smsEnabled: dto.smsEnabled ?? true,
+          emailEnabled: dto.emailEnabled ?? true,
+        },
+      });
 
-    this.emitAuditLog({
-      actionType: AuditActionType.PREFERENCES_UPDATED,
-      userId: userId,
-      metadata: {
-        updatedCategories: Object.keys(dto),
-      },
-    });
+      this.logger.debug('Preferences record upserted', {
+        ...ctx,
+        step: 'persist_preferences',
+      });
 
-    return updated;
+      this.emitAuditLog({
+        actionType: AuditActionType.PREFERENCES_UPDATED,
+        userId: userId,
+        metadata: {
+          updatedCategories: Object.keys(dto),
+        },
+      });
+
+      this.logger.log('Notification preferences updated successfully', {
+        ...ctx,
+        step: 'complete',
+      });
+      return updated;
+    } catch (error) {
+      this.logger.error('Failed to update notification preferences', {
+        ...ctx,
+        step: 'persist_preferences',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 }

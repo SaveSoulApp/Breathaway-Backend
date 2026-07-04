@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SubscriptionEventType } from '@prisma/client';
 
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -141,9 +142,11 @@ export class AppleSubscriptionService extends BaseService {
         return SubscriptionEventType.EXPIRY;
 
       default:
-        this.logger.warn(
-          `Unmapped Apple notification type: ${notificationType} (subtype: ${subtype}). Defaulting to EXPIRY.`,
-        );
+        this.logger.warn('Unmapped Apple notification type', {
+          notificationType,
+          subtype,
+          step: 'map_notification',
+        });
         return SubscriptionEventType.EXPIRY;
     }
   }
@@ -154,6 +157,7 @@ export class AppleSubscriptionService extends BaseService {
     if (parts.length !== 3) {
       this.logger.warn(
         'Invalid JWS format: expected 3 parts separated by dots',
+        { step: 'decode_jws' },
       );
       return {} as T;
     }
@@ -161,9 +165,16 @@ export class AppleSubscriptionService extends BaseService {
     const payload = parts[1];
 
     // Base64url → Base64 conversion
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = Buffer.from(base64, 'base64').toString('utf-8');
-
-    return JSON.parse(json) as T;
+    try {
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const json = Buffer.from(base64, 'base64').toString('utf-8');
+      return JSON.parse(json) as T;
+    } catch (error) {
+      this.logger.error('Failed to parse decoded JWS JSON', {
+        step: 'decode_jws',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 }

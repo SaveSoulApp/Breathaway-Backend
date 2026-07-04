@@ -1,11 +1,14 @@
+import { Injectable } from '@nestjs/common';
+import { GenderType, IntentType, MatchStatus } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable } from '@nestjs/common';
+
 import { MatchNotFoundException } from './application/exceptions';
-import { GenderType, IntentType, MatchStatus } from '@prisma/client';
 import { MatchListQueryRequestDto } from './dto';
 
 /**
@@ -77,6 +80,13 @@ export class MatchesService extends BaseService {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
+    const ctx = { userId, page, limit };
+
+    this.logger.debug('Fetching matches for user', {
+      ...ctx,
+      step: 'fetch_many',
+    });
+
     const where = {
       OR: [{ userOneId: userId }, { userTwoId: userId }],
       status: MatchStatus.ACTIVE,
@@ -142,6 +152,12 @@ export class MatchesService extends BaseService {
 
     const totalPages = Math.ceil(total / limit);
 
+    this.logger.debug('Matches fetched successfully', {
+      ...ctx,
+      step: 'complete',
+      totalMatchesCount: total,
+    });
+
     return {
       data: matches.map((match) => this.mapToResponseDto(match, userId)),
       meta: {
@@ -166,6 +182,13 @@ export class MatchesService extends BaseService {
    *   exists where the caller is either userOne or userTwo.
    */
   async findOneForUser(matchId: string, userId: string) {
+    const ctx = { userId, matchId };
+
+    this.logger.debug('Fetching match details', {
+      ...ctx,
+      step: 'fetch',
+    });
+
     const match = await this.prisma.match.findFirst({
       where: {
         id: matchId,
@@ -220,8 +243,14 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
+      this.logger.warn('Match not found', { ...ctx, step: 'fetch' });
       throw new MatchNotFoundException('Match not found');
     }
+
+    this.logger.debug('Match details fetched successfully', {
+      ...ctx,
+      step: 'complete',
+    });
 
     return this.mapToResponseDto(match, userId);
   }
@@ -240,6 +269,10 @@ export class MatchesService extends BaseService {
    *   the given ID where the caller is a participant.
    */
   async unmatch(matchId: string, userId: string) {
+    const ctx = { userId, matchId };
+
+    this.logger.log('Unmatching match started', { ...ctx, step: 'init' });
+
     const match = await this.prisma.match.findFirst({
       where: {
         id: matchId,
@@ -250,16 +283,39 @@ export class MatchesService extends BaseService {
     });
 
     if (!match) {
+      this.logger.warn('Match not found or already inactive for unmatch', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new MatchNotFoundException('Match not found or already inactive');
     }
 
-    await this.prisma.match.update({
-      where: { id: matchId },
-      data: {
-        status: MatchStatus.UNMATCHED,
-        deletedAt: DateUtil.now(),
-      },
+    this.logger.debug('Match existence verified for unmatch', {
+      ...ctx,
+      step: 'existence_check',
     });
+
+    try {
+      await this.prisma.match.update({
+        where: { id: matchId },
+        data: {
+          status: MatchStatus.UNMATCHED,
+          deletedAt: DateUtil.now(),
+        },
+      });
+
+      this.logger.debug('Match record updated for unmatch', {
+        ...ctx,
+        step: 'persist_unmatch',
+      });
+    } catch (error) {
+      this.logger.error('Failed to unmatch match', {
+        ...ctx,
+        step: 'persist_unmatch',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.MATCH_UNMATCHED,
@@ -267,6 +323,10 @@ export class MatchesService extends BaseService {
       resourceId: matchId,
     });
 
+    this.logger.log('Match unmatched successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return { success: true };
   }
 

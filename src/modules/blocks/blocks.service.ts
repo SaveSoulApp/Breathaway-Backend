@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
+import { CreateBlockDto } from './dto';
+
 import {
   SelfBlockException,
   BlockTargetNotFoundException,
   AlreadyBlockedException,
   BlockNotFoundException,
 } from './application/exceptions';
-import { DateUtil } from '@common/utils/date.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto';
-import { CreateBlockDto } from './dto';
 
 /** Internal Prisma result shape used as a typed intermediary before mapping to the response DTO. */
 interface BlockWithProfile {
@@ -52,9 +54,14 @@ export class BlocksService extends BaseService {
    */
   async create(blockerUserId: string, createBlockDto: CreateBlockDto) {
     const { blockedUserId } = createBlockDto;
+    const ctx = { blockerUserId, blockedUserId };
 
     // 1. Prevent self-block
     if (blockerUserId === blockedUserId) {
+      this.logger.warn('Block creation failed: cannot block self', {
+        ...ctx,
+        step: 'validate',
+      });
       throw new SelfBlockException();
     }
 
@@ -65,6 +72,10 @@ export class BlocksService extends BaseService {
     });
 
     if (!blockedUserExists) {
+      this.logger.warn('Block creation failed: target user not found', {
+        ...ctx,
+        step: 'validate',
+      });
       throw new BlockTargetNotFoundException();
     }
 
@@ -80,15 +91,69 @@ export class BlocksService extends BaseService {
 
     if (existingBlock) {
       if (existingBlock.deletedAt === null) {
+        this.logger.warn('Block creation failed: already blocked', {
+          ...ctx,
+          step: 'validate',
+        });
         throw new AlreadyBlockedException();
       }
 
       // Reactivate soft-deleted block
-      const reactivatedBlock = await this.prisma.block.update({
-        where: { id: existingBlock.id },
+      let reactivatedBlock;
+      try {
+        reactivatedBlock = await this.prisma.block.update({
+          where: { id: existingBlock.id },
+          data: {
+            deletedAt: null,
+            createdAt: DateUtil.now(), // Resetting createdAt makes it a "new" block in terms of history/sorting
+          },
+          select: {
+            id: true,
+            createdAt: true,
+            blocked: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      } catch (error) {
+        this.logger.error('Failed to reactivate block', {
+          ...ctx,
+          step: 'persist_reactivate',
+          err: serializeError(error),
+        });
+        throw error;
+      }
+
+      this.emitAuditLog({
+        actionType: AuditActionType.BLOCK_CREATED,
+        userId: blockerUserId,
+        resourceId: reactivatedBlock.id,
+        metadata: { blockedUserId },
+      });
+
+      this.logger.log('Block reactivated successfully', {
+        ...ctx,
+        blockId: reactivatedBlock.id,
+        step: 'complete',
+      });
+      return this.mapToResponseDto(reactivatedBlock);
+    }
+
+    // 4. Create new block
+    let newBlock;
+    try {
+      newBlock = await this.prisma.block.create({
         data: {
-          deletedAt: null,
-          createdAt: DateUtil.now(), // Resetting createdAt makes it a "new" block in terms of history/sorting
+          blockerUserId,
+          blockedUserId,
         },
         select: {
           id: true,
@@ -106,39 +171,14 @@ export class BlocksService extends BaseService {
           },
         },
       });
-
-      this.emitAuditLog({
-        actionType: AuditActionType.BLOCK_CREATED,
-        userId: blockerUserId,
-        resourceId: reactivatedBlock.id,
-        metadata: { blockedUserId },
+    } catch (error) {
+      this.logger.error('Failed to create block', {
+        ...ctx,
+        step: 'persist_create',
+        err: serializeError(error),
       });
-
-      return this.mapToResponseDto(reactivatedBlock);
+      throw error;
     }
-
-    // 4. Create new block
-    const newBlock = await this.prisma.block.create({
-      data: {
-        blockerUserId,
-        blockedUserId,
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        blocked: {
-          select: {
-            id: true,
-            profile: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-      },
-    });
 
     this.emitAuditLog({
       actionType: AuditActionType.BLOCK_CREATED,
@@ -147,6 +187,11 @@ export class BlocksService extends BaseService {
       metadata: { blockedUserId },
     });
 
+    this.logger.log('Block created successfully', {
+      ...ctx,
+      blockId: newBlock.id,
+      step: 'complete',
+    });
     return this.mapToResponseDto(newBlock);
   }
 
@@ -218,6 +263,7 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
+      this.logger.warn('Block not found', { blockId, userId, step: 'fetch' });
       throw new BlockNotFoundException();
     }
 
@@ -242,16 +288,37 @@ export class BlocksService extends BaseService {
     });
 
     if (!block) {
+      this.logger.warn('Block not found for deletion', {
+        blockId,
+        userId,
+        step: 'fetch',
+      });
       throw new BlockNotFoundException();
     }
 
-    await this.prisma.block.update({
-      where: { id: block.id },
-      data: {
-        deletedAt: DateUtil.now(),
-      },
-    });
+    try {
+      await this.prisma.block.update({
+        where: { id: block.id },
+        data: {
+          deletedAt: DateUtil.now(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to soft-delete block', {
+        blockId,
+        userId,
+        step: 'persist_delete',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
+    this.logger.log('Block soft-deleted successfully', {
+      blockId: block.id,
+      blockerUserId: userId,
+      blockedUserId: block.blockedUserId,
+      step: 'complete',
+    });
     this.emitAuditLog({
       actionType: AuditActionType.BLOCK_DELETED,
       userId: userId,

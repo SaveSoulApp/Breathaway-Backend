@@ -1,8 +1,10 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PubSub } from '@google-cloud/pubsub';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PubSub } from '@google-cloud/pubsub';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
 
 /**
  * Outbound GCP Pub/Sub adapter responsible for serialising and publishing
@@ -49,6 +51,9 @@ export class PubSubPublisherService extends BaseService {
     data: Record<string, unknown>,
     attributes?: Record<string, string>,
   ): Promise<string> {
+    const ctx = { topicName, eventType };
+    this.logger.log('Publishing event to Pub/Sub', { ...ctx, step: 'init' });
+
     const topic = this.pubsub.topic(topicName);
 
     const mergedAttributes = {
@@ -63,15 +68,25 @@ export class PubSubPublisherService extends BaseService {
         data: dataBuffer,
         attributes: mergedAttributes,
       });
-      this.logger.debug(
-        `Published event '${eventType}' to topic '${topicName}' with messageId: ${messageId}`,
-      );
+
+      this.logger.debug('Event published to Pub/Sub topic', {
+        ...ctx,
+        step: 'publish',
+        messageId,
+      });
+
+      this.logger.log('Event published successfully', {
+        ...ctx,
+        step: 'complete',
+        messageId,
+      });
       return messageId;
     } catch (error) {
-      this.logger.error(
-        `Failed to publish event '${eventType}' to topic '${topicName}':`,
-        { error: error instanceof Error ? error.message : String(error) },
-      );
+      this.logger.error('Failed to publish event to Pub/Sub', {
+        ...ctx,
+        step: 'publish',
+        err: serializeError(error),
+      });
       throw error;
     }
   }

@@ -182,7 +182,8 @@ describe('InstagramService', () => {
       );
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'INSTAGRAM_ACCESS_TOKEN is not defined in the environment configuration.',
+        'INSTAGRAM_ACCESS_TOKEN is not configured',
+        { step: 'refresh_system' },
       );
     });
   });

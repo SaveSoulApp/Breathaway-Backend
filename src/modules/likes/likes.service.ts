@@ -13,6 +13,7 @@ import {
 
 import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -28,7 +29,7 @@ import {
   LikeListQueryDto,
   UpdateLikeLabelRequestDto,
 } from './dto';
-import { LIKE_SELECT, RawLike } from './likes.types';
+import { LIKE_SELECT, RawLike, CreateLikeResult } from './likes.types';
 
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
@@ -73,6 +74,10 @@ export class LikesService extends BaseService {
    * @throws {ConflictException} When a non-deleted like from this user to the same identity already exists.
    */
   async create(userId: string, dto: CreateLikeRequestDto) {
+    const ctx = { userId, targetIdentityId: dto.targetIdentityId };
+    this.logger.log('Like creation started', { ...ctx, step: 'init' });
+
+    // Step 1: Credit check
     const hasSufficient = await this.creditsService.hasSufficientCredits(
       userId,
       LikesConfig.CREDITS_PER_LIKE,
@@ -87,9 +92,21 @@ export class LikesService extends BaseService {
           requiredAmount: LikesConfig.CREDITS_PER_LIKE,
         },
       });
+      this.logger.warn('Like creation failed: insufficient credits', {
+        ...ctx,
+        step: 'credit_check',
+        requiredAmount: LikesConfig.CREDITS_PER_LIKE,
+      });
       throw new InsufficientCreditsException();
     }
 
+    this.logger.debug('Credit check passed', {
+      ...ctx,
+      step: 'credit_check',
+      requiredAmount: LikesConfig.CREDITS_PER_LIKE,
+    });
+
+    // Step 2: Identity resolution
     let targetIdentityId = dto.targetIdentityId;
 
     if (!targetIdentityId && dto.targetIdentity) {
@@ -97,7 +114,12 @@ export class LikesService extends BaseService {
       const publicValueData =
         await this.identityCryptoService.processPublicValue(publicValue, type);
 
-      // Check if identity exists
+      this.logger.debug('Public value hashed, looking up existing identity', {
+        ...ctx,
+        step: 'identity_resolution',
+        identityType: type,
+      });
+
       const existing = await this.prisma.identity.findUnique({
         where: {
           type_publicValueHash: {
@@ -109,6 +131,11 @@ export class LikesService extends BaseService {
 
       if (existing) {
         targetIdentityId = existing.id;
+        this.logger.debug('Resolved to existing identity', {
+          ...ctx,
+          step: 'identity_resolution',
+          resolvedIdentityId: existing.id,
+        });
       } else {
         // Create new unresolved identity
         let platformIdData = {};
@@ -127,26 +154,53 @@ export class LikesService extends BaseService {
           },
         });
         targetIdentityId = newIdentity.id;
+        this.logger.log('New unresolved identity created', {
+          ...ctx,
+          step: 'identity_resolution',
+          newIdentityId: newIdentity.id,
+          identityType: type,
+        });
       }
     }
 
     if (!targetIdentityId) {
+      this.logger.warn('Like creation failed: missing target identity', {
+        ...ctx,
+        step: 'identity_resolution',
+      });
       throw new MissingTargetIdentityException();
     }
 
+    // Step 3: Target identity validation
     const targetIdentity = await this.prisma.identity.findUnique({
       where: { id: targetIdentityId },
     });
 
     if (!targetIdentity) {
+      this.logger.warn('Like creation failed: target identity not found', {
+        ...ctx,
+        step: 'identity_validation',
+        targetIdentityId,
+      });
       throw new IdentityNotFoundException();
     }
 
     if (targetIdentity.userId === userId) {
+      this.logger.warn('Like creation failed: cannot like self', {
+        ...ctx,
+        step: 'identity_validation',
+        targetIdentityId,
+      });
       throw new SelfLikeException();
     }
 
-    // Prevent duplicate
+    this.logger.debug('Target identity validated', {
+      ...ctx,
+      step: 'identity_validation',
+      targetIdentityId,
+    });
+
+    // Step 4: Duplicate check
     const existingLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
@@ -157,52 +211,100 @@ export class LikesService extends BaseService {
     });
 
     if (existingLike) {
+      this.logger.warn('Like creation failed: already liked', {
+        ...ctx,
+        step: 'duplicate_check',
+        targetIdentityId,
+        existingLikeId: existingLike.id,
+      });
       throw new AlreadyLikedException();
     }
 
+    this.logger.debug('Duplicate check passed', {
+      ...ctx,
+      step: 'duplicate_check',
+      targetIdentityId,
+    });
+
+    // Step 5: Persist like + deduct credits atomically
     const expiresAt = DateUtil.now();
     expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
 
-    const like = await this.prisma.$transaction(async (tx) => {
-      const createdLike = await tx.like.create({
-        data: {
-          senderUserId: userId,
-          targetIdentityId,
-          intent: dto.intent,
-          status: LikeStatus.PENDING,
-          label: dto.label ?? null,
-          expiresAt,
-        },
-        select: {
-          ...LIKE_SELECT,
-          senderUserId: true,
-          targetIdentityId: true,
-          targetIdentity: {
-            select: {
-              ...LIKE_SELECT.targetIdentity.select,
-              userId: true,
+    let like: CreateLikeResult;
+
+    try {
+      like = await this.prisma.$transaction(async (tx) => {
+        const createdLike = await tx.like.create({
+          data: {
+            senderUserId: userId,
+            targetIdentityId,
+            intent: dto.intent,
+            status: LikeStatus.PENDING,
+            label: dto.label ?? null,
+            expiresAt,
+          },
+          select: {
+            ...LIKE_SELECT,
+            senderUserId: true,
+            targetIdentityId: true,
+            targetIdentity: {
+              select: {
+                ...LIKE_SELECT.targetIdentity.select,
+                userId: true,
+              },
             },
           },
-        },
+        });
+
+        this.logger.debug('Like record persisted within transaction', {
+          ...ctx,
+          step: 'persist_like',
+          likeId: createdLike.id,
+          targetIdentityId,
+        });
+
+        await this.creditsService.consumeCredits(
+          {
+            userId,
+            amount: LikesConfig.CREDITS_PER_LIKE,
+            referenceId: createdLike.id,
+          },
+          tx,
+        );
+
+        this.logger.debug('Credits deducted within transaction', {
+          ...ctx,
+          step: 'deduct_credits',
+          likeId: createdLike.id,
+          creditsConsumed: LikesConfig.CREDITS_PER_LIKE,
+        });
+
+        return createdLike;
       });
+    } catch (err) {
+      this.logger.error('Like creation transaction failed', {
+        ...ctx,
+        step: 'persist_and_deduct',
+        targetIdentityId,
+        err: serializeError(err),
+      });
+      throw err;
+    }
 
-      await this.creditsService.consumeCredits(
-        {
-          userId,
-          amount: LikesConfig.CREDITS_PER_LIKE,
-          referenceId: createdLike.id,
-        },
-        tx,
-      );
-
-      return createdLike;
+    // Step 6: Async match resolution (non-fatal)
+    this.matchResolverService.resolveFromLike(like).catch((err) => {
+      this.logger.error('Match resolution failed after like creation', {
+        ...ctx,
+        step: 'match_resolution',
+        likeId: like.id,
+        err: serializeError(err),
+      });
     });
 
-    // Trigger match resolution asynchronously in the background
-    this.matchResolverService.resolveFromLike(like).catch((err) => {
-      this.logger.error(`Match resolution failed for Like ${like.id}`, {
-        stack: (err as { stack?: string }).stack,
-      });
+    this.logger.debug('Match resolution triggered asynchronously', {
+      ...ctx,
+      step: 'match_resolution',
+      likeId: like.id,
     });
 
     this.emitAuditLog({
@@ -215,6 +317,13 @@ export class LikesService extends BaseService {
         maskedValue: targetIdentity.publicValueMasked,
         publicValueHash: targetIdentity.publicValueHash,
       },
+    });
+
+    this.logger.log('Like created successfully', {
+      ...ctx,
+      step: 'complete',
+      likeId: like.id,
+      targetIdentityId: targetIdentity.id,
     });
 
     return this.attachPublicValue(like);
@@ -241,6 +350,14 @@ export class LikesService extends BaseService {
       sortOrder = SortOrder.DESC,
     } = query;
     const skip = (page - 1) * limit;
+    const ctx = { userId, page, limit };
+
+    this.logger.debug('Fetching likes for user', {
+      ...ctx,
+      intent,
+      status,
+      sortOrder,
+    });
 
     const where: Prisma.LikeWhereInput = {
       senderUserId: userId,
@@ -264,6 +381,12 @@ export class LikesService extends BaseService {
         select: LIKE_SELECT,
       }),
     ]);
+
+    this.logger.debug('Likes query completed', {
+      ...ctx,
+      total,
+      returnedCount: rows.length,
+    });
 
     const totalPages = Math.ceil(total / limit);
     const data = await Promise.all(rows.map((r) => this.attachPublicValue(r)));
@@ -293,6 +416,9 @@ export class LikesService extends BaseService {
    * @throws {NotFoundException} When no non-deleted like with the given ID exists for this user.
    */
   async findOneForUser(id: string, userId: string) {
+    const ctx = { likeId: id, userId };
+    this.logger.debug('Fetching single like', ctx);
+
     const like = await this.prisma.like.findFirst({
       where: {
         id,
@@ -303,9 +429,11 @@ export class LikesService extends BaseService {
     });
 
     if (!like) {
+      this.logger.warn('Like not found', ctx);
       throw new LikeNotFoundException(id);
     }
 
+    this.logger.debug('Like found', { ...ctx, status: like.status });
     return this.attachPublicValue(like);
   }
 
@@ -323,25 +451,57 @@ export class LikesService extends BaseService {
    * @throws {BadRequestException} When the like is not in PENDING status.
    */
   async delete(id: string, userId: string) {
+    const ctx = { likeId: id, userId };
+    this.logger.log('Like deletion started', { ...ctx, step: 'init' });
+
     const like = await this.prisma.like.findFirst({
       where: { id, senderUserId: userId, deletedAt: null },
     });
 
     if (!like) {
+      this.logger.warn('Like not found for deletion', {
+        ...ctx,
+        step: 'fetch',
+      });
       throw new LikeNotFoundException(id);
     }
 
     if (like.status !== LikeStatus.PENDING) {
+      this.logger.warn('Like deletion failed: invalid status', {
+        ...ctx,
+        step: 'status_check',
+        currentStatus: like.status,
+        requiredStatus: LikeStatus.PENDING,
+      });
       throw new InvalidLikeStateException();
     }
 
-    await this.prisma.like.update({
-      where: { id },
-      data: {
-        deletedAt: DateUtil.now(),
-        status: LikeStatus.DELETED,
-      },
+    this.logger.debug('Like status valid for deletion', {
+      ...ctx,
+      step: 'status_check',
+      status: like.status,
     });
+
+    try {
+      await this.prisma.like.update({
+        where: { id },
+        data: {
+          deletedAt: DateUtil.now(),
+          status: LikeStatus.DELETED,
+        },
+      });
+      this.logger.debug('Like record marked deleted', {
+        ...ctx,
+        step: 'persist_delete',
+      });
+    } catch (error) {
+      this.logger.error('Failed to soft-delete like', {
+        ...ctx,
+        step: 'persist_delete',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.LIKE_DELETED,
@@ -349,6 +509,10 @@ export class LikesService extends BaseService {
       resourceId: id,
     });
 
+    this.logger.log('Like soft-deleted successfully', {
+      ...ctx,
+      step: 'complete',
+    });
     return { success: true };
   }
 
@@ -370,22 +534,58 @@ export class LikesService extends BaseService {
     userId: string,
     dto: UpdateLikeLabelRequestDto,
   ) {
+    const ctx = { likeId: id, userId };
+    this.logger.log('Like label update started', {
+      ...ctx,
+      step: 'init',
+      hasLabel: dto.label !== null && dto.label !== undefined,
+    });
+
     const like = await this.prisma.like.findFirst({
       where: { id, senderUserId: userId, deletedAt: null },
     });
 
     if (!like) {
+      this.logger.warn('Like not found for label update', {
+        ...ctx,
+        step: 'fetch',
+      });
       throw new LikeNotFoundException(id);
     }
 
-    // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
-    // so the user can always personalise their history
-    const updated = await this.prisma.like.update({
-      where: { id },
-      data: { label: dto.label ?? null },
-      select: LIKE_SELECT,
+    this.logger.debug('Like found for label update', {
+      ...ctx,
+      step: 'fetch',
+      currentStatus: like.status,
     });
 
+    // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
+    // so the user can always personalise their history
+    let updated;
+    try {
+      updated = await this.prisma.like.update({
+        where: { id },
+        data: { label: dto.label ?? null },
+        select: LIKE_SELECT,
+      });
+      this.logger.debug('Like label record updated', {
+        ...ctx,
+        step: 'persist_label',
+      });
+    } catch (error) {
+      this.logger.error('Failed to update like label', {
+        ...ctx,
+        step: 'persist_label',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Like label updated successfully', {
+      ...ctx,
+      step: 'complete',
+      labelCleared: dto.label === null || dto.label === undefined,
+    });
     return this.attachPublicValue(updated);
   }
 

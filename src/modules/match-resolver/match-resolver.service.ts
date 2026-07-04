@@ -1,16 +1,18 @@
+import { Injectable } from '@nestjs/common';
+import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
-import { NotificationsService } from '@modules/notifications/notifications.service';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
 import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { Injectable } from '@nestjs/common';
-import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 /**
  * Minimal like shape consumed by the match resolver.
@@ -60,15 +62,28 @@ export class MatchResolverService extends BaseService {
    * @param newLike - The newly created like summary triggering resolution.
    */
   async resolveFromLike(newLike: LikeSummary) {
+    const ctx = {
+      likeId: newLike.id,
+      senderUserId: newLike.senderUserId,
+      targetIdentityId: newLike.targetIdentityId,
+    };
+    this.logger.debug('Match resolution started', { ...ctx, step: 'init' });
+
     try {
       const targetUserId = newLike.targetIdentity.userId;
 
       if (!targetUserId) {
         this.logger.debug(
-          `Like ${newLike.id} target identity is unresolved. Skipping match resolution.`,
+          'Target identity unresolved — skipping match resolution',
+          {
+            ...ctx,
+            step: 'identity_check',
+          },
         );
         return;
       }
+
+      Object.assign(ctx, { targetUserId });
 
       const reverseLike = await this.findReverseLike(
         newLike.senderUserId,
@@ -76,15 +91,17 @@ export class MatchResolverService extends BaseService {
       );
 
       if (!reverseLike) {
-        this.logger.debug(
-          `No reverse like found for users ${newLike.senderUserId} and ${targetUserId}.`,
-        );
+        this.logger.debug('No reverse like found — no match', {
+          ...ctx,
+          step: 'reverse_like_lookup',
+        });
         return;
       }
-
-      this.logger.log(
-        `Reverse like found: ${reverseLike.id} for new like: ${newLike.id}.`,
-      );
+      this.logger.debug('Reverse like found', {
+        ...ctx,
+        step: 'reverse_like_lookup',
+        reverseLikeId: reverseLike.id,
+      });
 
       const [userOneId, userTwoId] = [
         newLike.senderUserId,
@@ -114,9 +131,14 @@ export class MatchResolverService extends BaseService {
         isEligible.existingMatch,
       );
 
-      this.logger.log(
-        `Match created successfully between users ${userOneId} and ${userTwoId}.`,
-      );
+      this.logger.log('Match resolved successfully', {
+        ...ctx,
+        step: 'complete',
+        matchId: match.id,
+        userOneId,
+        userTwoId,
+        reactivated: isEligible.existingMatch !== null,
+      });
 
       this.emitAuditLog({
         actionType: AuditActionType.MATCH_RESOLVED,
@@ -128,19 +150,30 @@ export class MatchResolverService extends BaseService {
         },
       });
 
-      // Dispatch notifications
+      // Dispatch notifications fire-and-forget; errors are caught and logged inside
       await this.dispatchMatchNotifications(userOneId, userTwoId, match.id);
-    } catch (error) {
-      const err = error as { code?: string; stack?: string };
-      if (err?.code === 'P2002') {
+    } catch (err) {
+      const serialized = serializeError(err);
+
+      // P2002 = unique constraint violation — two concurrent likes resolved
+      // simultaneously. Harmless race condition: one of them already created the
+      // match. Swallow silently after a warn so it's still queryable.
+      if ((err as { code?: string }).code === 'P2002') {
         this.logger.warn(
-          `Race condition caught: Unique constraint violation while creating Match for like ${newLike.id}.`,
+          'Race condition: match already created by concurrent resolution',
+          {
+            ...ctx,
+            step: 'complete',
+            err: serialized,
+          },
         );
         return;
       }
 
-      this.logger.error(`Failed to resolve match for Like ${newLike.id}`, {
-        stack: err.stack,
+      this.logger.error('Match resolution failed', {
+        ...ctx,
+        step: 'complete',
+        err: serialized,
       });
     }
   }
@@ -153,12 +186,19 @@ export class MatchResolverService extends BaseService {
     userTwoId: string,
     matchId: string,
   ): Promise<void> {
+    const ctx = { matchId, userOneId, userTwoId };
+    this.logger.debug('Dispatching match notifications', {
+      ...ctx,
+      step: 'notify_init',
+    });
+
     try {
       const profiles = await this.prisma.userProfile.findMany({
         where: { userId: { in: [userOneId, userTwoId] } },
         select: { userId: true, firstName: true },
       });
 
+      // First names are used only for notification payload copy — not logged (PII).
       const userOneName =
         profiles.find((p) => p.userId === userOneId)?.firstName ?? 'someone';
       const userTwoName =
@@ -172,6 +212,10 @@ export class MatchResolverService extends BaseService {
         category: NotificationCategory.SOCIAL,
         payload: { name: userTwoName, matchId },
       });
+      this.logger.debug('Notification dispatched to userOne', {
+        ...ctx,
+        step: 'notify_dispatch',
+      });
 
       // Notify User Two
       await this.notificationsService.dispatch({
@@ -181,13 +225,18 @@ export class MatchResolverService extends BaseService {
         category: NotificationCategory.SOCIAL,
         payload: { name: userOneName, matchId },
       });
-    } catch (error) {
-      this.logger.error(
-        `Failed to dispatch match notifications for match ${matchId}:`,
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
+      this.logger.debug('Notification dispatched to userTwo', {
+        ...ctx,
+        step: 'notify_dispatch',
+      });
+    } catch (err) {
+      // Notification failure must not surface to the caller — the match is
+      // already persisted. Log and continue.
+      this.logger.error('Failed to dispatch match notifications', {
+        ...ctx,
+        step: 'notify_dispatch',
+        err: serializeError(err),
+      });
     }
   }
 
@@ -240,17 +289,28 @@ export class MatchResolverService extends BaseService {
     userOneId: string,
     userTwoId: string,
   ): Promise<{ valid: boolean; existingMatch: Match | null }> {
+    const ctx = {
+      likeId: newLike.id,
+      reverseLikeId: reverseLike.id,
+      userOneId,
+      userTwoId,
+    };
+
     if (
       !this.matchesService.isIntentCompatible(
         newLike.intent,
         reverseLike.intent,
       )
     ) {
-      this.logger.log(
-        `Intents are incompatible between Like ${newLike.id} (${newLike.intent}) and Like ${reverseLike.id} (${reverseLike.intent}).`,
-      );
+      this.logger.debug('Intents incompatible — match suppressed', {
+        ...ctx,
+        step: 'intent_check',
+        intentOne: newLike.intent,
+        intentTwo: reverseLike.intent,
+      });
       return { valid: false, existingMatch: null };
     }
+    this.logger.debug('Intent check passed', { ...ctx, step: 'intent_check' });
 
     const isBlocked = await this.blocksService.isBlocked(
       newLike.senderUserId,
@@ -258,22 +318,31 @@ export class MatchResolverService extends BaseService {
     );
 
     if (isBlocked) {
-      this.logger.log(
-        `Block exists between users ${newLike.senderUserId} and ${targetUserId}. Suppressing match.`,
-      );
+      this.logger.debug('Block exists — match suppressed', {
+        ...ctx,
+        step: 'block_check',
+      });
       return { valid: false, existingMatch: null };
     }
+    this.logger.debug('Block check passed', { ...ctx, step: 'block_check' });
 
     const existingMatch = await this.prisma.match.findUnique({
       where: { userOneId_userTwoId: { userOneId, userTwoId } },
     });
 
     if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
-      this.logger.warn(
-        `Active match already exists between ${userOneId} and ${userTwoId}. Duplicate prevented.`,
-      );
+      this.logger.warn('Active match already exists — duplicate prevented', {
+        ...ctx,
+        step: 'duplicate_check',
+        existingMatchId: existingMatch.id,
+      });
       return { valid: false, existingMatch: null };
     }
+    this.logger.debug('Eligibility checks passed', {
+      ...ctx,
+      step: 'duplicate_check',
+      willReactivate: existingMatch !== null,
+    });
 
     return { valid: true, existingMatch };
   }
@@ -303,6 +372,22 @@ export class MatchResolverService extends BaseService {
     userTwoId: string,
     existingMatch: Match | null,
   ): Promise<Match> {
+    const ctx = {
+      likeOneId: likeOne.id,
+      likeTwoId: likeTwo.id,
+      userOneId,
+      userTwoId,
+    };
+    const isReactivation = existingMatch !== null;
+    this.logger.debug('Match transaction started', {
+      ...ctx,
+      step: 'match_transaction',
+      isReactivation,
+    });
+
+    // No try/catch here — P2002 and infra failures propagate to resolveFromLike's
+    // outer catch, which handles P2002 as a silent race condition and logs errors
+    // with full ctx for all other failures.
     return this.prisma.$transaction(async (tx) => {
       let finalMatch: Match;
 
@@ -319,6 +404,11 @@ export class MatchResolverService extends BaseService {
             matchedAt: DateUtil.now(),
           },
         });
+        this.logger.debug('Existing match reactivated', {
+          ...ctx,
+          step: 'match_transaction',
+          matchId: finalMatch.id,
+        });
       } else {
         finalMatch = await tx.match.create({
           data: {
@@ -331,6 +421,11 @@ export class MatchResolverService extends BaseService {
             status: MatchStatus.ACTIVE,
           },
         });
+        this.logger.debug('New match record created', {
+          ...ctx,
+          step: 'match_transaction',
+          matchId: finalMatch.id,
+        });
       }
 
       await tx.like.update({
@@ -341,6 +436,10 @@ export class MatchResolverService extends BaseService {
       await tx.like.update({
         where: { id: likeTwo.id },
         data: { status: LikeStatus.MATCHED },
+      });
+      this.logger.debug('Both likes marked MATCHED', {
+        ...ctx,
+        step: 'match_transaction',
       });
 
       return finalMatch;

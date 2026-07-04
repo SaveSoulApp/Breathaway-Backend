@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import {
-  SubscriptionNotFoundException,
-  InvalidSubscriptionDatesException,
-} from '../application/exceptions';
-import {
   CreditSource,
   CurrencyCode,
   Prisma,
@@ -13,18 +9,19 @@ import {
 } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 
+import {
+  InvalidSubscriptionDatesException,
+  SubscriptionNotFoundException,
+} from '../application/exceptions';
 import { VerifyPurchaseRequestDto } from '../dto';
 import { SubscriptionPlansService } from './subscription-plans.service';
-
-// ──────────────────────────────────────────────
-// Param interfaces for lifecycle handlers
-// ──────────────────────────────────────────────
 
 interface InitialPurchaseParams {
   userId: string;
@@ -36,8 +33,8 @@ interface InitialPurchaseParams {
   currencyCode?: CurrencyCode;
   pricePaid?: number;
   countryCode?: string;
-  rawPayload?: Record<string, unknown>;
   storeEventId?: string;
+  rawPayload?: Record<string, unknown>;
 }
 
 interface RenewalParams {
@@ -87,32 +84,29 @@ interface LogEventParams {
 }
 
 /**
- * Orchestrates the lifecycle of user subscriptions and processes store events.
+ * Core coordinator of the subscription/billing domain.
  *
- * This service handles creating initial subscriptions, processing renewals, cancellations,
- * and expirations. It ensures idempotency for webhooks and coordinates with the
- * CreditsModule to disburse credits upon successful payment.
+ * Exposes methods to query subscription history, process client-initiated purchases,
+ * and handle store webhooks (Apple and Google) to drive the subscription lifecycle state machine.
  */
 @Injectable()
 export class SubscriptionsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly creditsService: CreditsService,
     private readonly subscriptionPlansService: SubscriptionPlansService,
+    private readonly creditsService: CreditsService,
   ) {
     super(logger);
   }
 
-  // ──────────────────────────────────────────────
-  // User-facing queries
-  // ──────────────────────────────────────────────
-
   /**
    * Retrieves the currently active or grace-period subscription for a user.
    *
-   * @param userId - ID of the target user.
-   * @returns The active subscription entity, or null if none exists.
+   * Reconciles multiple active plans by returning the newest one if multiple exist.
+   *
+   * @param userId - UUID of the user.
+   * @returns The active subscription along with its plan details, or null if none exists.
    */
   async getActiveSubscription(userId: string) {
     const subscription = await this.prisma.userSubscription.findFirst({
@@ -122,31 +116,42 @@ export class SubscriptionsService extends BaseService {
           in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE_PERIOD],
         },
       },
-      include: { plan: { include: { prices: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return subscription ?? null;
-  }
-
-  /**
-   * Fetches the complete history of a user's subscriptions and associated events.
-   *
-   * @param userId - ID of the target user.
-   * @returns Array of past and present subscriptions.
-   */
-  async getSubscriptionHistory(userId: string) {
-    return this.prisma.userSubscription.findMany({
-      where: { userId },
       include: {
-        plan: true,
-        events: { orderBy: { createdAt: 'desc' } },
+        plan: {
+          include: {
+            prices: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return subscription;
   }
 
-  // ──────────────────────────────────────────────
+  /**
+   * Fetches the complete subscription history for a user, ordered newest first.
+   *
+   * @param userId - UUID of the user.
+   * @returns List of subscriptions with plan details.
+   */
+  async getSubscriptionHistory(userId: string) {
+    const history = await this.prisma.userSubscription.findMany({
+      where: { userId },
+      include: {
+        plan: true,
+        events: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return history;
+  }
+
   // Client-initiated purchase verification (C1 fix)
   // ──────────────────────────────────────────────
 
@@ -166,7 +171,6 @@ export class SubscriptionsService extends BaseService {
     userId: string,
     dto: VerifyPurchaseRequestDto,
   ) {
-    // Idempotency: if a subscription for this purchaseToken already exists, return it
     const existing = await this.prisma.userSubscription.findFirst({
       where: { storeTransactionId: dto.purchaseToken },
       include: { plan: true },
@@ -174,8 +178,9 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
-        `Subscription already exists for purchaseToken "${dto.purchaseToken}", returning existing`,
+      this.logger.debug(
+        'Subscription already exists for purchaseToken, returning existing',
+        { purchaseToken: dto.purchaseToken, step: 'check_existing' },
       );
       return existing;
     }
@@ -203,6 +208,10 @@ export class SubscriptionsService extends BaseService {
     }
 
     if (expiresDate <= purchaseDate) {
+      this.logger.warn(
+        'Process client purchase failed: invalid subscription dates',
+        { userId, expiresDate, purchaseDate, step: 'validate' },
+      );
       throw new InvalidSubscriptionDatesException();
     }
 
@@ -237,8 +246,12 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
-        `Subscription already exists for storeTransactionId "${params.storeTransactionId}" — skipping initial purchase`,
+      this.logger.debug(
+        'Subscription already exists, skipping initial purchase',
+        {
+          storeTransactionId: params.storeTransactionId,
+          step: 'check_existing',
+        },
       );
       return existing;
     }
@@ -248,49 +261,60 @@ export class SubscriptionsService extends BaseService {
       params.storeProductId,
     );
 
-    const subscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.create({
-        data: {
-          userId: params.userId,
-          planId: plan.id,
-          status: SubscriptionStatus.ACTIVE,
-          storePlatform: params.storePlatform,
-          storeTransactionId: params.storeTransactionId,
-          storeProductId: params.storeProductId,
-          currentPeriodStart: params.purchaseDate,
-          currentPeriodEnd: params.expiresDate,
-          expiresAt: params.expiresDate,
-          autoRenewing: true,
-          currencyCode: params.currencyCode,
-          pricePaid: params.pricePaid,
-          countryCode: params.countryCode,
-        },
+    let subscription;
+    try {
+      subscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.create({
+          data: {
+            userId: params.userId,
+            planId: plan.id,
+            status: SubscriptionStatus.ACTIVE,
+            storePlatform: params.storePlatform,
+            storeTransactionId: params.storeTransactionId,
+            storeProductId: params.storeProductId,
+            currentPeriodStart: params.purchaseDate,
+            currentPeriodEnd: params.expiresDate,
+            expiresAt: params.expiresDate,
+            autoRenewing: true,
+            currencyCode: params.currencyCode,
+            pricePaid: params.pricePaid,
+            countryCode: params.countryCode,
+          },
+        });
+
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: sub.id,
+            eventType: SubscriptionEventType.INITIAL_PURCHASE,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        await this.creditsService.grantCredits(
+          {
+            userId: params.userId,
+            amount: plan.creditsGranted,
+            source: CreditSource.SUBSCRIPTION,
+            referenceId: sub.id,
+            expiresAt: params.expiresDate.toISOString(),
+          },
+          tx,
+        );
+
+        return sub;
       });
-
-      await this.logSubscriptionEvent(
-        {
-          subscriptionId: sub.id,
-          eventType: SubscriptionEventType.INITIAL_PURCHASE,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
-        },
-        tx,
-      );
-
-      await this.creditsService.grantCredits(
-        {
-          userId: params.userId,
-          amount: plan.creditsGranted,
-          source: CreditSource.SUBSCRIPTION,
-          referenceId: sub.id,
-          expiresAt: params.expiresDate.toISOString(),
-        },
-        tx,
-      );
-
-      return sub;
-    });
+    } catch (error) {
+      this.logger.error('Failed to complete initial purchase transaction', {
+        userId: params.userId,
+        storeTransactionId: params.storeTransactionId,
+        step: 'persist_purchase',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_CREATED,
@@ -322,42 +346,53 @@ export class SubscriptionsService extends BaseService {
       params.storeTransactionId,
     );
 
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: {
-          currentPeriodStart: params.newPeriodStart,
-          currentPeriodEnd: params.newPeriodEnd,
-          expiresAt: params.newPeriodEnd,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        include: { plan: true },
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            currentPeriodStart: params.newPeriodStart,
+            currentPeriodEnd: params.newPeriodEnd,
+            expiresAt: params.newPeriodEnd,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          include: { plan: true },
+        });
+
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: sub.id,
+            eventType: SubscriptionEventType.RENEWAL,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        await this.creditsService.grantCredits(
+          {
+            userId: sub.userId,
+            amount: sub.plan.creditsGranted,
+            source: CreditSource.SUBSCRIPTION,
+            referenceId: sub.id,
+            expiresAt: params.newPeriodEnd.toISOString(),
+          },
+          tx,
+        );
+
+        return sub;
       });
-
-      await this.logSubscriptionEvent(
-        {
-          subscriptionId: sub.id,
-          eventType: SubscriptionEventType.RENEWAL,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
-        },
-        tx,
-      );
-
-      await this.creditsService.grantCredits(
-        {
-          userId: sub.userId,
-          amount: sub.plan.creditsGranted,
-          source: CreditSource.SUBSCRIPTION,
-          referenceId: sub.id,
-          expiresAt: params.newPeriodEnd.toISOString(),
-        },
-        tx,
-      );
-
-      return sub;
-    });
+    } catch (error) {
+      this.logger.error('Failed to process subscription renewal transaction', {
+        subscriptionId: subscription.id,
+        storeTransactionId: params.storeTransactionId,
+        step: 'persist_renewal',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_RENEWED,
@@ -390,29 +425,42 @@ export class SubscriptionsService extends BaseService {
 
     const now = DateUtil.now();
 
-    // Wrap in $transaction to keep update + event log atomic
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: {
-          autoRenewing: false,
-          cancelledAt: now,
-        },
-      });
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            autoRenewing: false,
+            cancelledAt: now,
+          },
+        });
 
-      await this.logSubscriptionEvent(
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: subscription.id,
+            eventType: SubscriptionEventType.CANCELLATION,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        return sub;
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to process subscription cancellation transaction',
         {
           subscriptionId: subscription.id,
-          eventType: SubscriptionEventType.CANCELLATION,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
+          storeTransactionId: params.storeTransactionId,
+          step: 'persist_cancellation',
+          err: serializeError(error),
         },
-        tx,
       );
-
-      return sub;
-    });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_CANCELLED,
@@ -442,25 +490,39 @@ export class SubscriptionsService extends BaseService {
       params.storeTransactionId,
     );
 
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: { status: SubscriptionStatus.GRACE_PERIOD },
-      });
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: { status: SubscriptionStatus.GRACE_PERIOD },
+        });
 
-      await this.logSubscriptionEvent(
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: subscription.id,
+            eventType: SubscriptionEventType.GRACE_PERIOD_ENTERED,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        return sub;
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to process subscription grace period transaction',
         {
           subscriptionId: subscription.id,
-          eventType: SubscriptionEventType.GRACE_PERIOD_ENTERED,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
+          storeTransactionId: params.storeTransactionId,
+          step: 'persist_grace_period',
+          err: serializeError(error),
         },
-        tx,
       );
-
-      return sub;
-    });
+      throw error;
+    }
 
     return updatedSubscription;
   }
@@ -480,41 +542,55 @@ export class SubscriptionsService extends BaseService {
       params.storeTransactionId,
     );
 
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: {
-          status: SubscriptionStatus.ACTIVE,
-          currentPeriodEnd: params.newPeriodEnd,
-          expiresAt: params.newPeriodEnd,
-        },
-        include: { plan: true },
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            status: SubscriptionStatus.ACTIVE,
+            currentPeriodEnd: params.newPeriodEnd,
+            expiresAt: params.newPeriodEnd,
+          },
+          include: { plan: true },
+        });
+
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: sub.id,
+            eventType: SubscriptionEventType.BILLING_RECOVERY,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        await this.creditsService.grantCredits(
+          {
+            userId: sub.userId,
+            amount: sub.plan.creditsGranted,
+            source: CreditSource.SUBSCRIPTION,
+            referenceId: sub.id,
+            expiresAt: params.newPeriodEnd.toISOString(),
+          },
+          tx,
+        );
+
+        return sub;
       });
-
-      await this.logSubscriptionEvent(
+    } catch (error) {
+      this.logger.error(
+        'Failed to process subscription billing recovery transaction',
         {
-          subscriptionId: sub.id,
-          eventType: SubscriptionEventType.BILLING_RECOVERY,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
+          subscriptionId: subscription.id,
+          storeTransactionId: params.storeTransactionId,
+          step: 'persist_billing_recovery',
+          err: serializeError(error),
         },
-        tx,
       );
-
-      await this.creditsService.grantCredits(
-        {
-          userId: sub.userId,
-          amount: sub.plan.creditsGranted,
-          source: CreditSource.SUBSCRIPTION,
-          referenceId: sub.id,
-          expiresAt: params.newPeriodEnd.toISOString(),
-        },
-        tx,
-      );
-
-      return sub;
-    });
+      throw error;
+    }
 
     return updatedSubscription;
   }
@@ -535,25 +611,39 @@ export class SubscriptionsService extends BaseService {
       params.storeTransactionId,
     );
 
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: { status: SubscriptionStatus.REVOKED },
-      });
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: { status: SubscriptionStatus.REVOKED },
+        });
 
-      await this.logSubscriptionEvent(
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: subscription.id,
+            eventType: SubscriptionEventType.REVOCATION,
+            storePlatform: params.storePlatform,
+            storeEventId: params.storeEventId,
+            rawPayload: params.rawPayload,
+          },
+          tx,
+        );
+
+        return sub;
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to process subscription revocation transaction',
         {
           subscriptionId: subscription.id,
-          eventType: SubscriptionEventType.REVOCATION,
-          storePlatform: params.storePlatform,
-          storeEventId: params.storeEventId,
-          rawPayload: params.rawPayload,
+          storeTransactionId: params.storeTransactionId,
+          step: 'persist_revocation',
+          err: serializeError(error),
         },
-        tx,
       );
-
-      return sub;
-    });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_REVOKED,
@@ -583,29 +673,45 @@ export class SubscriptionsService extends BaseService {
       subscription.status === SubscriptionStatus.EXPIRED ||
       subscription.status === SubscriptionStatus.REVOKED
     ) {
-      this.logger.log(
+      this.logger.debug(
         `Subscription "${subscription.id}" already in terminal state "${subscription.status}" — skipping expiry`,
+        {
+          subscriptionId: subscription.id,
+          status: subscription.status,
+          step: 'persist_expiry',
+        },
       );
       return subscription;
     }
 
-    const updatedSubscription = await this.prisma.$transaction(async (tx) => {
-      const sub = await tx.userSubscription.update({
-        where: { id: subscription.id },
-        data: { status: SubscriptionStatus.EXPIRED },
+    let updatedSubscription;
+    try {
+      updatedSubscription = await this.prisma.$transaction(async (tx) => {
+        const sub = await tx.userSubscription.update({
+          where: { id: subscription.id },
+          data: { status: SubscriptionStatus.EXPIRED },
+        });
+
+        await this.logSubscriptionEvent(
+          {
+            subscriptionId: subscription.id,
+            eventType: SubscriptionEventType.EXPIRY,
+            storePlatform,
+          },
+          tx,
+        );
+
+        return sub;
       });
-
-      await this.logSubscriptionEvent(
-        {
-          subscriptionId: subscription.id,
-          eventType: SubscriptionEventType.EXPIRY,
-          storePlatform,
-        },
-        tx,
-      );
-
-      return sub;
-    });
+    } catch (error) {
+      this.logger.error('Failed to process subscription expiry transaction', {
+        subscriptionId: subscription.id,
+        storeTransactionId,
+        step: 'persist_expiry',
+        err: serializeError(error),
+      });
+      throw error;
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_EXPIRED,
@@ -632,43 +738,55 @@ export class SubscriptionsService extends BaseService {
   async expireSubscriptions(): Promise<number> {
     const now = DateUtil.now();
 
-    return this.prisma.$transaction(async (tx) => {
-      const expiredSubscriptions = await tx.userSubscription.findMany({
-        where: {
-          status: {
-            in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE_PERIOD],
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const expiredSubscriptions = await tx.userSubscription.findMany({
+          where: {
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE_PERIOD],
+            },
+            expiresAt: { lte: now },
           },
-          expiresAt: { lte: now },
-        },
+        });
+
+        if (expiredSubscriptions.length === 0) {
+          return 0;
+        }
+
+        const ids = expiredSubscriptions.map((s) => s.id);
+
+        // Batch status update
+        await tx.userSubscription.updateMany({
+          where: { id: { in: ids } },
+          data: { status: SubscriptionStatus.EXPIRED },
+        });
+
+        // Batch event creation
+        await tx.subscriptionEvent.createMany({
+          data: expiredSubscriptions.map((s) => ({
+            subscriptionId: s.id,
+            eventType: SubscriptionEventType.EXPIRY,
+            storePlatform: s.storePlatform,
+          })),
+        });
+
+        this.logger.log(
+          `Expired ${expiredSubscriptions.length} subscription(s) past their expiresAt date.`,
+          {
+            expiredCount: expiredSubscriptions.length,
+            step: 'complete',
+          },
+        );
+
+        return expiredSubscriptions.length;
       });
-
-      if (expiredSubscriptions.length === 0) {
-        return 0;
-      }
-
-      const ids = expiredSubscriptions.map((s) => s.id);
-
-      // Batch status update
-      await tx.userSubscription.updateMany({
-        where: { id: { in: ids } },
-        data: { status: SubscriptionStatus.EXPIRED },
+    } catch (error) {
+      this.logger.error('Failed to expire subscriptions in batch', {
+        step: 'persist_expire_batch',
+        err: serializeError(error),
       });
-
-      // Batch event creation
-      await tx.subscriptionEvent.createMany({
-        data: expiredSubscriptions.map((s) => ({
-          subscriptionId: s.id,
-          eventType: SubscriptionEventType.EXPIRY,
-          storePlatform: s.storePlatform,
-        })),
-      });
-
-      this.logger.log(
-        `Expired ${expiredSubscriptions.length} subscription(s) past their expiresAt date.`,
-      );
-
-      return expiredSubscriptions.length;
-    });
+      throw error;
+    }
   }
 
   // ──────────────────────────────────────────────
@@ -690,6 +808,10 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (!subscription) {
+      this.logger.warn('Subscription not found by store transaction ID', {
+        storeTransactionId,
+        step: 'fetch',
+      });
       throw new SubscriptionNotFoundException(
         `Subscription with store transaction ID "${storeTransactionId}" not found`,
       );
@@ -718,8 +840,9 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
-      this.logger.log(
-        `Duplicate webhook event "${storeEventId}" — already processed, skipping`,
+      this.logger.debug(
+        'Duplicate webhook event, already processed, skipping',
+        { storeEventId, step: 'check_processed' },
       );
       return true;
     }
@@ -739,7 +862,9 @@ export class SubscriptionsService extends BaseService {
         eventType: params.eventType,
         storePlatform: params.storePlatform,
         storeEventId: params.storeEventId,
-        rawPayload: (params.rawPayload as Prisma.InputJsonValue) ?? undefined,
+        rawPayload: params.rawPayload
+          ? (params.rawPayload as Prisma.InputJsonValue)
+          : undefined,
       },
     });
   }

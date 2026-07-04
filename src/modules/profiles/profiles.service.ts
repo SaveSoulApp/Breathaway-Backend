@@ -1,10 +1,13 @@
+import { Injectable } from '@nestjs/common';
+import { Prisma, UserProfile } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable } from '@nestjs/common';
-import { Prisma, UserProfile } from '@prisma/client';
+
 import {
   ProfileAlreadyExistsException,
   ProfileNotFoundException,
@@ -51,7 +54,8 @@ export class ProfilesService extends BaseService {
     userId: string,
     createProfileDto: CreateProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.log(`Creating profile for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.log('Profile creation started', { ...ctx, step: 'init' });
 
     // Check if profile already exists
     const existingProfile = await this.prisma.userProfile.findUnique({
@@ -59,8 +63,16 @@ export class ProfilesService extends BaseService {
     });
 
     if (existingProfile) {
+      this.logger.warn('Profile creation failed: already exists', {
+        ...ctx,
+        step: 'duplicate_check',
+      });
       throw new ProfileAlreadyExistsException(userId);
     }
+    this.logger.debug('Duplicate check passed', {
+      ...ctx,
+      step: 'duplicate_check',
+    });
 
     try {
       const profile = await this.prisma.userProfile.create({
@@ -73,17 +85,28 @@ export class ProfilesService extends BaseService {
         },
       });
 
+      this.logger.debug('Profile record persisted', {
+        ...ctx,
+        step: 'persist_profile',
+        profileId: profile.id,
+      });
+
       this.emitAuditLog({
         actionType: AuditActionType.PROFILE_CREATED,
         userId: userId,
       });
 
-      this.logger.log(`Profile created successfully for user: ${userId}`);
+      this.logger.log('Profile created successfully', {
+        ...ctx,
+        step: 'complete',
+        profileId: profile.id,
+      });
       return profile;
     } catch (error) {
-      const err = error as { stack?: string };
-      this.logger.error(`Failed to create profile for user ${userId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to create profile', {
+        ...ctx,
+        step: 'persist_profile',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -101,16 +124,23 @@ export class ProfilesService extends BaseService {
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async getProfileByUserId(userId: string): Promise<UserProfile> {
-    this.logger.log(`Fetching profile for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.debug('Fetching profile by user ID', { ...ctx, step: 'fetch' });
 
     const profile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!profile) {
+      this.logger.warn('Profile not found', { ...ctx, step: 'fetch' });
       throw new ProfileNotFoundException(userId);
     }
 
+    this.logger.debug('Profile fetched successfully', {
+      ...ctx,
+      step: 'complete',
+      profileId: profile.id,
+    });
     return profile;
   }
 
@@ -126,16 +156,23 @@ export class ProfilesService extends BaseService {
    * @throws {NotFoundException} When no profile exists with the given ID.
    */
   async getProfileById(id: string): Promise<UserProfile> {
-    this.logger.log(`Fetching profile with ID: ${id}`);
+    const ctx = { profileId: id };
+    this.logger.debug('Fetching profile by ID', { ...ctx, step: 'fetch' });
 
     const profile = await this.prisma.userProfile.findUnique({
       where: { id },
     });
 
     if (!profile) {
+      this.logger.warn('Profile not found by ID', { ...ctx, step: 'fetch' });
       throw new ProfileNotFoundException(id);
     }
 
+    this.logger.debug('Profile fetched successfully', {
+      ...ctx,
+      step: 'complete',
+      userId: profile.userId,
+    });
     return profile;
   }
 
@@ -157,15 +194,24 @@ export class ProfilesService extends BaseService {
     userId: string,
     updateProfileDto: UpdateProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.log(`Updating profile for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.log('Profile update started', { ...ctx, step: 'init' });
 
     const existingProfile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!existingProfile) {
+      this.logger.warn('Profile not found for update', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new ProfileNotFoundException(userId);
     }
+    this.logger.debug('Profile existence verified', {
+      ...ctx,
+      step: 'existence_check',
+    });
 
     try {
       const updatedProfile = await this.prisma.userProfile.update({
@@ -178,17 +224,28 @@ export class ProfilesService extends BaseService {
         },
       });
 
+      this.logger.debug('Profile record updated', {
+        ...ctx,
+        step: 'persist_profile',
+        profileId: updatedProfile.id,
+      });
+
       this.emitAuditLog({
         actionType: AuditActionType.PROFILE_UPDATED,
         userId: userId,
       });
 
-      this.logger.log(`Profile updated successfully for user: ${userId}`);
+      this.logger.log('Profile updated successfully', {
+        ...ctx,
+        step: 'complete',
+        profileId: updatedProfile.id,
+      });
       return updatedProfile;
     } catch (error) {
-      const err = error as { stack?: string };
-      this.logger.error(`Failed to update profile for user ${userId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to update profile', {
+        ...ctx,
+        step: 'persist_profile',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -211,15 +268,24 @@ export class ProfilesService extends BaseService {
     userId: string,
     patchProfileDto: PatchProfileRequestDto,
   ): Promise<UserProfile> {
-    this.logger.log(`Patching profile for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.log('Profile patch started', { ...ctx, step: 'init' });
 
     const existingProfile = await this.prisma.userProfile.findUnique({
       where: { userId },
     });
 
     if (!existingProfile) {
+      this.logger.warn('Profile not found for patch', {
+        ...ctx,
+        step: 'existence_check',
+      });
       throw new ProfileNotFoundException(userId);
     }
+    this.logger.debug('Profile existence verified', {
+      ...ctx,
+      step: 'existence_check',
+    });
 
     // Handle special case for dateOfBirth transformation
     const data: Prisma.UserProfileUpdateInput = { ...patchProfileDto };
@@ -233,17 +299,28 @@ export class ProfilesService extends BaseService {
         data,
       });
 
+      this.logger.debug('Profile record patched', {
+        ...ctx,
+        step: 'persist_profile',
+        profileId: patchedProfile.id,
+      });
+
       this.emitAuditLog({
         actionType: AuditActionType.PROFILE_UPDATED,
         userId: userId,
       });
 
-      this.logger.log(`Profile patched successfully for user: ${userId}`);
+      this.logger.log('Profile patched successfully', {
+        ...ctx,
+        step: 'complete',
+        profileId: patchedProfile.id,
+      });
       return patchedProfile;
     } catch (error) {
-      const err = error as { stack?: string };
-      this.logger.error(`Failed to patch profile for user ${userId}`, {
-        stack: err.stack,
+      this.logger.error('Failed to patch profile', {
+        ...ctx,
+        step: 'persist_profile',
+        err: serializeError(error),
       });
       throw error;
     }
@@ -264,15 +341,21 @@ export class ProfilesService extends BaseService {
    *   (either not found or already soft-deleted).
    */
   async deleteProfile(userId: string): Promise<void> {
-    this.logger.log(`Soft-deleting account for user: ${userId}`);
+    const ctx = { userId };
+    this.logger.log('Account soft-deletion started', { ...ctx, step: 'init' });
 
     const existingUser = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
     if (!existingUser || existingUser.deletedAt) {
+      this.logger.warn('User not found or already deleted', {
+        ...ctx,
+        step: 'user_check',
+      });
       throw new ProfileNotFoundException(userId);
     }
+    this.logger.debug('User status verified', { ...ctx, step: 'user_check' });
 
     try {
       const now = new Date();
@@ -283,11 +366,19 @@ export class ProfilesService extends BaseService {
           where: { id: userId },
           data: { deletedAt: now },
         });
+        this.logger.debug('User record soft-deleted', {
+          ...ctx,
+          step: 'soft_delete_user',
+        });
 
         // Soft delete identities
         await tx.identity.updateMany({
           where: { userId, deletedAt: null },
           data: { deletedAt: now },
+        });
+        this.logger.debug('User identities soft-deleted', {
+          ...ctx,
+          step: 'soft_delete_identities',
         });
 
         // Soft delete auth credentials
@@ -295,11 +386,19 @@ export class ProfilesService extends BaseService {
           where: { userId, deletedAt: null },
           data: { deletedAt: now },
         });
+        this.logger.debug('User auth credentials soft-deleted', {
+          ...ctx,
+          step: 'soft_delete_credentials',
+        });
 
         // Deactivate all devices
         await tx.device.updateMany({
           where: { userId, isActive: true },
           data: { isActive: false },
+        });
+        this.logger.debug('User devices deactivated', {
+          ...ctx,
+          step: 'deactivate_devices',
         });
       });
 
@@ -308,11 +407,15 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log(`Account soft-deleted successfully for user: ${userId}`);
+      this.logger.log('Account soft-deleted successfully', {
+        ...ctx,
+        step: 'complete',
+      });
     } catch (error) {
-      const err = error as { stack?: string };
-      this.logger.error(`Failed to soft-delete account for user ${userId}`, {
-        stack: err.stack,
+      this.logger.error('Account soft-deletion transaction failed', {
+        ...ctx,
+        step: 'persist_transaction',
+        err: serializeError(error),
       });
       throw error;
     }

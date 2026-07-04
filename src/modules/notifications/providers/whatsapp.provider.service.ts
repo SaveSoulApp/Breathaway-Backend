@@ -19,7 +19,11 @@ export class WhatsAppProviderService
     }
 
     this.logger.warn(
-      `WhatsApp provider not yet fully implemented. Would send to ${payloadDto.userIds.length} users.`,
+      'WhatsApp provider not yet fully implemented. Skipping send.',
+      {
+        userCount: payloadDto.userIds.length,
+        step: 'send',
+      },
     );
     // TODO: Implement actual WhatsApp sending logic via Twilio etc.
     return Promise.resolve();

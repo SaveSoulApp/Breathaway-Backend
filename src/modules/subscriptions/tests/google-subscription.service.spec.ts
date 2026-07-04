@@ -166,8 +166,14 @@ describe('GoogleSubscriptionService', () => {
         ),
       ).rejects.toThrow('API Request Failed');
 
-      expect(mockLoggerService.forContext().warn).toHaveBeenCalledWith(
-        'Failed to verify Google purchase for package "com.breathaway.app", subscription "sub-premium-monthly": API Request Failed',
+      expect(mockLoggerService.forContext().error).toHaveBeenCalledWith(
+        'Failed to verify Google purchase',
+        expect.objectContaining({
+          packageName: 'com.breathaway.app',
+          subscriptionId: 'sub-premium-monthly',
+          step: 'verify_purchase',
+          err: expect.objectContaining({ message: 'API Request Failed' }),
+        }),
       );
     });
   });

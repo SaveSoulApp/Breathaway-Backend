@@ -1,14 +1,15 @@
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
 import {
   CurrencyCode,
   StorePlatform,
   SubscriptionEventType,
 } from '@prisma/client';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import {
   AppleNotificationRequestDto,
   GoogleNotificationRequestDto,
@@ -18,17 +19,16 @@ import { GoogleSubscriptionService } from './services/google-subscription.servic
 import { SubscriptionsService } from './services/subscriptions.service';
 
 /**
- * Processes server-to-server notifications from Apple App Store and Google Play.
+ * Handles incoming Server-to-Server billing notifications from Apple App Store
+ * and Google Play.
  *
- * Exposes unauthenticated webhook endpoints. Validation and security checks
- * (e.g., verifying Apple's signed payloads) are handled within the respective
- * services.
+ * Decodes the raw store payloads, resolves product and transaction details,
+ * maps them to our internal subscription event state machine, and processes
+ * the state change.
  */
-@ApiTags('Webhooks - Subscriptions')
-@SkipClientIdentity()
-@SkipThrottle()
+@ApiTags('Subscriptions Webhooks')
 @Controller({
-  path: 'webhooks/subscriptions',
+  path: 'subscriptions/webhooks',
   version: ['1'],
 })
 export class SubscriptionsWebhookController extends BaseController {
@@ -42,18 +42,16 @@ export class SubscriptionsWebhookController extends BaseController {
   }
 
   /**
-   * Receives and processes App Store Server Notifications V2.
+   * Receives and processes Apple App Store Server-to-Server notifications.
    *
-   * Apple sends a JWS payload which is decoded and verified by AppleSubscriptionService.
-   * Based on the notification type, the appropriate lifecycle event (renewal, expiry, etc.)
-   * is triggered in the database.
+   * Accepts signed JWS payloads from StoreKit 2, decodes them, and processes the event.
    *
-   * @param dto - Contains the JWS signedPayload from Apple.
-   * @returns An object acknowledging receipt; HTTP 200 prevents Apple from retrying.
+   * @param dto - Contains the cryptographically signed notification payload.
+   * @returns An object acknowledging receipt.
    */
   @Post('apple')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Apple App Store Server Notification V2 webhook' })
+  @ApiOperation({ summary: 'Apple App Store Server-to-Server webhook' })
   @ApiResponse({ status: HttpStatus.OK })
   async handleAppleNotification(
     @Body() dto: AppleNotificationRequestDto,
@@ -63,14 +61,16 @@ export class SubscriptionsWebhookController extends BaseController {
         dto.signedPayload,
       );
 
+      const { transactionInfo } = notification;
+
       const eventType = this.appleService.mapNotificationType(
         notification.notificationType,
         notification.subtype,
       );
 
-      const { transactionInfo } = notification;
-
-      const currencyCode = this.resolveCurrencyCode(transactionInfo.currency);
+      const currencyCode = transactionInfo.currency
+        ? (transactionInfo.currency as CurrencyCode)
+        : undefined;
 
       await this.routeSubscriptionEvent({
         eventType,
@@ -91,7 +91,8 @@ export class SubscriptionsWebhookController extends BaseController {
       return { status: 'ok' };
     } catch (error) {
       this.logger.error('Failed to process Apple notification', {
-        error: error instanceof Error ? error.message : String(error),
+        step: 'handle_apple_notification',
+        err: serializeError(error),
       });
       // Return 200 to prevent Apple from retrying on business logic errors
       return { status: 'error' };
@@ -125,7 +126,10 @@ export class SubscriptionsWebhookController extends BaseController {
       if (!notification.subscriptionNotification) {
         this.logger.warn(
           'Received Google notification without subscription data',
-          { packageName: notification.packageName },
+          {
+            packageName: notification.packageName,
+            step: 'handle_google_notification',
+          },
         );
         return { status: 'ignored' };
       }
@@ -147,6 +151,7 @@ export class SubscriptionsWebhookController extends BaseController {
       } catch {
         this.logger.warn('Failed to verify Google purchase — skipping event', {
           purchaseToken: subscriptionNotification.purchaseToken,
+          step: 'handle_google_notification',
         });
         return { status: 'verification_failed' };
       }
@@ -176,7 +181,8 @@ export class SubscriptionsWebhookController extends BaseController {
       return { status: 'ok' };
     } catch (error) {
       this.logger.error('Failed to process Google notification', {
-        error: error instanceof Error ? error.message : String(error),
+        step: 'handle_google_notification',
+        err: serializeError(error),
       });
       return { status: 'error' };
     }
@@ -226,14 +232,20 @@ export class SubscriptionsWebhookController extends BaseController {
             await this.subscriptionsService.findSubscriptionByStoreTransaction(
               storeTransactionId,
             );
-          this.logger.log(
+          this.logger.debug(
             `INITIAL_PURCHASE webhook: subscription "${existing.id}" already exists — no action needed`,
+            { subscriptionId: existing.id, step: 'route_event' },
           );
         } catch {
           this.logger.warn(
             'INITIAL_PURCHASE webhook received but no matching subscription found. ' +
               'The client should call POST /subscriptions/verify-purchase first.',
-            { storeTransactionId, storeProductId, storePlatform },
+            {
+              storeTransactionId,
+              storeProductId,
+              storePlatform,
+              step: 'route_event',
+            },
           );
         }
         break;
@@ -299,6 +311,7 @@ export class SubscriptionsWebhookController extends BaseController {
           eventType,
           storePlatform,
           storeTransactionId,
+          step: 'route_event',
         });
     }
   }
@@ -317,6 +330,7 @@ export class SubscriptionsWebhookController extends BaseController {
 
     this.logger.warn('Unsupported currency code from store', {
       currency: upper,
+      step: 'resolve_currency',
     });
     return undefined;
   }

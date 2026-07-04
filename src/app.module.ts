@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
   MiddlewareConsumer,
@@ -56,8 +57,17 @@ import { ReportsModule } from './modules/reports/reports.module';
       middleware: {
         mount: true,
         setup: (cls, req: Request) => {
+          cls.set('requestStart', Date.now());
           cls.set('ipAddress', req.ip);
           cls.set('userAgent', req.headers['user-agent']);
+
+          const requestId = req.headers['x-request-id'] || randomUUID();
+          cls.set('requestId', requestId);
+
+          const traceContext = req.headers['x-cloud-trace-context'];
+          if (traceContext) {
+            cls.set('traceContext', traceContext);
+          }
         },
       },
     }),

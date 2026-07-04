@@ -1,6 +1,7 @@
 import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as pino from 'pino';
+import { ClsService } from 'nestjs-cls';
 
 import { createGcpLoggerConfig } from './gcp-logger.config';
 import { ContextualLogger } from './logger.interface';
@@ -16,7 +17,10 @@ import { ContextualLogger } from './logger.interface';
 export class LoggerService implements NestLoggerService {
   private baseLogger: pino.Logger;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly cls: ClsService,
+  ) {
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
     const logLevel = this.configService.get<string>('LOG_LEVEL') || 'info';
@@ -97,18 +101,29 @@ export class LoggerService implements NestLoggerService {
     message: unknown,
     meta?: Record<string, unknown>,
   ) {
-    const hasMeta = meta && Object.keys(meta).length > 0;
+    let finalMeta = meta;
+    if (this.cls && this.cls.isActive()) {
+      const requestId = this.cls.get<string>('requestId');
+      const traceContext = this.cls.get<string>('traceContext');
+      if (requestId || traceContext) {
+        finalMeta = { ...meta, requestId };
+        if (traceContext) {
+          finalMeta['logging.googleapis.com/trace'] = traceContext;
+        }
+      }
+    }
+    const hasMeta = finalMeta && Object.keys(finalMeta).length > 0;
 
     if (typeof message === 'string') {
       if (hasMeta) {
-        logger[level](meta, message);
+        logger[level](finalMeta, message);
       } else {
         logger[level](message);
       }
     } else if (message instanceof Error) {
       logger[level](
         {
-          ...meta,
+          ...finalMeta,
           error: {
             message: message.message,
             stack: message.stack,
@@ -118,10 +133,10 @@ export class LoggerService implements NestLoggerService {
         message.message,
       );
     } else if (typeof message === 'object' && message !== null) {
-      logger[level]({ ...message, ...meta });
+      logger[level]({ ...message, ...finalMeta });
     } else {
       if (hasMeta) {
-        logger[level](meta, String(message));
+        logger[level](finalMeta, String(message));
       } else {
         logger[level](String(message));
       }

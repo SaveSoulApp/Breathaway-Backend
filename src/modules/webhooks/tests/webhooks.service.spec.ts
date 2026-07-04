@@ -1,13 +1,15 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LoggerService } from '@core/logger';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { WEBHOOK_MESSAGE_HANDLERS } from '../webhooks.constants';
-import { WebhookMessageHandler } from '../handlers/webhook-message.handler.interface';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+import { WebhookMessageHandler } from '../handlers/webhook-message.handler.interface';
 import { WebhooksService } from '../webhooks.service';
-import { ClsService } from 'nestjs-cls';
+import { WEBHOOK_MESSAGE_HANDLERS } from '../webhooks.constants';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -86,8 +88,13 @@ describe('WebhooksService', () => {
         'challenge_string',
       );
       expect(result).toBe('challenge_string');
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Meta webhook verification started',
+        { mode: 'subscribe', step: 'verify' },
+      );
       expect(contextualLogger.log).toHaveBeenCalledWith(
         'Meta webhook verified successfully',
+        { mode: 'subscribe', step: 'verify' },
       );
     });
 
@@ -99,8 +106,13 @@ describe('WebhooksService', () => {
         'challenge_string',
       );
       expect(result).toBe('Verification failed');
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Meta webhook verification started',
+        { mode: 'unsubscribe', step: 'verify' },
+      );
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Meta webhook verification failed',
+        { mode: 'unsubscribe', step: 'verify' },
       );
     });
 
@@ -112,8 +124,13 @@ describe('WebhooksService', () => {
         'challenge_string',
       );
       expect(result).toBe('Verification failed');
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Meta webhook verification started',
+        { mode: 'subscribe', step: 'verify' },
+      );
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Meta webhook verification failed',
+        { mode: 'subscribe', step: 'verify' },
       );
     });
   });
@@ -209,6 +226,61 @@ describe('WebhooksService', () => {
       expect(mockHandler1.handle).toHaveBeenCalledWith(results[0].messages[0]);
       expect(mockHandler2.canHandle).not.toHaveBeenCalled();
       expect(mockHandler2.handle).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Instagram message received',
+        {
+          senderId: 'sender-1',
+          recipientId: 'recipient-1',
+          messageId: 'mid-1',
+          step: 'receive_message',
+          hasText: true,
+          textLength: 5,
+          messageTimestamp: expect.any(String),
+        },
+      );
+    });
+
+    it('should log an error and rethrow if message handler fails', async () => {
+      const results = [
+        {
+          intent: MetaWebhookIntent.MESSAGE,
+          platform: 'instagram',
+          entryId: 'entry-1',
+          messages: [
+            {
+              senderId: 'sender-1',
+              recipientId: 'recipient-1',
+              messageId: 'mid-1',
+              text: 'hello',
+              timestamp: 1234567890,
+            },
+          ],
+        },
+      ];
+
+      mockHandler1.canHandle.mockReturnValue(true);
+      const handlerError = new Error('Handler Failure');
+      mockHandler1.handle.mockRejectedValue(handlerError);
+
+      await expect(service.handleMetaWebhookEvents(results)).rejects.toThrow(
+        handlerError,
+      );
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to handle Instagram message',
+        expect.objectContaining({
+          senderId: 'sender-1',
+          recipientId: 'recipient-1',
+          messageId: 'mid-1',
+          step: 'handle_message',
+          handler: 'Object',
+          err: expect.objectContaining({
+            message: handlerError.message,
+            name: handlerError.name,
+            stack: handlerError.stack,
+          }),
+        }),
+      );
     });
 
     it('should warn for UNKNOWN intent', async () => {
@@ -226,8 +298,10 @@ describe('WebhooksService', () => {
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Unhandled webhook intent',
         {
-          intent: MetaWebhookIntent.UNKNOWN,
           entryId: 'entry-2',
+          platform: 'instagram',
+          intent: MetaWebhookIntent.UNKNOWN,
+          step: 'intent_routing',
         },
       );
     });

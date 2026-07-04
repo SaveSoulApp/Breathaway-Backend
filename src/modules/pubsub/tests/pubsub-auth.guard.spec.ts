@@ -1,33 +1,42 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LoggerService } from '@core/logger';
 import { ExecutionContext } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+
 import {
   MissingPubSubConfigException,
   InvalidPubSubTokenException,
 } from '../application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
 import { PubSubAuthGuard } from '../guards/pubsub-auth.guard';
-import { ClsService } from 'nestjs-cls';
 
 describe('PubSubAuthGuard', () => {
   let guard: PubSubAuthGuard;
   let configService: jest.Mocked<ConfigService>;
-  let logger: {
+  let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
     error: jest.Mock;
     debug: jest.Mock;
     verbose: jest.Mock;
   };
+  let logger: {
+    forContext: jest.Mock;
+  };
 
   beforeEach(async () => {
-    logger = {
+    contextualLogger = {
       log: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
       verbose: jest.fn(),
+    };
+
+    logger = {
+      forContext: jest.fn().mockReturnValue(contextualLogger),
     };
 
     const mockConfigService = {
@@ -75,8 +84,9 @@ describe('PubSubAuthGuard', () => {
       expect(() => guard.canActivate(context)).toThrow(
         'Server configuration error',
       );
-      expect(logger.error).toHaveBeenCalledWith(
-        'PUBSUB_VERIFICATION_TOKEN is not configured in the environment.',
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'PUBSUB_VERIFICATION_TOKEN is not configured',
+        { step: 'auth_check' },
       );
     });
 
@@ -90,8 +100,9 @@ describe('PubSubAuthGuard', () => {
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Unauthorized Pub/Sub ingest attempt. Invalid or missing token.',
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Unauthorized Pub/Sub ingest attempt: invalid or missing token',
+        { step: 'auth_check' },
       );
     });
 
@@ -105,8 +116,9 @@ describe('PubSubAuthGuard', () => {
       expect(() => guard.canActivate(context)).toThrow(
         'Invalid Pub/Sub verification token',
       );
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Unauthorized Pub/Sub ingest attempt. Invalid or missing token.',
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Unauthorized Pub/Sub ingest attempt: invalid or missing token',
+        { step: 'auth_check' },
       );
     });
 

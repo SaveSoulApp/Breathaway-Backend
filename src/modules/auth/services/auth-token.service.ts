@@ -43,6 +43,8 @@ export class AuthTokenService extends BaseService {
 
     const accessToken = this.jwtService.sign(payload);
 
+    this.logger.debug('JWT issued', { userId: user.id, step: 'jwt_issued' });
+
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGIN,
       userId: user.id,

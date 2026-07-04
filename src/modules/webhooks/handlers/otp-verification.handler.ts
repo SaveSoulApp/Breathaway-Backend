@@ -42,7 +42,7 @@ export class OtpVerificationHandler
           timestamp: message.timestamp,
         },
       );
-      this.logger.log(
+      this.logger.debug(
         `Published OTP verification event for sender ${message.senderId}`,
       );
     } catch (error) {

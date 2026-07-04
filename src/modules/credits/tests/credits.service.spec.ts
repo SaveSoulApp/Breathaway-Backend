@@ -49,10 +49,14 @@ describe('CreditsService', () => {
   };
 
   beforeEach(async () => {
+    const mockLogger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    };
     const loggerServiceMock = {
-      forContext: jest.fn().mockReturnValue({
-        log: jest.fn(),
-      }),
+      forContext: jest.fn().mockReturnValue(mockLogger),
     };
 
     const module: TestingModule = await Test.createTestingModule({

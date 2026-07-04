@@ -51,6 +51,8 @@ describe('OneTimePasswordsService', () => {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
         debug: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
       }),
     } as unknown as jest.Mocked<LoggerService>;
 
