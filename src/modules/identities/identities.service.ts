@@ -44,6 +44,45 @@ export class IdentitiesService extends BaseService {
     super(logger);
   }
 
+  private isActivelyOwned(identity: Identity): boolean {
+    return identity.userId !== null && identity.isVerified;
+  }
+
+  /**
+   * Evaluates an existing identity during a create or claim flow to ensure it isn't
+   * actively owned by someone else. Logs a warning if an unverified identity is being reassigned.
+   *
+   * @throws {IdentityAlreadyExistsException} during create if the identity is verified.
+   * @throws {IdentityAlreadyClaimedException} during claim if the identity is verified and owned by someone else.
+   */
+  private checkAndLogReassignment(
+    existing: Identity,
+    userId: string,
+    context: 'create' | 'claim',
+  ) {
+    if (context === 'create' && this.isActivelyOwned(existing)) {
+      throw new IdentityAlreadyExistsException();
+    }
+    if (
+      context === 'claim' &&
+      this.isActivelyOwned(existing) &&
+      existing.userId !== userId
+    ) {
+      throw new IdentityAlreadyClaimedException();
+    }
+
+    if (existing.userId && existing.userId !== userId) {
+      this.logger.warn(
+        `Reassigning unverified identity from another user during ${context}`,
+        {
+          identityId: existing.id,
+          previousUserId: existing.userId,
+          newUserId: userId,
+        },
+      );
+    }
+  }
+
   /**
    * Registers a new identity for a user, or claims an existing unowned record.
    *
@@ -78,53 +117,38 @@ export class IdentitiesService extends BaseService {
       });
     }
 
-    // Check for existing active identity of same type & hash
-    const existing = await this.prisma.identity.findFirst({
-      where: {
-        type: dto.type,
-        OR: orConditions,
-        deletedAt: null,
-      },
-    });
-    if (existing) {
-      if (existing.userId !== null) {
-        this.logger.warn('Identity creation failed: already exists', { identityType: dto.type, existingUserId: existing.userId });
-        throw new IdentityAlreadyExistsException();
+    const identity = await this.prisma.$transaction(async (tx) => {
+      // Check for existing active identity of same type & hash
+      const existing = await tx.identity.findFirst({
+        where: {
+          type: dto.type,
+          OR: orConditions,
+        },
+      });
+      if (existing) {
+        this.checkAndLogReassignment(existing, userId, 'create');
+
+        return await tx.identity.update({
+          where: { id: existing.id },
+          data: {
+            userId,
+            isVerified: false,
+            deletedAt: null,
+            ...publicValueData,
+            ...platformIdData,
+          },
+        });
       }
 
-      const updated = await this.prisma.identity.update({
-        where: { id: existing.id },
+      return await tx.identity.create({
         data: {
+          type: dto.type,
           userId,
           isVerified: false,
           ...publicValueData,
           ...platformIdData,
         },
       });
-
-      this.emitAuditLog({
-        actionType: AuditActionType.IDENTITY_CREATED,
-        userId: userId,
-        resourceId: updated.id,
-        metadata: {
-          identityType: updated.type,
-          maskedValue: updated.publicValueMasked,
-          publicValueHash: updated.publicValueHash,
-        },
-      });
-
-      this.logger.log('Identity created (from ghost)', { identityId: updated.id, userId });
-      return this.toMaskedResponse(updated);
-    }
-
-    const identity = await this.prisma.identity.create({
-      data: {
-        type: dto.type,
-        userId,
-        isVerified: false,
-        ...publicValueData,
-        ...platformIdData,
-      },
     });
 
     this.emitAuditLog({
@@ -312,24 +336,46 @@ export class IdentitiesService extends BaseService {
       updateData = { ...updateData, ...platformIdData };
     }
 
-    if (orConditions.length > 0) {
-      const duplicate = await this.prisma.identity.findFirst({
-        where: {
-          type: identity.type,
-          deletedAt: null,
-          id: { not: id },
-          OR: orConditions,
-        },
-      });
-      if (duplicate) {
-        this.logger.warn('Identity update failed: duplicate found', { identityType: identity.type, duplicateId: duplicate.id });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (orConditions.length > 0) {
+        const duplicate = await tx.identity.findFirst({
+          where: {
+            type: identity.type,
+            id: { not: id },
+            OR: orConditions,
+          },
+        });
+        if (duplicate) {
+          if (this.isActivelyOwned(duplicate)) {
+            this.logger.warn('Identity update failed: duplicate found', { identityType: identity.type, duplicateId: duplicate.id });
         throw new IdentityAlreadyExistsException();
+          }
+          this.logger.warn(
+            `Soft deleting and mangling hash for unverified duplicate identity during update`,
+            {
+              identityId: duplicate.id,
+              previousUserId: duplicate.userId,
+              newUserId: userId,
+            },
+          );
+          await tx.identity.update({
+            where: { id: duplicate.id },
+            data: {
+              deletedAt: DateUtil.now(),
+              userId: null, // Unbind the user
+              publicValueHash: `${duplicate.publicValueHash}-del-${duplicate.id}`,
+              ...(duplicate.platformIdHash && {
+                platformIdHash: `${duplicate.platformIdHash}-del-${duplicate.id}`,
+              }),
+            },
+          });
+        }
       }
-    }
 
-    const updated = await this.prisma.identity.update({
-      where: { id },
-      data: updateData,
+      return await tx.identity.update({
+        where: { id },
+        data: updateData,
+      });
     });
 
     this.logger.log('Identity updated successfully', { identityId: updated.id, userId });
@@ -423,23 +469,33 @@ export class IdentitiesService extends BaseService {
     );
     const platformIdData = await this.encryption.processPlatformId(platformId);
 
-    const existing = await this.prisma.identity.findFirst({
-      where: {
-        type,
-        publicValueHash: publicValueData.publicValueHash,
-        deletedAt: null,
-      },
-    });
+    const identity = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.identity.findFirst({
+        where: {
+          type,
+          publicValueHash: publicValueData.publicValueHash,
+        },
+      });
 
-    if (existing) {
-      if (existing.userId && existing.userId !== userId) {
-        this.logger.warn('Identity claim failed: already claimed by another user', { identityType: type, existingUserId: existing.userId, requestedUserId: userId });
-        throw new IdentityAlreadyClaimedException();
+      if (existing) {
+        this.checkAndLogReassignment(existing, userId, 'claim');
+
+        return await tx.identity.update({
+          where: { id: existing.id },
+          data: {
+            userId,
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+            deletedAt: null,
+            ...publicValueData,
+            ...platformIdData,
+          },
+        });
       }
 
-      const updated = await this.prisma.identity.update({
-        where: { id: existing.id },
+      return await tx.identity.create({
         data: {
+          type,
           userId,
           isVerified: true,
           verifiedAt: DateUtil.now(),
@@ -447,33 +503,6 @@ export class IdentitiesService extends BaseService {
           ...platformIdData,
         },
       });
-
-      this.publishIdentityClaimedEvent(userId);
-
-      this.emitAuditLog({
-        actionType: AuditActionType.IDENTITY_VERIFIED,
-        userId: userId,
-        resourceId: updated.id,
-        metadata: {
-          identityType: updated.type,
-          maskedValue: updated.publicValueMasked,
-          publicValueHash: updated.publicValueHash,
-        },
-      });
-
-      this.logger.log('Identity claimed successfully', { identityId: updated.id, userId });
-      return this.toMaskedResponse(updated);
-    }
-
-    const identity = await this.prisma.identity.create({
-      data: {
-        type,
-        userId,
-        isVerified: true,
-        verifiedAt: DateUtil.now(),
-        ...publicValueData,
-        ...platformIdData,
-      },
     });
 
     this.publishIdentityClaimedEvent(userId);
