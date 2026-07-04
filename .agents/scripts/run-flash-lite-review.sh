@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Force execution from project root
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Ensure cleanup on exit or failure
+trap 'rm -f diff.txt prompt_header.txt prompt.txt body.json response.json' EXIT
 # Configuration defaults
 MODEL_NAME=${AI_REVIEW_MODEL:-"gemini-3.1-flash-lite"}
 API_ENDPOINT=${AI_REVIEW_ENDPOINT:-"https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent"}
@@ -42,7 +47,6 @@ fi
 
 if [ ! -s diff.txt ]; then
   echo "Error: No uncommitted changes found. Please make some changes before running the review."
-  rm diff.txt
   exit 1
 fi
 
@@ -104,6 +108,12 @@ Provide a bulleted list explaining the key changes file-by-file.
 Git Diff:
 HEADER
 
+# Append Prisma schema if it exists to give AI better context
+if [ -f "prisma/schema.prisma" ]; then
+  echo -e "\n\nPrisma Schema:\n" >> prompt_header.txt
+  cat prisma/schema.prisma >> prompt_header.txt
+fi
+
 cat prompt_header.txt diff.txt > prompt.txt
 
 echo "Calling Gemini 3.1 Flash Lite API..."
@@ -118,12 +128,8 @@ HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X POST \
 if [ "$HTTP_STATUS" != "200" ]; then
   echo "Gemini API error response (HTTP ${HTTP_STATUS}):"
   cat response.json
-  rm -f diff.txt prompt_header.txt prompt.txt body.json response.json
   exit 1
 fi
 
-jq -r '.candidates[0].content.parts[0].text' response.json > review.md
-echo "Review generated successfully in review.md"
-
-# Cleanup temp files
-rm -f diff.txt prompt_header.txt prompt.txt body.json response.json
+jq -r '.candidates[0].content.parts[0].text' response.json > .agents/review.md
+echo "Review generated successfully in .agents/review.md"

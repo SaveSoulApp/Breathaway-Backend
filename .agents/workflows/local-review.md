@@ -13,7 +13,7 @@
     .agents/scripts/run-flash-lite-review.sh
     ```
     *Note: If you get a permission denied error, run `chmod +x .agents/scripts/run-flash-lite-review.sh` first. This script requires `GEMINI_API_KEY` to be present in the `.env` file (or exported in the environment).*
-3.  **Read the feedback**: The script will output the review results to a file named `review.md` in the current directory. Read the contents of this file.
-4.  **Iterate and Fix**: Address the feedback and suggestions mentioned in `review.md` by applying the necessary edits to the codebase. Ensure you follow all NestJS and project guidelines while fixing.
-5.  **Cleanup**: Delete the `review.md` file once you are done processing it.
+3.  **Read the feedback**: The script will output the review results to a file named `.agents/review.md`. Read the contents of this file.
+4.  **Iterate and Fix**: Address the feedback and suggestions mentioned in `.agents/review.md` by applying the necessary edits to the codebase. Ensure you follow all NestJS and project guidelines while fixing.
+5.  **Cleanup**: Delete the `.agents/review.md` file once you are done processing it.
 6.  **Summarize**: Present the changes you made based on the Flash Lite review to the user. Ask if they are ready to proceed with a commit.
