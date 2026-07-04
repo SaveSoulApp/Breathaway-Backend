@@ -1,11 +1,14 @@
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { AuthCredentialType } from '@prisma/client';
 import * as fs from 'fs';
 import * as Handlebars from 'handlebars';
 import * as path from 'path';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+
 import { EmailType } from '../enums/email-type.enum';
 import {
   EMAIL_ADAPTER_TOKEN,
@@ -56,7 +59,9 @@ export class EmailService extends BaseService implements OnModuleInit {
   onModuleInit(): void {
     this.registerPartials();
     this.compileLayout();
-    this.logger.log('EmailService: templates and partials loaded successfully');
+    this.logger.log('EmailService template system initialized', {
+      step: 'init',
+    });
   }
 
   /**
@@ -66,16 +71,27 @@ export class EmailService extends BaseService implements OnModuleInit {
   async send(options: SendEmailOptions): Promise<void> {
     const { emailType, userIds, templateData } = options;
 
+    const ctx = {
+      emailType,
+      userIdsCount: userIds?.length ?? 0,
+    };
+
+    this.logger.log('Email sending started', { ...ctx, step: 'init' });
+
     if (!userIds || userIds.length === 0) {
-      this.logger.warn(`[EmailService] No userIds provided for ${emailType}`);
+      this.logger.warn('No userIds provided for email', {
+        ...ctx,
+        step: 'send_check',
+      });
       return;
     }
 
     const templateConfig = EMAIL_TEMPLATE_MAP[emailType];
     if (!templateConfig) {
-      this.logger.error(
-        `[EmailService] No template registered for EmailType: ${emailType}`,
-      );
+      this.logger.error('No template registered for email type', {
+        ...ctx,
+        step: 'template_lookup',
+      });
       return;
     }
 
@@ -96,15 +112,18 @@ export class EmailService extends BaseService implements OnModuleInit {
       .filter((email): email is string => Boolean(email));
 
     if (resolvedEmails.length === 0) {
-      this.logger.warn(
-        `[EmailService] No valid email addresses found for ${userIds.length} userIds`,
-      );
+      this.logger.warn('No valid email addresses found for userIds', {
+        ...ctx,
+        step: 'resolve_credentials',
+      });
       return;
     }
 
-    this.logger.debug(
-      `[EmailService] Dispatching ${emailType} to ${resolvedEmails.length} recipient(s)`,
-    );
+    this.logger.debug('Dispatching emails to recipients', {
+      ...ctx,
+      step: 'send_emails',
+      recipientCount: resolvedEmails.length,
+    });
 
     const contentTemplate = this.getOrCompileTemplate(emailType);
 
@@ -121,11 +140,18 @@ export class EmailService extends BaseService implements OnModuleInit {
 
     results.forEach((result: PromiseSettledResult<void>, index: number) => {
       if (result.status === 'rejected') {
-        this.logger.error(
-          `[EmailService] Failed to send ${emailType} to recipient #${index + 1}:`,
-          { error: result.reason },
-        );
+        this.logger.error('Failed to send email to recipient', {
+          ...ctx,
+          step: 'send_emails',
+          recipientIndex: index,
+          err: serializeError(result.reason),
+        });
       }
+    });
+
+    this.logger.log('Email sending completed', {
+      ...ctx,
+      step: 'complete',
     });
   }
 
@@ -171,9 +197,10 @@ export class EmailService extends BaseService implements OnModuleInit {
   private registerPartials(): void {
     const partialsDir = path.join(this.templatesDir, 'partials');
     if (!fs.existsSync(partialsDir)) {
-      this.logger.warn(
-        `[EmailService] Partials directory not found at ${partialsDir}`,
-      );
+      this.logger.warn('Partials directory not found', {
+        partialsDir,
+        step: 'register_partials',
+      });
       return;
     }
 
@@ -187,8 +214,9 @@ export class EmailService extends BaseService implements OnModuleInit {
       Handlebars.registerPartial(name, source);
     });
 
-    this.logger.debug(
-      `[EmailService] Registered ${partialFiles.length} Handlebars partial(s): ${partialFiles.join(', ')}`,
-    );
+    this.logger.debug('Registered Handlebars partials', {
+      partialCount: partialFiles.length,
+      step: 'register_partials',
+    });
   }
 }
