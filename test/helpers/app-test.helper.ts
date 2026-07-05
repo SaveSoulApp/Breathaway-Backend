@@ -8,18 +8,21 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import { LoggerModule, LoggerService } from '@core/logger';
-import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
-import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { ClsModule, ClsService } from 'nestjs-cls';
+
+import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
+import { LoggerModule, LoggerService } from '@core/logger';
+import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuthModule } from '@modules/auth/auth.module';
+import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { FirebaseService } from '@modules/firebase/firebase.service';
-import { AuthModule } from '@modules/auth/auth.module';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
+import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
 export interface AppTestContext {
   app: INestApplication;
@@ -37,6 +40,11 @@ export interface AppTestContext {
 export async function createAuthTestApp(
   extraModules: any[] = [],
 ): Promise<AppTestContext> {
+  // Prevent actual GCP PubSub calls
+  jest
+    .spyOn(PubSubPublisherService.prototype, 'publish')
+    .mockResolvedValue('mock-message-id');
+
   const mockFirebaseValidation = jest.fn<
     Promise<FirebaseValidationResult>,
     [string, string]
@@ -61,6 +69,7 @@ export async function createAuthTestApp(
       PrismaModule,
       FirebaseModule,
       AuthModule,
+      PubSubModule,
       ClsModule.forRoot({ global: true }),
       EventEmitterModule.forRoot(),
       ...extraModules,

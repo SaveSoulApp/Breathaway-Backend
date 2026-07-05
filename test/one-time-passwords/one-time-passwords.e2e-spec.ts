@@ -133,7 +133,7 @@ describe('OneTimePasswordsController (e2e)', () => {
         .send();
 
       expect(res.status).toBe(429); // TOO_MANY_REQUESTS
-      expect(res.body.detail).toBe('Please wait before requesting a new OTP');
+      expect(res.body.detail).toBe('Please wait before requesting another OTP.');
     });
   });
 });
