@@ -6,7 +6,10 @@ import { AdminModule } from '@modules/admin/admin.module';
 import { CreditsModule } from '@modules/credits/credits.module';
 import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 import { CreditSource } from '@prisma/client';
-import { buildBasicAuthHeader, createAuthTestApp } from '../helpers/app-test.helper';
+import {
+  buildBasicAuthHeader,
+  createAuthTestApp,
+} from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
@@ -25,7 +28,11 @@ describe('CreditsModule (e2e)', () => {
     process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
     process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
 
-    const context = await createAuthTestApp([CreditsModule, MaintenanceModule, AdminModule]);
+    const context = await createAuthTestApp([
+      CreditsModule,
+      MaintenanceModule,
+      AdminModule,
+    ]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);

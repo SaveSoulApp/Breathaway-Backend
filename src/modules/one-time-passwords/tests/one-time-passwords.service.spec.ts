@@ -1,15 +1,16 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { HttpStatus } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
+import { hashString } from '@core/crypto/crypto.utils';
+import { LoggerService } from '@core/logger';
+
 import {
   OtpRateLimitExceededException,
   InvalidOtpException,
 } from '../application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
-import { LoggerService } from '@core/logger';
-import { hashString } from '@core/crypto/crypto.utils';
 import { OneTimePasswordsService } from '../one-time-passwords.service';
-import { ClsService } from 'nestjs-cls';
 
 jest.mock('@core/crypto/crypto.utils', () => ({
   hashString: jest.fn(),
@@ -22,7 +23,12 @@ jest.mock('random-word-slugs', () => ({
 
 describe('OneTimePasswordsService', () => {
   let service: OneTimePasswordsService;
-  let redisClientMock: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let redisClientMock: {
+    get: jest.Mock;
+    set: jest.Mock;
+    del: jest.Mock;
+    quit: jest.Mock;
+  };
   let configServiceMock: jest.Mocked<ConfigService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
@@ -37,6 +43,7 @@ describe('OneTimePasswordsService', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+      quit: jest.fn(),
     };
 
     configServiceMock = {
@@ -149,6 +156,16 @@ describe('OneTimePasswordsService', () => {
       expect(hashString).toHaveBeenCalledWith(plainOtp);
       expect(redisClientMock.get).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
       expect(redisClientMock.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onModuleDestroy', () => {
+    it('should gracefully quit the redis client', async () => {
+      // Act
+      await service.onModuleDestroy();
+
+      // Assert
+      expect(redisClientMock.quit).toHaveBeenCalled();
     });
   });
 });

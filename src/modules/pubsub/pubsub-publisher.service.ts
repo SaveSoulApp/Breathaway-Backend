@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PubSub } from '@google-cloud/pubsub';
 
@@ -15,7 +15,10 @@ import { LoggerService } from '@core/logger';
  * environments and on service-account key files locally.
  */
 @Injectable()
-export class PubSubPublisherService extends BaseService {
+export class PubSubPublisherService
+  extends BaseService
+  implements OnModuleDestroy
+{
   private pubsub: PubSub;
 
   constructor(
@@ -26,6 +29,22 @@ export class PubSubPublisherService extends BaseService {
     const projectId = this.configService.get<string>('GCP_PROJECT_ID');
     // Using default credentials or specific config if needed
     this.pubsub = new PubSub(projectId ? { projectId } : undefined);
+  }
+
+  async onModuleDestroy() {
+    this.logger.log('Closing PubSub client gRPC connection pool', {
+      step: 'destroy',
+    });
+    if (this.pubsub && typeof this.pubsub.close === 'function') {
+      try {
+        await this.pubsub.close();
+      } catch (error) {
+        this.logger.error('Failed to close PubSub client connection', {
+          step: 'destroy',
+          err: serializeError(error),
+        });
+      }
+    }
   }
 
   /**

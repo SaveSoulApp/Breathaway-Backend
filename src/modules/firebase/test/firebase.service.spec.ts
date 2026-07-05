@@ -1,11 +1,13 @@
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Test, TestingModule } from '@nestjs/testing';
+import * as admin from 'firebase-admin';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FirebaseService } from '../firebase.service';
-import { LoggerService } from '@core/logger';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
-import * as admin from 'firebase-admin';
+
+import { LoggerService } from '@core/logger';
+
+import { FirebaseService } from '../firebase.service';
 
 // Mock firebase-admin
 const mockApps: unknown[] = [];
@@ -365,6 +367,28 @@ describe('FirebaseService', () => {
       await expect(
         service.validateFirebaseToken('test-uid', 'token'),
       ).rejects.toThrow(customError);
+    });
+  });
+
+  describe('onModuleDestroy', () => {
+    it('should delete all initialized apps', async () => {
+      const mockDelete = jest.fn().mockResolvedValue(undefined);
+      mockApps.push({ name: 'app-1', delete: mockDelete });
+      mockApps.push({ name: 'app-2', delete: mockDelete });
+
+      await service.onModuleDestroy();
+
+      expect(mockDelete).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle app deletion errors without throwing', async () => {
+      const failingDelete = jest
+        .fn()
+        .mockRejectedValue(new Error('Failed to delete'));
+      mockApps.push({ name: 'failing-app', delete: failingDelete });
+
+      await expect(service.onModuleDestroy()).resolves.not.toThrow();
+      expect(failingDelete).toHaveBeenCalled();
     });
   });
 });

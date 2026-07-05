@@ -1,7 +1,9 @@
-import { KeyManagementServiceClient } from '@google-cloud/kms';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
+
+import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
 import { IKeyManager } from './key-manager.interface';
 
 /**
@@ -19,7 +21,7 @@ import { IKeyManager } from './key-manager.interface';
  *   HMAC_KEY_BASE64=Jk2xB3VbWlM9LhXvO0xY...==
  */
 @Injectable()
-export class CloudKmsKeyManager implements IKeyManager {
+export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   private readonly client = new KeyManagementServiceClient();
   private readonly kmsKeys: Map<string, string> = new Map(); // keyId → KMS key name
   private readonly activeKeyId: string;
@@ -66,6 +68,12 @@ export class CloudKmsKeyManager implements IKeyManager {
       throw new Error(
         'Invalid HMAC_KEY_BASE64 length (must be 32 bytes base64)',
       );
+    }
+  }
+
+  async onModuleDestroy() {
+    if (this.client && typeof this.client.close === 'function') {
+      await this.client.close();
     }
   }
 

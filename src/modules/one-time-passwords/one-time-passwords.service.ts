@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
@@ -23,7 +23,10 @@ import {
  * rate-limit key prevents burst generation within the `OTP_RATE_LIMIT_TTL` window.
  */
 @Injectable()
-export class OneTimePasswordsService extends BaseService {
+export class OneTimePasswordsService
+  extends BaseService
+  implements OnModuleDestroy
+{
   private readonly otpTtl: number;
   private readonly otpRateLimitTtl: number;
   private readonly generateId: () => string;
@@ -43,6 +46,13 @@ export class OneTimePasswordsService extends BaseService {
       10,
     );
     this.generateId = () => generateSlug(3, { format: 'kebab' });
+  }
+
+  async onModuleDestroy() {
+    this.logger.log('Disconnecting Redis client', { step: 'destroy' });
+    if (this.redisClient && typeof this.redisClient.quit === 'function') {
+      await this.redisClient.quit();
+    }
   }
 
   /**

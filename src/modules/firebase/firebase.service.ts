@@ -1,5 +1,6 @@
 import {
   Injectable,
+  OnModuleDestroy,
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -34,7 +35,10 @@ export interface FirebaseValidationResult {
  * depend on this service to authenticate inbound Firebase ID tokens.
  */
 @Injectable()
-export class FirebaseService extends BaseService implements OnModuleInit {
+export class FirebaseService
+  extends BaseService
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
@@ -66,6 +70,25 @@ export class FirebaseService extends BaseService implements OnModuleInit {
         err: serializeError(error),
       });
     }
+  }
+
+  async onModuleDestroy() {
+    this.logger.log('Cleaning up Firebase Admin SDK apps', { step: 'destroy' });
+    await Promise.all(
+      admin.apps.map(async (app) => {
+        if (app) {
+          try {
+            await app.delete();
+          } catch (error) {
+            this.logger.error('Failed to delete Firebase app', {
+              appName: app.name,
+              step: 'destroy',
+              err: serializeError(error),
+            });
+          }
+        }
+      }),
+    );
   }
 
   private initializeFirebase() {
