@@ -14,6 +14,7 @@ import {
   AccountNotFoundException,
   AuthTypeMismatchException,
   DeletedAccountReverificationException,
+  RegistrationPendingException,
   SocialAccountAlreadyLinkedException,
   UnsupportedAuthMethodException,
   UnverifiedAccountException,
@@ -124,7 +125,7 @@ export class AuthService extends BaseService {
         ...ctx,
         step: 'duplicate_check',
       });
-      throw new UnverifiedAccountException();
+      throw new RegistrationPendingException();
     }
     this.logger.debug('Duplicate check passed', {
       ...ctx,

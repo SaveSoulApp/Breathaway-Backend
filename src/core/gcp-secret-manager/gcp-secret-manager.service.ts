@@ -1,7 +1,9 @@
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { Injectable } from '@nestjs/common';
 
 /**
  * Integrates with Google Cloud Secret Manager to store and manage sensitive infrastructure credentials.
@@ -10,11 +12,18 @@ import { Injectable } from '@nestjs/common';
  * Application Default Credentials (ADC) configured with appropriate IAM roles (e.g., Secret Manager Admin).
  */
 @Injectable()
-export class GcpSecretManagerService extends BaseService {
+export class GcpSecretManagerService
+  extends BaseService
+  implements OnModuleDestroy
+{
   private readonly client = new SecretManagerServiceClient();
 
   constructor(logger: LoggerService) {
     super(logger);
+  }
+
+  async onModuleDestroy() {
+    await safeCloseClient(this.client, this.logger, 'Secret Manager');
   }
 
   /**

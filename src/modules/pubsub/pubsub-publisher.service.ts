@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PubSub } from '@google-cloud/pubsub';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -15,7 +16,10 @@ import { LoggerService } from '@core/logger';
  * environments and on service-account key files locally.
  */
 @Injectable()
-export class PubSubPublisherService extends BaseService {
+export class PubSubPublisherService
+  extends BaseService
+  implements OnModuleDestroy
+{
   private pubsub: PubSub;
 
   constructor(
@@ -26,6 +30,10 @@ export class PubSubPublisherService extends BaseService {
     const projectId = this.configService.get<string>('GCP_PROJECT_ID');
     // Using default credentials or specific config if needed
     this.pubsub = new PubSub(projectId ? { projectId } : undefined);
+  }
+
+  async onModuleDestroy() {
+    await safeCloseClient(this.pubsub, this.logger, 'PubSub');
   }
 
   /**

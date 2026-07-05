@@ -2,12 +2,16 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AdminModule } from '@modules/admin/admin.module';
 import { CreditsModule } from '@modules/credits/credits.module';
 import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
-import { createAuthTestApp } from '../helpers/app-test.helper';
+import { CreditSource } from '@prisma/client';
+import {
+  buildBasicAuthHeader,
+  createAuthTestApp,
+} from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
-import { CreditSource } from '@prisma/client';
 
 describe('CreditsModule (e2e)', () => {
   let app: INestApplication;
@@ -18,9 +22,17 @@ describe('CreditsModule (e2e)', () => {
   const allCreatedUserIds: string[] = [];
   let seededUserId: string;
   let validJwt: string;
+  let adminBasicAuthHeader: string;
 
   beforeAll(async () => {
-    const context = await createAuthTestApp([CreditsModule, MaintenanceModule]);
+    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
+
+    const context = await createAuthTestApp([
+      CreditsModule,
+      MaintenanceModule,
+      AdminModule,
+    ]);
     app = context.app;
     prisma = context.prisma;
     jwtService = app.get(JwtService);
@@ -35,6 +47,11 @@ describe('CreditsModule (e2e)', () => {
       iss: configService.get<string>('JWT_ISSUER'),
       aud: configService.get<string>('JWT_AUDIENCE'),
     });
+
+    adminBasicAuthHeader = buildBasicAuthHeader(
+      process.env.ADMIN_USERNAME,
+      process.env.ADMIN_PASSWORD,
+    );
   });
 
   afterAll(async () => {
@@ -54,10 +71,10 @@ describe('CreditsModule (e2e)', () => {
       expect(res.body).toEqual({ balance: 0 });
     });
 
-    it('POST /api/v1/credits/internal/grant - grants credits', async () => {
+    it('POST /api/v1/admin/credits/grant - grants credits', async () => {
       const res = await authedRequest(app)
-        .post('/api/v1/credits/internal/grant')
-        .set('authorization', `Bearer ${validJwt}`)
+        .post('/api/v1/admin/credits/grant')
+        .set('authorization', adminBasicAuthHeader)
         .send({
           userId: seededUserId,
           amount: 100,
@@ -130,7 +147,7 @@ describe('CreditsModule (e2e)', () => {
           referenceId: 'test-usage-456',
         });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(402);
       expect(res.body.detail).toContain('Insufficient');
     });
   });

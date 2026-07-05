@@ -1,6 +1,7 @@
 import {
+  Inject,
   Injectable,
-  OnModuleInit,
+  OnModuleDestroy,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -29,69 +30,42 @@ export interface FirebaseValidationResult {
  * Wraps the Firebase Admin SDK to provide token verification, user lookup,
  * and FCM messaging access to the rest of the application.
  *
- * The Admin SDK is initialised once on module startup using service-account
- * credentials sourced from environment config. Guards and auth pipelines
- * depend on this service to authenticate inbound Firebase ID tokens.
+ * The Admin SDK app instance is injected via dependency injection to facilitate
+ * cleaner testing and decouple from the global package singleton state.
  */
 @Injectable()
-export class FirebaseService extends BaseService implements OnModuleInit {
+export class FirebaseService extends BaseService implements OnModuleDestroy {
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
+    @Inject('FIREBASE_ADMIN_APP')
+    private readonly firebaseApp: admin.app.App,
   ) {
     super(loggerService);
   }
 
-  /**
-   * Initialises the Firebase Admin SDK on application startup if no app instance
-   * exists yet, guarding against double-initialisation in watch/reload scenarios.
-   *
-   * Errors during initialisation are logged but not rethrown, allowing the
-   * application to start so other modules remain operational. Any subsequent
-   * call to an Admin SDK method will fail fast if initialisation was skipped.
-   */
-  onModuleInit() {
-    this.logger.log('Initializing Firebase Admin SDK', { step: 'init' });
-
+  async onModuleDestroy() {
+    this.logger.log('Cleaning up Firebase Admin SDK app', { step: 'destroy' });
     try {
-      if (!admin.apps.length) {
-        this.initializeFirebase();
-      }
-      this.logger.log('Firebase Admin SDK initialized successfully', {
-        step: 'complete',
-      });
+      await this.firebaseApp.delete();
     } catch (error) {
-      this.logger.error('Failed to initialize Firebase Admin SDK', {
-        step: 'init',
+      this.logger.error('Failed to delete Firebase app', {
+        appName: this.firebaseApp.name,
+        step: 'destroy',
         err: serializeError(error),
       });
     }
   }
 
-  private initializeFirebase() {
-    const privateKey = this.configService
-      .get<string>('FIREBASE_PRIVATE_KEY')
-      ?.replace(/\\n/g, '\n');
-
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: this.configService.get('FIREBASE_PROJECT_ID'),
-        clientEmail: this.configService.get('FIREBASE_CLIENT_EMAIL'),
-        privateKey: privateKey,
-      }),
-    });
-  }
-
   /**
    * Returns the Firebase Cloud Messaging instance for dispatching push notifications.
    *
-   * Delegates directly to the Admin SDK singleton; callers should not cache the
-   * returned instance, as it is already a singleton managed by the SDK.
+   * Delegates directly to the Admin SDK app instance.
    *
    * @returns The FCM Messaging instance used to send messages to device tokens or topics.
    */
   getMessaging() {
-    return admin.messaging();
+    return this.firebaseApp.messaging();
   }
 
   /**
@@ -106,7 +80,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
    */
   async verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
     try {
-      return await admin.auth().verifyIdToken(idToken);
+      return await this.firebaseApp.auth().verifyIdToken(idToken);
     } catch (error) {
       this.logger.error('Firebase ID token verification failed', {
         step: 'verify_token',
@@ -128,7 +102,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
    */
   async getUser(uid: string): Promise<admin.auth.UserRecord> {
     try {
-      return await admin.auth().getUser(uid);
+      return await this.firebaseApp.auth().getUser(uid);
     } catch (error) {
       this.logger.error('Failed to fetch Firebase user', {
         uid,
@@ -170,7 +144,7 @@ export class FirebaseService extends BaseService implements OnModuleInit {
       });
 
       // Verify the Firebase ID token
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const decodedToken = await this.firebaseApp.auth().verifyIdToken(idToken);
 
       // Verify that the UID matches the token
       if (decodedToken.uid !== uid) {

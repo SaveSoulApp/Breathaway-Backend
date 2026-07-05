@@ -62,7 +62,10 @@ export class IdentitiesService extends BaseService {
     userId: string,
     context: 'create' | 'claim',
   ) {
-    if (context === 'create' && this.isActivelyOwned(existing)) {
+    if (
+      context === 'create' &&
+      (existing.userId === userId || this.isActivelyOwned(existing))
+    ) {
       throw new IdentityAlreadyExistsException();
     }
     if (

@@ -1,38 +1,19 @@
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FirebaseService } from '../firebase.service';
-import { LoggerService } from '@core/logger';
-import { ClsService } from 'nestjs-cls';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as admin from 'firebase-admin';
+import { ClsService } from 'nestjs-cls';
 
-// Mock firebase-admin
-const mockApps: unknown[] = [];
-jest.mock('firebase-admin', () => ({
-  get apps() {
-    return mockApps;
-  },
-  initializeApp: jest.fn(),
-  credential: {
-    cert: jest.fn(),
-  },
-  auth: jest.fn(),
-  messaging: jest.fn(),
-}));
+import { LoggerService } from '@core/logger';
+
+import { FirebaseService } from '../firebase.service';
 
 describe('FirebaseService', () => {
   let service: FirebaseService;
 
   const mockConfigService = {
-    get: jest.fn((key: string) => {
-      const config: Record<string, string> = {
-        FIREBASE_PROJECT_ID: 'test-project',
-        FIREBASE_CLIENT_EMAIL: 'test@test.com',
-        FIREBASE_PRIVATE_KEY: 'test-private-key\\nwith-newlines',
-      };
-      return config[key];
-    }),
+    get: jest.fn(),
   };
 
   const mockLoggerService = {
@@ -48,20 +29,20 @@ describe('FirebaseService', () => {
     getUser: jest.fn(),
   };
 
-  const mockMessaging = jest.fn();
+  const mockMessaging = {
+    send: jest.fn(),
+    sendEachForMulticast: jest.fn(),
+  };
+
+  const mockFirebaseApp = {
+    name: 'test-firebase-app',
+    auth: jest.fn().mockReturnValue(mockAuth),
+    messaging: jest.fn().mockReturnValue(mockMessaging),
+    delete: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
-    // Mock console.error to suppress expected error logs in tests
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-
-    // Reset mockApps
-    mockApps.length = 0;
-
-    // Setup mocks
-    (admin.auth as jest.Mock).mockReturnValue(mockAuth);
-    (admin.messaging as jest.Mock).mockReturnValue(mockMessaging);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,98 +57,37 @@ describe('FirebaseService', () => {
           provide: LoggerService,
           useValue: mockLoggerService,
         },
+        {
+          provide: 'FIREBASE_ADMIN_APP',
+          useValue: mockFirebaseApp,
+        },
       ],
     }).compile();
 
     service = module.get<FirebaseService>(FirebaseService);
   });
 
-  afterEach(() => {
-    // Restore console.error
-    jest.restoreAllMocks();
-  });
-
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('onModuleInit', () => {
-    it('should initialize Firebase when no apps exist', () => {
-      mockApps.length = 0;
-
-      service.onModuleInit();
-
-      expect(admin.initializeApp).toHaveBeenCalled();
-      expect(mockLoggerService.log).toHaveBeenCalledWith(
-        'Firebase Admin SDK initialized successfully',
-        { step: 'complete' },
-      );
+  describe('onModuleDestroy', () => {
+    it('should delete the firebase app instance', async () => {
+      await service.onModuleDestroy();
+      expect(mockFirebaseApp.delete).toHaveBeenCalled();
     });
 
-    it('should not reinitialize Firebase when app already exists', () => {
-      mockApps.push({ name: 'test-app' });
-
-      service.onModuleInit();
-
-      expect(admin.initializeApp).not.toHaveBeenCalled();
-      expect(mockLoggerService.log).toHaveBeenCalledWith(
-        'Firebase Admin SDK initialized successfully',
-        { step: 'complete' },
-      );
-    });
-
-    it('should log error when initialization fails', () => {
-      mockApps.length = 0;
-      const error = new Error('Initialization failed');
-      (admin.initializeApp as jest.Mock).mockImplementationOnce(() => {
-        throw error;
-      });
-
-      service.onModuleInit();
-
-      expect(mockLoggerService.error).toHaveBeenCalledWith(
-        'Failed to initialize Firebase Admin SDK',
-        expect.objectContaining({
-          step: 'init',
-          err: expect.objectContaining({ message: error.message }),
-        }),
-      );
-    });
-  });
-
-  describe('initializeFirebase', () => {
-    it('should initialize Firebase with correct credentials', () => {
-      mockApps.length = 0;
-
-      service['initializeFirebase']();
-
-      expect(admin.credential.cert).toHaveBeenCalledWith({
-        projectId: 'test-project',
-        clientEmail: 'test@test.com',
-        privateKey: 'test-private-key\nwith-newlines',
-      });
-      expect(admin.initializeApp).toHaveBeenCalled();
-    });
-
-    it('should replace escaped newlines in private key', () => {
-      mockApps.length = 0;
-
-      service['initializeFirebase']();
-
-      expect(admin.credential.cert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          privateKey: expect.stringContaining('\n'),
-        }),
-      );
+    it('should handle app deletion errors without throwing', async () => {
+      mockFirebaseApp.delete.mockRejectedValueOnce(new Error('Delete failed'));
+      await expect(service.onModuleDestroy()).resolves.not.toThrow();
     });
   });
 
   describe('getMessaging', () => {
     it('should return messaging instance', () => {
       const result = service.getMessaging();
-
       expect(result).toBe(mockMessaging);
-      expect(admin.messaging).toHaveBeenCalled();
+      expect(mockFirebaseApp.messaging).toHaveBeenCalled();
     });
   });
 
@@ -176,7 +96,7 @@ describe('FirebaseService', () => {
       const mockDecodedToken = {
         uid: 'test-uid',
         email: 'test@example.com',
-      };
+      } as unknown as admin.auth.DecodedIdToken;
       mockAuth.verifyIdToken.mockResolvedValue(mockDecodedToken);
 
       const result = await service.verifyIdToken('valid-token');
@@ -200,7 +120,7 @@ describe('FirebaseService', () => {
         uid: 'test-uid',
         email: 'test@example.com',
         displayName: 'Test User',
-      };
+      } as unknown as admin.auth.UserRecord;
       mockAuth.getUser.mockResolvedValue(mockUser);
 
       const result = await service.getUser('test-uid');
@@ -225,7 +145,7 @@ describe('FirebaseService', () => {
       firebase: {
         sign_in_provider: 'password',
       },
-    };
+    } as unknown as admin.auth.DecodedIdToken;
 
     it('should validate token with matching UID', async () => {
       mockAuth.verifyIdToken.mockResolvedValue(mockDecodedToken);

@@ -51,6 +51,16 @@ describe('LikesController (e2e)', () => {
         aud: configService.get<string>('JWT_AUDIENCE'),
       });
 
+      // Grant credits so the user can send likes
+      await prisma.creditLedger.create({
+        data: {
+          userId: user1.id,
+          transactionType: 'CREDIT',
+          amount: 100,
+          source: 'ADMIN',
+        },
+      });
+
       // Seed another user and their identity to like.
       // Use a unique email per run (keyed to user2.id) to prevent unique
       // constraint collisions if a prior run's DB cleanup was skipped.

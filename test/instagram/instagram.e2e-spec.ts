@@ -95,7 +95,7 @@ describe('InstagramController (e2e)', () => {
         .get('/api/v1/instagram/refresh-token?token=old-token')
         .set('authorization', basicAuthHeader);
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(502);
     });
   });
 
