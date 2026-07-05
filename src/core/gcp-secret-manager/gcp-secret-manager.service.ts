@@ -1,6 +1,7 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -22,9 +23,7 @@ export class GcpSecretManagerService
   }
 
   async onModuleDestroy() {
-    if (this.client && typeof this.client.close === 'function') {
-      await this.client.close();
-    }
+    await safeCloseClient(this.client, this.logger, 'Secret Manager');
   }
 
   /**

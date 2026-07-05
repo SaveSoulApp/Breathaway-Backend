@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
@@ -49,10 +50,7 @@ export class OneTimePasswordsService
   }
 
   async onModuleDestroy() {
-    this.logger.log('Disconnecting Redis client', { step: 'destroy' });
-    if (this.redisClient && typeof this.redisClient.quit === 'function') {
-      await this.redisClient.quit();
-    }
+    await safeCloseClient(this.redisClient, this.logger, 'Redis', 'quit');
   }
 
   /**

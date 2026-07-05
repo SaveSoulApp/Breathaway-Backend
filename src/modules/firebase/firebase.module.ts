@@ -1,22 +1,35 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import * as admin from 'firebase-admin';
+
 import { FirebaseService } from './firebase.service';
 
-/**
- * Provides Firebase Admin SDK integration — token verification, user retrieval,
- * and FCM messaging — as a reusable capability across the application.
- *
- * Imports:
- *   - ConfigModule: supplies FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and
- *     FIREBASE_PRIVATE_KEY used to initialise the Admin SDK on module startup.
- *
- * Exports:
- *   - FirebaseService: shared with any module that needs to verify Firebase ID
- *     tokens (e.g., AuthModule) or dispatch FCM push notifications (e.g., NotificationsModule).
- */
 @Module({
   imports: [ConfigModule],
-  providers: [FirebaseService],
-  exports: [FirebaseService],
+  providers: [
+    {
+      provide: 'FIREBASE_ADMIN_APP',
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        if (admin.apps.length) {
+          return admin.app();
+        }
+
+        const privateKey = configService
+          .get<string>('FIREBASE_PRIVATE_KEY')
+          ?.replace(/\\n/g, '\n');
+
+        return admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: configService.get('FIREBASE_PROJECT_ID'),
+            clientEmail: configService.get('FIREBASE_CLIENT_EMAIL'),
+            privateKey: privateKey,
+          }),
+        });
+      },
+    },
+    FirebaseService,
+  ],
+  exports: [FirebaseService, 'FIREBASE_ADMIN_APP'],
 })
 export class FirebaseModule {}

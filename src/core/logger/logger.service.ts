@@ -1,7 +1,11 @@
-import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
+import {
+  Injectable,
+  LoggerService as NestLoggerService,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as pino from 'pino';
 import { ClsService } from 'nestjs-cls';
+import * as pino from 'pino';
 
 import { createGcpLoggerConfig } from './gcp-logger.config';
 import { ContextualLogger } from './logger.interface';
@@ -14,7 +18,7 @@ import { ContextualLogger } from './logger.interface';
  * entire application, ensuring all log output adheres to a consistent structure.
  */
 @Injectable()
-export class LoggerService implements NestLoggerService {
+export class LoggerService implements NestLoggerService, OnApplicationShutdown {
   private baseLogger: pino.Logger;
 
   constructor(
@@ -184,5 +188,13 @@ export class LoggerService implements NestLoggerService {
       meta.context = contextOrMeta;
     }
     this.write(this.baseLogger, 'info', message, meta);
+  }
+
+  onApplicationShutdown() {
+    this.baseLogger.info(
+      { step: 'shutdown' },
+      'Flushing LoggerService logs...',
+    );
+    this.baseLogger.flush();
   }
 }

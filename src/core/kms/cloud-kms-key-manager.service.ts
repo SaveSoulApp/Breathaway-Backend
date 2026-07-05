@@ -4,6 +4,9 @@ import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
+import { ContextualLogger, LoggerService } from '@core/logger';
+
 import { IKeyManager } from './key-manager.interface';
 
 /**
@@ -26,8 +29,13 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   private readonly kmsKeys: Map<string, string> = new Map(); // keyId → KMS key name
   private readonly activeKeyId: string;
   private readonly hmacKey: Buffer;
+  private readonly logger: ContextualLogger;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    loggerService: LoggerService,
+  ) {
+    this.logger = loggerService.forContext(CloudKmsKeyManager.name);
     const kmsKeysJson = this.configService.get<string>('KMS_KEY_NAMES');
     const activeKeyId =
       this.configService.get<string>('KMS_ACTIVE_KEY_ID') ?? 'key-v1';
@@ -72,9 +80,7 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.client && typeof this.client.close === 'function') {
-      await this.client.close();
-    }
+    await safeCloseClient(this.client, this.logger, 'KMS');
   }
 
   /**

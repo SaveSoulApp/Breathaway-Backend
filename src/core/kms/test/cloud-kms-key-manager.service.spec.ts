@@ -2,6 +2,8 @@ import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { LoggerService } from '@core/logger';
+
 import { CloudKmsKeyManager } from '../cloud-kms-key-manager.service';
 
 const mockEncrypt = jest.fn();
@@ -23,6 +25,7 @@ jest.mock('@google-cloud/kms', () => {
 describe('CloudKmsKeyManager', () => {
   let manager: CloudKmsKeyManager;
   let configServiceMock: jest.Mocked<ConfigService>;
+  let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const hmacKeyBase64 = Buffer.from('a'.repeat(32)).toString('base64');
 
@@ -42,10 +45,18 @@ describe('CloudKmsKeyManager', () => {
       }),
     } as unknown as jest.Mocked<ConfigService>;
 
+    loggerServiceMock = {
+      forContext: jest.fn().mockReturnValue({
+        log: jest.fn(),
+        error: jest.fn(),
+      }),
+    } as unknown as jest.Mocked<LoggerService>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CloudKmsKeyManager,
         { provide: ConfigService, useValue: configServiceMock },
+        { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
 

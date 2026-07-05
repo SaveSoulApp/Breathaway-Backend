@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PubSub } from '@google-cloud/pubsub';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -32,19 +33,7 @@ export class PubSubPublisherService
   }
 
   async onModuleDestroy() {
-    this.logger.log('Closing PubSub client gRPC connection pool', {
-      step: 'destroy',
-    });
-    if (this.pubsub && typeof this.pubsub.close === 'function') {
-      try {
-        await this.pubsub.close();
-      } catch (error) {
-        this.logger.error('Failed to close PubSub client connection', {
-          step: 'destroy',
-          err: serializeError(error),
-        });
-      }
-    }
+    await safeCloseClient(this.pubsub, this.logger, 'PubSub');
   }
 
   /**
