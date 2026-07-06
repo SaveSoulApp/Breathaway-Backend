@@ -11,10 +11,12 @@ const config: Config = {
   organizationName: 'breathaway',
   projectName: 'backend-docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
 
   markdown: {
     mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
   themes: ['@docusaurus/theme-mermaid'],
 
