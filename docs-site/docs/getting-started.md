@@ -97,4 +97,4 @@ You can run the Docusaurus documentation site independently from the root folder
 pnpm run docs:start
 ```
 
-Open your browser and navigate to `http://localhost:3000` (or `http://localhost:3001` if port 3000 is occupied by the backend API) to view the documentation site.
+Open your browser and navigate to `http://localhost:3001` to view the documentation site.

@@ -4,23 +4,37 @@ sidebar_position: 4
 
 # Matches Module
 
-The `MatchesModule` stores and tracks established, mutual connections between users.
+The `MatchesModule` stores and tracks established, mutual connections between users, managing their state transitions and communication access rules.
 
 ---
 
 ## 📋 Purpose & Responsibilities
 
-- **List Active Matches (`GET /`)**: Returns a paginated list of mutual matching profiles.
-- **Unmatch User (`DELETE /:id`)**: Permits a user to break a connection, changing the match status to `UNMATCHED`.
-- **Match Queries**: Provides core lookup utility functions for other modules (e.g. ChatsModule) to confirm that two users have a valid active relationship before allowing communication.
+- **Match Tracking**: Persists mutual matches, recording the matching timestamp and both partners' initial intents.
+- **Connection Lifecycle Management**: Updates match state parameters when users unmatch or block each other.
+- **Access Authorization**: Acts as the gatekeeper for other communication systems (like Chats) to ensure a match is in an active state.
 
 ---
 
-## 🛠 File & Class Definitions
+## ⚙️ Managed Enums & States
 
-### Controller
-- **[MatchesController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/matches/matches.controller.ts)**: Exposes endpoints for listing and terminating matches.
-  - Route Prefix: `/api/v1/matches`
+The matching system manages records via the **`MatchStatus`** enum:
 
-### Service
-- **[MatchesService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/matches/matches.service.ts)**: Handles database writes and status updates (`ACTIVE`, `UNMATCHED`, `BLOCKED`) for the `Match` model.
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE : MatchResolver creates Match
+    ACTIVE --> UNMATCHED : A user unmatches from profile
+    ACTIVE --> BLOCKED : A user blocks the other profile
+```
+
+### Match States Reference
+
+* **`ACTIVE`**: 
+  - **Description**: The connection is live and mutual.
+  - **Permissions**: Both users can view each other's profiles and exchange messages in chat channels.
+* **`UNMATCHED`**:
+  - **Description**: One of the users explicitly broke the connection.
+  - **Permissions**: Profile visibility is removed and messaging access is immediately revoked.
+* **`BLOCKED`**:
+  - **Description**: One of the users blocked the other.
+  - **Permissions**: Restricts all interactions. The blocked profile cannot search for, view, or attempt to re-like the blocker.

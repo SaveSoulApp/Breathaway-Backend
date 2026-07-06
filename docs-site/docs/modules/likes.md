@@ -4,56 +4,41 @@ sidebar_position: 3
 
 # Likes Module
 
-The `LikesModule` manages user liking mechanics and intentions. It is the entry point for starting connections.
+The `LikesModule` manages liking mechanics, capturing user intents, and executing state transitions for outbound connection requests.
 
 ---
 
 ## 📋 Purpose & Responsibilities
 
-- **Send Like (`POST /`)**: Creates a pending `Like` from the authenticated user to a target user's identity.
-- **Intents**: Captures the sender's relational intent (`RELATIONSHIP`, `CASUAL`, `OPEN`) to evaluate compatibility during matching.
-- **Withdraw Like (`DELETE /:id`)**: Allows users to void or remove a previously sent pending like.
-- **Listing Received Likes**: Provides a paginated list of inbound pending likes for the current user.
+- **Liking Mechanics**: Persists connection intents from one user to another's identity.
+- **Relational Intent Capturing**: Tracks the specific dating/connection intents of the sender to ensure mutual compatibility checks.
+- **Credit Deductions Integration**: Integrates with the `CreditsModule` to deduct credit balances for specific actions (such as sending a super-like).
 
 ---
 
-## 🛠 File & Class Definitions
+## ⚙️ Managed Enums & States
 
-### Controller
-- **[LikesController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/likes/likes.controller.ts)**: Handles HTTP requests for sending, withdrawing, and listing likes.
-  - Route Prefix: `/api/v1/likes`
+The liking flow relies on two core enums:
 
-### Service
-- **[LikesService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/likes/likes.service.ts)**: Validates credits balance before liking, ensures blocks do not exist, and writes the `Like` record to the database.
+### 1. IntentType
+Defines the connection interest type selected by the sender:
 
----
+* **`RELATIONSHIP`**: User is looking for long-term relationships.
+* **`CASUAL`**: User is looking for casual dating or hangouts.
+* **`OPEN`**: User is open to multiple connection models.
 
-## 🔄 Interaction Flow
-
-When a user likes another, a check is triggered to see if it results in a mutual connection:
+### 2. LikeStatus
+Represents the state lifecycle of a liking record:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Client as Sender App
-    participant LikesC as LikesController
-    participant LikesS as LikesService
-    participant Resolver as MatchResolverService
-    
-    Client ->> LikesC: POST /api/v1/likes (targetIdentityId, intent)
-    activate LikesC
-    LikesC ->> LikesS: createLike(senderId, targetIdentityId, intent)
-    activate LikesS
-    Note over LikesS: Validates user credits balance & blocks
-    LikesS ->> LikesS: Write Like (status: PENDING)
-    
-    LikesS ->> Resolver: resolveFromLike(newLike)
-    activate Resolver
-    Note over Resolver: Resolves mutual matching in background
-    deactivate Resolver
-    
-    LikesS -->> LikesC: Like Entity
-    deactivate LikesS
-    LikesC -->> Client: 201 Created
-    deactivate LikesC
+stateDiagram-v2
+    [*] --> PENDING : User creates Like
+    PENDING --> MATCHED : Target user sends a mutual Like
+    PENDING --> VOIDED : Like expires or withdrawn by sender
+    PENDING --> DELETED : User explicitly deletes account/like record
 ```
+
+* **`PENDING`**: The like has been sent, and the target user has not yet liked back.
+* **`MATCHED`**: A mutual like has been detected and resolved into a Match.
+* **`VOIDED`**: The like expired without a response or was cancelled.
+* **`DELETED`**: The sender explicitly removed the like.
