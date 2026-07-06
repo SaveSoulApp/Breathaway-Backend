@@ -16,6 +16,16 @@ The `FirebaseModule` provides a wrapper around the **Firebase Admin SDK** for to
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Dependency Injected App
+The Firebase Admin SDK app instance is injected via dependency injection (`@Inject('FIREBASE_ADMIN_APP')`) rather than relying on the global package singleton state. This facilitates cleaner testing, allows multiple instances if needed, and ensures the app can be gracefully destroyed (`this.firebaseApp.delete()`) during module teardown.
+
+### 2. Token Subject Enforcement
+The `validateFirebaseToken` method doesn't just verify the JWT signature; it explicitly asserts that the decoded token's `uid` matches the `uid` claimed by the caller (`decodedToken.uid !== uid`). This prevents token-substitution attacks where a malicious user attempts to pass a valid token belonging to a different user ID.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Service

@@ -16,6 +16,16 @@ The `AuditModule` is an internal utility that captures application action histor
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Event Sinking (Decoupling)
+The `AuditService` acts as a decoupled sink. It uses NestJS's `EventEmitter` to listen for internal `audit.log` application events. Feature modules emit events seamlessly without needing to know about Pub/Sub or the specific audit topic, keeping domain logic clean.
+
+### 2. Non-Blocking Failures
+If publishing the audit log to Pub/Sub fails, the service intentionally catches the error, logs it internally, and does *not* throw. This guarantees that an audit log failure (e.g., a temporary GCP Pub/Sub outage) will never disrupt or roll back the originating business operation (like a successful payment or user block).
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Service

@@ -15,6 +15,16 @@ The `WebhooksModule` receives incoming, automated event payloads dispatched from
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Composite Handler Pattern
+After parsing an incoming Meta webhook (e.g., a direct message), the `handleMessageIntent` method loops over an array of injected `WebhookMessageHandler` implementations. It calls `.canHandle(message)` on each and stops at the first one that accepts it. This provides a pluggable architecture for handling different types of DMs (OTPs, support tickets, etc.) without modifying the core service.
+
+### 2. Verification Protocol
+The `verifyMetaWebhook` method enforces Meta's specific challenge-response protocol. When subscribing the webhook URL in the Meta Developer Portal, Meta sends a `GET` request with a challenge string. The service verifies the token and returns the *raw string* challenge (not a JSON object) to complete the handshake.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

@@ -18,6 +18,22 @@ The `AuthModule` is the gateway for user onboarding, logins, session handling, a
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Cryptographic PII Normalization & Hashing
+To protect PII (Personally Identifiable Information) such as phone numbers and emails, the backend never stores them in plaintext.
+- Identifiers are first **normalized** (e.g., lowercased, non-digits stripped) to create a canonical representation.
+- They are then processed through the `IdentityCryptoService` to produce a `valueHash`.
+- This ensures that duplicate account detection and cross-module lookups (like resolving likes) operate entirely on hashed values.
+
+### 2. "Ghost" Identity Claiming (Social Auth)
+When users interact with social profiles (e.g., liking someone's Instagram handle) before that person has registered on BreathAway, the system creates a "Ghost Identity" (an `Identity` record with `userId = null`).
+- When the target person eventually registers using that social platform (e.g., Instagram OAuth), `AuthService` detects the existing ghost identity.
+- The service **claims** the identity by assigning it to the new user.
+- A `PubSubEvent.IDENTITY_CLAIMED` is published to the `IDENTITY_WORKFLOWS` topic, triggering asynchronous match resolution for any likes that were pending against that handle.
+
+---
+
 ## 🔒 Secondary Credential Linking & Conflict Resolution
 
 When an authenticated user wants to add a secondary authentication method (such as attaching a backup phone number or email to their profile via `/add-secondary`), the backend executes strict identity verification routines to prevent account hijacking or profile overlap.

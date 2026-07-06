@@ -24,6 +24,20 @@ The database records for `UserProfile` track the following parameters:
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Cascading Account Soft-Deletion
+The `ProfilesService.deleteProfile` method manages account deletion. Instead of just removing the profile row, it executes a single, atomic Prisma transaction that:
+- Soft-deletes the core `User` record (`deletedAt` stamped).
+- Soft-deletes all associated `Identity` and `AuthCredential` rows.
+- Deactivates all `Device` records (`isActive = false`).
+The profile row itself is intentionally left intact (associated with the soft-deleted user) to allow for future audit trails or account recovery.
+
+### 2. Guarded Existence Checks
+Because profiles are highly related to matching, many guards and services need to know if a user has finished onboarding. The `profileExists` method uses a hyper-optimized `select: { userId: true }` projection to provide a fast boolean guard without fetching full row data.
+
+---
+
 ## 🛠️ Core Module Capabilities
 
 ### 1. Onboarding Profile Initialization

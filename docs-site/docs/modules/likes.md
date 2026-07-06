@@ -16,6 +16,24 @@ The `LikesModule` manages liking mechanics, capturing user intents, and executin
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Atomic Credit Consumption
+Sending a like is a premium action. The `LikesService` performs a pre-check for sufficient credits. When persisting the like, it uses a database transaction (`$transaction`) to atomically create the `Like` record and deduct the required credits via the `CreditsService`. If the user lacks credits, the system emits a `USAGE_DENIED` audit event.
+
+### 2. "Ghost" Identity Target Resolution
+In BreathAway, users do not just like other *users*; they like *target identities* (e.g., an Instagram handle or a phone number).
+- If the target identity is already registered to a user, the like targets them directly.
+- If the target identity **does not exist**, the system creates an *unresolved* "Ghost Identity" (`userId = null`). This allows users to express intent toward someone who hasn't joined the platform yet. When that person eventually registers, the Auth module claims this ghost identity and triggers retroactive matching.
+
+### 3. Asynchronous Match Resolution
+After a like is successfully persisted, the `LikesService` asynchronously delegates to the `MatchResolverService`. This design ensures that the critical path (deducting credits and saving the intent) is fast and isolated from the heavy logic of evaluating mutual connections. Failures in the resolver do not roll back the like creation.
+
+### 4. Persistent Annotations (Labels)
+Users can attach a personal string `label` to a like (e.g., "Sarah from the gym"). Business logic dictates that these labels can be updated at any time, even if the like transitions to a `MATCHED` or `VOIDED` state, allowing users to continually personalize their history.
+
+---
+
 ## ⚙️ Managed Enums & States
 
 The liking flow relies on two core enums:

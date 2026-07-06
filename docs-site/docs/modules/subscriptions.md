@@ -44,6 +44,16 @@ Defines the categories of log events captured in `SubscriptionEvent`:
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Client-Initiated Verification vs Webhooks
+Apple and Google send server-to-server webhooks for purchases, but these can be delayed. To ensure immediate access for the user, `verifyAndCreateSubscription` allows the client SDK to trigger subscription provisioning directly. This acts as the primary entry point, effectively overriding the latency of the asynchronous webhooks.
+
+### 2. Maintenance Sweep (Orphaned Expirations)
+Sometimes a renewal or cancellation webhook is dropped or delayed permanently. The `expireSubscriptions()` method runs as a background cron to sweep the database for any active subscriptions whose `expiresAt` is in the past, transitioning them safely to `EXPIRED` and generating the necessary event logs.
+
+---
+
 ## 🔒 Billing Idempotency & Duplicate Prevention
 
 Apple App Store and Google Play Store webhooks (often routed via aggregators like RevenueCat) operate on an **at-least-once delivery guarantee**. This means the payment platform may send the same transaction webhook multiple times if network delays occur during acknowledgment. 

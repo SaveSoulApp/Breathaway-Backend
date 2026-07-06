@@ -29,6 +29,16 @@ The module manages flags in the `NotificationPreference` table mapping the follo
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Safe Defaults & Lazy Initialization
+To prevent breaking the UX if a preference row was not created during user onboarding, `getPreferences` operates with a fail-safe design. If no record is found, it silently returns an all-channels-enabled fallback (`DEFAULT_PREFERENCES`) instead of throwing an error.
+
+### 2. Upsert Mutation
+When a user updates their preferences via `updatePreferences`, the service uses a Prisma `upsert`. This handles the lazy initialization seamlessly: if the user didn't have a record before, it creates one with the provided preferences and defaults the rest to `true`.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

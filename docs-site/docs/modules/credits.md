@@ -41,6 +41,19 @@ Categorizes the origin or sink of the credit transaction:
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Atomic Transaction Composition
+Because credits represent financial value, mutation methods (`grantCredits`, `consumeCredits`) accept an optional Prisma `TransactionClient` (`tx`). This allows other modules (like `LikesService` or `SubscriptionsService`) to wrap credit deducts/grants inside their own transactions, preventing race conditions or partial failures (e.g., spending credits but failing to save the Like).
+
+### 2. Safe FIFO Expiry Allocation
+The `expireCreditsForUsers` method calculates expiration dynamically. It sums all past debits and applies them to the oldest credit bundles first. Only the unconsumed portion of a bundle that has passed the `asOf` date is expired via a compensating `DEBIT` row. This makes the expiry worker fully idempotent and safe to retry.
+
+### 3. Distributed Pub/Sub Processing
+Credit expiry is heavy. Rather than processing all users at once, a coordinator fans out `CREDIT_EXPIRY_BATCH` events via Google Cloud Pub/Sub. The `CreditsService` listens to these batches, evaluating expiry for a small subset of users at a fixed `asOf` time snapshot, allowing horizontal scaling.
+
+---
+
 ## 🗄 Transaction Ledger Schema
 
 Each ledger log entry contains the following properties:

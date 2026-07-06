@@ -15,6 +15,20 @@ The `HealthModule` uses NestJS `@nestjs/terminus` to verify the operational stat
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Terminus Indicators (Liveness & Readiness Probes)
+The endpoint orchestrates four concurrent health checks using `@nestjs/terminus`:
+- **Database**: Pings PostgreSQL via `PrismaHealthIndicator`.
+- **Cache**: Pings Redis via a custom `RedisHealthIndicator`.
+- **Memory (Heap)**: Ensures Node.js V8 heap usage is under 150MB.
+- **Memory (RSS)**: Ensures total Resident Set Size is under 150MB.
+
+### 2. Cloud Run Readiness
+If any of these four checks fail or timeout, the controller returns a `503 Service Unavailable`. Cloud Run and GCP Load Balancers use this signal to instantly stop routing traffic to the unhealthy container instance, preventing degraded user experiences.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

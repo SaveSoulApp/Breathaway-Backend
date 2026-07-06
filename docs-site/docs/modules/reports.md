@@ -15,6 +15,16 @@ The `ReportsModule` handles user moderation and safety reports within the platfo
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Aggregated Reporting (Admin Dashboarding)
+The `ReportsService` constructs massive aggregation queries directly via Prisma to generate statistical data for admin dashboarding. It fetches totals, demographics splits, identity distributions, device platforms, like intents, and credit usage ledgers across specific timeframes.
+
+### 2. Raw SQL for Complex Joins
+While Prisma handles most queries, the service uses `prisma.$queryRaw` for joining the `Like` table to the `Identity` table to calculate likes split by target identity type. This is because Prisma's standard aggregation syntax doesn't easily support cross-relation counting directly within a `groupBy` clause.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

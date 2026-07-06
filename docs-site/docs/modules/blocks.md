@@ -14,9 +14,18 @@ This module acts as the system-wide safety filter. It maintains the database of 
 
 ---
 
-## 🛠️ Core Module Capabilities
+## 🧠 Business Logic & Core Concepts
 
-### 1. Cross-Module Interaction Filtering
+### 1. Self-Block Prevention
+The `create` method strictly validates that `blockerUserId !== blockedUserId`. This prevents malicious or accidental API calls from bricking a user's own account.
+
+### 2. Reactivation over Duplication
+If a user blocks someone, unblocks them, and then decides to block them again, the service does not create a duplicate row. Instead, it finds the soft-deleted block record, sets `deletedAt` back to `null`, and resets `createdAt` to the current timestamp. This keeps the database normalized and prevents duplicate pair clutter while maintaining an accurate "new" block date for sorting.
+
+### 3. Bidirectional Mutual Exclusivity
+The internal `isBlocked` guard method is exposed to other modules (like Liking and Matching). It runs a highly optimized `OR` query to check if *either* user blocked the other. If an active block exists in any direction, interactions are halted.
+
+### 4. Cross-Module Interaction Filtering
 The module acts as a gatekeeper across the platform. Whenever a query is run or an action is initiated, other modules consult the `BlocksService` to filter results:
 - **Search & Discovery**: Blocked users are hidden from matching pools and search recommendations.
 - **Likes**: Users cannot send likes to users who have blocked them, or whom they have blocked.

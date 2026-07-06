@@ -72,3 +72,13 @@ sequenceDiagram
     Ingest -->> GCP: 200 OK (Acknowledges receipt)
     deactivate Ingest
 ```
+
+---
+
+## 🧠 Business Logic & Core Concepts
+
+### 1. Inbound/Outbound Asymmetry
+Pub/Sub crosses the network boundary in two different ways. The `PubSubPublisherService` pushes directly to GCP topics using the standard `@google-cloud/pubsub` SDK via Application Default Credentials. However, ingestion is handled via a standard HTTP push controller (`PubSubIngestionController`) because Cloud Run natively converts push subscriptions into authenticated HTTP requests.
+
+### 2. Silent Failure for Unroutable Events
+The ingestion controller intentionally swallows unroutable messages (e.g., missing event type, no registered handler, bad base64 payload) and returns a `200 OK`. If it returned a `4xx` or `5xx`, GCP Pub/Sub would assume the delivery failed and retry the useless payload indefinitely, clogging the topic. Only true processing errors trigger retries.

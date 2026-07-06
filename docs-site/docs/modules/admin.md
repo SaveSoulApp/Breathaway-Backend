@@ -16,6 +16,16 @@ The `AdminModule` handles internal administrative actions, including manual cred
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Cascading Soft Deletion
+When an admin invokes `deleteAccount`, it doesn't just delete the user record. It executes a robust Prisma `$transaction` that cascadingly soft-deletes the `User`, their `Identity` records, and their `AuthCredential` records. This ensures no orphaned identities remain actionable while preserving the data for audit trails.
+
+### 2. Immediate Device Deactivation
+During the account deletion transaction, the service forcefully updates all of the user's active devices to `isActive: false`. This guarantees that push notifications immediately cease routing to the banned user's devices without waiting for a token refresh cycle.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

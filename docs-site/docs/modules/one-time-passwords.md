@@ -16,6 +16,23 @@ The `OneTimePasswordsModule` manages the lifecycle of OTP verification codes use
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Human-Readable "Slug" OTPs
+Instead of using standard numeric 6-digit codes, the system generates cryptographically secure, human-readable kebab-case slugs (e.g., `word-word-word`) using the `random-word-slugs` utility. This approach reduces friction and makes manual entry less error-prone for users.
+
+### 2. Secure Storage (No Plaintext OTPs)
+To prevent exploitation in the event of a cache breach:
+- The plain-text OTP is **never persisted**.
+- Upon generation, the OTP is hashed, and this hash is used as the Redis key (`otp:<hashed_value>`) containing the authenticated `userId`.
+- Verification requires hashing the client's input and performing a lookup against the hashed key.
+
+### 3. Rate Limiting & Atomic Consumption
+- **Sentinel Keys**: Before generating a new OTP, the system checks for a Redis sentinel key (`rate_limit:otp:${userId}`). If it exists, a `429 Too Many Requests` is thrown, enforcing strict burst limitations (defined by `OTP_RATE_LIMIT_TTL`).
+- **Atomic Consumption**: When an OTP is successfully verified, its key is immediately deleted (`del` operation) from Redis, ensuring single-use atomicity.
+
+---
+
 ## 🛠 File & Class Definitions
 
 ### Controller

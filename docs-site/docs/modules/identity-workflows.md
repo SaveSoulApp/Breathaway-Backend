@@ -15,6 +15,16 @@ The `IdentityWorkflowsModule` orchestrates progressive onboarding and identity v
 
 ---
 
+## 🧠 Business Logic & Core Concepts
+
+### 1. Retroactive Match Resolution (Ghost Identities)
+When an `IDENTITY_CLAIMED` event fires, the `handleIdentityClaimed` listener scans for all `PENDING` likes that targeted the newly claimed identity. It iterates over these actionable likes and runs them through the `MatchResolverService`. This logic is what converts pending "ghost" interactions into mutual matches the moment a user finishes onboarding.
+
+### 2. Cross-Channel OTP Verification
+The Instagram verification flow (`handleInstagramOtpReceived`) bridges SMS/Email logic with Instagram DMs. It verifies the OTP, fetches the Meta social identity, claims the `Identity` record, and then fires a push notification to confirm the linkage to the user. All of this operates purely as an event consumer disconnected from the client's HTTP request lifecycle.
+
+---
+
 ## 📸 Instagram Identity Verification Flow
 
 This workflow verifies ownership of a user's Instagram handle using an out-of-band message check via Webhooks and OTPs.
