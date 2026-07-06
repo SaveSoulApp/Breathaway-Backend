@@ -21,30 +21,14 @@
     "noImplicitAny": true,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": true,
-    "typeRoots": [
-      "src/types",
-      "node_modules/@types"
-    ],
+    "typeRoots": ["src/types", "node_modules/@types"],
     "paths": {
-      "@common/*": [
-        "src/common/*"
-      ],
-      "@core/*": [
-        "src/core/*"
-      ],
-      "@infrastructure/*": [
-        "src/infrastructure/*"
-      ],
-      "@shared/*": [
-        "src/shared/*"
-      ],
-      "@modules/*": [
-        "src/modules/*"
-      ]
+      "@common/*": ["src/common/*"],
+      "@core/*": ["src/core/*"],
+      "@infrastructure/*": ["src/infrastructure/*"],
+      "@shared/*": ["src/shared/*"],
+      "@modules/*": ["src/modules/*"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "exclude": ["node_modules", "dist", "docs-site"]
 }

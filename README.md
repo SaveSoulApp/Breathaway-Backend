@@ -136,3 +136,23 @@ pnpm run test:e2e
 # Test coverage
 pnpm run test:cov
 ```
+
+---
+
+## 📖 Documentation (Docusaurus)
+
+The project includes a comprehensive technical documentation site built with Docusaurus, located in the `docs-site` directory.
+
+### Running the Docs Locally
+```bash
+# Start the documentation site locally on port 3001
+pnpm run docs:start
+
+# Build the documentation for production
+pnpm run docs:build
+
+# Serve the production build locally
+pnpm run docs:serve
+```
+
+The documentation contains architectural guidelines, API conventions, and detailed modules breakdowns.

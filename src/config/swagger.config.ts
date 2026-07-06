@@ -21,9 +21,12 @@ import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as express from 'express';
+import { join } from 'path';
 import redoc from 'redoc-express';
 import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
 import {
+  DOCS_PATH,
   REDOC_SUBPATH,
   SWAGGER_ADMIN_PATH,
   SWAGGER_PUBLIC_PATH,
@@ -42,6 +45,12 @@ export function setupSwagger(
 
   // Register Basic Auth guard before mounting Swagger UI routes
   applySwaggerBasicAuth(app, configService);
+
+  // Serve Docusaurus site statically under /docs
+  app.use(
+    `/${DOCS_PATH}`,
+    express.static(join(process.cwd(), 'docs-site/build')),
+  );
 
   publicApiDocumentation(app);
   adminApiDocumentation(app);
