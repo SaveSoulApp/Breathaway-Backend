@@ -7,7 +7,7 @@ const config: Config = {
   tagline: 'Technical documentation for the BreathAway API backend service',
   favicon: 'img/favicon.ico',
   url: 'https://breathaway.example.com',
-  baseUrl: '/',
+  baseUrl: '/docs/',
   organizationName: 'breathaway',
   projectName: 'backend-docs',
   onBrokenLinks: 'throw',

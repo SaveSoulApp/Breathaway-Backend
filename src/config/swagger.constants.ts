@@ -11,8 +11,10 @@
 export const SWAGGER_PUBLIC_PATH = 'api/public' as const;
 export const SWAGGER_ADMIN_PATH = 'api/admin' as const;
 export const REDOC_SUBPATH = 'redoc' as const;
+export const DOCS_PATH = 'docs' as const;
 
 export const SWAGGER_PROTECTED_PATHS = [
   SWAGGER_PUBLIC_PATH,
   SWAGGER_ADMIN_PATH,
+  DOCS_PATH,
 ] as const;
