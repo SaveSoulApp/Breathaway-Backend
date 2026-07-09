@@ -36,8 +36,29 @@ export class SubscriptionPlansService extends BaseService {
    */
   async listAllPlans() {
     const plans = await this.prisma.subscriptionPlan.findMany({
-      include: {
-        prices: true,
+      // Use select instead of include to avoid fetching unused internal columns.
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        appleProductId: true,
+        googleProductId: true,
+        creditsGranted: true,
+        validityDays: true,
+        trialDurationDays: true,
+        sortOrder: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        prices: {
+          select: {
+            id: true,
+            currencyCode: true,
+            price: true,
+            countryCode: true,
+          },
+        },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -54,10 +75,29 @@ export class SubscriptionPlansService extends BaseService {
   async listActivePlans(countryCode?: string) {
     const plans = await this.prisma.subscriptionPlan.findMany({
       where: { status: SubscriptionPlanStatus.ACTIVE },
-      include: {
-        prices: countryCode
-          ? { where: { countryCode: countryCode.toUpperCase() } }
-          : true,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        appleProductId: true,
+        googleProductId: true,
+        creditsGranted: true,
+        validityDays: true,
+        trialDurationDays: true,
+        sortOrder: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        prices: {
+          where: countryCode ? { countryCode: countryCode.toUpperCase() } : undefined,
+          select: {
+            id: true,
+            currencyCode: true,
+            price: true,
+            countryCode: true,
+          },
+        },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -75,7 +115,29 @@ export class SubscriptionPlansService extends BaseService {
   async getPlanById(id: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id },
-      include: { prices: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        appleProductId: true,
+        googleProductId: true,
+        creditsGranted: true,
+        validityDays: true,
+        trialDurationDays: true,
+        sortOrder: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        prices: {
+          select: {
+            id: true,
+            currencyCode: true,
+            price: true,
+            countryCode: true,
+          },
+        },
+      },
     });
 
     if (!plan) {
@@ -110,7 +172,29 @@ export class SubscriptionPlansService extends BaseService {
 
     const plan = await this.prisma.subscriptionPlan.findFirst({
       where,
-      include: { prices: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        appleProductId: true,
+        googleProductId: true,
+        creditsGranted: true,
+        validityDays: true,
+        trialDurationDays: true,
+        sortOrder: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        prices: {
+          select: {
+            id: true,
+            currencyCode: true,
+            price: true,
+            countryCode: true,
+          },
+        },
+      },
     });
 
     if (!plan) {
@@ -150,7 +234,13 @@ export class SubscriptionPlansService extends BaseService {
           trialDurationDays: dto.trialDurationDays ?? 0,
           sortOrder: dto.sortOrder ?? 0,
         },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
     } catch (error) {
       this.logger.error('Failed to create subscription plan', {
@@ -218,7 +308,13 @@ export class SubscriptionPlansService extends BaseService {
           ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
           ...(dto.status !== undefined && { status: dto.status }),
         },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
     } catch (error) {
       this.logger.error('Failed to update subscription plan', {

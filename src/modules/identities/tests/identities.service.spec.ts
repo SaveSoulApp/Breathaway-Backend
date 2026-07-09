@@ -233,6 +233,17 @@ describe('IdentitiesService', () => {
       expect(prisma.identity.findMany).toHaveBeenCalledWith({
         where: { userId: mockUserId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          type: true,
+          publicValueMasked: true,
+          isVerified: true,
+          verifiedAt: true,
+          createdAt: true,
+          deletedAt: true,
+          userId: true,
+        },
       });
       expect(result).toEqual([mockIdentityResponse]);
     });
@@ -266,6 +277,27 @@ describe('IdentitiesService', () => {
       expect(prisma.identity.findMany).toHaveBeenCalledWith({
         where: { userId: mockUserId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          type: true,
+          publicValueMasked: true,
+          isVerified: true,
+          verifiedAt: true,
+          createdAt: true,
+          deletedAt: true,
+          userId: true,
+          publicValueCiphertext: true,
+          publicValueIv: true,
+          publicValueTag: true,
+          publicValueWrappedKey: true,
+          publicValueKeyId: true,
+          platformIdCiphertext: true,
+          platformIdIv: true,
+          platformIdTag: true,
+          platformIdWrappedKey: true,
+          platformIdKeyId: true,
+        },
       });
 
       expect(encryption.decryptPublicValue).toHaveBeenCalledWith({

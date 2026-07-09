@@ -162,11 +162,16 @@ describe('SubscriptionsController', () => {
       ] as any);
 
       // Act
-      const result = await controller.getMySubscriptionHistory(userId);
+      const result = await controller.getMySubscriptionHistory(userId, {
+        page: 1,
+        limit: 20,
+      });
 
       // Assert
       expect(subscriptionsService.getSubscriptionHistory).toHaveBeenCalledWith(
         userId,
+        1,
+        20,
       );
       expect(result).toEqual([mockSubscription]);
     });

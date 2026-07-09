@@ -130,23 +130,53 @@ export class SubscriptionsService extends BaseService {
   }
 
   /**
-   * Fetches the complete subscription history for a user, ordered newest first.
+   * Fetches the subscription history for a user, ordered newest first.
    *
    * @param userId - UUID of the user.
-   * @returns List of subscriptions with plan details.
+   * @param page   - 1-based page number (defaults to 1).
+   * @param limit  - Number of records per page; capped at 20 (defaults to 20).
+   * @returns Paginated list of subscriptions with plan details and event summaries.
    */
-  async getSubscriptionHistory(userId: string) {
+  async getSubscriptionHistory(userId: string, page = 1, limit = 20) {
     const history = await this.prisma.userSubscription.findMany({
       where: { userId },
-      include: {
-        plan: true,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+      // Use select instead of include to avoid fetching every column on related rows.
+      select: {
+        id: true,
+        status: true,
+        storePlatform: true,
+        storeTransactionId: true,
+        currentPeriodStart: true,
+        currentPeriodEnd: true,
+        expiresAt: true,
+        autoRenewing: true,
+        cancelledAt: true,
+        createdAt: true,
+        updatedAt: true,
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            creditsGranted: true,
+            validityDays: true,
+            trialDurationDays: true,
+          },
+        },
         events: {
-          orderBy: {
-            createdAt: 'desc',
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            eventType: true,
+            storePlatform: true,
+            storeEventId: true,
+            createdAt: true,
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
     });
 
     return history;

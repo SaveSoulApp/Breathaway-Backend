@@ -193,16 +193,47 @@ describe('SubscriptionsService', () => {
       prisma.userSubscription.findMany.mockResolvedValue([mockSubscription]);
 
       // Act
-      const result = await service.getSubscriptionHistory(userId);
+      const result = await service.getSubscriptionHistory(userId, 1, 20);
 
       // Assert
       expect(prisma.userSubscription.findMany).toHaveBeenCalledWith({
         where: { userId },
-        include: {
-          plan: true,
-          events: { orderBy: { createdAt: 'desc' } },
-        },
         orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 20,
+        select: {
+          id: true,
+          status: true,
+          storePlatform: true,
+          storeTransactionId: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          expiresAt: true,
+          autoRenewing: true,
+          cancelledAt: true,
+          createdAt: true,
+          updatedAt: true,
+          plan: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              creditsGranted: true,
+              validityDays: true,
+              trialDurationDays: true,
+            },
+          },
+          events: {
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              eventType: true,
+              storePlatform: true,
+              storeEventId: true,
+              createdAt: true,
+            },
+          },
+        },
       });
       expect(result).toEqual([mockSubscription]);
     });
