@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "deploy:dev": "sh scripts/deploy.sh --env=dev",
     "deploy:prod": "sh scripts/deploy.sh --env=prod",
+    "redeploy:dev": "sh scripts/deploy.sh",
     "syncenv:development": "ln -sf .env.development .env",
     "syncenv:production": "ln -sf .env.production .env",
     "prisma:dev": "ln -sf .env.development .env && npx prisma",
