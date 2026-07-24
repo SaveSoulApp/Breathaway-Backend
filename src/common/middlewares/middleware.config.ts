@@ -42,6 +42,13 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
     { path: 'api/v1/internal/jobs/*path', method: RequestMethod.ALL },
   ];
 
+  // External webhook callbacks (Meta, etc.) do not carry internal tracing headers.
+  const webhookExclusions = [
+    { path: 'webhooks/*path', method: RequestMethod.ALL },
+    { path: 'v1/webhooks/*path', method: RequestMethod.ALL },
+    { path: 'api/v1/webhooks/*path', method: RequestMethod.ALL },
+  ];
+
   consumer
     .apply(RequestIdMiddleware, TimezoneMiddleware)
     .exclude(
@@ -49,6 +56,7 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
       ...swaggerExclusions,
       ...browserExclusions,
       ...internalJobExclusions,
+      ...webhookExclusions,
     )
     .forRoutes('*');
 }
