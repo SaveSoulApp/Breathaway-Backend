@@ -211,7 +211,7 @@ describe('BlocksService', () => {
       prisma.block.findMany.mockResolvedValue([mockBlockData]);
 
       // Act
-      const result = await service.findAllForUser(userId);
+      const result = await service.findAllForUser(userId, 1, 50);
 
       // Assert
       expect(prisma.block.findMany).toHaveBeenCalledWith({
@@ -222,6 +222,8 @@ describe('BlocksService', () => {
         orderBy: {
           createdAt: 'desc',
         },
+        skip: 0,
+        take: 50,
         select: {
           id: true,
           createdAt: true,
@@ -306,6 +308,7 @@ describe('BlocksService', () => {
           blockerUserId: userId,
           deletedAt: null,
         },
+        select: { id: true, blockedUserId: true },
       });
       expect(prisma.block.update).toHaveBeenCalledWith({
         where: { id: blockId },

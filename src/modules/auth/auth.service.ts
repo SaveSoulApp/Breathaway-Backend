@@ -99,21 +99,24 @@ export class AuthService extends BaseService {
     );
     this.logger.debug('Credential hashed', { ...ctx, step: 'hash_credential' });
 
-    // Check global uniqueness via AuthCredential
-    const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash: publicValueHash },
+    // Check global uniqueness via AuthCredential — query active records only.
+    // valueHash is part of @@unique([valueHash, deletedAt]), so we use findFirst
+    // with deletedAt: null to find the live (non-soft-deleted) credential.
+    const existingCred = await this.prisma.authCredential.findFirst({
+      where: { valueHash: publicValueHash, deletedAt: null },
       select: {
         userId: true,
-        identity: {
-          select: {
-            isVerified: true,
-          },
-        },
+        identityId: true,
       },
     });
 
     if (existingCred) {
-      if (existingCred.identity.isVerified) {
+      // Check the linked Identity for verification status
+      const existingIdentity = await this.prisma.identity.findUnique({
+        where: { id: existingCred.identityId },
+        select: { isVerified: true },
+      });
+      if (existingIdentity?.isVerified) {
         this.logger.warn('Signup failed: account already exists', {
           ...ctx,
           step: 'duplicate_check',
@@ -194,15 +197,11 @@ export class AuthService extends BaseService {
       step: 'firebase_validation',
     });
 
-    const credential = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+    const credential = await this.prisma.authCredential.findFirst({
+      where: { valueHash, deletedAt: null },
       select: {
         userId: true,
-        identity: {
-          select: {
-            isVerified: true,
-          },
-        },
+        identityId: true,
       },
     });
 
@@ -214,7 +213,12 @@ export class AuthService extends BaseService {
       throw new AccountNotFoundException();
     }
 
-    if (!credential.identity.isVerified) {
+    const credIdentity = await this.prisma.identity.findUnique({
+      where: { id: credential.identityId },
+      select: { isVerified: true },
+    });
+
+    if (!credIdentity?.isVerified) {
       // Resend OTP / magic link – frontend should show verification screen
       this.logger.warn('Signin failed: account unverified', {
         ...ctx,
@@ -286,15 +290,11 @@ export class AuthService extends BaseService {
       step: 'firebase_validation',
     });
 
-    const credential = await this.prisma.authCredential.findUnique({
-      where: { valueHash },
+    const credential = await this.prisma.authCredential.findFirst({
+      where: { valueHash, deletedAt: null },
       select: {
         userId: true,
-        identity: {
-          select: {
-            isVerified: true,
-          },
-        },
+        identityId: true,
       },
     });
 
@@ -332,8 +332,13 @@ export class AuthService extends BaseService {
       });
     }
 
-    // Existing credential
-    if (!credential.identity.isVerified) {
+    // Existing credential — check verification status via linked Identity
+    const credIdentity = await this.prisma.identity.findUnique({
+      where: { id: credential.identityId },
+      select: { isVerified: true },
+    });
+
+    if (!credIdentity?.isVerified) {
       this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
         ...ctx,
         step: 'credential_lookup',
@@ -641,9 +646,9 @@ export class AuthService extends BaseService {
       identityType,
     });
 
-    // 2. Check global uniqueness
-    const existingCred = await this.prisma.authCredential.findUnique({
-      where: { valueHash: publicValueData.publicValueHash },
+    // 2. Check global uniqueness — active credentials only
+    const existingCred = await this.prisma.authCredential.findFirst({
+      where: { valueHash: publicValueData.publicValueHash, deletedAt: null },
     });
     if (existingCred) {
       this.logger.warn('Add secondary auth failed: credential already in use', {

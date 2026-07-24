@@ -22,10 +22,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  SubscriptionHistoryQueryDto,
   SubscriptionPlanResponseDto,
   UserSubscriptionResponseDto,
   VerifyPurchaseRequestDto,
 } from './dto';
+
 import { SubscriptionPlansService } from './services/subscription-plans.service';
 import { SubscriptionsService } from './services/subscriptions.service';
 
@@ -169,19 +171,25 @@ export class SubscriptionsController extends BaseController {
    * Useful for billing history screens or when checking past cancelled subscriptions.
    *
    * @param userId - ID of the authenticated user.
-   * @returns Array of past and present subscriptions, ordered newest first.
+   * @param query  - Optional pagination parameters (`page`, `limit`).
+   * @returns Paginated array of past and present subscriptions, ordered newest first.
    */
   @Get('me/history')
   @ApiOperation({ summary: "Get user's subscription history" })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page, max 50 (default: 20)' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: [UserSubscriptionResponseDto],
   })
   async getMySubscriptionHistory(
     @CurrentUserId() userId: string,
+    @Query() query: SubscriptionHistoryQueryDto,
   ): Promise<UserSubscriptionResponseDto[]> {
     return (await this.subscriptionsService.getSubscriptionHistory(
       userId,
+      query.page,
+      query.limit,
     )) as unknown as UserSubscriptionResponseDto[];
   }
 }

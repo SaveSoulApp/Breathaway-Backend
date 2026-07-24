@@ -81,10 +81,10 @@ describe('BlocksController', () => {
       service.findAllForUser.mockResolvedValue([mockBlockResponse]);
 
       // Act
-      const result = await controller.findAll(userId);
+      const result = await controller.findAll(userId, { page: 1, limit: 50 });
 
       // Assert
-      expect(service.findAllForUser).toHaveBeenCalledWith(userId);
+      expect(service.findAllForUser).toHaveBeenCalledWith(userId, 1, 50);
       expect(result).toEqual([mockBlockResponse]);
     });
   });

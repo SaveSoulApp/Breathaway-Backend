@@ -101,7 +101,13 @@ describe('SubscriptionPlansService', () => {
 
       // Assert
       expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
         orderBy: { sortOrder: 'asc' },
       });
       expect(result).toEqual([mockPlan]);
@@ -119,7 +125,16 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
         where: { status: SubscriptionPlanStatus.ACTIVE },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: {
+            where: undefined,
+            select: { id: true, currencyCode: true, price: true, countryCode: true },
+          },
+        },
         orderBy: { sortOrder: 'asc' },
       });
       expect(result).toEqual([mockPlan]);
@@ -135,8 +150,15 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
         where: { status: SubscriptionPlanStatus.ACTIVE },
-        include: {
-          prices: { where: { countryCode: 'US' } },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: {
+            where: { countryCode: 'US' },
+            select: { id: true, currencyCode: true, price: true, countryCode: true },
+          },
         },
         orderBy: { sortOrder: 'asc' },
       });
@@ -155,7 +177,13 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findUnique).toHaveBeenCalledWith({
         where: { id: 'plan-uuid-111' },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(result).toEqual(mockPlan);
     });
@@ -187,7 +215,13 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findFirst).toHaveBeenCalledWith({
         where: { appleProductId: 'apple-prod-premium' },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(result).toEqual(mockPlan);
     });
@@ -205,7 +239,13 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findFirst).toHaveBeenCalledWith({
         where: { googleProductId: 'google-prod-premium' },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(result).toEqual(mockPlan);
     });
@@ -263,7 +303,13 @@ describe('SubscriptionPlansService', () => {
           trialDurationDays: dto.trialDurationDays,
           sortOrder: dto.sortOrder,
         },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(result.id).toBe('new-plan-id');
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -298,7 +344,13 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findUnique).toHaveBeenCalledWith({
         where: { id: 'plan-uuid-111' },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(prisma.subscriptionPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-uuid-111' },
@@ -306,7 +358,13 @@ describe('SubscriptionPlansService', () => {
           name: 'Updated Plan Name',
           status: SubscriptionPlanStatus.INACTIVE,
         },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(result.name).toBe('Updated Plan Name');
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -341,7 +399,13 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlan.findUnique).toHaveBeenCalledWith({
         where: { id: 'plan-uuid-111' },
-        include: { prices: true },
+        select: {
+          id: true, name: true, slug: true, description: true,
+          appleProductId: true, googleProductId: true,
+          creditsGranted: true, validityDays: true, trialDurationDays: true,
+          sortOrder: true, status: true, createdAt: true, updatedAt: true,
+          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+        },
       });
       expect(prisma.subscriptionPlanPrice.create).toHaveBeenCalledWith({
         data: {

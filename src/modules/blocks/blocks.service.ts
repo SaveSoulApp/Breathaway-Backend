@@ -199,9 +199,12 @@ export class BlocksService extends BaseService {
    * Returns all active (non-soft-deleted) blocks placed by the given user, ordered newest first.
    *
    * @param userId - ID of the authenticated user whose block list is being retrieved.
+   * @param page  - 1-based page number (defaults to 1).
+   * @param limit - Number of records per page; capped at 50 (defaults to 50).
    * @returns An array of mapped block response objects, each including the blocked user's profile.
    */
-  async findAllForUser(userId: string) {
+  async findAllForUser(userId: string, page = 1, limit = 50) {
+    const skip = (page - 1) * limit;
     const blocks = await this.prisma.block.findMany({
       where: {
         blockerUserId: userId,
@@ -210,6 +213,8 @@ export class BlocksService extends BaseService {
       orderBy: {
         createdAt: 'desc',
       },
+      skip,
+      take: limit,
       select: {
         id: true,
         createdAt: true,
@@ -285,6 +290,8 @@ export class BlocksService extends BaseService {
         blockerUserId: userId,
         deletedAt: null,
       },
+      // Select only the two fields used after this point.
+      select: { id: true, blockedUserId: true },
     });
 
     if (!block) {

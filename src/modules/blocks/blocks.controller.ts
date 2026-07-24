@@ -7,21 +7,25 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { BaseController } from '@core/base';
 import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { LoggerService } from '@core/logger';
 import { BlocksService } from './blocks.service';
-import { BlockResponseDto, CreateBlockDto } from './dto';
+import { BlockListQueryDto, BlockResponseDto, CreateBlockDto } from './dto';
+
 
 /**
  * HTTP resource for the `/blocks` domain, managing user-to-user block relationships.
@@ -65,14 +69,20 @@ export class BlocksController extends BaseController {
    * Returns the full list of users the authenticated caller has currently blocked.
    * Soft-deleted (unblocked) entries are excluded from the result set.
    *
+   * @param query - Optional pagination parameters (`page`, `limit`).
    * @returns An array of active block records belonging to the caller.
    */
   @Get()
   @ApiOperation({ summary: 'Get authenticated user active blocked users list' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page, max 50 (default: 50)' })
   @ApiResponse({ status: HttpStatus.OK, type: [BlockResponseDto] })
   @SerializeExpose(BlockResponseDto)
-  async findAll(@CurrentUserId() userId: string) {
-    return this.blocksService.findAllForUser(userId);
+  async findAll(
+    @CurrentUserId() userId: string,
+    @Query() query: BlockListQueryDto,
+  ) {
+    return this.blocksService.findAllForUser(userId, query.page, query.limit);
   }
 
   /**

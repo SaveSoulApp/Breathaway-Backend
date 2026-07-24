@@ -87,10 +87,11 @@ model User {
   creditLedger     CreditLedger[]
   subscriptions    UserSubscription[]
 
-  createdAt        DateTime         @default(now())
-  deletedAt        DateTime?
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  deletedAt        DateTime?        @db.Timestamptz
 
   @@index([createdAt])
+  @@index([deletedAt])
 }
 
 model UserProfile {
@@ -102,11 +103,11 @@ model UserProfile {
   firstName    String
   lastName     String?
 
-  dateOfBirth  DateTime?
+  dateOfBirth  DateTime?  @db.Timestamptz
   gender       GenderType?
 
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now()) @db.Timestamptz
+  updatedAt    DateTime   @updatedAt     @db.Timestamptz
 }
 
 model AuthCredential {
@@ -117,7 +118,8 @@ model AuthCredential {
 
   type        AuthCredentialType
 
-  valueHash   String             @unique @db.Char(64)
+  // @unique removed: replaced by composite below for soft-delete safety
+  valueHash   String             @db.Char(64)
   valueMasked String?
 
   isPrimary   Boolean            @default(false)
@@ -125,11 +127,16 @@ model AuthCredential {
   identityId  String             @unique
   identity    Identity           @relation(fields: [identityId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime           @default(now())
-  deletedAt   DateTime?
+  createdAt   DateTime           @default(now()) @db.Timestamptz
+  deletedAt   DateTime?          @db.Timestamptz
 
-  @@unique([userId, type])
-  @@index([userId])
+  // Composite unique: allows a soft-deleted credential to share the same valueHash
+  // with a later active credential from the same user.
+  @@unique([valueHash, deletedAt])
+  // Composite unique: prevents two ACTIVE credentials of the same type per user;
+  // soft-deleted records don't conflict because deletedAt differs.
+  @@unique([userId, type, deletedAt])
+  @@index([userId, deletedAt])
 }
 
 model Identity {
@@ -156,18 +163,19 @@ model Identity {
   user                  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   isVerified            Boolean         @default(false)
-  verifiedAt            DateTime?
+  verifiedAt            DateTime?       @db.Timestamptz
 
   authCredential        AuthCredential?
 
   likes                 Like[]
 
-  createdAt             DateTime        @default(now())
-  deletedAt             DateTime?
+  createdAt             DateTime        @default(now()) @db.Timestamptz
+  deletedAt             DateTime?       @db.Timestamptz
 
   @@unique([type, publicValueHash])
   @@unique([type, platformIdHash])
-  @@index([userId])
+  // Composite index: the hot-path query is userId + deletedAt IS NULL, ordered by createdAt
+  @@index([userId, deletedAt, createdAt])
   @@index([platformIdHash])
 }
 
@@ -187,12 +195,13 @@ model Like {
   matchAsLikeOne   Match?      @relation("MatchLikeOne")
   matchAsLikeTwo   Match?      @relation("MatchLikeTwo")
 
-  createdAt        DateTime    @default(now())
-  expiresAt        DateTime?
-  deletedAt        DateTime?
+  createdAt        DateTime    @default(now()) @db.Timestamptz
+  expiresAt        DateTime?   @db.Timestamptz
+  deletedAt        DateTime?   @db.Timestamptz
 
   @@unique([senderUserId, targetIdentityId])
-  @@index([senderUserId])
+  // Composite index: list-likes queries filter on senderUserId + deletedAt + status
+  @@index([senderUserId, deletedAt, status])
   @@index([targetIdentityId])
   @@index([status])
   @@index([expiresAt])
@@ -218,13 +227,14 @@ model Match {
 
   status    MatchStatus @default(ACTIVE)
 
-  matchedAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  deletedAt DateTime?
+  matchedAt DateTime    @default(now()) @db.Timestamptz
+  updatedAt DateTime    @updatedAt     @db.Timestamptz
+  deletedAt DateTime?   @db.Timestamptz
 
   @@unique([userOneId, userTwoId])
-  @@index([userOneId])
-  @@index([userTwoId])
+  // Composite indexes: match-list queries filter on OR[userOneId|userTwoId] + deletedAt + status
+  @@index([userOneId, deletedAt])
+  @@index([userTwoId, deletedAt])
 }
 
 model Block {
@@ -236,10 +246,12 @@ model Block {
   blockedUserId String
   blocked       User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
-  deletedAt     DateTime?
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  deletedAt     DateTime? @db.Timestamptz
 
   @@unique([blockerUserId, blockedUserId])
+  // Composite index: findAllForUser queries blockerUserId + deletedAt IS NULL, orders by createdAt
+  @@index([blockerUserId, deletedAt, createdAt])
 }
 
 model Device {
@@ -255,8 +267,8 @@ model Device {
 
   isActive   Boolean        @default(true)
 
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  createdAt  DateTime       @default(now()) @db.Timestamptz
+  updatedAt  DateTime       @updatedAt     @db.Timestamptz
 
   @@index([userId])
 }
@@ -273,9 +285,9 @@ model CreditLedger {
   source          CreditSource
   referenceId String?
 
-  expiresAt   DateTime?
+  expiresAt   DateTime?    @db.Timestamptz
 
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime     @default(now()) @db.Timestamptz
 
   @@index([userId])
   @@index([expiresAt])
@@ -292,8 +304,8 @@ model NotificationPreference {
   smsEnabled      Boolean  @default(true)
   emailEnabled    Boolean  @default(true)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt     @db.Timestamptz
 }
 
 // ──────────────────────────────────────────────
@@ -361,8 +373,8 @@ model SubscriptionPlan {
   prices            SubscriptionPlanPrice[]
   subscriptions     UserSubscription[]
 
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt         DateTime               @default(now()) @db.Timestamptz
+  updatedAt         DateTime               @updatedAt     @db.Timestamptz
 
   @@index([status])
 }
@@ -377,8 +389,8 @@ model SubscriptionPlanPrice {
   price          Decimal          @db.Decimal(10, 2)
   countryCode    String           @db.Char(2)
 
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime         @default(now()) @db.Timestamptz
+  updatedAt      DateTime         @updatedAt     @db.Timestamptz
 
   @@unique([planId, currencyCode, countryCode])
   @@index([countryCode])
@@ -399,13 +411,13 @@ model UserSubscription {
   storeTransactionId    String?
   storeProductId        String?
 
-  currentPeriodStart    DateTime
-  currentPeriodEnd      DateTime
-  trialEnd              DateTime?
+  currentPeriodStart    DateTime           @db.Timestamptz
+  currentPeriodEnd      DateTime           @db.Timestamptz
+  trialEnd              DateTime?          @db.Timestamptz
 
   autoRenewing          Boolean            @default(false)
-  cancelledAt           DateTime?
-  expiresAt             DateTime
+  cancelledAt           DateTime?          @db.Timestamptz
+  expiresAt             DateTime           @db.Timestamptz
 
   currencyCode          CurrencyCode?
   pricePaid             Decimal?           @db.Decimal(10, 2)
@@ -413,8 +425,8 @@ model UserSubscription {
 
   events                SubscriptionEvent[]
 
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  createdAt             DateTime           @default(now()) @db.Timestamptz
+  updatedAt             DateTime           @updatedAt     @db.Timestamptz
 
   @@index([userId])
   @@index([status])
@@ -434,7 +446,7 @@ model SubscriptionEvent {
   storeEventId     String?
   rawPayload       Json?
 
-  createdAt        DateTime              @default(now())
+  createdAt        DateTime              @default(now()) @db.Timestamptz
 
   @@index([subscriptionId])
   @@index([eventType])

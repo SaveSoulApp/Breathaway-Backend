@@ -198,6 +198,20 @@ export class IdentitiesService extends BaseService {
     const identities = await this.prisma.identity.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      // Pagination cap: a user's identity count is bounded; 50 is a safe ceiling.
+      take: 50,
+      // Select only the fields that toMaskedResponse needs — crypto columns are
+      // deliberately excluded at the DB layer rather than stripped in the mapping.
+      select: {
+        id: true,
+        type: true,
+        publicValueMasked: true,
+        isVerified: true,
+        verifiedAt: true,
+        createdAt: true,
+        deletedAt: true,
+        userId: true,
+      },
     });
     return identities.map((id) => this.toMaskedResponse(id));
   }
@@ -216,6 +230,31 @@ export class IdentitiesService extends BaseService {
     const identities = await this.prisma.identity.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      // Pagination cap: mirrors findAllByUser.
+      take: 50,
+      // Select only fields required for the masked response shape and decryption.
+      // publicValueHash / platformIdHash are intentionally excluded here as they
+      // are not used in this code path (decryption uses ciphertext, not the hash).
+      select: {
+        id: true,
+        type: true,
+        publicValueMasked: true,
+        isVerified: true,
+        verifiedAt: true,
+        createdAt: true,
+        deletedAt: true,
+        userId: true,
+        publicValueCiphertext: true,
+        publicValueIv: true,
+        publicValueTag: true,
+        publicValueWrappedKey: true,
+        publicValueKeyId: true,
+        platformIdCiphertext: true,
+        platformIdIv: true,
+        platformIdTag: true,
+        platformIdWrappedKey: true,
+        platformIdKeyId: true,
+      },
     });
 
     return Promise.all(
@@ -707,6 +746,14 @@ export class IdentitiesService extends BaseService {
   async getDecryptedPublicValue(identityId: string): Promise<string> {
     const identity = await this.prisma.identity.findUnique({
       where: { id: identityId },
+      // Select only the 5 fields needed for decryption — nothing else.
+      select: {
+        publicValueCiphertext: true,
+        publicValueIv: true,
+        publicValueTag: true,
+        publicValueWrappedKey: true,
+        publicValueKeyId: true,
+      },
     });
 
     if (!identity) {
@@ -755,12 +802,29 @@ export class IdentitiesService extends BaseService {
   }
 
   /**
-   * Projects a full Prisma `Identity` record into the safe masked shape returned by most endpoints.
+   * Projects a Prisma `Identity` record (or a narrowed select result) into the safe masked
+   * shape returned by most endpoints.
    *
    * Deliberately excludes all ciphertext, IV, tag, wrapped-key, and key-ID fields so they
    * are never accidentally serialised into an HTTP response.
+   *
+   * The parameter type is a `Pick` of only the fields actually accessed here, so callers
+   * that use a narrow `select` clause (e.g. `findAllByUser`) are type-compatible without
+   * needing to fetch the full row.
    */
-  private toMaskedResponse(identity: Identity) {
+  private toMaskedResponse(
+    identity: Pick<
+      Identity,
+      | 'id'
+      | 'type'
+      | 'publicValueMasked'
+      | 'isVerified'
+      | 'verifiedAt'
+      | 'createdAt'
+      | 'deletedAt'
+      | 'userId'
+    >,
+  ) {
     return {
       id: identity.id,
       type: identity.type,
