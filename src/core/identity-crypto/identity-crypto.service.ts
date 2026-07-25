@@ -229,8 +229,8 @@ export class IdentityCryptoService extends BaseService {
 
   private maskPhone(phone: string): string {
     const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length <= 6) return '****';
-    return `+${cleaned.slice(0, 2)}****${cleaned.slice(-4)}`;
+    if (cleaned.length <= 6) return '••••';
+    return `+${cleaned.slice(0, 2)}••••${cleaned.slice(-4)}`;
   }
 
   private maskEmail(email: string): string {

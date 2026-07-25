@@ -6,7 +6,7 @@ import { Expose } from 'class-transformer';
  * Safe, masked representation of an identity returned by most endpoints.
  *
  * Plaintext `publicValue` and `platformId` are never included in this shape;
- * only `publicValueMasked` (e.g. `"****5550123"`) is exposed for display purposes.
+ * only `publicValueMasked` (e.g. `"+91••••7890"`) is exposed for display purposes.
  * Use `IdentityCompleteResponseDto` for routes that intentionally expose the plaintext.
  */
 export class IdentityResponseDto {
@@ -38,7 +38,7 @@ export class IdentityResponseDto {
   @Expose()
   userId: string | null;
 
-  /** Display-safe masked form of the public value (e.g. `"****5550123"`); never the plaintext. */
+  /** Display-safe masked form of the public value (e.g. `"+91••••7890"`); never the plaintext. */
   @ApiPropertyOptional()
   @Expose()
   publicValueMasked: string | null;

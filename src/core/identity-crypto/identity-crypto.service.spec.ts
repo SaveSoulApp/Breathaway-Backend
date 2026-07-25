@@ -58,12 +58,12 @@ describe('IdentityCryptoService', () => {
         '+919876543210',
         IdentityType.PHONE,
       );
-      expect(masked).toBe('+91****3210');
+      expect(masked).toBe('+91••••3210');
     });
 
     it('should mask short phone number with asterisks', () => {
       const masked = service.maskPublicValue('123456', IdentityType.PHONE);
-      expect(masked).toBe('****');
+      expect(masked).toBe('••••');
     });
 
     it('should mask email correctly', () => {
