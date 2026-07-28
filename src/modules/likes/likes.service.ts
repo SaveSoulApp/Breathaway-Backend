@@ -12,7 +12,7 @@ import {
 } from './application/exceptions';
 
 import { SortOrder } from '@common/enums';
-import { DateUtil } from '@common/utils/date.utils';
+import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -73,7 +73,11 @@ export class LikesService extends BaseService {
    * @throws {NotFoundException} When the resolved `targetIdentityId` does not exist in the database.
    * @throws {ConflictException} When a non-deleted like from this user to the same identity already exists.
    */
-  async create(userId: string, dto: CreateLikeRequestDto) {
+  async create(
+    userId: string,
+    dto: CreateLikeRequestDto,
+    timezone?: string,
+  ): Promise<CreateLikeResult> {
     const ctx = { userId, targetIdentityId: dto.targetIdentityId };
     this.logger.log('Like creation started', { ...ctx, step: 'init' });
 
@@ -227,8 +231,16 @@ export class LikesService extends BaseService {
     });
 
     // Step 5: Persist like + deduct credits atomically
-    const expiresAt = DateUtil.now();
-    expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
+    let expiresAt = DateUtil.now();
+    if (timezone) {
+      expiresAt = dayjs
+        .tz(DateUtil.now(), timezone)
+        .add(this.expiryDays, 'day')
+        .endOf('day')
+        .toDate();
+    } else {
+      expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
+    }
 
     let like: CreateLikeResult;
 
