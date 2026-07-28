@@ -15,6 +15,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -23,6 +24,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequireTimezoneGuard } from '@common/guards';
+import type { Request } from 'express';
 import { AdminService } from './admin.service';
 import { DeleteAccountRequestDto } from './dto';
 import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
@@ -85,9 +88,14 @@ export class AdminController extends BaseController {
     description: 'Credits successfully granted; ledger entry returned.',
     type: CreditLedgerResponseDto,
   })
+  @UseGuards(RequireTimezoneGuard)
   async grantCredits(
+    @Req() req: Request,
     @Body() dto: GrantCreditsRequestDto,
   ): Promise<CreditLedgerResponseDto> {
-    return this.creditsService.grantCredits(dto);
+    // req.timezone is attached by TimezoneMiddleware, defaulting to UTC if invalid
+    // Since we enforce x-timezone header, req.timezone will be the normalized IANA timezone
+    const timezone = (req as any).timezone;
+    return this.creditsService.grantCredits(dto, undefined, timezone);
   }
 }

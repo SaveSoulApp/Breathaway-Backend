@@ -162,3 +162,42 @@ High usage correctly cascades across multiple credit bundles in order of their e
 | **Dec 25** | -12 (`LIKE_USAGE`) | 12 | **8** | *Usage logged.* |
 | **Jan 1** | Expiration Cron Runs | 12 | **8** | Cron orders by expiry: **Purchase (Jan 1)** -> Referral (Null). Applies 10 debits to Purchase (fully used, 0 left to expire). Applies remaining 2 debits to Referral (8 unused, never expires). **No expiration debits inserted.** |
 | **Jan 5** | *Observation* | 12 | **8** | *Balance is 8 (remaining referral credits). All expiring credits were efficiently consumed.* |
+
+---
+
+## 🌍 Timezone Handling & Client (UI) Interpretation
+
+Credit expiration boundaries must align perfectly with the user's local timezone so that "expires on July 31st" consistently means "expires at 11:59:59 PM in my local time."
+
+### 1. Backend Processing
+
+The API enforces timezone boundaries mathematically upon granting the credits. The client (or internal system granting the credit) provides a simple date string alongside an `X-Timezone` header:
+
+```json
+// POST /admin/credits/grant
+// Headers: X-Timezone: Asia/Kolkata
+{
+  "userId": "123",
+  "amount": 10,
+  "expiresAt": "2026-07-31" // Date-only string
+}
+```
+
+The `TimezoneMiddleware` intercepts the header, and the backend leverages it to compute the exact **End of Day (23:59:59)** for that specific local timezone, before converting it to an absolute UTC timestamp for Prisma storage.
+
+For `Asia/Kolkata` (+05:30), `2026-07-31` is saved to the database as:
+`2026-07-31T18:29:59.999Z`
+
+> [!IMPORTANT]
+> The backend explicitly requires the `X-Timezone` header on timezone-sensitive routes (enforced via `RequireTimezoneGuard`). If the header is omitted, the API safely rejects the request to prevent accidental UTC defaults which would cause credits to expire 5-12 hours early for global users.
+
+### 2. Client (UI) Interpretation
+
+The client/UI's responsibility is incredibly straightforward. It does **not** need to perform any complex timezone math or boundary calculations.
+
+1. **Receive the Response:** The API returns the exact ISO string from the database (e.g., `2026-07-31T18:29:59.999Z`).
+2. **Native Parsing:** The UI blindly parses this string using standard utilities (e.g., `new Date("2026-07-31T18:29:59.999Z")` or `dayjs(val)`).
+3. **Automatic Local Conversion:** Because browsers and mobile OSes automatically interpret ISO `Z` (UTC) strings into the device's local timezone upon parsing, the timestamp perfectly converts back to `July 31, 2026, 23:59:59` on the user's device.
+4. **Formatting:** When formatted for display (e.g., `dayjs(val).format('MMMM D, YYYY')`), it safely outputs **July 31, 2026**.
+
+**Key Takeaway:** The backend enforces the timezone boundaries, while the client simply parses and renders the UTC timestamp natively. This perfectly prevents UI calendar rollover bugs (where 00:00:00 would render as "August 1st").

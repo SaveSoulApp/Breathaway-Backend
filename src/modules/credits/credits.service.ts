@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 
-import { DateUtil } from '@common/utils/date.utils';
+import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -268,6 +268,7 @@ export class CreditsService extends BaseService {
   async grantCredits(
     dto: GrantCreditsRequestDto,
     tx?: Prisma.TransactionClient,
+    timezone?: string,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
       this.logger.warn('Grant credits failed: invalid source', {
@@ -281,6 +282,15 @@ export class CreditsService extends BaseService {
     const client = tx ?? this.prisma;
     let ledger;
     try {
+      let expiresAt: Date | null = null;
+      if (dto.expiresAt) {
+        if (timezone) {
+          expiresAt = dayjs.tz(dto.expiresAt, timezone).endOf('day').toDate();
+        } else {
+          expiresAt = DateUtil.parse(dto.expiresAt);
+        }
+      }
+
       ledger = await client.creditLedger.create({
         data: {
           userId: dto.userId,
@@ -288,7 +298,7 @@ export class CreditsService extends BaseService {
           amount: Math.abs(dto.amount),
           source: dto.source,
           referenceId: dto.referenceId,
-          expiresAt: dto.expiresAt ? DateUtil.parse(dto.expiresAt) : null,
+          expiresAt,
         },
       });
     } catch (error) {
