@@ -526,11 +526,166 @@ describe('CreditsService', () => {
     });
   });
   describe('expireCreditsForUsers', () => {
-    it('should consume closest-expiring credits first, saving them from expiration', async () => {
+    it('should allocate the 1 spend against the earliest-expiring bundle and expire its unused remainder', async () => {
+      // Arrange — reproduces the production scenario verified on 2026-07-29:
+      //   Jun 29: +5 credits (testing-2 bundle), expires Jul 27 00:00Z
+      //   Jul 02: -1 LIKE_USAGE debit
+      //   Jul 27: +5 credits (testing-expiry-1), expires Jul 29 00:00Z
+      //   Jul 28: +5 credits (testing-expiry-2), expires Jul 31 00:00Z
+      //   Jul 28: +7 credits (testing-expiry-3), expires Jul 30 18:29Z
+      //   Cron asOf = 2026-07-29T18:19:34Z
+      //
+      // Expected EXPIRED rows:
+      //   -4 EXPIRED for the Jun 29 bundle (5 granted − 1 consumed = 4 unused)
+      //   -5 EXPIRED for the Jul 27 bundle (fully unused, 0 debits remaining)
+      const asOf = new Date('2026-07-29T18:19:34Z');
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        // CREDIT bundles
+        {
+          id: '01KWA3T18S', // testing-2, earliest expiry
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-27T00:00:00Z'),
+          createdAt: new Date('2026-06-29T16:36:11Z'),
+        },
+        {
+          id: '01KYJC8NXH', // testing-expiry-1
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-29T00:00:00Z'),
+          createdAt: new Date('2026-07-27T18:09:18Z'),
+        },
+        {
+          id: '01KYMPFY5T', // testing-expiry-3
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 7,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-30T18:29:59.999Z'),
+          createdAt: new Date('2026-07-28T15:46:31Z'),
+        },
+        {
+          id: '01KYK974T6', // testing-expiry-2
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-31T00:00:00Z'),
+          createdAt: new Date('2026-07-28T02:35:17Z'),
+        },
+        // DEBIT
+        {
+          id: '01KWGS8GC7',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 1,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-07-02T06:46:32Z'),
+        },
+      ] as any);
+
+      // Act
+      const result = await service.expireCreditsForUsers([userId], asOf);
+
+      // Assert — exactly 2 EXPIRED DEBIT rows must be inserted
+      expect(prisma.creditLedger.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          // testing-2 bundle: 5 granted − 1 LIKE_USAGE absorbed = 4 unused
+          expect.objectContaining({
+            referenceId: '01KWA3T18S',
+            amount: 4,
+            source: CreditSource.EXPIRED,
+          }),
+          // testing-expiry-1: 5 granted − 0 remaining debits = 5 unused
+          expect.objectContaining({
+            referenceId: '01KYJC8NXH',
+            amount: 5,
+            source: CreditSource.EXPIRED,
+          }),
+        ]),
+      });
+
+      // testing-expiry-2 (Jul 31) and testing-expiry-3 (Jul 30) must NOT be expired yet
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock.calls[0][0];
+      const expiry2 = call.data.find((d: any) => d.referenceId === '01KYK974T6');
+      const expiry3 = call.data.find((d: any) => d.referenceId === '01KYMPFY5T');
+      expect(expiry2).toBeUndefined();
+      expect(expiry3).toBeUndefined();
+
+      expect(result.expiredDebitsInserted).toBe(2);
+      expect(result.processedUsers).toBe(1);
+    });
+
+    it('should be idempotent: re-running after EXPIRED rows already exist produces no new rows', async () => {
+      // Arrange — cron already ran and inserted EXPIRED -4 (for testing-2) and
+      // EXPIRED -5 (for testing-expiry-1). A second run with the same asOf must
+      // produce zero new rows — the EXPIRED DEBITs inflate totalDebits so the
+      // bundles appear fully consumed.
+      const asOf = new Date('2026-07-29T18:19:34Z');
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: '01KWA3T18S',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-27T00:00:00Z'),
+          createdAt: new Date('2026-06-29T16:36:11Z'),
+        },
+        {
+          id: '01KYJC8NXH',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.ADMIN,
+          expiresAt: new Date('2026-07-29T00:00:00Z'),
+          createdAt: new Date('2026-07-27T18:09:18Z'),
+        },
+        // The 1 LIKE_USAGE debit
+        {
+          id: '01KWGS8GC7',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 1,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-07-02T06:46:32Z'),
+        },
+        // EXPIRED rows already written by the first cron run
+        {
+          id: '01KYQJFQT6',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 4,
+          source: CreditSource.EXPIRED,
+          expiresAt: null,
+          createdAt: new Date('2026-07-29T18:34:09Z'),
+        },
+        {
+          id: '01KYQJFQT7',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 5,
+          source: CreditSource.EXPIRED,
+          expiresAt: null,
+          createdAt: new Date('2026-07-29T18:34:09Z'),
+        },
+      ] as any);
+
+      // Act
+      const result = await service.expireCreditsForUsers([userId], asOf);
+
+      // Assert — totalDebits = 1 + 4 + 5 = 10. Both bundles fully absorbed →
+      // unusedAmount = 0 for each → no new EXPIRED rows inserted.
+      expect(prisma.creditLedger.createMany).not.toHaveBeenCalled();
+      expect(result.expiredDebitsInserted).toBe(0);
+    });
+
+    it('should consume closest-expiring credits first (FIFO), saving later bundle from expiration', async () => {
+      // Arrange — two bundles, earlier one expires first. User spent 5 credits.
+      // The 5 debits should be absorbed by the earliest-expiring bundle, so when
+      // the cron runs, only the unused 5 from that bundle expire — not the later one.
       const now = new Date();
       const past = new Date(now.getTime() - 100000);
-      const soon = new Date(now.getTime() + 100000); // Expires in future
-      const pastExpiry = new Date(now.getTime() - 1000); // Already expired
+      const soon = new Date(now.getTime() + 100000);
+      const pastExpiry = new Date(now.getTime() - 1000);
 
       prisma.creditLedger.findMany.mockResolvedValueOnce([
         {
@@ -554,43 +709,44 @@ describe('CreditsService', () => {
         },
       ] as any);
 
+      // Act
       await service.expireCreditsForUsers([userId], now);
 
+      // Assert — only the earlier-expiring bundle (purchase-credit) gets an EXPIRED
+      // row, with amount = 10 − 5 = 5. The admin-credit (expires in future) is untouched.
       expect(prisma.creditLedger.createMany).toHaveBeenCalledWith({
         data: expect.arrayContaining([
           expect.objectContaining({
             referenceId: 'purchase-credit',
-            amount: 5, // Only 5 expires — 5 was already consumed by the debit
+            amount: 5,
           }),
         ]),
       });
-
-      const call = (prisma.creditLedger.createMany as jest.Mock).mock
-        .calls[0][0];
-      const adminExp = call.data.find(
-        (d: any) => d.referenceId === 'admin-credit',
-      );
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock.calls[0][0];
+      const adminExp = call.data.find((d: any) => d.referenceId === 'admin-credit');
       expect(adminExp).toBeUndefined();
     });
 
-    it('should consume credits with expiry before non-expiring credits', async () => {
+    it('should expire credits with expiry before non-expiring credits, leaving non-expiring untouched', async () => {
+      // Arrange — one expiring bundle fully covered by debits, one non-expiring bundle.
+      // The debits absorb the expiring bundle entirely, so nothing expires.
       const now = new Date();
       const past = new Date(now.getTime() - 100000);
-      const pastExpiry = new Date(now.getTime() - 1000); // Expired
+      const pastExpiry = new Date(now.getTime() - 1000);
 
       prisma.creditLedger.findMany.mockResolvedValueOnce([
         {
           id: 'referral-credit',
           transactionType: CreditTransactionType.CREDIT,
           amount: 10,
-          expiresAt: null, // No expiry
+          expiresAt: null,
           createdAt: past,
         },
         {
           id: 'purchase-credit',
           transactionType: CreditTransactionType.CREDIT,
           amount: 10,
-          expiresAt: pastExpiry, // Expired
+          expiresAt: pastExpiry,
           createdAt: now,
         },
         {
@@ -600,8 +756,11 @@ describe('CreditsService', () => {
         },
       ] as any);
 
+      // Act
       const result = await service.expireCreditsForUsers([userId], now);
 
+      // Assert — 12 debits cover the full purchase-credit (10) + 2 from referral.
+      // purchase-credit expires with unusedAmount = 0 → no EXPIRED row.
       expect(prisma.creditLedger.createMany).not.toHaveBeenCalled();
       expect(result.expiredDebitsInserted).toBe(0);
     });
@@ -609,18 +768,40 @@ describe('CreditsService', () => {
 
   describe('handleExpiryBatch', () => {
     it('should delegate to expireCreditsForUsers with the parsed asOf date', async () => {
+      // Arrange
       const asOf = new Date();
       const payload = { userIds: [userId], asOf: asOf.toISOString() };
 
       prisma.creditLedger.findMany.mockResolvedValueOnce([]);
 
+      // Act
       await service.handleExpiryBatch(payload);
 
-      // findMany was called once for the user's ledger — confirms delegation occurred
+      // Assert — findMany called once for the user's ledger
       expect(prisma.creditLedger.findMany).toHaveBeenCalledTimes(1);
       expect(prisma.creditLedger.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId } }),
       );
+    });
+
+    it('should process multiple users in a single batch', async () => {
+      // Arrange — two users, each with a clean empty ledger
+      const userId2 = 'user-id-456';
+      const payload = {
+        userIds: [userId, userId2],
+        asOf: new Date().toISOString(),
+      };
+
+      // findMany called once per user
+      prisma.creditLedger.findMany
+        .mockResolvedValueOnce([]) // user 1
+        .mockResolvedValueOnce([]); // user 2
+
+      // Act
+      await service.handleExpiryBatch(payload);
+
+      // Assert — one ledger fetch per user
+      expect(prisma.creditLedger.findMany).toHaveBeenCalledTimes(2);
     });
   });
 });
