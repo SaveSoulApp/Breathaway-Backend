@@ -72,11 +72,83 @@ CreditLedger
 
 ### Balance Calculation Formula
 
-The active credit balance for any user is computed as:
+The active credit balance for any user is computed in real-time via an in-memory **FIFO allocation pass** over the user's ledger:
 
 ```text
-Active Balance = Sum(CREDIT amounts where expiresAt > now OR expiresAt is NULL) - Sum(DEBIT amounts)
+1. remainingDebits  = Σ(DEBIT where source ≠ EXPIRED)
+2. Sort CREDIT bundles: earliest expiresAt first, null last
+3. For each bundle:
+     usedFromBundle = min(remainingDebits, bundle.amount)
+     remainingDebits -= usedFromBundle
+     if bundle is NOT expired:
+         balance += (bundle.amount - usedFromBundle)
+4. Return balance
 ```
+
+> [!IMPORTANT]
+> This formula is **cron-independent**. The result is identical whether or not the background expiry job has run. See [Why `getBalance` Uses FIFO Allocation](#-why-getbalance-uses-fifo-allocation) below for the full rationale.
+
+---
+
+## 🔍 Why `getBalance` Uses FIFO Allocation
+
+### The Original Bug
+
+The original implementation summed every `CREDIT` and `DEBIT` row unconditionally:
+
+```text
+// Original, incorrect formula
+balance = Σ(all CREDITs) − Σ(all DEBITs)
+```
+
+This allowed users to spend credits past their `expiresAt` timestamp until the maintenance cron inserted compensating `EXPIRED` DEBIT rows — a window of potentially hours.
+
+### The Intermediate Attempt (Still Wrong)
+
+The next attempt filtered aggregates separately:
+
+```text
+// Intermediate, still incorrect formula
+balance = Σ(CREDIT where expiresAt > now) − Σ(DEBIT where source ≠ EXPIRED)
+```
+
+This fixed the post-expiry spend window, but introduced a **bundle-blindness** problem. It subtracts all `LIKE_USAGE` debits from whatever active credits remain — without knowing *which bundle* each debit was charged against.
+
+**Concrete failure case:**
+- Jul 20: `+5` credits, expires Jul 29
+- Jul 22: `+5` credits, expires Jul 31
+- Jul 23: `−1` LIKE_USAGE
+- Query on Jul 30 (Jul 29 bundle now expired)
+
+| Formula | CREDIT sum | DEBIT sum | Result |
+|:---|:---|:---|:---|
+| Aggregate (wrong) | +5 (Jul 31 only) | −1 | **4** ❌ |
+| FIFO (correct) | Jul 29 absorbs the 1 debit → expired, excluded. Jul 31 untouched | — | **5** ✅ |
+
+The 1 credit was spent while the Jul 29 bundle was still live. FIFO correctly allocates that spend to the earliest-expiring bundle, leaving the Jul 31 bundle completely intact.
+
+### The Fix: FIFO In-Memory Allocation
+
+`getBalance` now runs the same **first-to-expire FIFO** strategy as `expireCreditsForUsers`, but as a read-only pass:
+
+1. **Collect real spends** — sum all non-`EXPIRED`-source DEBIT amounts. `EXPIRED` rows are cron-compensating entries that close the books on lapsed bundles; they are not genuine spends.
+
+2. **Sort CREDIT bundles** by earliest `expiresAt` first (null last), with `createdAt` as a tiebreaker.
+
+3. **Drain debits FIFO** — walk the sorted bundles, consuming `remainingDebits` against each in turn.
+
+4. **Accumulate active remainders** — only the unconsumed portion of a bundle that has **not yet expired** at query time contributes to the balance.
+
+### Proof of Correctness (Four States)
+
+| State | FIFO allocation | Balance |
+|:---|:---|:---|
+| Both bundles active, 1 spent | Jul 29: absorbs 1 debit → 4 unused, active → +4. Jul 31: 0 debits → 5 unused, active → +5 | **9** ✅ |
+| Jul 29 expired, cron NOT yet run | Jul 29: absorbs 1 debit → 4 unused, **expired** → +0. Jul 31: 0 debits → +5 | **5** ✅ |
+| Jul 29 expired, cron HAS run (EXPIRED −4 inserted) | Same as above — EXPIRED DEBIT excluded from `remainingDebits` | **5** ✅ |
+| All credits expired, no debits | All bundles expired → excluded from accumulation | **0** ✅ |
+
+All four states produce the same semantically correct result. The cron is now a **search-index maintenance job** — it materialises `EXPIRED` rows so `creditStatus` filters in `getLedger` stay fast — but it is no longer a correctness dependency for `getBalance`, `hasSufficientCredits`, or `consumeCredits`.
 
 ---
 

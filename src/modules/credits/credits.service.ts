@@ -49,40 +49,107 @@ export class CreditsService extends BaseService {
   }
 
   /**
-   * Computes a user's current spendable credit balance by summing all CREDIT
-   * transactions and subtracting all DEBIT transactions from their ledger.
+   * Computes a user's current spendable credit balance in real-time, without
+   * depending on the background expiry cron to reflect accurate numbers.
    *
-   * Accepts an optional Prisma transaction client so callers can read the
-   * balance atomically within an ongoing transaction (e.g., before consuming
-   * credits to prevent a TOCTOU race).
+   * **Why FIFO allocation, not a simple aggregate:**
+   *
+   * A naïve `sum(CREDITs) − sum(DEBITs)` aggregate is bundle-blind. Once some
+   * bundles have expired, blindly subtracting all LIKE_USAGE debits from the
+   * remaining active credits produces the wrong answer.
+   *
+   * Example: user has +5 (expires Jul 29) and +5 (expires Jul 31). They spend
+   * 1 credit on Jul 23. On Jul 30, the Jul 29 bundle is expired. The correct
+   * balance is **5** — the 1 spend was charged against the earliest-expiring
+   * bundle so the Jul 31 bundle is completely untouched. A plain aggregate
+   * incorrectly gives 4 (5 active − 1 debit).
+   *
+   * The fix applies the same **first-to-expire FIFO** strategy that
+   * `expireCreditsForUsers` uses, but as a read-only in-memory pass:
+   *
+   * 1. Collect all non-`EXPIRED`-source DEBIT amounts as `remainingDebits`.
+   *    (`EXPIRED` rows are cron-compensating entries that close the books on
+   *    lapsed bundles — they are not genuine spends and must not be counted.)
+   *
+   * 2. Sort CREDIT bundles by earliest `expiresAt` first (null last).
+   *
+   * 3. Walk the sorted bundles, draining `remainingDebits` against each in
+   *    turn. The unconsumed remainder of a bundle only contributes to the
+   *    balance if that bundle has **not yet expired** at query time.
+   *
+   * This produces the correct result both before and after the cron runs,
+   * making the balance cron-independent.
    *
    * @param userId - UUID of the user whose balance to compute.
    * @param tx     - Optional Prisma transaction client; falls back to the shared
    *                 PrismaService instance when omitted.
-   * @returns The net credit balance; returns `0` if the user has no ledger entries.
+   * @returns The net spendable credit balance; returns `0` when no entries exist.
    */
   async getBalance(
     userId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<number> {
     const client = tx ?? this.prisma;
+    const now = DateUtil.now();
 
-    const groups = await client.creditLedger.groupBy({
-      by: ['transactionType'],
-      _sum: {
+    const ledger = await client.creditLedger.findMany({
+      where: { userId },
+      select: {
+        transactionType: true,
         amount: true,
+        source: true,
+        expiresAt: true,
+        createdAt: true,
       },
-      where: {
-        userId,
-      },
+      orderBy: { createdAt: 'asc' },
     });
 
+    // Sum all real spends; exclude EXPIRED rows — those are cron compensating
+    // entries that close the books on lapsed bundles, not genuine spends.
+    let remainingDebits = ledger
+      .filter(
+        (l) =>
+          l.transactionType === CreditTransactionType.DEBIT &&
+          l.source !== CreditSource.EXPIRED,
+      )
+      .reduce((sum, l) => sum + l.amount, 0);
+
+    // Sort credit bundles by earliest-expiring first (mirrors cron FIFO order).
+    const credits = ledger
+      .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
+      .sort((a, b) => {
+        if (a.expiresAt && b.expiresAt) {
+          if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
+            return a.createdAt.getTime() - b.createdAt.getTime();
+          }
+          return a.expiresAt.getTime() - b.expiresAt.getTime();
+        }
+        if (a.expiresAt && !b.expiresAt) return -1;
+        if (!a.expiresAt && b.expiresAt) return 1;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+
     let balance = 0;
-    for (const group of groups) {
-      if (group.transactionType === CreditTransactionType.CREDIT) {
-        balance += group._sum.amount ?? 0;
-      } else if (group.transactionType === CreditTransactionType.DEBIT) {
-        balance -= group._sum.amount ?? 0;
+
+    for (const credit of credits) {
+      // Drain debits against this bundle first (FIFO).
+      let usedFromThisCredit: number;
+      if (remainingDebits >= credit.amount) {
+        usedFromThisCredit = credit.amount;
+        remainingDebits -= credit.amount;
+      } else {
+        usedFromThisCredit = remainingDebits;
+        remainingDebits = 0;
+      }
+
+      const unusedAmount = credit.amount - usedFromThisCredit;
+
+      // Only the unconsumed portion of a bundle that has not yet expired
+      // contributes to the spendable balance.
+      const isExpired = credit.expiresAt !== null && credit.expiresAt <= now;
+
+      if (!isExpired && unusedAmount > 0) {
+        balance += unusedAmount;
       }
     }
 
