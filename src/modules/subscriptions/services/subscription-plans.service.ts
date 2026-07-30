@@ -90,7 +90,9 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          where: countryCode ? { countryCode: countryCode.toUpperCase() } : undefined,
+          where: countryCode
+            ? { countryCode: countryCode.toUpperCase() }
+            : undefined,
           select: {
             id: true,
             currencyCode: true,
@@ -235,11 +237,27 @@ export class SubscriptionPlansService extends BaseService {
           sortOrder: dto.sortOrder ?? 0,
         },
         select: {
-          id: true, name: true, slug: true, description: true,
-          appleProductId: true, googleProductId: true,
-          creditsGranted: true, validityDays: true, trialDurationDays: true,
-          sortOrder: true, status: true, createdAt: true, updatedAt: true,
-          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
         },
       });
     } catch (error) {
@@ -309,11 +327,27 @@ export class SubscriptionPlansService extends BaseService {
           ...(dto.status !== undefined && { status: dto.status }),
         },
         select: {
-          id: true, name: true, slug: true, description: true,
-          appleProductId: true, googleProductId: true,
-          creditsGranted: true, validityDays: true, trialDurationDays: true,
-          sortOrder: true, status: true, createdAt: true, updatedAt: true,
-          prices: { select: { id: true, currencyCode: true, price: true, countryCode: true } },
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
         },
       });
     } catch (error) {

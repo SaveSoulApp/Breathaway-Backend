@@ -89,10 +89,11 @@ describe('LikesController', () => {
       );
 
       // Act
-      const result = await controller.create(userId, dto);
+      const mockReq = { timezone: 'Asia/Kolkata' } as any;
+      const result = await controller.create(mockReq, userId, dto);
 
       // Assert
-      expect(service.create).toHaveBeenCalledWith(userId, dto);
+      expect(service.create).toHaveBeenCalledWith(userId, dto, 'Asia/Kolkata');
       expect(result).toEqual(mockLikeResponse);
     });
   });

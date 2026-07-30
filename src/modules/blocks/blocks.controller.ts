@@ -26,7 +26,6 @@ import { LoggerService } from '@core/logger';
 import { BlocksService } from './blocks.service';
 import { BlockListQueryDto, BlockResponseDto, CreateBlockDto } from './dto';
 
-
 /**
  * HTTP resource for the `/blocks` domain, managing user-to-user block relationships.
  * All endpoints require a valid JWT; the caller's `userId` is always sourced from the
@@ -74,8 +73,18 @@ export class BlocksController extends BaseController {
    */
   @Get()
   @ApiOperation({ summary: 'Get authenticated user active blocked users list' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page, max 50 (default: 50)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page, max 50 (default: 50)',
+  })
   @ApiResponse({ status: HttpStatus.OK, type: [BlockResponseDto] })
   @SerializeExpose(BlockResponseDto)
   async findAll(

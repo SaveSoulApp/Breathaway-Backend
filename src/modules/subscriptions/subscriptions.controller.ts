@@ -176,8 +176,18 @@ export class SubscriptionsController extends BaseController {
    */
   @Get('me/history')
   @ApiOperation({ summary: "Get user's subscription history" })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page, max 50 (default: 20)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page, max 50 (default: 20)',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     type: [UserSubscriptionResponseDto],

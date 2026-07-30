@@ -10,7 +10,11 @@ import { IsInt, IsOptional, Max, Min } from 'class-validator';
  * `page` and `limit` are coerced from query strings to integers by the `@Transform` decorator.
  */
 export class SubscriptionHistoryQueryDto {
-  @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'Page number (1-based)',
+    default: 1,
+    minimum: 1,
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
