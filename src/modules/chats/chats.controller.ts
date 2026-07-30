@@ -24,6 +24,7 @@ import { ChatsService } from './chats.service';
 import {
   CreateMessageRequestDto,
   GetMessagesRequestDto,
+  GetRoomsRequestDto,
   MarkMessageReadRequestDto,
 } from './dto';
 import { SupabaseAuthService } from './services/supabase-auth.service';
@@ -85,6 +86,19 @@ export class ChatsController extends BaseController {
   ) {
     await this.chatsService.markMessageRead(userId, roomId, dto);
     return { success: true };
+  }
+
+  @Get('rooms')
+  @ApiOperation({ summary: 'Get active chat rooms for the current user' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Chat rooms retrieved successfully',
+  })
+  async getRooms(
+    @CurrentUserId() userId: string,
+    @Query() query: GetRoomsRequestDto,
+  ) {
+    return this.chatsService.getRooms(userId, query);
   }
 
   @Get(':roomId/messages')

@@ -10,6 +10,7 @@ import { MessageNotFoundException } from './application/exceptions';
 import {
   CreateMessageRequestDto,
   GetMessagesRequestDto,
+  GetRoomsRequestDto,
   MarkMessageReadRequestDto,
 } from './dto';
 import { generateRoomParticipants } from './utils/chats.utils';
@@ -41,6 +42,45 @@ export class ChatsService extends BaseService {
     this.supabase = createClient(supabaseUrl || '', supabaseKey || '', {
       auth: { persistSession: false },
     });
+  }
+
+  async getRooms(userId: string, dto: GetRoomsRequestDto) {
+    const { limit = 20 } = dto;
+
+    let data;
+    let error;
+    try {
+      const response = await this.supabase
+        .from('ChatRoom')
+        .select('*')
+        .or(`userOneId.eq.${userId},userTwoId.eq.${userId}`)
+        .limit(limit);
+
+      data = response.data;
+      error = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch chat rooms', {
+        userId,
+        limit,
+        step: 'fetch_rooms',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to fetch chat rooms');
+    }
+
+    if (error) {
+      this.logger.error('Failed to fetch chat rooms', {
+        userId,
+        limit,
+        step: 'fetch_rooms',
+        err: serializeError(error),
+      });
+      throw new InternalServerErrorException('Failed to fetch chat rooms');
+    }
+
+    const rooms = (data as Record<string, unknown>[]) || [];
+
+    return { rooms };
   }
 
   async getMessages(
