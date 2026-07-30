@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import { MessageNotFoundException } from './application/exceptions';
 import {
@@ -23,6 +24,7 @@ export class ChatsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {
     super(logger);
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -78,9 +80,63 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to fetch chat rooms');
     }
 
-    const rooms = (data as Record<string, unknown>[]) || [];
+    const rooms = (data as Record<string, any>[]) || [];
 
-    return { rooms };
+    // Extract all unique other user IDs
+    const otherUserIds = Array.from(
+      new Set(
+        rooms.map((room) =>
+          room.userOneId === userId ? room.userTwoId : room.userOneId,
+        ),
+      ),
+    );
+
+    // Fetch profiles from Prisma
+    let profiles: {
+      userId: string;
+      firstName: string;
+      lastName: string | null;
+    }[] = [];
+    if (otherUserIds.length > 0) {
+      try {
+        profiles = await this.prisma.userProfile.findMany({
+          where: { userId: { in: otherUserIds } },
+          select: { userId: true, firstName: true, lastName: true },
+        });
+      } catch (err: unknown) {
+        this.logger.error('Failed to fetch user profiles for chat rooms', {
+          userId,
+          otherUserIds,
+          step: 'fetch_profiles',
+          err: serializeError(err),
+        });
+        // We can choose to fail the request or just return null for otherUser.
+        // Returning 500 is safer to prevent UI crashes if frontend strictly expects names.
+        throw new InternalServerErrorException(
+          'Failed to fetch chat room details',
+        );
+      }
+    }
+
+    const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+
+    const enrichedRooms = rooms.map((room) => {
+      const otherUserId =
+        room.userOneId === userId ? room.userTwoId : room.userOneId;
+      const profile = profileMap.get(otherUserId);
+      return {
+        ...room,
+        otherUser: profile
+          ? {
+              id: profile.userId,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+            }
+          : null,
+      };
+    });
+
+    return { rooms: enrichedRooms };
   }
 
   async getMessages(

@@ -56,3 +56,6 @@ pids
 # .tfstate files
 *.tfstate
 *.tfstate.*
+
+# AI Configs
+.agents/mcp.json

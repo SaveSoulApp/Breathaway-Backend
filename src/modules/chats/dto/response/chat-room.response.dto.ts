@@ -9,4 +9,19 @@ export class ChatRoomResponseDto {
 
   @ApiProperty({ description: 'ID of the second user in the room' })
   userTwoId: string;
+
+  @ApiProperty({
+    description:
+      'Basic profile information of the other participant in the chat',
+    example: {
+      id: '01H...XYZ',
+      firstName: 'John',
+      lastName: 'Doe',
+    },
+  })
+  otherUser: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+  };
 }
