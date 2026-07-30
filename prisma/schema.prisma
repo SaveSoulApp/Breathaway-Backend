@@ -290,6 +290,7 @@ model CreditLedger {
   createdAt   DateTime     @default(now()) @db.Timestamptz
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([expiresAt])
 }
 
