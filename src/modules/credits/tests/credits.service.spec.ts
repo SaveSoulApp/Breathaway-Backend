@@ -286,7 +286,6 @@ describe('CreditsService', () => {
     });
   });
 
-
   describe('getLedger', () => {
     it('should return paginated credit ledger with default query', async () => {
       // Arrange
@@ -607,9 +606,14 @@ describe('CreditsService', () => {
       });
 
       // testing-expiry-2 (Jul 31) and testing-expiry-3 (Jul 30) must NOT be expired yet
-      const call = (prisma.creditLedger.createMany as jest.Mock).mock.calls[0][0];
-      const expiry2 = call.data.find((d: any) => d.referenceId === '01KYK974T6');
-      const expiry3 = call.data.find((d: any) => d.referenceId === '01KYMPFY5T');
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock
+        .calls[0][0];
+      const expiry2 = call.data.find(
+        (d: any) => d.referenceId === '01KYK974T6',
+      );
+      const expiry3 = call.data.find(
+        (d: any) => d.referenceId === '01KYMPFY5T',
+      );
       expect(expiry2).toBeUndefined();
       expect(expiry3).toBeUndefined();
 
@@ -722,8 +726,11 @@ describe('CreditsService', () => {
           }),
         ]),
       });
-      const call = (prisma.creditLedger.createMany as jest.Mock).mock.calls[0][0];
-      const adminExp = call.data.find((d: any) => d.referenceId === 'admin-credit');
+      const call = (prisma.creditLedger.createMany as jest.Mock).mock
+        .calls[0][0];
+      const adminExp = call.data.find(
+        (d: any) => d.referenceId === 'admin-credit',
+      );
       expect(adminExp).toBeUndefined();
     });
 

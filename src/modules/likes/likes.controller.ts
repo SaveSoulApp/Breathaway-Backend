@@ -82,7 +82,7 @@ export class LikesController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: CreateLikeRequestDto,
   ) {
-    const timezone = (req as any).timezone;
+    const timezone = req.timezone;
     return this.likesService.create(userId, dto, timezone);
   }
 

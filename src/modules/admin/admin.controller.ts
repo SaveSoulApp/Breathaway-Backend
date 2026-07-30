@@ -95,7 +95,7 @@ export class AdminController extends BaseController {
   ): Promise<CreditLedgerResponseDto> {
     // req.timezone is attached by TimezoneMiddleware, defaulting to UTC if invalid
     // Since we enforce x-timezone header, req.timezone will be the normalized IANA timezone
-    const timezone = (req as any).timezone;
+    const timezone = req.timezone;
     return this.creditsService.grantCredits(dto, undefined, timezone);
   }
 }
