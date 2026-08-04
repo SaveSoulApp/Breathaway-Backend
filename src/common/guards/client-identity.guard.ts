@@ -102,8 +102,8 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const userAgent = headers['user-agent'];
-    if (!userAgent)
+    const userAgent = headers['x-user-agent'] || headers['user-agent'];
+    if (!userAgent || typeof userAgent !== 'string')
       throw new BadRequestException('User-Agent header is required');
 
     const uaData = this.validateAndParseUserAgent(userAgent);

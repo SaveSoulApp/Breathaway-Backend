@@ -89,9 +89,45 @@ function publicApiDocumentation(app: INestApplication): void {
         type: 'apiKey',
         name: 'X-Timezone',
         in: 'header',
-        description: 'The timezone of the client (e.g., UTC, America/New_York)',
+        description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
       'X-Timezone',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-api-key',
+        in: 'header',
+        description: 'API Key for Client Application',
+      },
+      'x-api-key',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-client-id',
+        in: 'header',
+        description: 'Client ID',
+      },
+      'x-client-id',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-device-id',
+        in: 'header',
+        description: 'Unique Device Identifier',
+      },
+      'x-device-id',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-user-agent',
+        in: 'header',
+        description: 'Client App Version Information',
+      },
+      'x-user-agent',
     )
     .build();
 
@@ -99,7 +135,14 @@ function publicApiDocumentation(app: INestApplication): void {
     include: publicModules,
   });
 
-  applyGlobalSecurityToOperations(publicDoc);
+  applyGlobalSecurityToOperations(publicDoc, [
+    'X-Request-ID',
+    'X-Timezone',
+    'x-api-key',
+    'x-client-id',
+    'x-device-id',
+    'x-user-agent',
+  ]);
 
   SwaggerModule.setup(SWAGGER_PUBLIC_PATH, app, publicDoc, {
     swaggerOptions: {
@@ -155,7 +198,7 @@ function adminApiDocumentation(app: INestApplication): void {
         type: 'apiKey',
         name: 'X-Timezone',
         in: 'header',
-        description: 'The timezone of the client (e.g., UTC, America/New_York)',
+        description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
       'X-Timezone',
     )
@@ -165,7 +208,7 @@ function adminApiDocumentation(app: INestApplication): void {
     include: adminModules,
   });
 
-  applyGlobalSecurityToOperations(adminDoc);
+  applyGlobalSecurityToOperations(adminDoc, ['X-Request-ID', 'X-Timezone']);
 
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {
@@ -198,7 +241,10 @@ function adminApiDocumentation(app: INestApplication): void {
   );
 }
 
-function applyGlobalSecurityToOperations(document: OpenAPIObject): void {
+function applyGlobalSecurityToOperations(
+  document: OpenAPIObject,
+  extraSecurityKeys: string[],
+): void {
   Object.values(document.paths).forEach((pathItem) => {
     if (!pathItem) return;
     Object.values(pathItem).forEach((operation: any) => {
@@ -211,11 +257,16 @@ function applyGlobalSecurityToOperations(document: OpenAPIObject): void {
           operation.security = [];
         }
         if (operation.security.length === 0) {
-          operation.security.push({ 'X-Request-ID': [], 'X-Timezone': [] });
+          const req: any = {};
+          extraSecurityKeys.forEach((key) => {
+            req[key] = [];
+          });
+          operation.security.push(req);
         } else {
           operation.security.forEach((req: any) => {
-            req['X-Request-ID'] = [];
-            req['X-Timezone'] = [];
+            extraSecurityKeys.forEach((key) => {
+              req[key] = [];
+            });
           });
         }
       }
