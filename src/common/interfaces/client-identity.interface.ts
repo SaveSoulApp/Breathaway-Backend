@@ -1,5 +1,5 @@
 /**
- * Extracted and validated device metadata from the User-Agent string.
+ * Extracted and validated device metadata from the x-user-agent string.
  */
 export interface UserAgentData {
   appName: string;

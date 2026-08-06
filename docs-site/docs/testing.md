@@ -126,7 +126,7 @@ describe('HealthController (E2E)', () => {
       .set('x-api-key', 'mock_key') // bypass ClientIdentityGuard
       .set('x-client-id', 'mock_client')
       .set('x-device-id', 'mock_device')
-      .set('User-Agent', 'BreathAway/1.0.0 (iOS 17.4; iPhone15)')
+      .set('x-user-agent', 'BreathAway/1.0.0 (iOS 17.4; iPhone15)')
       .expect(200)
       .expect((res) => {
         expect(res.body.status).toBe('ok');

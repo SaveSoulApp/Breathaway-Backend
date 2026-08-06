@@ -23,10 +23,10 @@ Every standard client request must supply the following headers:
 | `x-api-key` | String | Valid API key matching `API_KEYS` | `ba_live_abcdefg1234` |
 | `x-client-id`| String | Valid Client Identifier matching `CLIENT_IDS` | `ba_ios_app` |
 | `x-device-id`| String | Unique device identifier (for push / session audits) | `A12B34CD-56EF-...` |
-| `User-Agent` | String | Must follow: `AppName/Version (Platform OS; Device)` | `BreathAway/1.0.0 (iOS 17.4; iPhone15)` |
+| `x-user-agent` | String | Must follow: `AppName/Version (Platform OS; Device)` | `BreathAway/1.0.0 (iOS 17.4; iPhone15)` |
 
 > [!CAUTION]
-> If the `User-Agent` format or version is invalid (e.g. below the `MIN_APP_VERSION` configuration variable), the guard will reject the request with `401 Unauthorized` or `400 Bad Request`.
+> If the `x-user-agent` format or version is invalid (e.g. below the `MIN_APP_VERSION` configuration variable), the guard will reject the request with `401 Unauthorized` or `400 Bad Request`.
 
 ---
 
@@ -55,7 +55,7 @@ sequenceDiagram
     
     MobileClient ->> CGuard: HTTP Request (Headers + Body)
     activate CGuard
-    Note over CGuard: Validates x-api-key, x-client-id, and User-Agent
+    Note over CGuard: Validates x-api-key, x-client-id, and x-user-agent
     alt Validation Fails
         CGuard -->> MobileClient: 401 Unauthorized / 400 Bad Request
     else Validation Succeeds

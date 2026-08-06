@@ -29,7 +29,7 @@ export abstract class BaseService {
    * Emits a standardized audit log event for compliance and tracking purposes.
    *
    * Automatically enriches the provided payload with the current request's IP address,
-   * User-Agent, and request ID — all extracted from the CLS context. The `requestId`
+   * x-user-agent, and request ID — all extracted from the CLS context. The `requestId`
    * in `metadata` allows any downstream Pub/Sub consumer to correlate an audit event
    * back to its originating Cloud Logging trace with a single query.
    *

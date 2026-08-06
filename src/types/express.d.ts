@@ -17,7 +17,7 @@ declare global {
 
       /**
        * Validated client identity payload injected by ClientIdentityGuard.
-       * Contains the parsed API key, client ID, device ID, and user-agent data.
+       * Contains the parsed API key, client ID, device ID, and x-user-agent data.
        */
       clientIdentity: ClientIdentityData;
 

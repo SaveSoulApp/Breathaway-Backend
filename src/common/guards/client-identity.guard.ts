@@ -58,7 +58,7 @@ export class ClientIdentityGuard implements CanActivate {
   }
 
   /**
-   * Validates custom client identity headers and the User-Agent string against
+   * Validates custom client identity headers and the x-user-agent string against
    * configured whitelists and version thresholds.
    *
    * Can be bypassed by applying the `@SkipClientIdentity()` decorator to a route.
@@ -102,9 +102,9 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const userAgent = headers['user-agent'];
-    if (!userAgent)
-      throw new BadRequestException('User-Agent header is required');
+    const userAgent = headers['x-user-agent'];
+    if (!userAgent || typeof userAgent !== 'string')
+      throw new BadRequestException('x-user-agent header is required');
 
     const uaData = this.validateAndParseUserAgent(userAgent);
 
@@ -125,7 +125,7 @@ export class ClientIdentityGuard implements CanActivate {
 
     if (!match) {
       throw new BadRequestException(
-        `User-Agent must follow format: ${this.appName}/Version (Platform OSVersion; DeviceModel)`,
+        `x-user-agent must follow format: ${this.appName}/Version (Platform OSVersion; DeviceModel)`,
       );
     }
 
