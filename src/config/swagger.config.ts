@@ -247,23 +247,25 @@ function applyGlobalSecurityToOperations(
 ): void {
   Object.values(document.paths).forEach((pathItem) => {
     if (!pathItem) return;
-    Object.values(pathItem).forEach((operation: any) => {
+    Object.values(pathItem).forEach((operation: unknown) => {
       if (
         operation &&
         typeof operation === 'object' &&
         !Array.isArray(operation)
       ) {
-        if (!operation.security) {
-          operation.security = [];
+        const op = operation as Record<string, unknown>;
+        if (!op.security) {
+          op.security = [];
         }
-        if (operation.security.length === 0) {
-          const req: any = {};
+        const security = op.security as Record<string, string[]>[];
+        if (security.length === 0) {
+          const req: Record<string, string[]> = {};
           extraSecurityKeys.forEach((key) => {
             req[key] = [];
           });
-          operation.security.push(req);
+          security.push(req);
         } else {
-          operation.security.forEach((req: any) => {
+          security.forEach((req) => {
             extraSecurityKeys.forEach((key) => {
               req[key] = [];
             });
