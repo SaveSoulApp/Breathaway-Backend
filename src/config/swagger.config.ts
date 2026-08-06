@@ -9,18 +9,14 @@ import { IdentitiesModule } from '@modules/identities/identities.module';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { LikesModule } from '@modules/likes/likes.module';
-import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 import { MatchesModule } from '@modules/matches/matches.module';
-import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
-import { PubSubModule } from '@modules/pubsub/pubsub.module';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
-import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 import * as express from 'express';
 import { join } from 'path';
 import redoc from 'redoc-express';
@@ -79,11 +75,75 @@ function publicApiDocumentation(app: INestApplication): void {
     .setDescription('BreathAway APIs - REST APIs for BreathAway App')
     .setVersion('1.0')
     .addBearerAuth()
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'X-Request-ID',
+        in: 'header',
+        description: 'A unique identifier for the request (UUID)',
+      },
+      'X-Request-ID',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'X-Timezone',
+        in: 'header',
+        description: 'The timezone of the client (e.g., Asia/Kolkata)',
+      },
+      'X-Timezone',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-api-key',
+        in: 'header',
+        description: 'API Key for Client Application',
+      },
+      'x-api-key',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-client-id',
+        in: 'header',
+        description: 'Client ID',
+      },
+      'x-client-id',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-device-id',
+        in: 'header',
+        description: 'Unique Device Identifier',
+      },
+      'x-device-id',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'x-user-agent',
+        in: 'header',
+        description: 'Client App Version Information',
+      },
+      'x-user-agent',
+    )
     .build();
 
   const publicDoc = SwaggerModule.createDocument(app, publicConfig, {
     include: publicModules,
   });
+
+  applyGlobalSecurityToOperations(publicDoc, [
+    'X-Request-ID',
+    'X-Timezone',
+    'x-api-key',
+    'x-client-id',
+    'x-device-id',
+    'x-user-agent',
+  ]);
+
   SwaggerModule.setup(SWAGGER_PUBLIC_PATH, app, publicDoc, {
     swaggerOptions: {
       docExpansion: 'none',
@@ -116,27 +176,40 @@ function publicApiDocumentation(app: INestApplication): void {
 }
 
 function adminApiDocumentation(app: INestApplication): void {
-  const adminModules = [
-    InstagramModule,
-    WebhooksModule,
-    PubSubModule,
-    IdentityWorkflowsModule,
-    NotificationsModule,
-    AdminModule,
-    MaintenanceModule,
-  ];
+  const adminModules = [InstagramModule, IdentityWorkflowsModule, AdminModule];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
     .setDescription(
       'BreathAway Admin APIs - REST APIs for BreathAway Admin App',
     )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBasicAuth()
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'X-Request-ID',
+        in: 'header',
+        description: 'A unique identifier for the request (UUID)',
+      },
+      'X-Request-ID',
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'X-Timezone',
+        in: 'header',
+        description: 'The timezone of the client (e.g., Asia/Kolkata)',
+      },
+      'X-Timezone',
+    )
     .build();
 
   const adminDoc = SwaggerModule.createDocument(app, adminConfig, {
     include: adminModules,
   });
+
+  applyGlobalSecurityToOperations(adminDoc, ['X-Request-ID', 'X-Timezone']);
+
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {
       docExpansion: 'none',
@@ -166,4 +239,39 @@ function adminApiDocumentation(app: INestApplication): void {
       },
     }),
   );
+}
+
+function applyGlobalSecurityToOperations(
+  document: OpenAPIObject,
+  extraSecurityKeys: string[],
+): void {
+  Object.values(document.paths).forEach((pathItem) => {
+    if (!pathItem) return;
+    Object.values(pathItem).forEach((operation: unknown) => {
+      if (
+        operation &&
+        typeof operation === 'object' &&
+        !Array.isArray(operation)
+      ) {
+        const op = operation as Record<string, unknown>;
+        if (!op.security) {
+          op.security = [];
+        }
+        const security = op.security as Record<string, string[]>[];
+        if (security.length === 0) {
+          const req: Record<string, string[]> = {};
+          extraSecurityKeys.forEach((key) => {
+            req[key] = [];
+          });
+          security.push(req);
+        } else {
+          security.forEach((req) => {
+            extraSecurityKeys.forEach((key) => {
+              req[key] = [];
+            });
+          });
+        }
+      }
+    });
+  });
 }

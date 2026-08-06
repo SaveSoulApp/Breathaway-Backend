@@ -150,7 +150,7 @@ describe(ClientIdentityGuard.name, () => {
     );
   });
 
-  it('should throw BadRequestException if User-Agent is missing', () => {
+  it('should throw BadRequestException if x-user-agent is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -161,24 +161,24 @@ describe(ClientIdentityGuard.name, () => {
     });
 
     expect(() => guard.canActivate(context)).toThrow(
-      new BadRequestException('User-Agent header is required'),
+      new BadRequestException('x-user-agent header is required'),
     );
   });
 
-  it('should throw BadRequestException if User-Agent format is invalid', () => {
+  it('should throw BadRequestException if x-user-agent format is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'InvalidUserAgent',
+        'x-user-agent': 'InvalidUserAgent',
       },
     });
 
     expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
-        'User-Agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
+        'x-user-agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
       ),
     );
   });
@@ -190,7 +190,7 @@ describe(ClientIdentityGuard.name, () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/1.0.0 (Windows 10; PC)',
+        'x-user-agent': 'TestApp/1.0.0 (Windows 10; PC)',
       },
     });
 
@@ -206,7 +206,7 @@ describe(ClientIdentityGuard.name, () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/0.9.0 (ios 14.0; iPhone12)',
+        'x-user-agent': 'TestApp/0.9.0 (ios 14.0; iPhone12)',
       },
     });
 
@@ -222,7 +222,7 @@ describe(ClientIdentityGuard.name, () => {
         'x-api-key': 'valid-api-key',
         'x-client-id': 'valid-client-id',
         'x-device-id': 'valid-device-id',
-        'user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)',
+        'x-user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)',
       },
     };
     const context = createMockExecutionContext(mockRequest);
@@ -251,7 +251,7 @@ describe(ClientIdentityGuard.name, () => {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
-          'user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)',
+          'x-user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)',
         },
       };
       const context = createMockExecutionContext(mockRequest);
@@ -266,7 +266,7 @@ describe(ClientIdentityGuard.name, () => {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
-          'user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)',
+          'x-user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)',
         },
       };
       const context = createMockExecutionContext(mockRequest);
@@ -281,7 +281,7 @@ describe(ClientIdentityGuard.name, () => {
           'x-api-key': 'valid-api-key',
           'x-client-id': 'valid-client-id',
           'x-device-id': 'valid-device-id',
-          'user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)',
+          'x-user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)',
         },
       };
       const context = createMockExecutionContext(mockRequest);

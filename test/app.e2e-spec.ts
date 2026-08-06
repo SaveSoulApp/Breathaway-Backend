@@ -36,7 +36,7 @@ function getClientIdentityHeaders(
     'x-api-key': apiKeys[0] ?? 'test-api-key',
     'x-client-id': clientIds[0] ?? 'test-client-id',
     'x-device-id': 'e2e-test-device-001',
-    'user-agent': `${appName}/${minVersion} (${platforms[0] ?? 'iOS'} 17.0; TestDevice)`,
+    'x-user-agent': `${appName}/${minVersion} (${platforms[0] ?? 'iOS'} 17.0; TestDevice)`,
   };
 }
 
