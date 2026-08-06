@@ -80,7 +80,7 @@ export class DevicesController extends BaseController {
    *
    * @param userId - UUID of the authenticated user, extracted from the JWT.
    * @param deviceId - Physical device identifier extracted from the request header, if provided.
-   * @param userAgentData - Parsed user-agent metadata (version, platform) from the request header.
+   * @param userAgentData - Parsed x-user-agent metadata (version, platform) from the request header.
    * @param createDeviceDto - Push token and optional device metadata.
    * @returns The persisted device record including its generated ID.
    * @throws {ConflictException} When a device with the same push token is already registered.

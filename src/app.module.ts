@@ -59,7 +59,7 @@ import { ReportsModule } from './modules/reports/reports.module';
         setup: (cls, req: Request) => {
           cls.set('requestStart', Date.now());
           cls.set('ipAddress', req.ip);
-          cls.set('userAgent', req.headers['user-agent']);
+          cls.set('userAgent', req.headers['x-user-agent']);
 
           const requestId = req.headers['x-request-id'] || randomUUID();
           cls.set('requestId', requestId);

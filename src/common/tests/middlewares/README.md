@@ -121,8 +121,8 @@ Tests for user agent parsing and validation.
 - Request validation
   - Valid iOS user agent
   - Valid Android user agent
-  - Missing User-Agent header
-  - Non-string User-Agent header
+  - Missing x-user-agent header
+  - Non-string x-user-agent header
   - Invalid format error
   - Invalid platform error
   - Version validation (major, minor, patch)
