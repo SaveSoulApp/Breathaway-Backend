@@ -22,7 +22,7 @@ import { NotificationsService } from '@modules/notifications/notifications.servi
  */
 export type LikeSummary = Pick<
   Like,
-  'id' | 'senderUserId' | 'targetIdentityId' | 'intent' | 'status'
+  'id' | 'senderUserId' | 'targetIdentityId' | 'intent' | 'status' | 'label'
 > & {
   targetIdentity: { userId: string | null };
 };
@@ -152,7 +152,13 @@ export class MatchResolverService extends BaseService {
       });
 
       // Dispatch notifications fire-and-forget; errors are caught and logged inside
-      await this.dispatchMatchNotifications(userOneId, userTwoId, match.id);
+      await this.dispatchMatchNotifications(
+        userOneId,
+        userTwoId,
+        match.id,
+        canonicalLikeOne.label,
+        canonicalLikeTwo.label,
+      );
     } catch (err) {
       const serialized = serializeError(err);
 
@@ -186,6 +192,8 @@ export class MatchResolverService extends BaseService {
     userOneId: string,
     userTwoId: string,
     matchId: string,
+    likeOneLabel: string | null,
+    likeTwoLabel: string | null,
   ): Promise<void> {
     const ctx = { matchId, userOneId, userTwoId };
     this.logger.debug('Dispatching match notifications', {
@@ -205,28 +213,34 @@ export class MatchResolverService extends BaseService {
       const userTwoName =
         profiles.find((p) => p.userId === userTwoId)?.firstName ?? 'someone';
 
-      // Notify User One
+      // Use the label if it's set; otherwise fallback to the user's first name
+      const userOneDisplayName =
+        likeOneLabel && likeOneLabel.trim() !== '' ? likeOneLabel : userTwoName;
+      const userTwoDisplayName =
+        likeTwoLabel && likeTwoLabel.trim() !== '' ? likeTwoLabel : userOneName;
+
+      // Notify User One (tell them about User Two, using the label User One assigned to User Two)
       await this.notificationsService.dispatch({
         channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
         userIds: [userOneId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: userTwoName, matchId },
+        payload: { name: userOneDisplayName, matchId },
       });
       this.logger.debug('Notification dispatched to userOne', {
         ...ctx,
         step: 'notify_dispatch',
       });
 
-      // Notify User Two
+      // Notify User Two (tell them about User One, using the label User Two assigned to User One)
       await this.notificationsService.dispatch({
         channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
         userIds: [userTwoId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: userOneName, matchId },
+        payload: { name: userTwoDisplayName, matchId },
       });
       this.logger.debug('Notification dispatched to userTwo', {
         ...ctx,
@@ -268,6 +282,7 @@ export class MatchResolverService extends BaseService {
         targetIdentityId: true,
         intent: true,
         status: true,
+        label: true,
         targetIdentity: { select: { userId: true } },
       },
     });

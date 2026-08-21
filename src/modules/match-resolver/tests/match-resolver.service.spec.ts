@@ -47,6 +47,7 @@ describe('MatchResolverService', () => {
     targetIdentityId: 'identity-2',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
+    label: null,
     targetIdentity: { userId: 'user-2' },
   };
 
@@ -56,6 +57,7 @@ describe('MatchResolverService', () => {
     targetIdentityId: 'identity-1',
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
+    label: null,
     targetIdentity: { userId: 'user-1' },
   };
 
@@ -144,6 +146,7 @@ describe('MatchResolverService', () => {
     it('should return early if targetIdentity.userId is null (unresolved identity)', async () => {
       const likeMissingTarget: LikeSummary = {
         ...mockNewLike,
+        label: null,
         targetIdentity: { userId: null },
       };
 
@@ -175,6 +178,7 @@ describe('MatchResolverService', () => {
           targetIdentityId: true,
           intent: true,
           status: true,
+          label: true,
           targetIdentity: { select: { userId: true } },
         },
       });
@@ -296,6 +300,7 @@ describe('MatchResolverService', () => {
       // Create a scenario where reverseLike sender comes first in sort order
       const newLikeUserB: LikeSummary = {
         ...mockNewLike,
+        label: null,
         id: 'like-b',
         senderUserId: 'user-B',
         targetIdentityId: 'identity-A',

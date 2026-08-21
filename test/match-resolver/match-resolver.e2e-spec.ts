@@ -73,6 +73,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: ghostIdentity.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -82,6 +83,7 @@ describe('MatchResolverService (e2e)', () => {
         senderUserId: like.senderUserId,
         targetIdentityId: like.targetIdentityId,
         intent: like.intent,
+        label: like.label,
         status: like.status,
         targetIdentity: { userId: null },
       });
@@ -103,6 +105,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: targetIdentity.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -112,6 +115,7 @@ describe('MatchResolverService (e2e)', () => {
         senderUserId: like.senderUserId,
         targetIdentityId: like.targetIdentityId,
         intent: like.intent,
+        label: like.label,
         status: like.status,
         targetIdentity: { userId: target.id },
       });
@@ -139,6 +143,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -149,6 +154,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityA.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -159,6 +165,7 @@ describe('MatchResolverService (e2e)', () => {
         senderUserId: likeFromB.senderUserId,
         targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
+        label: likeFromB.label,
         status: likeFromB.status,
         targetIdentity: { userId: userA.id },
       });
@@ -209,6 +216,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -219,6 +227,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityA.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -228,6 +237,7 @@ describe('MatchResolverService (e2e)', () => {
         senderUserId: likeFromB.senderUserId,
         targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
+        label: likeFromB.label,
         status: likeFromB.status,
         targetIdentity: { userId: userA.id },
       });
@@ -256,6 +266,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityB.id,
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -266,6 +277,7 @@ describe('MatchResolverService (e2e)', () => {
           targetIdentityId: identityA.id,
           intent: IntentType.CASUAL,
           status: LikeStatus.PENDING,
+        label: null,
           expiresAt: new Date(Date.now() + 86400000),
         },
       });
@@ -275,6 +287,7 @@ describe('MatchResolverService (e2e)', () => {
         senderUserId: likeFromB.senderUserId,
         targetIdentityId: likeFromB.targetIdentityId,
         intent: likeFromB.intent,
+        label: likeFromB.label,
         status: likeFromB.status,
         targetIdentity: { userId: userA.id },
       });
