@@ -363,7 +363,7 @@ export class MatchesService extends BaseService {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
-    const theirLike = isUserOne ? match.likeTwo : match.likeOne;
+    const myLike = isUserOne ? match.likeOne : match.likeTwo;
 
     return {
       id: match.id,
@@ -382,7 +382,7 @@ export class MatchesService extends BaseService {
         firstName: otherUser.profile?.firstName,
         lastName: otherUser.profile?.lastName,
         gender: otherUser.profile?.gender ?? null,
-        label: theirLike?.label ?? null,
+        label: myLike?.label ?? null,
       },
     };
   }
