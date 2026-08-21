@@ -31,6 +31,7 @@ import {
   LikeResponseDto,
   PaginatedLikeResponseDto,
   UpdateLikeLabelRequestDto,
+  CanCreateLikeResponseDto,
 } from './dto';
 import { LikesService } from './likes.service';
 
@@ -55,6 +56,28 @@ export class LikesController extends BaseController {
     private readonly likesService: LikesService,
   ) {
     super(logger);
+  }
+
+  /**
+   * Checks if a like can be successfully created.
+   *
+   * Evaluates if the target identity is valid and if the user is not trying to
+   * duplicate an existing like or like a user they are already matched with.
+   *
+   * @param dto - Target identity reference.
+   * @returns An object indicating if creation is possible.
+   * @throws {ConflictException} If a like or active match already exists.
+   */
+  @Post('can-create')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check if a like can be created' })
+  @ApiResponse({ status: HttpStatus.OK, type: CanCreateLikeResponseDto })
+  @SerializeExpose(CanCreateLikeResponseDto)
+  async canCreate(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreateLikeRequestDto,
+  ) {
+    return this.likesService.canCreate(userId, dto);
   }
 
   /**

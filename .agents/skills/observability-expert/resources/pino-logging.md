@@ -22,6 +22,7 @@ This project wraps `pino` directly inside a standard NestJS singleton provider
 request-scoped `PinoLogger` + `pino-http` middleware combo.
 
 **Why this is the right call here:**
+
 - Avoids `nestjs-pino`'s request-scope-vs-singleton-injection complexity entirely — services,
   use cases, and repositories across this project are singleton-scoped (per
   `clean-architecture-expert`'s DI conventions), and a singleton `LoggerService` matches that
@@ -48,6 +49,7 @@ const logLevel = configService.get<string>('LOG_LEVEL') || 'info';
 ```
 
 Two independent flags, not one:
+
 - `isProduction` controls whether `pino-pretty` transport is used (readability for local/dev).
 - `isGcp` controls whether the GCP-specific structured config (`createGcpLoggerConfig`) is used
   at all — this matters because **non-GCP environments** (e.g., local Docker Compose, a future
@@ -55,11 +57,22 @@ Two independent flags, not one:
 
 ```typescript
 if (isGcp) {
-  this.baseLogger = pino.default(createGcpLoggerConfig(logLevel, appName, appVersion));
+  this.baseLogger = pino.default(
+    createGcpLoggerConfig(logLevel, appName, appVersion),
+  );
 } else {
   this.baseLogger = pino.default({
     level: logLevel,
-    transport: isProduction ? undefined : { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' } },
+    transport: isProduction
+      ? undefined
+      : {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
+          },
+        },
     timestamp: pino.stdTimeFunctions.isoTime,
     formatters: { level: (label) => ({ level: label.toUpperCase() }) },
   });
@@ -72,12 +85,14 @@ correctly since `createGcpLoggerConfig` never wires in a `transport` option at a
 ever adds one, that's a regression to flag immediately in review.
 
 ### `LOG_LEVEL` validation
+
 ```typescript
 const validLevels = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'];
 if (!validLevels.includes(logLevel)) {
   throw new Error(`Invalid LOG_LEVEL: ${logLevel}`);
 }
 ```
+
 Fail fast at startup on a misconfigured `LOG_LEVEL` env var, rather than silently falling back
 to a default and masking a deployment config mistake — keep this validation when extending the
 service.
@@ -95,7 +110,9 @@ export const createGcpLoggerConfig = (
 ): pino.LoggerOptions => ({
   level: logLevel,
   formatters: {
-    level: (label: string) => ({ severity: PINO_LEVEL_TO_CLOUD_SEVERITY[label] ?? 'DEFAULT' }),
+    level: (label: string) => ({
+      severity: PINO_LEVEL_TO_CLOUD_SEVERITY[label] ?? 'DEFAULT',
+    }),
     bindings: (bindings) => ({
       ...bindings,
       serviceContext: { service: appName, version: appVersion },
@@ -126,12 +143,12 @@ noticed when someone asks "why didn't the alert fire" weeks later. Always map ex
 ```typescript
 // core/logger/gcp-severity.util.ts
 const PINO_LEVEL_TO_CLOUD_SEVERITY: Record<string, string> = {
-  trace: 'DEBUG',     // Cloud Logging has no TRACE severity; fold into DEBUG
+  trace: 'DEBUG', // Cloud Logging has no TRACE severity; fold into DEBUG
   debug: 'DEBUG',
   info: 'INFO',
-  warn: 'WARNING',    // not "WARN"
+  warn: 'WARNING', // not "WARN"
   error: 'ERROR',
-  fatal: 'CRITICAL',  // not "FATAL"
+  fatal: 'CRITICAL', // not "FATAL"
 };
 ```
 
@@ -153,13 +170,16 @@ config — doing so silently disables automatic error aggregation in the GCP con
 logs would still appear correctly in Cloud Logging.
 
 ### `messageKey: 'message'`
+
 Cloud Logging's Logs Explorer surfaces a field named `message` as the primary display line.
 Pino's default key is `msg`. This remap is required — do not omit it when extending the config.
 
 ### Timestamp — `DateUtil.now()`, not raw `Date`
+
 ```typescript
 timestamp: () => `,"timestamp":"${DateUtil.now().toISOString()}"`,
 ```
+
 Consistent with this project's date-handling convention (see `test-automation-expert`'s
 `DateUtil` rule) — use `DateUtil`, never `new Date()` directly, anywhere a timestamp is
 generated, including logger config.
@@ -215,6 +235,7 @@ function gcpRequestSerializer(req: {
   };
 }
 ```
+
 Recommended: adopt this serializer-level redaction as the primary mechanism for request
 headers specifically (since this serializer already controls that exact shape), and keep
 Pino's top-level `redact` option for everything else (body fields, nested DTO fields spread
@@ -247,6 +268,7 @@ forContext(context: string): ContextualLogger {
   for clarity.
 
 ### The unified `write()` method handles polymorphic message types
+
 ```typescript
 private write(logger, level, message: unknown, meta?: Record<string, unknown>) {
   if (typeof message === 'string') {
@@ -260,6 +282,7 @@ private write(logger, level, message: unknown, meta?: Record<string, unknown>) {
   }
 }
 ```
+
 This means callers can pass an `Error` directly as the first argument and get a correctly
 structured `error` field automatically — prefer this over manually destructuring
 `error.message`/`error.stack` at call sites:
@@ -269,33 +292,35 @@ structured `error` field automatically — prefer this over manually destructuri
 this.logger.forContext('ProfilesService').error(dbError, { userId });
 
 // ❌ Avoid — loses stack trace structure, duplicates what write() already does
-this.logger.forContext('ProfilesService').error(`Failed: ${dbError.message}`, { userId });
+this.logger
+  .forContext('ProfilesService')
+  .error(`Failed: ${dbError.message}`, { userId });
 ```
 
 > Note: this differs from the convention shown in the earlier draft of this skill (which
 > assumed an `error(message, error, meta)` three-argument signature). This project's actual
 > signature is `error(message: unknown, meta?: Record<string, unknown>)`, where `message` can
-> itself *be* the `Error` object. Use the actual two-argument signature everywhere — do not
+> itself _be_ the `Error` object. Use the actual two-argument signature everywhere — do not
 > introduce a three-argument `error()` call to match a different convention.
 
 ---
 
 ## 6. Log Level Policy
 
-| Level | Production default | Use for |
-|---|---|---|
-| `error` | always on | Unhandled exceptions, exhausted retries, data integrity violations |
-| `warn` | always on | Handled-but-notable: validation rejection patterns, retried calls, degraded fallback paths |
-| `info` | always on | Business events: created/updated/deleted resources, auth events, job completions |
-| `debug` | **off** by default | Detailed flow tracing — enable via `LOG_LEVEL=debug` for diagnosis |
-| `trace` | off | Rarely needed; maps to `DEBUG` severity in Cloud Logging (see section 3) |
+| Level   | Production default | Use for                                                                                    |
+| ------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| `error` | always on          | Unhandled exceptions, exhausted retries, data integrity violations                         |
+| `warn`  | always on          | Handled-but-notable: validation rejection patterns, retried calls, degraded fallback paths |
+| `info`  | always on          | Business events: created/updated/deleted resources, auth events, job completions           |
+| `debug` | **off** by default | Detailed flow tracing — enable via `LOG_LEVEL=debug` for diagnosis                         |
+| `trace` | off                | Rarely needed; maps to `DEBUG` severity in Cloud Logging (see section 3)                   |
 
 Set via the `LOG_LEVEL` env var, validated at startup (section 2) — never hardcoded, never
 changed by editing source for a one-off production diagnosis session.
 
 **Rule:** Never log at `info` for every incoming request. Cloud Run's own request logs already
 capture method/path/status/latency automatically. Application-level `info` logs exist to record
-*why* something happened in business terms, not to duplicate infrastructure logging.
+_why_ something happened in business terms, not to duplicate infrastructure logging.
 
 ---
 
@@ -303,10 +328,14 @@ capture method/path/status/latency automatically. Application-level `info` logs 
 
 ```typescript
 // ✅ Structured — queryable as jsonPayload.orderId in Cloud Logging
-this.logger.forContext('OrdersService').info('Order created', { orderId, userId, total: order.total });
+this.logger
+  .forContext('OrdersService')
+  .info('Order created', { orderId, userId, total: order.total });
 
 // ❌ Unstructured — can't be filtered/queried by field
-this.logger.forContext('OrdersService').info(`Order ${orderId} created for user ${userId}`);
+this.logger
+  .forContext('OrdersService')
+  .info(`Order ${orderId} created for user ${userId}`);
 ```
 
 Always include the relevant resource ID(s) in `meta`. Never spread an entire DTO or request
@@ -337,6 +366,7 @@ redact: {
   censor: '[REDACTED]',
 },
 ```
+
 Audit this list whenever a new sensitive field type is introduced anywhere in the schema (new
 auth provider, new payment field, new PII field) — cross-reference `security-reviewer`'s
 secrets-management section, since this is the same discipline applied to logs specifically.
@@ -354,6 +384,7 @@ structured GCP pipeline instead of Nest's default console logger:
 const app = await NestFactory.create(AppModule, { bufferLogs: true });
 app.useLogger(app.get(LoggerService));
 ```
+
 `bufferLogs: true` ensures logs emitted before `useLogger` is called (very early bootstrap) are
 buffered and flushed once the real logger is attached, rather than lost or printed via Nest's
 default logger.
@@ -393,6 +424,7 @@ this.logger.error('Transaction failed', {
 ```
 
 `serializeError` handles:
+
 - `Error` instances → `{ message, name, stack, code? }` (captures `code` from Prisma/Node errors)
 - Plain objects → passed through as-is
 - Primitives → `{ message: String(err) }`
@@ -414,15 +446,27 @@ The `LoggingInterceptor` **must not** have an `error` tap in its RxJS `tap()` ca
 // ❌ Anti-pattern — produces stale statusCode and duplicates the filter's log
 return next.handle().pipe(
   tap({
-    next: (body) => { logger.debug('Completed request', { statusCode: res.statusCode, latencyMs }); },
-    error: (err) => { logger.warn('Failed request', { statusCode: res.statusCode, latencyMs }); },
-                      // ^^^ statusCode is 200 here — filter hasn't written the real status yet
+    next: (body) => {
+      logger.debug('Completed request', {
+        statusCode: res.statusCode,
+        latencyMs,
+      });
+    },
+    error: (err) => {
+      logger.warn('Failed request', { statusCode: res.statusCode, latencyMs });
+    },
+    // ^^^ statusCode is 200 here — filter hasn't written the real status yet
   }),
 );
 
 // ✅ Correct — success path only; error path is owned exclusively by GlobalExceptionFilter
 return next.handle().pipe(
-  tap((body) => { logger.debug('Completed request', { statusCode: res.statusCode, latencyMs }); }),
+  tap((body) => {
+    logger.debug('Completed request', {
+      statusCode: res.statusCode,
+      latencyMs,
+    });
+  }),
 );
 ```
 

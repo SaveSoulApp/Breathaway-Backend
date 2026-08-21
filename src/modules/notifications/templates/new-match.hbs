@@ -1,4 +1,4 @@
-{{!--
+{{!
   Template: new-match
   Data keys:
     - name           {string}  Recipient's first name
@@ -8,43 +8,46 @@
     - appUrl         {string}  Base URL of the app
     - unsubscribeToken {string}
     - currentYear    {number}
---}}
-<p class="email-greeting">You've got a match, {{name}}! 💫</p>
+}}
+<p class='email-greeting'>You've got a match, {{name}}! 💫</p>
 
 <p>
-  The stars aligned — you and <strong>{{matchName}}</strong> have both liked
-  each other. It's officially a match! Now all it takes is a single great
-  opening line.
+  The stars aligned — you and
+  <strong>{{matchName}}</strong>
+  have both liked each other. It's officially a match! Now all it takes is a
+  single great opening line.
 </p>
 
 {{#if matchAvatarUrl}}
-<div style="text-align: center; margin: 28px 0;">
-  <img
-    src="{{matchAvatarUrl}}"
-    alt="{{matchName}}"
-    width="88"
-    height="88"
-    style="border-radius: 50%; object-fit: cover; border: 4px solid #6C63FF;"
-  />
-  <p style="margin: 12px 0 0; font-weight: 700; color: #1A1A2E; font-size: 18px;">
-    {{matchName}}
-  </p>
-</div>
+  <div style='text-align: center; margin: 28px 0;'>
+    <img
+      src='{{matchAvatarUrl}}'
+      alt='{{matchName}}'
+      width='88'
+      height='88'
+      style='border-radius: 50%; object-fit: cover; border: 4px solid #6C63FF;'
+    />
+    <p
+      style='margin: 12px 0 0; font-weight: 700; color: #1A1A2E; font-size: 18px;'
+    >
+      {{matchName}}
+    </p>
+  </div>
 {{/if}}
 
-<div class="email-highlight-box">
+<div class='email-highlight-box'>
   <p>
-    🔥 Matches that message within the first 24 hours are 3× more likely to
-    lead to a meaningful conversation. Don't wait!
+    🔥 Matches that message within the first 24 hours are 3× more likely to lead
+    to a meaningful conversation. Don't wait!
   </p>
 </div>
 
-<div style="text-align: center;">
-  <a href="{{chatUrl}}" class="email-btn">Say Hello to {{matchName}} →</a>
+<div style='text-align: center;'>
+  <a href='{{chatUrl}}' class='email-btn'>Say Hello to {{matchName}} →</a>
 </div>
 
-<hr class="email-divider" />
+<hr class='email-divider' />
 
-<p style="font-size: 14px; color: #9CA3AF; text-align: center;">
+<p style='font-size: 14px; color: #9CA3AF; text-align: center;'>
   Not interested? You can unmatch at any time inside the app.
 </p>

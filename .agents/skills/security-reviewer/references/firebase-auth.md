@@ -8,6 +8,7 @@ using GCP Identity Platform (Firebase Auth under the hood — same Admin SDK and
 ## 1. Setup
 
 Install the Firebase Admin SDK:
+
 ```bash
 npm install firebase-admin
 ```
@@ -25,7 +26,7 @@ export const FirebaseAdminProvider = {
   provide: FIREBASE_ADMIN,
   useFactory: (configService: ConfigService) => {
     const serviceAccount = JSON.parse(
-      configService.getOrThrow<string>('FIREBASE_SERVICE_ACCOUNT_JSON'),  // pulled from Secret Manager at deploy time
+      configService.getOrThrow<string>('FIREBASE_SERVICE_ACCOUNT_JSON'), // pulled from Secret Manager at deploy time
     );
     return admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -81,12 +82,14 @@ export class FirebaseAuthGuard implements CanActivate {
     if (!token) throw new UnauthorizedException('Missing bearer token');
 
     try {
-      const decodedToken = await this.firebaseAdmin.auth().verifyIdToken(token, true); // checkRevoked: true
+      const decodedToken = await this.firebaseAdmin
+        .auth()
+        .verifyIdToken(token, true); // checkRevoked: true
       request.user = {
         uid: decodedToken.uid,
         email: decodedToken.email,
-        roles: decodedToken.roles ?? [],          // custom claim, see section 4
-        tenantId: decodedToken.tenant ?? null,      // if using multi-tenant Identity Platform
+        roles: decodedToken.roles ?? [], // custom claim, see section 4
+        tenantId: decodedToken.tenant ?? null, // if using multi-tenant Identity Platform
       };
       return true;
     } catch (error) {
@@ -103,6 +106,7 @@ export class FirebaseAuthGuard implements CanActivate {
 ```
 
 **Rules:**
+
 - Always pass `checkRevoked: true` to `verifyIdToken` for sensitive operations — this adds a
   round trip but catches tokens revoked due to password change or account disable.
 - Catch and differentiate `auth/id-token-expired` vs `auth/id-token-revoked` vs malformed —
@@ -117,12 +121,14 @@ Roles must be stored as **custom claims** on the Firebase/Identity Platform user
 the Admin SDK server-side — never settable by the client.
 
 ### Setting claims (admin-only operation, server-side)
+
 ```typescript
 // Only callable from a privileged admin use case, itself guarded by RolesGuard
 await admin.auth().setCustomUserClaims(uid, { roles: ['ADMIN'] });
 ```
 
 ### Reading claims in a guard
+
 ```typescript
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -146,6 +152,7 @@ export class RolesGuard implements CanActivate {
 ```
 
 ### Usage on a controller
+
 ```typescript
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -154,6 +161,7 @@ async deleteUser(@Param('id') id: string) { ... }
 ```
 
 ### Claims propagation delay (important gotcha)
+
 Custom claims set via `setCustomUserClaims` do **not** take effect on the client's current
 ID token until it refreshes (tokens are valid up to 1 hour). If a role change must take
 effect immediately, the backend use case that changes roles should also call
@@ -186,7 +194,7 @@ default, and only opt out explicitly:
 providers: [
   { provide: APP_GUARD, useClass: FirebaseAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
-]
+];
 ```
 
 ---
@@ -227,6 +235,7 @@ async createPost(@Req() req: AuthenticatedRequest, @Body() dto: CreatePostDto) {
 ## 7. Multi-Tenancy (if applicable)
 
 If using Identity Platform's multi-tenant support (separate tenant per customer/org):
+
 - Always verify the token's `tenant` (firebase `tid`) claim matches the expected tenant for
   the request (e.g., from a subdomain or path param) before processing.
 - Never allow a token issued for Tenant A to access resources scoped to Tenant B, even if

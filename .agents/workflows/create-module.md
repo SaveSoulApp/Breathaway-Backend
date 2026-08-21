@@ -4,7 +4,7 @@ description: Creates a new module given by command
 
 **Objective:** Scaffold a new NestJS module using strict enterprise architecture constraints.
 
-**Input Variable Extraction:** 
+**Input Variable Extraction:**
 Identify the target `moduleName` from the user's prompt. Format it to kebab-case if it is not already.
 
 **Execution Steps:**
@@ -27,7 +27,7 @@ You must execute the following actions sequentially. Do not deviate from this di
    Write the following template code into `src/modules/{{moduleName}}/dto/index.ts` to prepare it for clean imports:
    `// Export Request DTOs`
    `// export * from './request/create-{{moduleName}}.request.dto';`
-   
+
    `// Export Response DTOs`
    `// export * from './response/{{moduleName}}.response.dto';`
 

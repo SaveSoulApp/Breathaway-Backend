@@ -44,18 +44,19 @@ For validation errors (`400` from `class-validator`), the `invalid_params` field
 
 **Field mapping from NestJS concepts:**
 
-| RFC 7807 field | Source |
-|---|---|
-| `type` | Derived from exception name/error label — uppercased, underscored |
-| `title` | Human-readable error label (e.g., `"Not Found"`, `"Conflict"`) |
-| `status` | HTTP status code (integer) |
-| `detail` | The specific error message for this occurrence |
-| `instance` | `request.url` — the path that triggered the error |
-| `timestamp` | `DateUtil.now().toISOString()` |
-| `requestId` | From `ClsService` (see `tracing-correlation.md`) |
-| `invalid_params` | Optional — class-validator error array for 400 responses only |
+| RFC 7807 field   | Source                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| `type`           | Derived from exception name/error label — uppercased, underscored |
+| `title`          | Human-readable error label (e.g., `"Not Found"`, `"Conflict"`)    |
+| `status`         | HTTP status code (integer)                                        |
+| `detail`         | The specific error message for this occurrence                    |
+| `instance`       | `request.url` — the path that triggered the error                 |
+| `timestamp`      | `DateUtil.now().toISOString()`                                    |
+| `requestId`      | From `ClsService` (see `tracing-correlation.md`)                  |
+| `invalid_params` | Optional — class-validator error array for 400 responses only     |
 
 **`ErrorResponseDto` for Swagger** (cross-reference `api-design-expert`):
+
 ```typescript
 export class ErrorResponseDto {
   @ApiProperty({ example: 'NOT_FOUND' })
@@ -96,10 +97,7 @@ app.useGlobalFilters(
     app.get(ConfigService),
     app.get(ClsService),
   ),
-  new PrismaExceptionFilter(
-    app.get(LoggerService),
-    app.get(ClsService),
-  ),
+  new PrismaExceptionFilter(app.get(LoggerService), app.get(ClsService)),
 );
 ```
 
@@ -162,11 +160,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const requestId = this.cls.isActive() ? this.cls.get<string>('requestId') : undefined;
+    const requestId = this.cls.isActive()
+      ? this.cls.get<string>('requestId')
+      : undefined;
 
     const resolved = this.resolveException(exception);
 
-    this.log(exception, resolved.status, request.method, request.url, requestId);
+    this.log(
+      exception,
+      resolved.status,
+      request.method,
+      request.url,
+      requestId,
+    );
 
     response
       .type('application/problem+json')
@@ -179,7 +185,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         instance: request.url,
         timestamp: DateUtil.now().toISOString(),
         requestId,
-        ...(resolved.invalidParams && { invalid_params: resolved.invalidParams }),
+        ...(resolved.invalidParams && {
+          invalid_params: resolved.invalidParams,
+        }),
       });
   }
 
@@ -221,7 +229,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (rawResponse && typeof rawResponse === 'object') {
       const res = rawResponse as Record<string, unknown>;
 
-      const title = typeof res.error === 'string' ? res.error : (exception.name ?? 'Http Exception');
+      const title =
+        typeof res.error === 'string'
+          ? res.error
+          : (exception.name ?? 'Http Exception');
       const type = title.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
       // class-validator produces message as string[] — preserve as invalid_params
@@ -239,7 +250,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         status,
         type,
         title,
-        detail: typeof res.message === 'string' ? res.message : JSON.stringify(rawResponse),
+        detail:
+          typeof res.message === 'string'
+            ? res.message
+            : JSON.stringify(rawResponse),
       };
     }
 
@@ -253,7 +267,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private resolveDomainException(exception: DomainException): ResolvedError {
     const status =
-      DOMAIN_EXCEPTION_HTTP_MAP[exception.name] ?? HttpStatus.INTERNAL_SERVER_ERROR;
+      DOMAIN_EXCEPTION_HTTP_MAP[exception.name] ??
+      HttpStatus.INTERNAL_SERVER_ERROR;
     const title = HttpStatus[status]?.replace(/_/g, ' ') ?? 'Error';
     const type = title.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
@@ -285,7 +300,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       );
     } else {
       // 4xx — expected client error, log at warn with message only (no stack trace needed)
-      const message = exception instanceof Error ? exception.message : String(exception);
+      const message =
+        exception instanceof Error ? exception.message : String(exception);
       this.logger.warn(`Request failed: ${method} ${url}`, {
         ...meta,
         error: message,
@@ -296,6 +312,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 ```
 
 **Key decisions carried over from the original `ExceptionLoggingFilter`:**
+
 - `response.type('application/problem+json')` — preserved from the original; clients checking
   `Content-Type` on error responses get the correct RFC 7807 content type.
 - `invalid_params` for validation arrays — preserved from the original; do not collapse the
@@ -304,6 +321,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   from the client while logging it server-side.
 
 **What changed vs the original `ExceptionLoggingFilter`:**
+
 - `requestId` now read from `ClsService` instead of `request.headers['x-request-id']`
   directly — CLS guarantees an ID is present even when no incoming header was provided.
 - Log severity split: 4xx at `warn`, 5xx at `error` — the original logged everything at
@@ -384,11 +402,16 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     this.logger = loggerService.forContext(PrismaExceptionFilter.name);
   }
 
-  catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost): void {
+  catch(
+    exception: Prisma.PrismaClientKnownRequestError,
+    host: ArgumentsHost,
+  ): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const requestId = this.cls.isActive() ? this.cls.get<string>('requestId') : undefined;
+    const requestId = this.cls.isActive()
+      ? this.cls.get<string>('requestId')
+      : undefined;
 
     const mapped = PRISMA_ERROR_MAP[exception.code];
     const status = mapped?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
@@ -397,7 +420,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       // Known constraint — expected, log at warn
       this.logger.warn(`Prisma ${exception.code}: ${mapped.detail}`, {
         prismaCode: exception.code,
-        prismaMeta: exception.meta,   // field name etc. — safe to log, not to send to client
+        prismaMeta: exception.meta, // field name etc. — safe to log, not to send to client
         requestId,
         path: request.url,
       });
@@ -427,6 +450,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
 ```
 
 **Rules:**
+
 - `exception.meta` (contains the violating field name for P2002, constraint name for P2003,
   etc.) is logged server-side only — it must never appear in the response body.
 - `exception.message` from Prisma contains table names, column names, and query fragments —
@@ -440,16 +464,16 @@ export class PrismaExceptionFilter implements ExceptionFilter {
 
 ## 5. Log Level Decision Guide
 
-| Condition | Level | Where |
-|---|---|---|
-| Expected business rule violation (conflict, not found) — thrown as NestJS HttpException | `warn` | `GlobalExceptionFilter` |
-| Expected Prisma constraint violation (P2002, P2025, P2003) | `warn` | `PrismaExceptionFilter` |
-| Domain exception mapped to 4xx | `warn` | `GlobalExceptionFilter` |
-| Unknown/unmapped Prisma error | `error` | `PrismaExceptionFilter` |
-| Truly unexpected error (unhandled exception, 5xx) | `error` | `GlobalExceptionFilter` |
-| External API call failure after exhausting retries | `error` | Service (owns retry logic) |
-| External API call failure on a non-final retry attempt | `warn` | Service |
-| **Never** — unexpected error caught-and-swallowed in a service | — | Services rethrow; filter logs |
+| Condition                                                                               | Level   | Where                         |
+| --------------------------------------------------------------------------------------- | ------- | ----------------------------- |
+| Expected business rule violation (conflict, not found) — thrown as NestJS HttpException | `warn`  | `GlobalExceptionFilter`       |
+| Expected Prisma constraint violation (P2002, P2025, P2003)                              | `warn`  | `PrismaExceptionFilter`       |
+| Domain exception mapped to 4xx                                                          | `warn`  | `GlobalExceptionFilter`       |
+| Unknown/unmapped Prisma error                                                           | `error` | `PrismaExceptionFilter`       |
+| Truly unexpected error (unhandled exception, 5xx)                                       | `error` | `GlobalExceptionFilter`       |
+| External API call failure after exhausting retries                                      | `error` | Service (owns retry logic)    |
+| External API call failure on a non-final retry attempt                                  | `warn`  | Service                       |
+| **Never** — unexpected error caught-and-swallowed in a service                          | —       | Services rethrow; filter logs |
 
 The goal: services contain minimal `catch` blocks, and when they catch, they rethrow.
 The filter pair is the single logging point for exception outcomes.
@@ -463,7 +487,11 @@ Mock the `ArgumentsHost` in the same way both filter specs use:
 
 ```typescript
 // Shared test helper — put in test/helpers/ or inline per spec
-function mockArgumentsHost(mockResponse: object, url = '/test-path', method = 'GET'): ArgumentsHost {
+function mockArgumentsHost(
+  mockResponse: object,
+  url = '/test-path',
+  method = 'GET',
+): ArgumentsHost {
   return {
     switchToHttp: () => ({
       getResponse: () => mockResponse,
@@ -493,7 +521,13 @@ describe('GlobalExceptionFilter', () => {
       json: jest.fn().mockReturnThis(),
       type: jest.fn().mockReturnThis(),
     };
-    loggerMock = { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn(), log: jest.fn() };
+    loggerMock = {
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+    };
 
     const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue(loggerMock),
@@ -501,7 +535,7 @@ describe('GlobalExceptionFilter', () => {
 
     filter = new GlobalExceptionFilter(
       loggerServiceMock,
-      { get: jest.fn().mockReturnValue('test') } as any,   // NODE_ENV = 'test'
+      { get: jest.fn().mockReturnValue('test') } as any, // NODE_ENV = 'test'
       clsMock as any,
     );
   });
@@ -515,7 +549,9 @@ describe('GlobalExceptionFilter', () => {
       // Act
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
-      expect(mockResponse.type).toHaveBeenCalledWith('application/problem+json');
+      expect(mockResponse.type).toHaveBeenCalledWith(
+        'application/problem+json',
+      );
     });
 
     it('should include requestId from CLS in the response', () => {
@@ -534,13 +570,15 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(404);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'NOT_FOUND',
-        title: 'Not Found',
-        status: 404,
-        detail: 'Profile not found',
-        instance: '/test-path',
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'NOT_FOUND',
+          title: 'Not Found',
+          status: 404,
+          detail: 'Profile not found',
+          instance: '/test-path',
+        }),
+      );
       expect(loggerMock.warn).toHaveBeenCalled();
       expect(loggerMock.error).not.toHaveBeenCalled();
     });
@@ -555,10 +593,15 @@ describe('GlobalExceptionFilter', () => {
       // Act
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'One or more fields failed validation.',
-        invalid_params: ['email must be an email', 'firstName should not be empty'],
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'One or more fields failed validation.',
+          invalid_params: [
+            'email must be an email',
+            'firstName should not be empty',
+          ],
+        }),
+      );
     });
   });
 
@@ -570,10 +613,12 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(409);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'CONFLICT',
-        status: 409,
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CONFLICT',
+          status: 409,
+        }),
+      );
     });
   });
 
@@ -583,13 +628,18 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockArgumentsHost(mockResponse));
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'INTERNAL_SERVER_ERROR',
-        status: 500,
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INTERNAL_SERVER_ERROR',
+          status: 500,
+        }),
+      );
       expect(loggerMock.error).toHaveBeenCalledWith(
         exception,
-        expect.objectContaining({ statusCode: 500, requestId: 'test-request-id' }),
+        expect.objectContaining({
+          statusCode: 500,
+          requestId: 'test-request-id',
+        }),
       );
     });
 
@@ -601,11 +651,16 @@ describe('GlobalExceptionFilter', () => {
         clsMock as any,
       );
       // Act
-      prodFilter.catch(new Error('Sensitive internal detail'), mockArgumentsHost(mockResponse));
+      prodFilter.catch(
+        new Error('Sensitive internal detail'),
+        mockArgumentsHost(mockResponse),
+      );
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'An unexpected error occurred.',
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'An unexpected error occurred.',
+        }),
+      );
     });
 
     it('should NOT sanitize 4xx detail in production', () => {
@@ -616,11 +671,16 @@ describe('GlobalExceptionFilter', () => {
         clsMock as any,
       );
       // Act
-      prodFilter.catch(new NotFoundException('Profile not found'), mockArgumentsHost(mockResponse));
+      prodFilter.catch(
+        new NotFoundException('Profile not found'),
+        mockArgumentsHost(mockResponse),
+      );
       // Assert
-      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-        detail: 'Profile not found',   // NOT sanitized — 4xx, not 5xx
-      }));
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: 'Profile not found', // NOT sanitized — 4xx, not 5xx
+        }),
+      );
     });
   });
 });
@@ -641,11 +701,20 @@ describe('PrismaExceptionFilter', () => {
       json: jest.fn().mockReturnThis(),
       type: jest.fn().mockReturnThis(),
     };
-    loggerMock = { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn(), log: jest.fn() };
+    loggerMock = {
+      warn: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+    };
 
     filter = new PrismaExceptionFilter(
       { forContext: jest.fn().mockReturnValue(loggerMock) } as any,
-      { isActive: jest.fn().mockReturnValue(true), get: jest.fn().mockReturnValue('req-id') } as any,
+      {
+        isActive: jest.fn().mockReturnValue(true),
+        get: jest.fn().mockReturnValue('req-id'),
+      } as any,
     );
   });
 
@@ -671,21 +740,29 @@ describe('PrismaExceptionFilter', () => {
     ['P2003', 400, 'BAD_REQUEST'],
     ['P2000', 400, 'BAD_REQUEST'],
     ['P2014', 400, 'BAD_REQUEST'],
-  ])('should map %s to status %d with type %s', (code, expectedStatus, expectedType) => {
-    // Arrange
-    const exception = makePrismaError(code);
-    // Act
-    filter.catch(exception, mockArgumentsHost(mockResponse));
-    // Assert
-    expect(mockResponse.status).toHaveBeenCalledWith(expectedStatus);
-    expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
-      type: expectedType,
-      status: expectedStatus,
-    }));
-  });
+  ])(
+    'should map %s to status %d with type %s',
+    (code, expectedStatus, expectedType) => {
+      // Arrange
+      const exception = makePrismaError(code);
+      // Act
+      filter.catch(exception, mockArgumentsHost(mockResponse));
+      // Assert
+      expect(mockResponse.status).toHaveBeenCalledWith(expectedStatus);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: expectedType,
+          status: expectedStatus,
+        }),
+      );
+    },
+  );
 
   it('should log known Prisma errors at warn, not error', () => {
-    filter.catch(makePrismaError('P2002', { target: ['email'] }), mockArgumentsHost(mockResponse));
+    filter.catch(
+      makePrismaError('P2002', { target: ['email'] }),
+      mockArgumentsHost(mockResponse),
+    );
     expect(loggerMock.warn).toHaveBeenCalled();
     expect(loggerMock.error).not.toHaveBeenCalled();
   });

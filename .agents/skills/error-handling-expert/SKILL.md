@@ -21,6 +21,7 @@ reaching the client — with no stack traces leaking to production responses and
 silently swallowed.
 
 Before writing or reviewing error-handling code, load the relevant reference files:
+
 - `references/exception-hierarchy.md` — Domain exception classes, when to use them vs NestJS
   HTTP exceptions, and the pragmatic migration path from the current pattern.
 - `references/exception-filters.md` — GlobalExceptionFilter, PrismaExceptionFilter, their
@@ -40,6 +41,7 @@ before writing any error-handling code:
 
 **Current pattern (what the existing service tests show):**
 Services (`ProfilesService`, etc.) throw NestJS HTTP exceptions directly:
+
 ```typescript
 throw new ConflictException('Profile already exists');
 throw new NotFoundException('Profile not found');
@@ -47,8 +49,9 @@ throw new NotFoundException('Profile not found');
 
 **Target pattern (what `clean-architecture-expert` mandates):**
 Services/use cases throw domain exceptions; HTTP mapping happens in exception filters:
+
 ```typescript
-throw new ProfileAlreadyExistsException();   // domain layer
+throw new ProfileAlreadyExistsException(); // domain layer
 // → caught by GlobalExceptionFilter → mapped to 409
 ```
 
@@ -62,6 +65,7 @@ pattern. See `references/exception-hierarchy.md` for the full decision framework
 ## Core Responsibilities
 
 ### 1. Exception Filters — Two Required, Globally Applied
+
 Every NestJS app in this project must have exactly two exception filters, applied globally
 in this order:
 
@@ -79,7 +83,11 @@ in this order:
 // Any specific filters (like PrismaExceptionFilter or future custom filters) MUST be registered
 // AFTER GlobalExceptionFilter so they get priority before the catch-all consumes the exception.
 app.useGlobalFilters(
-  new GlobalExceptionFilter(app.get(LoggerService), app.get(ConfigService), app.get(ClsService)),
+  new GlobalExceptionFilter(
+    app.get(LoggerService),
+    app.get(ConfigService),
+    app.get(ClsService),
+  ),
   new PrismaExceptionFilter(app.get(LoggerService), app.get(ClsService)),
 );
 ```
@@ -87,6 +95,7 @@ app.useGlobalFilters(
 See `references/exception-filters.md` for full implementations.
 
 ### 2. Standard Error Response Shape — RFC 7807
+
 This project uses RFC 7807 Problem Details (`application/problem+json`) as its error response
 standard, established by the original `ExceptionLoggingFilter`. All exception filters must
 produce this shape — never the generic NestJS `{ statusCode, error, message }` shape:
@@ -124,30 +133,33 @@ a client or support engineer to find the full diagnostic context in Cloud Loggin
 query — this is the practical value of the correlation ID system from `observability-expert`.
 
 ### 3. Logging in Exception Filters
+
 The `GlobalExceptionFilter` is the single place where unhandled/unexpected exceptions are
 logged at `error` level with full stack traces — services and use cases should **rethrow**
 rather than log-and-rethrow for unexpected errors (per the `test-automation-expert`'s
 established "log and rethrow" pattern), since the filter is the canonical logging point.
 
-Exception: services *should* log at `warn` for **expected** business-rule exceptions before
+Exception: services _should_ log at `warn` for **expected** business-rule exceptions before
 rethrowing (e.g., "profile conflict for userId X" at `warn`, not `error`) since these are
 not bugs and shouldn't generate `error`-severity alerts. See
 `references/exception-filters.md` section 4 for the exact distinction.
 
 ### 4. Prisma Error Mapping
+
 `PrismaClientKnownRequestError` codes must be mapped to HTTP status codes in the filter,
 never caught and re-thrown as `HttpException` subclasses inside services:
 
-| Prisma Code | HTTP Status | Meaning |
-|---|---|---|
-| `P2002` | 409 Conflict | Unique constraint violation |
-| `P2025` | 404 Not Found | Record not found (e.g., update/delete on non-existent row) |
-| `P2003` | 400 Bad Request | Foreign key constraint violation |
-| `P2000` | 400 Bad Request | Value too long for field |
-| `P2014` | 400 Bad Request | Relation violation |
-| Unknown | 500 Internal Server Error | Unmapped Prisma error — log at `error`, sanitize message |
+| Prisma Code | HTTP Status               | Meaning                                                    |
+| ----------- | ------------------------- | ---------------------------------------------------------- |
+| `P2002`     | 409 Conflict              | Unique constraint violation                                |
+| `P2025`     | 404 Not Found             | Record not found (e.g., update/delete on non-existent row) |
+| `P2003`     | 400 Bad Request           | Foreign key constraint violation                           |
+| `P2000`     | 400 Bad Request           | Value too long for field                                   |
+| `P2014`     | 400 Bad Request           | Relation violation                                         |
+| Unknown     | 500 Internal Server Error | Unmapped Prisma error — log at `error`, sanitize message   |
 
 ### 5. Production vs Development Error Responses
+
 In production (`NODE_ENV=production`), the `detail` field in the error response must be
 sanitized for 5xx errors — never expose raw exception messages from Prisma, internal file
 paths, or stack traces. 4xx errors retain their real `detail` in production since they
@@ -166,6 +178,7 @@ surface more context to aid debugging. The `GlobalExceptionFilter` controls this
 ## Review Checklist
 
 **Exception throwing**
+
 - [ ] New code in `application/` or `domain/` layers uses domain exceptions, not NestJS HTTP
       exceptions — unless the module is explicitly following the current pragmatic pattern with
       documented justification
@@ -176,6 +189,7 @@ surface more context to aid debugging. The `GlobalExceptionFilter` controls this
       to `HttpException` inside a service — that mapping belongs exclusively in `PrismaExceptionFilter`
 
 **Exception filters**
+
 - [ ] Both `GlobalExceptionFilter` and `PrismaExceptionFilter` registered globally in `main.ts`
       in the correct order (Global first, Prisma second)
 - [ ] Every unhandled exception logs the full error object (stack trace) server-side with the
@@ -189,6 +203,7 @@ surface more context to aid debugging. The `GlobalExceptionFilter` controls this
 - [ ] Error responses from external libraries are parsed using strict TypeScript interfaces, avoiding `any` or generic objects.
 
 **Testing**
+
 - [ ] Service tests assert the specific exception class thrown per business condition
       (cross-reference `test-automation-expert`'s exception-type assertion rule)
 - [ ] "Log and rethrow" test case present for all mutating methods (per `test-automation-expert`)

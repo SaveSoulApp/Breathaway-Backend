@@ -8,18 +8,21 @@ exceptions, and the pragmatic migration path for this codebase.
 ## 1. The Two Patterns in This Codebase
 
 ### Current pattern — HTTP exceptions in the service layer
+
 ```typescript
 // profiles.service.ts (existing code)
 if (existingProfile) {
   throw new ConflictException('Profile already exists');
 }
 ```
+
 This is what the existing service tests reflect. It works, it's simple, but it violates the
 `clean-architecture-expert` rule that the application layer must not know about HTTP/transport
 concerns — `ConflictException` is a NestJS HTTP exception, which technically belongs in the
 presentation layer.
 
 ### Target pattern — domain exceptions in the application layer
+
 ```typescript
 // application/exceptions/profile-already-exists.exception.ts
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -43,6 +46,7 @@ if (existingProfile) {
 ## 2. Decision Rule — Which Pattern to Use
 
 **Use domain exceptions (target pattern) when:**
+
 - Writing a new module from scratch
 - Refactoring an existing module for other reasons (don't do it in isolation — do it as part
   of a wider refactor of that module)
@@ -51,12 +55,14 @@ if (existingProfile) {
   specifically to try an alternative fulfillment path)
 
 **It is acceptable to use NestJS HTTP exceptions in services when:**
+
 - The module already consistently uses this pattern and you're adding a new method
 - The exception is simple, unambiguous, and will only ever result in one HTTP status (e.g.,
   `NotFoundException` for a lookup-by-ID is always going to be a 404)
 - Consistency within the module outweighs architectural purity
 
 **Never do:**
+
 - Mix both patterns within the same service/module without a clear migration plan
 - Catch `PrismaClientKnownRequestError` inside a service and rethrow as `ConflictException`
   (that mapping belongs in `PrismaExceptionFilter`, not scattered across services)
@@ -95,6 +101,7 @@ Define domain exceptions in the `application/exceptions/` folder of each module,
 `shared/domain/exceptions/` for exceptions that cross module boundaries.
 
 ### Naming convention
+
 `{Resource}{Condition}Exception` — explicit, matches what the service is expressing:
 
 ```typescript
@@ -126,6 +133,7 @@ export class ProfileAlreadyExistsException extends DomainException {
 ```
 
 ### Barrel Exports (index.ts)
+
 Always create an `index.ts` file in the `application/exceptions/` folder that exports all exceptions for the module:
 
 ```typescript
@@ -144,6 +152,7 @@ import {
 ```
 
 ### HTTP mapping registry
+
 The `GlobalExceptionFilter` needs to know which domain exception maps to which HTTP status.
 Centralize this in one place, not scattered across individual filter `@Catch()` decorators:
 
@@ -152,11 +161,11 @@ Centralize this in one place, not scattered across individual filter `@Catch()` 
 import { HttpStatus } from '@nestjs/common';
 
 export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
-  UserNotFoundException:         HttpStatus.NOT_FOUND,
-  UserAlreadyExistsException:    HttpStatus.CONFLICT,
-  ProfileNotFoundException:      HttpStatus.NOT_FOUND,
+  UserNotFoundException: HttpStatus.NOT_FOUND,
+  UserAlreadyExistsException: HttpStatus.CONFLICT,
+  ProfileNotFoundException: HttpStatus.NOT_FOUND,
   ProfileAlreadyExistsException: HttpStatus.CONFLICT,
-  InvalidEmailException:         HttpStatus.BAD_REQUEST,
+  InvalidEmailException: HttpStatus.BAD_REQUEST,
   InsufficientPermissionsException: HttpStatus.FORBIDDEN,
   // Add new entries here when new domain exceptions are created
 };

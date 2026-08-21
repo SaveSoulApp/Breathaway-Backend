@@ -6,6 +6,7 @@ Load this before writing any comments so your output matches production conventi
 ---
 
 ## Table of Contents
+
 1. [Controller](#1-controller)
 2. [Service / Provider](#2-service--provider)
 3. [Module](#3-module)
@@ -20,9 +21,10 @@ Load this before writing any comments so your output matches production conventi
 ## 1. Controller
 
 Controllers own an HTTP resource group. The class comment names the resource and its auth scope.
-Each route handler comment explains what the endpoint *does for the caller* and what they get back.
+Each route handler comment explains what the endpoint _does for the caller_ and what they get back.
 
 ### Before
+
 ```ts
 @Controller('orders')
 export class OrdersController {
@@ -48,6 +50,7 @@ export class OrdersController {
 ```
 
 ### After
+
 ```ts
 /**
  * Handles HTTP operations for the /orders resource.
@@ -115,6 +118,7 @@ Services own business logic. Class comments describe the domain they encapsulate
 Method comments explain the business rule being enforced and every exception that can escape.
 
 ### Before
+
 ```ts
 @Injectable()
 export class PaymentsService {
@@ -124,11 +128,25 @@ export class PaymentsService {
     private readonly emailService: EmailService,
   ) {}
 
-  async charge(userId: string, amount: number, currency: string): Promise<Payment> {
-    const existing = await this.repo.findOne({ where: { userId, status: 'pending' } });
+  async charge(
+    userId: string,
+    amount: number,
+    currency: string,
+  ): Promise<Payment> {
+    const existing = await this.repo.findOne({
+      where: { userId, status: 'pending' },
+    });
     if (existing) throw new ConflictException();
-    const intent = await this.stripeClient.createPaymentIntent(amount, currency);
-    const payment = this.repo.create({ userId, amount, currency, stripeIntentId: intent.id });
+    const intent = await this.stripeClient.createPaymentIntent(
+      amount,
+      currency,
+    );
+    const payment = this.repo.create({
+      userId,
+      amount,
+      currency,
+      stripeIntentId: intent.id,
+    });
     await this.repo.save(payment);
     await this.emailService.sendReceipt(userId, payment);
     return payment;
@@ -144,6 +162,7 @@ export class PaymentsService {
 ```
 
 ### After
+
 ```ts
 /**
  * Orchestrates payment lifecycle operations — charging, refunding, and tracking
@@ -175,11 +194,25 @@ export class PaymentsService {
    * @throws {ConflictException} When a pending payment already exists for this user.
    * @throws {StripeException} When Stripe rejects the payment intent creation (e.g., invalid card).
    */
-  async charge(userId: string, amount: number, currency: string): Promise<Payment> {
-    const existing = await this.repo.findOne({ where: { userId, status: 'pending' } });
+  async charge(
+    userId: string,
+    amount: number,
+    currency: string,
+  ): Promise<Payment> {
+    const existing = await this.repo.findOne({
+      where: { userId, status: 'pending' },
+    });
     if (existing) throw new ConflictException();
-    const intent = await this.stripeClient.createPaymentIntent(amount, currency);
-    const payment = this.repo.create({ userId, amount, currency, stripeIntentId: intent.id });
+    const intent = await this.stripeClient.createPaymentIntent(
+      amount,
+      currency,
+    );
+    const payment = this.repo.create({
+      userId,
+      amount,
+      currency,
+      stripeIntentId: intent.id,
+    });
     await this.repo.save(payment);
     await this.emailService.sendReceipt(userId, payment);
     return payment;
@@ -215,9 +248,14 @@ Think of this as the module's README — a new engineer should understand the de
 from the comment alone.
 
 ### Before
+
 ```ts
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, Payment]), StripeModule, EmailModule],
+  imports: [
+    TypeOrmModule.forFeature([Order, Payment]),
+    StripeModule,
+    EmailModule,
+  ],
   providers: [OrdersService, PaymentsService],
   exports: [OrdersService],
 })
@@ -225,6 +263,7 @@ export class OrdersModule {}
 ```
 
 ### After
+
 ```ts
 /**
  * Encapsulates the order management bounded context — creating, fulfilling,
@@ -240,7 +279,11 @@ export class OrdersModule {}
  *     creating a circular dependency through PaymentsModule.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, Payment]), StripeModule, EmailModule],
+  imports: [
+    TypeOrmModule.forFeature([Order, Payment]),
+    StripeModule,
+    EmailModule,
+  ],
   providers: [OrdersService, PaymentsService],
   exports: [OrdersService],
 })
@@ -256,6 +299,7 @@ Property comments explain validation constraints and any non-obvious semantics.
 Skip property comments when the name, type, and decorator are fully self-explanatory.
 
 ### Before
+
 ```ts
 export class CreateOrderDto {
   @IsArray()
@@ -277,6 +321,7 @@ export class CreateOrderDto {
 ```
 
 ### After
+
 ```ts
 /**
  * Payload for creating a new customer order.
@@ -317,6 +362,7 @@ what conditions grant or deny access and what side effects (if any) occur (e.g.,
 data to the request).
 
 ### Before
+
 ```ts
 @Injectable()
 export class OrderOwnerGuard implements CanActivate {
@@ -333,6 +379,7 @@ export class OrderOwnerGuard implements CanActivate {
 ```
 
 ### After
+
 ```ts
 /**
  * Restricts route access to the user who owns the target order.
@@ -373,6 +420,7 @@ Interceptor class comments name the cross-cutting concern. The `intercept` comme
 the transformation or side effect applied to the request/response stream.
 
 ### Before
+
 ```ts
 @Injectable()
 export class ResponseTimeInterceptor implements NestInterceptor {
@@ -389,6 +437,7 @@ export class ResponseTimeInterceptor implements NestInterceptor {
 ```
 
 ### After
+
 ```ts
 /**
  * Adds an `X-Response-Time` header to every HTTP response, reporting the
@@ -427,13 +476,16 @@ Pipe class comments explain what the pipe transforms or validates and why the tr
 is needed at the framework boundary rather than inside a service.
 
 ### Before
+
 ```ts
 @Injectable()
 export class ParsePositiveIntPipe implements PipeTransform {
   transform(value: any): number {
     const parsed = parseInt(value, 10);
     if (isNaN(parsed) || parsed <= 0) {
-      throw new BadRequestException(`Expected a positive integer, received: ${value}`);
+      throw new BadRequestException(
+        `Expected a positive integer, received: ${value}`,
+      );
     }
     return parsed;
   }
@@ -441,6 +493,7 @@ export class ParsePositiveIntPipe implements PipeTransform {
 ```
 
 ### After
+
 ```ts
 /**
  * Validates and coerces a route or query parameter to a positive integer.
@@ -462,7 +515,9 @@ export class ParsePositiveIntPipe implements PipeTransform {
   transform(value: any): number {
     const parsed = parseInt(value, 10);
     if (isNaN(parsed) || parsed <= 0) {
-      throw new BadRequestException(`Expected a positive integer, received: ${value}`);
+      throw new BadRequestException(
+        `Expected a positive integer, received: ${value}`,
+      );
     }
     return parsed;
   }
@@ -474,6 +529,7 @@ export class ParsePositiveIntPipe implements PipeTransform {
 ## 8. Common Mistakes
 
 ### ❌ Restating the type signature
+
 ```ts
 // BAD — the parameter name and type already say this
 @param userId - The user's ID string.
@@ -483,6 +539,7 @@ export class ParsePositiveIntPipe implements PipeTransform {
 ```
 
 ### ❌ Vague @throws
+
 ```ts
 // BAD
 @throws {Error} If something goes wrong.
@@ -493,6 +550,7 @@ export class ParsePositiveIntPipe implements PipeTransform {
 ```
 
 ### ❌ Filler sentences
+
 ```ts
 // BAD
 /** This method is responsible for handling the creation of a new user account. */
@@ -502,10 +560,12 @@ export class ParsePositiveIntPipe implements PipeTransform {
 ```
 
 ### ❌ Documenting private / internal helpers
+
 Only comment public methods and exported classes. Private helpers within a service
 class do not need JSDoc unless they contain non-obvious logic that would confuse a
 reader of the class at a glance. In that case, a single-line `//` comment is sufficient.
 
 ### ❌ Missing @throws on async methods that delegate to external services
+
 If a method calls Stripe, a database, an HTTP API, or any provider that can throw,
 document what exception bubbles up. Callers need to know what to catch.

@@ -41,7 +41,7 @@ const rule = {
         "logger.{{ method }}() call is missing a 'step' field in its metadata object. " +
         "Add `step: 'snake_case_name'` to make this log queryable by operation phase in Cloud Logging.",
       missingMeta:
-        "logger.{{ method }}() call has no metadata object. " +
+        'logger.{{ method }}() call has no metadata object. ' +
         "Add a second argument `{ ...ctx, step: 'snake_case_name' }` to enable Cloud Logging step queries.",
     },
     schema: [],

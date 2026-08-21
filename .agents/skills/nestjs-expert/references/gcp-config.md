@@ -47,6 +47,7 @@ Never touch `.env` files. When a new variable is needed:
 Cloud Run instances can be spun up, killed, and replaced at any time. This means:
 
 **Never store state in module-level variables or singleton caches** that assume the instance lives forever:
+
 ```typescript
 // ❌ This cache dies when the instance is replaced
 const userCache = new Map<string, User>();
@@ -55,6 +56,7 @@ const userCache = new Map<string, User>();
 ```
 
 **Never write files to the local filesystem** and expect them to persist. Use Cloud Storage for files:
+
 ```typescript
 // ❌
 fs.writeFileSync('/tmp/upload.csv', data);
@@ -95,8 +97,8 @@ import { ConfigModule } from '@nestjs/config';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true,       // no need to import ConfigModule in every module
-      cache: true,          // cache reads for performance
+      isGlobal: true, // no need to import ConfigModule in every module
+      cache: true, // cache reads for performance
       envFilePath: '.env.local',
     }),
   ],

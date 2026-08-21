@@ -11,16 +11,17 @@ Every structured log line emitted in GCP mode contains:
 
 ```jsonc
 {
-  "severity":       "INFO",                       // Cloud Logging severity enum
-  "message":        "Like created successfully",  // human-readable summary
-  "context":        "LikesService",               // from forContext()
-  "requestId":      "01HZ...",                    // auto-injected from CLS
+  "severity": "INFO", // Cloud Logging severity enum
+  "message": "Like created successfully", // human-readable summary
+  "context": "LikesService", // from forContext()
+  "requestId": "01HZ...", // auto-injected from CLS
   "logging.googleapis.com/trace": "projects/...", // auto-injected from CLS (when Cloud Trace enabled)
-  "timestamp":      "2026-07-03T04:00:00.000Z",
-  "serviceContext": {                             // enables GCP Error Reporting aggregation
+  "timestamp": "2026-07-03T04:00:00.000Z",
+  "serviceContext": {
+    // enables GCP Error Reporting aggregation
     "service": "breathaway-api",
-    "version": "1.2.0"
-  }
+    "version": "1.2.0",
+  },
   // ...entity IDs from the meta payload (e.g. userId, likeId, matchId)
 }
 ```
@@ -33,13 +34,13 @@ Pino labels map to Cloud Logging `LogSeverity` via the **explicit lookup table**
 severity-based alerting.
 
 | Pino level | Cloud Logging severity |
-|---|---|
-| `trace`  | `DEFAULT` |
-| `debug`  | `DEBUG` |
-| `info`   | `INFO` |
-| `warn`   | `WARNING` |
-| `error`  | `ERROR` |
-| `fatal`  | `CRITICAL` |
+| ---------- | ---------------------- |
+| `trace`    | `DEFAULT`              |
+| `debug`    | `DEBUG`                |
+| `info`     | `INFO`                 |
+| `warn`     | `WARNING`              |
+| `error`    | `ERROR`                |
+| `fatal`    | `CRITICAL`             |
 
 ---
 
@@ -86,7 +87,7 @@ async createWidget(userId: string, dto: CreateWidgetDto) {
 ### 3. Log levels at a glance
 
 | Level   | Method              | When                                                            |
-|---------|---------------------|-----------------------------------------------------------------|
+| ------- | ------------------- | --------------------------------------------------------------- |
 | `debug` | `logger.debug(...)` | Method entry; intermediate state in complex flows               |
 | `info`  | `logger.log(...)`   | Every successful **write** (Create / Update / Delete)           |
 | `warn`  | `logger.warn(...)`  | Before every `throw new DomainException()`; retried calls       |

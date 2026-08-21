@@ -27,7 +27,7 @@ The application is containerized using a multi-stage Docker build process locate
 3. **Runner Stage**:
    - Inherits the clean Node base image.
    - Switches execution context to a secure, non-root user (`node`).
-   - Copies *only* the compiled code and pruned `node_modules`.
+   - Copies _only_ the compiled code and pruned `node_modules`.
    - Exposes port `8080` (standard for GCP Cloud Run).
    - Executes the compiled javascript bundle: `node dist/main.js`.
 
@@ -38,6 +38,7 @@ The application is containerized using a multi-stage Docker build process locate
 Infrastructure is declared declaratively using **Terraform** inside the `/terraform` directory.
 
 Key modules managed by Terraform:
+
 - **Cloud Run**: Runs stateless, containerized instances of the NestJS application.
 - **Cloud Scheduler (`scheduler.tf`)**: Automates cron execution of endpoints. For example, triggers the match resolution background loop or credit expiration checks by making authenticated HTTP requests to the Cloud Run API.
 - **Audit Logs (`audit-logs.tf`)**: Integrates Cloud Logging sinks to monitor security events.
@@ -61,6 +62,7 @@ pnpm run deploy:prod
 ```
 
 These commands invoke the `./scripts/deploy.sh` script, which automates:
+
 1. Docker image compilation and tag creation.
 2. Pushing the image to **GCP Artifact Registry**.
 3. Deploying the new container tag to **GCP Cloud Run**.

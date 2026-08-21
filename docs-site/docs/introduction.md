@@ -5,7 +5,7 @@ sidebar_position: 1
 
 # BreathAway Backend Documentation
 
-Welcome to the technical documentation for the **BreathAway** backend system. 
+Welcome to the technical documentation for the **BreathAway** backend system.
 
 BreathAway is a progressive social and relationship platform that facilitates meaningful connections. This documentation serves as the single source of truth for the backend application design, API conventions, infrastructure, data models, and domain modules.
 

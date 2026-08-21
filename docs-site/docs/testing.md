@@ -11,6 +11,7 @@ This guide details the testing framework, test types, and coding patterns used t
 ## 🧪 Test Types
 
 BreathAway backend uses a dual testing strategy:
+
 1. **Unit Tests**: Test individual classes, services, or helpers in isolation. Database and third-party API calls are fully mocked.
 2. **End-to-End (E2E) Tests**: Run the full NestJS application instance against a test database instance to verify HTTP controllers, pipes, guards, filters, and complete business flows.
 
@@ -35,6 +36,7 @@ pnpm run test:e2e
 ```
 
 ### Coverage Thresholds
+
 Unit test coverage outputs reports to the `/coverage` directory. We aim for high coverage on business services, while excluding module files (`.module.ts`) and main configs.
 
 ---
@@ -42,6 +44,7 @@ Unit test coverage outputs reports to the `/coverage` directory. We aim for high
 ## 🛠 Testing Setup & Tooling
 
 We use the following stack for testing:
+
 - **Test Runner**: [Jest](https://jestjs.io/)
 - **Integration Framework**: [Supertest](https://github.com/ladjs/supertest) (for E2E request assertions)
 - **Mocks Utility**: `jest-mock-extended` (for clean database/service mocking)
@@ -53,6 +56,7 @@ We use the following stack for testing:
 When writing tests for BreathAway, we enforce the **AAA (Arrange-Act-Assert)** pattern.
 
 ### 1. Unit Test Structure (AAA Pattern)
+
 Here is the standard pattern for mocking and testing a service:
 
 ```typescript
@@ -95,9 +99,11 @@ describe('ProfilesService', () => {
 ```
 
 ### 2. E2E Test Structure
+
 E2E tests are stored in `/test/` and run against a separate database configuration defined in `.env.test`.
 
 Each E2E test file bootstraps a mini application module:
+
 ```typescript
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';

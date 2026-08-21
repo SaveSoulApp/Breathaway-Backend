@@ -22,6 +22,7 @@ Standard queue systems (like Kafka, RabbitMQ, or Pub/Sub pull configurations) ty
 
 > [!IMPORTANT]
 > **Why We Use Push Subscriptions in Cloud Run**
+>
 > 1. **Stateless Scale-to-Zero**: GCP Cloud Run is designed to scale down to `0` instances when there is no active traffic to save costs. A polling loop require a container to run continuously (`24/7`), preventing scale-down.
 > 2. **Lifecycle Termination**: Cloud Run containers that are idle have their CPU throttled, which would starve a long-polling thread.
 > 3. **On-Demand Wakeup**: With Pub/Sub Push Subscriptions, GCP sends message payloads as HTTP POST requests to our `/api/v1/pubsub/ingest` endpoint. If no container is running, the incoming HTTP request triggers Cloud Run to provision a container instantly (cold start), process the message, and scale back down when finished.
@@ -58,7 +59,7 @@ sequenceDiagram
     Note over Guard: Verifies Google Signature & Service Account Audience
     Guard -->> Ingest: Approved
     deactivate Guard
-    
+
     Ingest ->> Registry: dispatch(payload)
     activate Registry
     Note over Registry: Resolves target handlers mapped<br/>via @PubSubHandler decorators
@@ -68,7 +69,7 @@ sequenceDiagram
     deactivate Handler
     Registry -->> Ingest: Dispatch finished
     deactivate Registry
-    
+
     Ingest -->> GCP: 200 OK (Acknowledges receipt)
     deactivate Ingest
 ```
@@ -78,7 +79,9 @@ sequenceDiagram
 ## 🧠 Business Logic & Core Concepts
 
 ### 1. Inbound/Outbound Asymmetry
+
 Pub/Sub crosses the network boundary in two different ways. The `PubSubPublisherService` pushes directly to GCP topics using the standard `@google-cloud/pubsub` SDK via Application Default Credentials. However, ingestion is handled via a standard HTTP push controller (`PubSubIngestionController`) because Cloud Run natively converts push subscriptions into authenticated HTTP requests.
 
 ### 2. Silent Failure for Unroutable Events
+
 The ingestion controller intentionally swallows unroutable messages (e.g., missing event type, no registered handler, bad base64 payload) and returns a `200 OK`. If it returned a `4xx` or `5xx`, GCP Pub/Sub would assume the delivery failed and retry the useless payload indefinitely, clogging the topic. Only true processing errors trigger retries.

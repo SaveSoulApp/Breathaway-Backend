@@ -9,6 +9,7 @@ Follow this guide to set up the BreathAway backend application and the documenta
 ## Prerequisites
 
 Before starting, ensure you have the following installed:
+
 - **Node.js**: `v20` or higher (tested on `v25.9.0`)
 - **Package Manager**: `pnpm` (version `10.15.1`)
 - **Database**: PostgreSQL (either a local instance or running via Docker)
@@ -34,6 +35,7 @@ This command will install the dependencies for both the root NestJS backend and 
 The application uses environment-specific files to manage configurations. The standard configuration flow relies on `.env.development` (for local development) and `.env.test` (for testing).
 
 ### Syncing Environment Variables
+
 A startup script is provided to link the development environment file:
 
 ```bash
@@ -51,6 +53,7 @@ pnpm run syncenv:development
 We use Prisma ORM to interact with our PostgreSQL database.
 
 ### Running PostgreSQL locally via Docker
+
 If you do not have a running PostgreSQL instance, you can spin one up using the included `docker-compose.yml`:
 
 ```bash
@@ -58,6 +61,7 @@ docker-compose up -d
 ```
 
 ### Applying Migrations
+
 Apply the database migrations to your local PostgreSQL instance:
 
 ```bash
@@ -66,6 +70,7 @@ pnpm run migrate:local
 ```
 
 ### Seeding or Generating Prisma Client
+
 Regenerate the Prisma Client after migrating or editing the schema:
 
 ```bash
@@ -83,6 +88,7 @@ pnpm run start:dev
 ```
 
 The application will start by default on port `3000`. You can verify it is running by visiting:
+
 - Health check: `http://localhost:3000/api/v1/health`
 - Swagger UI (if enabled): `http://localhost:3000/api/public`
 

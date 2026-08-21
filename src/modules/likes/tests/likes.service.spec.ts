@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AlreadyLikedException,
+  AlreadyMatchedException,
   IdentityNotFoundException,
   InsufficientCreditsException,
   InvalidLikeStateException,
@@ -16,6 +17,7 @@ import {
   IntentType,
   Like,
   LikeStatus,
+  MatchStatus,
 } from '@prisma/client';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -310,6 +312,20 @@ describe('LikesService', () => {
       // Act & Assert
       await expect(service.create(userId, dtoWithId)).rejects.toThrow(
         new AlreadyLikedException(),
+      );
+    });
+
+    it('should throw AlreadyMatchedException if active match exists', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+
+      const existingMatch = { id: 'match-123', status: MatchStatus.ACTIVE };
+      prisma.match.findUnique.mockResolvedValue(existingMatch as any);
+
+      // Act & Assert
+      await expect(service.create(userId, dtoWithId)).rejects.toThrow(
+        new AlreadyMatchedException(),
       );
     });
 

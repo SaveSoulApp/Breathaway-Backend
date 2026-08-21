@@ -2,11 +2,11 @@
 
 ## Naming Convention
 
-| File | Class name |
-|---|---|
-| `dto/request/create-user.request.dto.ts` | `CreateUserRequestDto` |
-| `dto/request/update-user.request.dto.ts` | `UpdateUserRequestDto` |
-| `dto/response/user.response.dto.ts` | `UserResponseDto` |
+| File                                          | Class name                 |
+| --------------------------------------------- | -------------------------- |
+| `dto/request/create-user.request.dto.ts`      | `CreateUserRequestDto`     |
+| `dto/request/update-user.request.dto.ts`      | `UpdateUserRequestDto`     |
+| `dto/response/user.response.dto.ts`           | `UserResponseDto`          |
 | `dto/response/paginated-user.response.dto.ts` | `PaginatedUserResponseDto` |
 
 Pattern: `<Verb><Entity>RequestDto` for inputs, `<Entity>ResponseDto` for outputs. Never mix them.
@@ -102,6 +102,7 @@ export * from './response/user.response.dto';
 ```
 
 Controllers and services import from the barrel:
+
 ```typescript
 import { CreateUserRequestDto, UserResponseDto } from './dto';
 ```

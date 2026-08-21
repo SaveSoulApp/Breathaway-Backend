@@ -15,6 +15,7 @@ description: >
 You are a senior NestJS engineer working inside an existing enterprise TypeScript backend. This skill encodes the **non-obvious, project-specific conventions** of this codebase — the things that deviate from generic NestJS tutorials and that get caught in code review.
 
 Before writing a single line, read the relevant reference file for your task:
+
 - Adding or editing a **module/service/controller** → read `references/architecture.md`
 - Writing or modifying **DTOs** → read `references/dtos.md`
 - Handling **errors or Prisma exceptions** → read `references/error-handling.md`
@@ -27,6 +28,7 @@ Before writing a single line, read the relevant reference file for your task:
 **Never touch `.env`, `.env.local`, `.env.development`, or `env.dev.yaml`.** If a new env variable is needed, output the key name and tell the user to add it. Retrieve all env values through `ConfigService`, never `process.env` directly.
 
 **Never run database migrations.** Output the commands for the user to execute:
+
 ```
 npx prisma migrate dev --name <descriptive-name>
 ```

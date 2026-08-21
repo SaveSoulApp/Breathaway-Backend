@@ -68,6 +68,7 @@ CMD ["node", "dist/main.js"]
 ```
 
 **Rules:**
+
 - `npm ci`, never `npm install`, in CI/Docker builds — ensures reproducible installs from the
   lockfile.
 - Copy `package.json`/`package-lock.json` before the rest of the source so Docker can cache
@@ -80,6 +81,7 @@ CMD ["node", "dist/main.js"]
 - Always create and use a non-root user in the final stage.
 
 ### `.dockerignore`
+
 ```
 node_modules
 dist
@@ -103,11 +105,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // ...
   const port = process.env.PORT || 8080;
-  await app.listen(port, '0.0.0.0');   // bind to 0.0.0.0, not localhost/127.0.0.1
+  await app.listen(port, '0.0.0.0'); // bind to 0.0.0.0, not localhost/127.0.0.1
 }
 ```
 
 **Rules:**
+
 - Cloud Run injects `PORT` (default 8080) — never hardcode a different port in `app.listen()`.
 - Bind to `0.0.0.0`, not `localhost` — Cloud Run's networking layer needs the container to
   accept connections on all interfaces, not just loopback.
@@ -159,11 +162,12 @@ resource "google_cloud_run_v2_service" "api" {
 ```
 
 **Guidance:**
+
 - `min_instance_count = 0` is acceptable for staging/dev or genuinely low-traffic services
   where occasional cold-start latency is tolerable.
 - `min_instance_count >= 1` for production user-facing APIs to eliminate cold starts on the
   request path.
-- `max_instance_count` must be set with Cloud SQL's max connection limit in mind: 
+- `max_instance_count` must be set with Cloud SQL's max connection limit in mind:
   `max_instance_count × per_instance_prisma_pool_size` should stay safely under Cloud SQL's
   configured max connections, accounting for other services sharing the same instance.
   Cross-reference the `prisma-optimizer` skill's connection pooling section.
@@ -199,6 +203,7 @@ containers {
   }
 }
 ```
+
 Use `/health` (no DB dependency) for the liveness probe to avoid restarting healthy instances
 during a transient DB blip, and reserve `/ready` (which checks Prisma connectivity) for traffic
 admission decisions rather than container liveness.
@@ -208,6 +213,7 @@ admission decisions rather than container liveness.
 ## 7. Cloud Scheduler → Cloud Run Integration
 
 ### Pattern: authenticated OIDC invocation
+
 Cloud Scheduler jobs that trigger Cloud Run endpoints must authenticate, not call a public
 unauthenticated route:
 
@@ -246,13 +252,14 @@ resource "google_cloud_run_v2_service_iam_member" "scheduler_invoke" {
 ```
 
 ### Application side: verify the OIDC token and restrict the route
+
 ```typescript
 // internal-jobs.guard.ts
 @Injectable()
 export class InternalJobGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = extractToken(request);  // same Bearer extraction as FirebaseAuthGuard
+    const token = extractToken(request); // same Bearer extraction as FirebaseAuthGuard
     if (!token) throw new UnauthorizedException();
 
     // Verify as a Google-issued OIDC token (not a Firebase user token) —
@@ -280,6 +287,7 @@ export class InternalJobsController {
 ```
 
 **Rules:**
+
 - Never reuse `FirebaseAuthGuard` for scheduler-triggered endpoints — the caller is Google's
   infrastructure presenting a Google-signed OIDC token, not an end-user Firebase token. Use a
   distinct guard that verifies the OIDC audience and caller service account email.

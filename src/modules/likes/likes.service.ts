@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LikeStatus, Prisma } from '@prisma/client';
+import { LikeStatus, MatchStatus, Prisma } from '@prisma/client';
 import {
   AlreadyLikedException,
+  AlreadyMatchedException,
   IdentityNotFoundException,
   InsufficientCreditsException,
   InvalidLikeStateException,
@@ -54,6 +55,86 @@ export class LikesService extends BaseService {
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
+  }
+
+  /**
+   * Evaluates if a like can be successfully created without actually creating it or consuming credits.
+   * Throws the corresponding domain exceptions if validation fails.
+   */
+  async canCreate(
+    userId: string,
+    dto: CreateLikeRequestDto,
+  ): Promise<{ canCreate: boolean }> {
+    const ctx = { userId, targetIdentityId: dto.targetIdentityId };
+    this.logger.debug('Like can-create check started', {
+      ...ctx,
+      step: 'init',
+    });
+
+    let targetIdentityId = dto.targetIdentityId;
+
+    if (!targetIdentityId && dto.targetIdentity) {
+      const { type, publicValue } = dto.targetIdentity;
+      const publicValueData =
+        await this.identityCryptoService.processPublicValue(publicValue, type);
+
+      const existing = await this.prisma.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type,
+            publicValueHash: publicValueData.publicValueHash,
+          },
+        },
+      });
+
+      if (!existing) {
+        // Identity doesn't exist in our DB yet -> can't be already liked or matched.
+        return { canCreate: true };
+      }
+      targetIdentityId = existing.id;
+    }
+
+    if (!targetIdentityId) {
+      throw new MissingTargetIdentityException();
+    }
+
+    const targetIdentity = await this.prisma.identity.findUnique({
+      where: { id: targetIdentityId },
+    });
+
+    if (!targetIdentity) {
+      throw new IdentityNotFoundException();
+    }
+
+    if (targetIdentity.userId === userId) {
+      throw new SelfLikeException();
+    }
+
+    const existingLike = await this.prisma.like.findFirst({
+      where: {
+        senderUserId: userId,
+        targetIdentityId,
+        deletedAt: null,
+        status: { not: LikeStatus.DELETED },
+      },
+    });
+
+    if (existingLike) {
+      throw new AlreadyLikedException();
+    }
+
+    if (targetIdentity.userId) {
+      const [userOneId, userTwoId] = [userId, targetIdentity.userId].sort();
+      const existingMatch = await this.prisma.match.findUnique({
+        where: { userOneId_userTwoId: { userOneId, userTwoId } },
+      });
+
+      if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
+        throw new AlreadyMatchedException();
+      }
+    }
+
+    return { canCreate: true };
   }
 
   /**
@@ -229,6 +310,31 @@ export class LikesService extends BaseService {
       step: 'duplicate_check',
       targetIdentityId,
     });
+
+    // Step 4.5: Active Match Check
+    // If the target identity is already resolved to a user, check if we already have an active match
+    if (targetIdentity.userId) {
+      const [userOneId, userTwoId] = [userId, targetIdentity.userId].sort();
+      const existingMatch = await this.prisma.match.findUnique({
+        where: { userOneId_userTwoId: { userOneId, userTwoId } },
+      });
+
+      if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
+        this.logger.warn('Like creation failed: active match already exists', {
+          ...ctx,
+          step: 'match_check',
+          targetUserId: targetIdentity.userId,
+          existingMatchId: existingMatch.id,
+        });
+        throw new AlreadyMatchedException();
+      }
+
+      this.logger.debug('Match check passed', {
+        ...ctx,
+        step: 'match_check',
+        targetUserId: targetIdentity.userId,
+      });
+    }
 
     // Step 5: Persist like + deduct credits atomically
     let expiresAt = DateUtil.now();

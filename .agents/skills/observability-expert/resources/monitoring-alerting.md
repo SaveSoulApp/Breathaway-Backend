@@ -10,6 +10,7 @@ infrastructure-as-code conventions from `devops-gcp-expert`.
 
 Before adding custom instrumentation, know what's automatic. Cloud Run emits, with no app code
 changes required:
+
 - Request count, request latency (p50/p95/p99), by status code
 - Container instance count (active, idle)
 - CPU and memory utilization per instance
@@ -28,6 +29,7 @@ separate instrumentation call needed in application code beyond the logging alre
 `pino-logging.md`.
 
 ### Example: counting business events from structured logs
+
 ```hcl
 resource "google_logging_metric" "orders_created" {
   name   = "orders_created"
@@ -46,6 +48,7 @@ resource "google_logging_metric" "orders_created" {
 ```
 
 ### Example: counting a specific error pattern
+
 ```hcl
 resource "google_logging_metric" "prisma_connection_errors" {
   name   = "prisma_connection_errors"
@@ -62,11 +65,13 @@ resource "google_logging_metric" "prisma_connection_errors" {
   }
 }
 ```
+
 This is exactly why `pino-logging.md`'s structured metadata discipline matters beyond
 readability — well-structured log fields are what make log-based metrics possible at all
 without separate instrumentation.
 
 ### Distribution metrics (e.g., job processing duration)
+
 ```hcl
 resource "google_logging_metric" "job_processing_duration" {
   name   = "job_processing_duration_ms"
@@ -100,17 +105,22 @@ async function recordQueueDepth(depth: number) {
   const client = new MetricServiceClient();
   await client.createTimeSeries({
     name: client.projectPath(projectId),
-    timeSeries: [{
-      metric: { type: 'custom.googleapis.com/queue_depth' },
-      resource: { type: 'global', labels: { project_id: projectId } },
-      points: [{
-        interval: { endTime: { seconds: Date.now() / 1000 } },
-        value: { int64Value: depth },
-      }],
-    }],
+    timeSeries: [
+      {
+        metric: { type: 'custom.googleapis.com/queue_depth' },
+        resource: { type: 'global', labels: { project_id: projectId } },
+        points: [
+          {
+            interval: { endTime: { seconds: Date.now() / 1000 } },
+            value: { int64Value: depth },
+          },
+        ],
+      },
+    ],
   });
 }
 ```
+
 Prefer log-based metrics whenever the signal can be expressed as "this happened, with these
 fields" — reserve the direct API for genuine continuous gauges.
 
@@ -119,6 +129,7 @@ fields" — reserve the direct API for genuine continuous gauges.
 ## 4. Alerting Policies (Terraform)
 
 ### Error rate
+
 ```hcl
 resource "google_monitoring_alert_policy" "high_error_rate" {
   display_name = "API error rate above threshold"
@@ -148,6 +159,7 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
 ```
 
 ### Latency
+
 ```hcl
 resource "google_monitoring_alert_policy" "high_latency" {
   display_name = "API p99 latency above threshold"
@@ -176,6 +188,7 @@ resource "google_monitoring_alert_policy" "high_latency" {
 ```
 
 ### `/ready` failures (DB connectivity degradation)
+
 ```hcl
 resource "google_monitoring_alert_policy" "readiness_failures" {
   display_name = "Readiness probe failures (DB connectivity)"
@@ -196,6 +209,7 @@ resource "google_monitoring_alert_policy" "readiness_failures" {
 ```
 
 ### Instance count pinned at max (scaling ceiling hit)
+
 ```hcl
 resource "google_monitoring_alert_policy" "max_instances_hit" {
   display_name = "Cloud Run instance count at configured max"
@@ -218,12 +232,14 @@ resource "google_monitoring_alert_policy" "max_instances_hit" {
   notification_channels = [google_monitoring_notification_channel.engineering_alerts.id]
 }
 ```
+
 This alert matters specifically because of the connection-pool exhaustion risk flagged in
 `prisma-optimizer` and `devops-gcp-expert` — hitting max instances under sustained load means
-the service is at its configured ceiling for both compute *and* Cloud SQL connection budget,
+the service is at its configured ceiling for both compute _and_ Cloud SQL connection budget,
 worth proactive attention before it becomes an outage.
 
 ### Notification channel
+
 ```hcl
 resource "google_monitoring_notification_channel" "engineering_alerts" {
   display_name = "Engineering Alerts"
@@ -281,6 +297,7 @@ resource "google_monitoring_dashboard" "api_overview" {
   dashboard_json = file("${path.module}/dashboards/api-overview.json")
 }
 ```
+
 Export an existing console-built dashboard's JSON definition as a starting point
 (`gcloud monitoring dashboards list` / `describe`), then commit it and manage further changes
 through Terraform rather than the console, to avoid drift between what's deployed and what's
@@ -310,6 +327,7 @@ resource "google_monitoring_slo" "api_availability" {
   }
 }
 ```
+
 **Rule:** Set the SLO target to match actual business requirements and current baseline
 performance, not an arbitrary "five nines" aspiration — an SLO that's already being missed on
 day one provides no useful signal and trains the team to ignore alerts.

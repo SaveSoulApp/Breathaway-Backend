@@ -17,10 +17,11 @@ https://<host>/api/v1/
 ```
 
 For example:
+
 - Get User Profile: `/api/v1/profiles/me`
 - Create Like: `/api/v1/likes`
 
-*The default version is set to `1`. Version prefixes are configured globally during bootstrap in `src/main.ts` using `app.enableVersioning()`.*
+_The default version is set to `1`. Version prefixes are configured globally during bootstrap in `src/main.ts` using `app.enableVersioning()`._
 
 ---
 
@@ -29,12 +30,14 @@ For example:
 BreathAway has split OpenAPI configurations to keep documentation lean and tailored to different clients:
 
 ### 1. Public API Docs (Mobile & Frontend)
+
 - **Scope**: Contains modules that serve the customer-facing mobile application (e.g. Auth, Profiles, Preferences, Likes, Matches, Chats, Credits).
 - **Swagger UI Path**: `/api/public`
 - **ReDoc UI Path**: `/api/public/redoc`
 - **JSON Specification**: `/api/public-json`
 
 ### 2. Admin API Docs (Internal Dashboards)
+
 - **Scope**: Contains modules for administration and third-party webhooks (e.g. Admin, Maintenance, IdentityWorkflows, PubSub, Instagram, Webhooks).
 - **Swagger UI Path**: `/api/admin`
 - **ReDoc UI Path**: `/api/admin/redoc`
@@ -45,6 +48,7 @@ BreathAway has split OpenAPI configurations to keep documentation lean and tailo
 ## 🔒 Accessing Swagger in Local Development
 
 To view the Swagger documents locally:
+
 1. Ensure the application is started: `pnpm run start:dev`
 2. Make sure Swagger is enabled in your `.env` file:
    ```env

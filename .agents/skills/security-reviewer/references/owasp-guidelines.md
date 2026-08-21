@@ -12,9 +12,9 @@ Every NestJS app in this project must have this exact configuration in `main.ts`
 ```typescript
 app.useGlobalPipes(
   new ValidationPipe({
-    whitelist: true,              // strip properties not in the DTO — prevents mass assignment
-    forbidNonWhitelisted: true,   // reject (don't silently strip) unexpected properties
-    transform: true,              // auto-transform payloads to DTO instances/types
+    whitelist: true, // strip properties not in the DTO — prevents mass assignment
+    forbidNonWhitelisted: true, // reject (don't silently strip) unexpected properties
+    transform: true, // auto-transform payloads to DTO instances/types
     transformOptions: { enableImplicitConversion: true },
     forbidUnknownValues: true,
   }),
@@ -22,6 +22,7 @@ app.useGlobalPipes(
 ```
 
 **Why each flag matters:**
+
 - `whitelist: true` alone strips unknown fields silently — combine with `forbidNonWhitelisted`
   to actively reject requests trying to inject unexpected fields (e.g., a client sending
   `{ "role": "ADMIN" }` in a signup payload).
@@ -43,8 +44,10 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(8)
-  @MaxLength(72)                    // bcrypt has a 72-byte limit — cap input accordingly
-  @Matches(/^(?=.*[A-Z])(?=.*\d).+$/, { message: 'Password needs an uppercase letter and a number' })
+  @MaxLength(72) // bcrypt has a 72-byte limit — cap input accordingly
+  @Matches(/^(?=.*[A-Z])(?=.*\d).+$/, {
+    message: 'Password needs an uppercase letter and a number',
+  })
   password: string;
 
   @IsString()
@@ -59,6 +62,7 @@ export class CreateUserDto {
 ```
 
 **Rules:**
+
 - Always pair type validators (`@IsString`, `@IsInt`) with bounds (`@MaxLength`, `@Min`, `@Max`)
   — an unbounded string field is a DoS and storage-abuse vector.
 - Use `@IsEnum()` for any field with a fixed set of valid values — never `@IsString()` alone
@@ -82,10 +86,12 @@ export class CreateOrderDto {
 ## 3. Injection Prevention
 
 ### SQL Injection (Prisma)
+
 Prisma's query builder parameterizes queries automatically — standard `findMany`, `create`,
 `update` calls are safe by default.
 
 **Flag immediately:**
+
 ```typescript
 // ❌ Raw SQL with string interpolation — SQL injection
 await prisma.$queryRawUnsafe(`SELECT * FROM users WHERE email = '${email}'`);
@@ -95,6 +101,7 @@ await prisma.$queryRaw(`SELECT * FROM users WHERE email = '${email}'`);
 ```
 
 **Required pattern if raw SQL is truly necessary:**
+
 ```typescript
 // ✅ Parameterized — Prisma escapes values automatically
 await prisma.$queryRaw`SELECT * FROM users WHERE email = ${email}`;
@@ -104,11 +111,13 @@ Prefer the query builder over raw SQL whenever the query can be expressed that w
 should be a documented exception (e.g., complex aggregation), not a default tool.
 
 ### NoSQL-style Injection via JSON fields
+
 If any Prisma model uses a `Json` field, validate its shape with a DTO/schema before writing —
 never pass client-supplied JSON straight into a `Json` column unvalidated, since it can later
 be queried or rendered in ways that assume a trusted shape.
 
 ### Command Injection
+
 Never pass user input into `child_process.exec()` or shell-interpolated commands. If shelling
 out is unavoidable, use `execFile()` with an argument array (not a concatenated string) so the
 shell never re-interprets user input.
@@ -191,6 +200,7 @@ app.use(helmet());
 ```
 
 Verify Helmet's defaults are not disabled. At minimum confirm these are active:
+
 - `Strict-Transport-Security` (HSTS) — enforced additionally at the GCP Load Balancer level
 - `X-Content-Type-Options: nosniff`
 - `Content-Security-Policy` — configure explicitly rather than relying on Helmet's default if
@@ -250,15 +260,15 @@ catch(exception: unknown, host: ArgumentsHost) {
 
 ## OWASP Top 10 (2021) Quick Cross-Reference
 
-| OWASP Category | Where covered in this doc |
-|---|---|
-| A01 Broken Access Control | Sections 5 (IDOR), see also `firebase-auth.md` sections 3–4 |
-| A02 Cryptographic Failures | Section 9 (sensitive data), `firebase-auth.md` token handling |
-| A03 Injection | Section 3 |
-| A04 Insecure Design | Cross-reference `clean-architecture-expert` skill |
-| A05 Security Misconfiguration | Sections 7, 8 |
-| A06 Vulnerable Components | Section 10 |
-| A07 Identification & Auth Failures | `firebase-auth.md` (full file) |
-| A08 Software/Data Integrity Failures | Section 3 (JSON field validation) |
-| A09 Logging & Monitoring Failures | Section 9 (logging discipline) |
+| OWASP Category                         | Where covered in this doc                                                                                                                                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A01 Broken Access Control              | Sections 5 (IDOR), see also `firebase-auth.md` sections 3–4                                                                                                                                                                                                  |
+| A02 Cryptographic Failures             | Section 9 (sensitive data), `firebase-auth.md` token handling                                                                                                                                                                                                |
+| A03 Injection                          | Section 3                                                                                                                                                                                                                                                    |
+| A04 Insecure Design                    | Cross-reference `clean-architecture-expert` skill                                                                                                                                                                                                            |
+| A05 Security Misconfiguration          | Sections 7, 8                                                                                                                                                                                                                                                |
+| A06 Vulnerable Components              | Section 10                                                                                                                                                                                                                                                   |
+| A07 Identification & Auth Failures     | `firebase-auth.md` (full file)                                                                                                                                                                                                                               |
+| A08 Software/Data Integrity Failures   | Section 3 (JSON field validation)                                                                                                                                                                                                                            |
+| A09 Logging & Monitoring Failures      | Section 9 (logging discipline)                                                                                                                                                                                                                               |
 | A10 Server-Side Request Forgery (SSRF) | Validate and allowlist any server-side outbound URL fetch (e.g., webhook URLs, avatar URLs) — never fetch a client-supplied URL without an allowlist or at minimum blocking internal/metadata IP ranges (`169.254.169.254` GCP metadata endpoint especially) |

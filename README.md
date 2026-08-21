@@ -10,7 +10,7 @@ The backend infrastructure for the **BreathAway** application. This project is b
 - **User & Profile Management**: Secure handling of user profiles, identities, and device tokens.
 - **Matching System**: Robust liking, matching, and match-resolution workflows between users.
 - **Credit Ledger System**: Tracks credit purchases, bonuses, referrals, and expenditures using a transactional ledger.
-- **Integrations**: 
+- **Integrations**:
   - **Firebase** for push notifications.
   - **Google Cloud Pub/Sub** for asynchronous event processing.
   - **GCP Secret Manager** for secure configuration handling.
@@ -32,12 +32,15 @@ The backend infrastructure for the **BreathAway** application. This project is b
 ## 💻 Local Setup & Development
 
 ### 1. Install Dependencies
+
 Make sure you have `pnpm` installed globally, then run:
+
 ```bash
 pnpm install
 ```
 
 ### 2. Environment Variables
+
 The application uses environment-specific files (`.env.development`, `.env.production`). These files are never committed to the repository. The standard workflow synchronizes these into the `.env` file before executing commands.
 
 ```bash
@@ -46,6 +49,7 @@ pnpm run syncenv:development
 ```
 
 ### 3. Run the Application
+
 ```bash
 # Development mode (watch)
 pnpm run start:dev
@@ -65,7 +69,9 @@ pnpm run start:prod
 We use Prisma as our ORM. We provide custom scripts to safely handle migrations and schema generations for different environments by syncing the correct `.env` files automatically.
 
 ### Generating Prisma Client
+
 After making changes to `prisma/schema.prisma` or pulling new code, regenerate the client types:
+
 ```bash
 pnpm run generate:dev
 # Or for production: pnpm run generate:prod
@@ -75,13 +81,16 @@ pnpm run generate:dev
 
 **Local Development (Creating Migrations):**
 When you modify `prisma/schema.prisma` and want to create a new migration file:
+
 ```bash
 pnpm run migrate:local
 ```
-*(This maps to `prisma migrate dev` and should only be run against local development databases).*
+
+_(This maps to `prisma migrate dev` and should only be run against local development databases)._
 
 **Deploying Migrations (Dev/Prod Servers):**
 To apply existing migrations to a database (without resetting data or generating new migration files):
+
 ```bash
 # Deploy to development database
 pnpm run migrate:dev
@@ -91,7 +100,9 @@ pnpm run migrate:prod
 ```
 
 ### Prisma Studio
+
 To inspect and manage database records visually:
+
 ```bash
 pnpm run studio:dev
 ```
@@ -111,6 +122,7 @@ pnpm run deploy:dev
 # Deploy to the production environment
 pnpm run deploy:prod
 ```
+
 These scripts will execute `./scripts/deploy.sh` with the respective environment flag (`--env=dev` or `--env=prod`).
 
 ---
@@ -144,6 +156,7 @@ pnpm run test:cov
 The project includes a comprehensive technical documentation site built with Docusaurus, located in the `docs-site` directory.
 
 ### Running the Docs Locally
+
 ```bash
 # Start the documentation site locally on port 3001
 pnpm run docs:start

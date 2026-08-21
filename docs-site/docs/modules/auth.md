@@ -21,13 +21,17 @@ The `AuthModule` is the gateway for user onboarding, logins, session handling, a
 ## 🧠 Business Logic & Core Concepts
 
 ### 1. Cryptographic PII Normalization & Hashing
+
 To protect PII (Personally Identifiable Information) such as phone numbers and emails, the backend never stores them in plaintext.
+
 - Identifiers are first **normalized** (e.g., lowercased, non-digits stripped) to create a canonical representation.
 - They are then processed through the `IdentityCryptoService` to produce a `valueHash`.
 - This ensures that duplicate account detection and cross-module lookups (like resolving likes) operate entirely on hashed values.
 
 ### 2. "Ghost" Identity Claiming (Social Auth)
+
 When users interact with social profiles (e.g., liking someone's Instagram handle) before that person has registered on BreathAway, the system creates a "Ghost Identity" (an `Identity` record with `userId = null`).
+
 - When the target person eventually registers using that social platform (e.g., Instagram OAuth), `AuthService` detects the existing ghost identity.
 - The service **claims** the identity by assigning it to the new user.
 - A `PubSubEvent.IDENTITY_CLAIMED` is published to the `IDENTITY_WORKFLOWS` topic, triggering asynchronous match resolution for any likes that were pending against that handle.
@@ -64,13 +68,16 @@ flowchart TD
 ## 🛠 File & Class Definitions
 
 ### Module Entry Point
+
 - **[AuthModule](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.module.ts)**: Configures Passport strategies, JWT modules, and registers the Auth controller and service.
 
 ### Controller
+
 - **[AuthController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.controller.ts)**: Exposes endpoints for user registration, authentication, social sign-ins, and logout actions.
   - Route Prefix: `/api/v1/auth`
 
 ### Services
+
 - **[AuthService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.service.ts)**: Contains logic to verify Firebase tokens, find users by identity, and issue JWT tokens.
 - **[JwtModule](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/jwt.module.ts)**: Dedicated JWT configuration provider.
 
@@ -86,7 +93,7 @@ sequenceDiagram
     participant AuthS as AuthService
     participant Firebase as FirebaseService
     participant Prisma as PrismaService
-    
+
     Client ->> AuthC: POST /api/v1/auth/signin (Firebase ID Token)
     activate AuthC
     AuthC ->> AuthS: signin(dto)
@@ -95,12 +102,12 @@ sequenceDiagram
     activate Firebase
     Firebase -->> AuthS: Decoded Token (UID, Phone/Email)
     deactivate Firebase
-    
+
     AuthS ->> Prisma: Query AuthCredential by hashed value
     activate Prisma
     Prisma -->> AuthS: Credential / User record
     deactivate Prisma
-    
+
     Note over AuthS: Generates JWT payload containing user ID
     AuthS -->> AuthC: JWT Access & Refresh tokens
     deactivate AuthS

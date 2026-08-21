@@ -11,8 +11,10 @@ This page outlines common issues encountered during development and deployment o
 ## 🗄 1. Database Connection Failures
 
 ### Symptom: `PrismaClientInitializationError` or `Connection Refused`
+
 **Cause**: The NestJS application cannot reach the PostgreSQL database.
 **Solutions**:
+
 1. Check if your database container is running:
    ```bash
    docker ps
@@ -32,8 +34,10 @@ This page outlines common issues encountered during development and deployment o
 ## 🔑 2. Identity Encryption / KMS Failures
 
 ### Symptom: `decryption failed` or `PermissionDenied` when loading profile identities
+
 **Cause**: The application cannot decrypt the encrypted database fields because it lacks credentials for the Google Cloud KMS key.
 **Solutions**:
+
 1. Ensure you are authenticated with GCP on your command line:
    ```bash
    gcloud auth application-default login
@@ -49,8 +53,10 @@ This page outlines common issues encountered during development and deployment o
 ## 🚨 3. Throttler Limits Exceeded (429 Errors)
 
 ### Symptom: `429 Too Many Requests`
+
 **Cause**: You have hit the NestJS rate limiter (`ThrottlerGuard`) during testing.
 **Solutions**:
+
 1. In `app.module.ts`, rates are defined under:
    - `short`: 5 requests per second
    - `medium`: 20 requests per 10 seconds
@@ -62,8 +68,10 @@ This page outlines common issues encountered during development and deployment o
 ## 📖 4. Swagger UI Returns 404
 
 ### Symptom: Cannot open `/api/public` or `/api/admin`
+
 **Cause**: Swagger is disabled.
 **Solutions**:
+
 1. Open your `.env` file and make sure the flag is enabled:
    ```env
    SWAGGER_ENABLED=true
