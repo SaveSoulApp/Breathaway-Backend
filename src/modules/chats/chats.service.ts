@@ -80,7 +80,16 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to fetch chat rooms');
     }
 
-    const rooms = (data as Record<string, any>[]) || [];
+    type ChatRoomRecord = {
+      id: string;
+      userOneId: string;
+      userTwoId: string;
+      createdAt?: string;
+      updatedAt?: string;
+      [key: string]: unknown;
+    };
+
+    const rooms = (data as ChatRoomRecord[]) || [];
 
     // Extract all unique other user IDs
     const otherUserIds = Array.from(

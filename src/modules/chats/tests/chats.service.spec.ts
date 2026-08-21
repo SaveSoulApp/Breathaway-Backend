@@ -8,7 +8,10 @@ import { LoggerService } from '@core/logger';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
 import * as chatUtils from '../utils/chats.utils';
 
 jest.mock('@supabase/supabase-js', () => ({
