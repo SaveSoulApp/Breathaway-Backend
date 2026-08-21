@@ -25,6 +25,7 @@ import {
   CreditLedgerQueryRequestDto,
   GrantCreditsRequestDto,
   PaginatedCreditLedgerResponseDto,
+  ExpiringCreditItemDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
 
@@ -154,6 +155,90 @@ export class CreditsService extends BaseService {
     }
 
     return balance;
+  }
+
+  /**
+   * Returns a breakdown of a user's current spendable credit balance by listing
+   * each active credit bundle along with its unconsumed remaining balance and
+   * its expiry date.
+   *
+   * This applies the same first-to-expire FIFO allocation strategy as `getBalance`,
+   * so that prior spends (debits) are properly deducted from the earliest expiring
+   * bundles, and only the unconsumed remainder of unexpired bundles is returned.
+   *
+   * @param userId - UUID of the user whose expiring credits to compute.
+   * @param tx     - Optional Prisma transaction client.
+   * @returns An array of active credit bundles and their remaining balances.
+   */
+  async getExpiringCredits(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ExpiringCreditItemDto[]> {
+    const client = tx ?? this.prisma;
+    const now = DateUtil.now();
+
+    const ledger = await client.creditLedger.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        transactionType: true,
+        amount: true,
+        source: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    let remainingDebits = ledger
+      .filter(
+        (l) =>
+          l.transactionType === CreditTransactionType.DEBIT &&
+          l.source !== CreditSource.EXPIRED,
+      )
+      .reduce((sum, l) => sum + l.amount, 0);
+
+    const credits = ledger
+      .filter((l) => l.transactionType === CreditTransactionType.CREDIT)
+      .sort((a, b) => {
+        if (a.expiresAt && b.expiresAt) {
+          if (a.expiresAt.getTime() === b.expiresAt.getTime()) {
+            return a.createdAt.getTime() - b.createdAt.getTime();
+          }
+          return a.expiresAt.getTime() - b.expiresAt.getTime();
+        }
+        if (a.expiresAt && !b.expiresAt) return -1;
+        if (!a.expiresAt && b.expiresAt) return 1;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+
+    const expiringCredits: ExpiringCreditItemDto[] = [];
+
+    for (const credit of credits) {
+      let usedFromThisCredit: number;
+      if (remainingDebits >= credit.amount) {
+        usedFromThisCredit = credit.amount;
+        remainingDebits -= credit.amount;
+      } else {
+        usedFromThisCredit = remainingDebits;
+        remainingDebits = 0;
+      }
+
+      const unusedAmount = credit.amount - usedFromThisCredit;
+
+      // Only the unconsumed portion of a bundle that has not yet expired is active
+      const isExpired = credit.expiresAt !== null && credit.expiresAt <= now;
+
+      if (!isExpired && unusedAmount > 0) {
+        expiringCredits.push({
+          creditId: credit.id,
+          remainingBalance: unusedAmount,
+          expiresAt: credit.expiresAt,
+        });
+      }
+    }
+
+    return expiringCredits;
   }
 
   /**
