@@ -36,15 +36,18 @@ export class DevicesService extends BaseService {
   }
 
   /**
-   * Registers a new push notification device for a user and emits a DEVICE_REGISTERED audit event.
+   * Registers or updates a push notification device for a user and emits a DEVICE_REGISTERED audit event.
    *
-   * Catches Prisma unique-constraint errors (P2002) on the token field and converts them
-   * to a ConflictException so the caller receives a clean 409 rather than a raw DB error.
+   * Handles full device lifecycle idempotently:
+   * 1. If deviceId is supplied, deactivates other existing device records for this (userId, deviceId)
+   *    to prevent multiple active tokens for the same physical device.
+   * 2. If the token already exists in the database (whether for this user or a previous user on the same phone),
+   *    updates the record with the current userId, metadata, and sets isActive: true.
+   * 3. Otherwise creates a new device record with isActive: true.
    *
    * @param userId - UUID of the user registering the device.
    * @param createDeviceDto - Push token, platform, and optional device metadata.
    * @returns The persisted Device entity including its generated ULID.
-   * @throws {ConflictException} When a device with the same push token already exists.
    */
   async createDevice(
     userId: string,
@@ -56,13 +59,76 @@ export class DevicesService extends BaseService {
     const platform = this.mapPlatformToDevicePlatform(createDeviceDto.platform);
 
     try {
-      const device = await this.prisma.device.create({
-        data: {
-          userId,
-          ...createDeviceDto,
-          platform,
-        },
-      });
+      let device: Device;
+
+      try {
+        device = await this.prisma.$transaction(async (tx) => {
+          // 1. Deactivate other active tokens for the same physical device if deviceId is provided
+          if (createDeviceDto.deviceId) {
+            await tx.device.updateMany({
+              where: {
+                userId,
+                deviceId: createDeviceDto.deviceId,
+                token: { not: createDeviceDto.token },
+                isActive: true,
+              },
+              data: {
+                isActive: false,
+              },
+            });
+          }
+
+          // 2. Check if this token is already registered
+          const existingDevice = await tx.device.findUnique({
+            where: { token: createDeviceDto.token },
+          });
+
+          if (existingDevice) {
+            // Token already exists — transfer/update ownership and activate
+            return tx.device.update({
+              where: { id: existingDevice.id },
+              data: {
+                userId,
+                platform,
+                deviceId: createDeviceDto.deviceId ?? existingDevice.deviceId,
+                appVersion:
+                  createDeviceDto.appVersion ?? existingDevice.appVersion,
+                isActive: true,
+              },
+            });
+          }
+
+          // 3. New token — insert record
+          return tx.device.create({
+            data: {
+              userId,
+              token: createDeviceDto.token,
+              platform,
+              deviceId: createDeviceDto.deviceId,
+              appVersion: createDeviceDto.appVersion,
+              isActive: true,
+            },
+          });
+        });
+      } catch (error) {
+        const err = error as { code?: string };
+        if (err.code === 'P2002') {
+          // Race condition: another concurrent registration created this token.
+          // Update the existing record idempotently.
+          device = await this.prisma.device.update({
+            where: { token: createDeviceDto.token },
+            data: {
+              userId,
+              platform,
+              deviceId: createDeviceDto.deviceId,
+              appVersion: createDeviceDto.appVersion,
+              isActive: true,
+            },
+          });
+        } else {
+          throw error;
+        }
+      }
 
       this.logger.debug('Device record persisted', {
         ...ctx,
@@ -88,15 +154,6 @@ export class DevicesService extends BaseService {
       });
       return device;
     } catch (error) {
-      const err = error as { code?: string };
-      if (err.code === 'P2002') {
-        // Unique constraint failed (likely token). Do NOT log the token itself (PII compliance).
-        this.logger.warn('Device token already exists', {
-          ...ctx,
-          step: 'duplicate_check',
-        });
-        throw new DeviceTokenAlreadyExistsException();
-      }
       this.logger.error('Failed to register device', {
         ...ctx,
         step: 'persist_device',

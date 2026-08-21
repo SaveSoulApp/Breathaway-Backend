@@ -1,10 +1,13 @@
-import { serializeError } from '@common/utils/error.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { FirebaseService } from '@modules/firebase/firebase.service';
 import { Injectable } from '@nestjs/common';
 import { Device, DevicePlatform } from '@prisma/client';
 import * as admin from 'firebase-admin';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { FirebaseService } from '@modules/firebase/firebase.service';
+
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 import { NotificationPriority } from '../enums/notification-priority.enum';
 import { INotificationProvider } from './notification-provider.interface';
@@ -27,6 +30,7 @@ export class FcmProviderService
   constructor(
     loggerService: LoggerService,
     private readonly firebaseService: FirebaseService,
+    private readonly prisma: PrismaService,
   ) {
     super(loggerService);
   }
@@ -93,14 +97,18 @@ export class FcmProviderService
     try {
       const messaging = this.firebaseService.getMessaging();
 
-      if (tokens.length === 0) {
+      // Deduplicate tokens before dispatch
+      const uniqueTokens = [...new Set(tokens)];
+      if (uniqueTokens.length === 0) {
         return;
       }
 
+      const invalidTokens: string[] = [];
+
       // For multiple tokens, use sendEachForMulticast for better performance
-      if (tokens.length > 1) {
+      if (uniqueTokens.length > 1) {
         const message: admin.messaging.MulticastMessage = {
-          tokens,
+          tokens: uniqueTokens,
           notification: payload.notification,
           data: payload.data,
           apns: platform === DevicePlatform.IOS ? payload.apns : undefined,
@@ -122,11 +130,17 @@ export class FcmProviderService
         if (batchResponse.failureCount > 0) {
           batchResponse.responses.forEach((response, index) => {
             if (!response.success) {
+              const isInvalid = this.isInvalidTokenError(response.error);
+              if (isInvalid) {
+                invalidTokens.push(uniqueTokens[index]);
+              }
+
               this.logger.error(
                 'FCM multicast: individual token delivery failed',
                 {
                   platform,
                   tokenIndex: index,
+                  isInvalidToken: isInvalid,
                   step: 'fcm_multicast',
                   err: serializeError(response.error),
                 },
@@ -137,7 +151,7 @@ export class FcmProviderService
       } else {
         // Single token
         const message: admin.messaging.Message = {
-          token: tokens[0],
+          token: uniqueTokens[0],
           notification: payload.notification,
           data: payload.data,
           apns: platform === DevicePlatform.IOS ? payload.apns : undefined,
@@ -145,11 +159,31 @@ export class FcmProviderService
             platform === DevicePlatform.ANDROID ? payload.android : undefined,
         };
 
-        await messaging.send(message);
-        this.logger.log('FCM single-device notification sent', {
-          platform,
-          step: 'fcm_single',
-        });
+        try {
+          await messaging.send(message);
+          this.logger.log('FCM single-device notification sent', {
+            platform,
+            step: 'fcm_single',
+          });
+        } catch (error) {
+          const isInvalid = this.isInvalidTokenError(
+            error as { code?: string; message?: string },
+          );
+          if (isInvalid) {
+            invalidTokens.push(uniqueTokens[0]);
+          }
+
+          this.logger.error('FCM single token delivery failed', {
+            platform,
+            isInvalidToken: isInvalid,
+            step: 'fcm_single',
+            err: serializeError(error),
+          });
+        }
+      }
+
+      if (invalidTokens.length > 0) {
+        await this.cleanupInvalidTokens(invalidTokens);
       }
     } catch (error) {
       this.logger.error('FCM send failed', {
@@ -158,6 +192,44 @@ export class FcmProviderService
         err: serializeError(error),
       });
       throw error;
+    }
+  }
+
+  private isInvalidTokenError(error?: {
+    code?: string;
+    message?: string;
+  }): boolean {
+    if (!error) return false;
+    const errorCode = error.code ?? '';
+    const errorMessage = error.message ?? '';
+
+    return (
+      errorCode === 'messaging/registration-token-not-registered' ||
+      errorCode === 'messaging/invalid-registration-token' ||
+      errorCode === 'messaging/invalid-argument' ||
+      errorCode === 'messaging/mismatched-credential' ||
+      errorMessage.includes('NotRegistered') ||
+      errorMessage.includes('invalid-registration-token') ||
+      errorMessage.includes('registration-token-not-registered')
+    );
+  }
+
+  private async cleanupInvalidTokens(tokens: string[]): Promise<void> {
+    try {
+      const result = await this.prisma.device.updateMany({
+        where: { token: { in: tokens } },
+        data: { isActive: false },
+      });
+
+      this.logger.warn('Deactivated stale/unregistered FCM device tokens', {
+        deactivatedCount: result.count,
+        step: 'token_cleanup',
+      });
+    } catch (error) {
+      this.logger.error('Failed to deactivate stale FCM device tokens', {
+        step: 'token_cleanup',
+        err: serializeError(error),
+      });
     }
   }
 

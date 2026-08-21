@@ -60,6 +60,13 @@ describe('DevicesService', () => {
 
     service = module.get<DevicesService>(DevicesService);
     prisma = module.get(PrismaService);
+
+    prisma.$transaction.mockImplementation(async (cb: unknown) => {
+      if (typeof cb === 'function') {
+        return cb(prisma);
+      }
+      return cb;
+    });
   });
 
   afterEach(() => {
@@ -84,43 +91,68 @@ describe('DevicesService', () => {
       deviceId: 'device-123',
       token: 'fcm-token',
       platform: Platform.IOS,
+      appVersion: '1.0.0',
     };
 
-    it('should create a new device successfully (IOS)', async () => {
+    it('should create a new device successfully when token does not exist', async () => {
+      prisma.device.findUnique.mockResolvedValue(null);
       prisma.device.create.mockResolvedValue(mockDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.createDevice('user-1', createDto);
 
+      expect(prisma.device.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          deviceId: 'device-123',
+          token: { not: 'fcm-token' },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
       expect(prisma.device.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
-          ...createDto,
+          token: 'fcm-token',
           platform: DevicePlatform.IOS,
+          deviceId: 'device-123',
+          appVersion: '1.0.0',
+          isActive: true,
         },
       });
       expect(result).toEqual(mockDevice);
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device registration started',
-        { userId: 'user-1', devicePlatform: Platform.IOS, step: 'init' },
-      );
-      expect(contextualLogger.debug).toHaveBeenCalledWith(
-        'Device record persisted',
-        {
+    });
+
+    it('should update existing device and transfer ownership when token already exists', async () => {
+      const existingDevice = {
+        ...mockDevice,
+        userId: 'previous-user',
+        isActive: false,
+      };
+      const updatedDevice = {
+        ...mockDevice,
+        userId: 'user-1',
+        isActive: true,
+      };
+
+      prisma.device.findUnique.mockResolvedValue(existingDevice);
+      prisma.device.update.mockResolvedValue(updatedDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.createDevice('user-1', createDto);
+
+      expect(prisma.device.update).toHaveBeenCalledWith({
+        where: { id: existingDevice.id },
+        data: {
           userId: 'user-1',
-          devicePlatform: Platform.IOS,
-          step: 'persist_device',
-          deviceId: 'device-id-123',
+          platform: DevicePlatform.IOS,
+          deviceId: 'device-123',
+          appVersion: '1.0.0',
+          isActive: true,
         },
-      );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device registered successfully',
-        {
-          userId: 'user-1',
-          devicePlatform: Platform.IOS,
-          step: 'complete',
-          deviceId: 'device-id-123',
-        },
-      );
+      });
+      expect(prisma.device.create).not.toHaveBeenCalled();
+      expect(result).toEqual(updatedDevice);
     });
 
     it('should create a new device successfully (ANDROID)', async () => {
@@ -132,15 +164,20 @@ describe('DevicesService', () => {
         ...mockDevice,
         platform: DevicePlatform.ANDROID,
       };
+      prisma.device.findUnique.mockResolvedValue(null);
       prisma.device.create.mockResolvedValue(androidMockDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.createDevice('user-1', androidDto);
 
       expect(prisma.device.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
-          ...androidDto,
+          token: 'fcm-token',
           platform: DevicePlatform.ANDROID,
+          deviceId: 'device-123',
+          appVersion: '1.0.0',
+          isActive: true,
         },
       });
       expect(result).toEqual(androidMockDevice);
@@ -155,7 +192,9 @@ describe('DevicesService', () => {
         ...mockDevice,
         platform: DevicePlatform.ANDROID,
       };
+      prisma.device.findUnique.mockResolvedValue(null);
       prisma.device.create.mockResolvedValue(androidMockDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.createDevice('user-1', unknownDto);
 
@@ -163,35 +202,34 @@ describe('DevicesService', () => {
         'Unknown platform, defaulting to ANDROID',
         { platform: 'UNKNOWN_PLATFORM', step: 'map_platform' },
       );
-      expect(prisma.device.create).toHaveBeenCalledWith({
-        data: {
-          userId: 'user-1',
-          ...unknownDto,
-          platform: DevicePlatform.ANDROID,
-        },
-      });
       expect(result).toEqual(androidMockDevice);
     });
 
-    it('should throw DeviceTokenAlreadyExistsException on P2002 error', async () => {
-      const error = new Error('Unique constraint failed');
-      (error as unknown as { code: string }).code = 'P2002';
-      prisma.device.create.mockRejectedValue(error);
+    it('should handle P2002 race condition by falling back to update', async () => {
+      const p2002Error = new Error('Unique constraint failed');
+      (p2002Error as unknown as { code: string }).code = 'P2002';
 
-      await expect(service.createDevice('user-1', createDto)).rejects.toThrow();
-      expect(contextualLogger.warn).toHaveBeenCalledWith(
-        'Device token already exists',
-        {
+      prisma.$transaction.mockRejectedValue(p2002Error);
+      prisma.device.update.mockResolvedValue(mockDevice);
+
+      const result = await service.createDevice('user-1', createDto);
+
+      expect(prisma.device.update).toHaveBeenCalledWith({
+        where: { token: 'fcm-token' },
+        data: {
           userId: 'user-1',
-          devicePlatform: Platform.IOS,
-          step: 'duplicate_check',
+          platform: DevicePlatform.IOS,
+          deviceId: 'device-123',
+          appVersion: '1.0.0',
+          isActive: true,
         },
-      );
+      });
+      expect(result).toEqual(mockDevice);
     });
 
     it('should re-throw other errors', async () => {
       const error = new Error('Some database error');
-      prisma.device.create.mockRejectedValue(error);
+      prisma.$transaction.mockRejectedValue(error);
 
       await expect(service.createDevice('user-1', createDto)).rejects.toThrow(
         error,
