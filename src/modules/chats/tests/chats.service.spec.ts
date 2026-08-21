@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { LoggerService } from '@core/logger';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { createPrismaMock, MockPrismaService } from '@infrastructure/database/tests/mocks/prisma.mock';
 import * as chatUtils from '../utils/chats.utils';
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -16,14 +18,19 @@ jest.mock('@supabase/supabase-js', () => ({
 describe('ChatsService', () => {
   let service: ChatsService;
   let configService: ConfigService;
+  let prisma: MockPrismaService;
   let mockSupabaseClient: any;
 
-  const mockLoggerService = {
-    forContext: jest.fn().mockReturnThis(),
+  const contextualLogger = {
     log: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
+    verbose: jest.fn(),
+  };
+
+  const mockLoggerService = {
+    forContext: jest.fn().mockReturnValue(contextualLogger),
   };
 
   beforeEach(async () => {
@@ -51,6 +58,7 @@ describe('ChatsService', () => {
         { provide: LoggerService, useValue: mockLoggerService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: PrismaService, useValue: createPrismaMock() },
         {
           provide: ConfigService,
           useValue: {
@@ -65,6 +73,7 @@ describe('ChatsService', () => {
     }).compile();
 
     service = module.get<ChatsService>(ChatsService);
+    prisma = module.get(PrismaService);
     configService = module.get<ConfigService>(ConfigService);
   });
 
