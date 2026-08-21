@@ -15,11 +15,11 @@ export class ExpiringCreditItemDto {
 
   @ApiProperty({
     description:
-      'When this credit bundle expires, or null if it does not expire',
+      'When this credit bundle expires, formatted to the requested timezone, or null if it does not expire',
     nullable: true,
   })
   @Expose()
-  expiresAt: Date | null;
+  expiresAt: string | null;
 }
 
 export class ExpiringCreditsResponseDto {

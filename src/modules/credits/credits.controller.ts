@@ -1,4 +1,4 @@
-import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { ApiStandardErrors, CurrentUserId, Timezone } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -78,9 +78,12 @@ export class CreditsController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: ExpiringCreditsResponseDto })
   async getExpiringCredits(
     @CurrentUserId() userId: string,
+    @Timezone() timezone: string,
   ): Promise<ExpiringCreditsResponseDto> {
-    const expiringCredits =
-      await this.creditsService.getExpiringCredits(userId);
+    const expiringCredits = await this.creditsService.getExpiringCredits(
+      userId,
+      timezone,
+    );
     return { data: expiringCredits };
   }
 
@@ -98,9 +101,10 @@ export class CreditsController extends BaseController {
   })
   async getLedger(
     @CurrentUserId() userId: string,
+    @Timezone() timezone: string,
     @Query() query: CreditLedgerQueryRequestDto,
   ): Promise<PaginatedCreditLedgerResponseDto> {
-    return this.creditsService.getLedger(userId, query);
+    return this.creditsService.getLedger(userId, query, timezone);
   }
 
   /**
@@ -116,9 +120,10 @@ export class CreditsController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK, type: CreditLedgerResponseDto })
   async getLedgerEntry(
     @CurrentUserId() userId: string,
+    @Timezone() timezone: string,
     @Param('id') id: string,
   ): Promise<CreditLedgerResponseDto> {
-    return this.creditsService.getLedgerEntry(userId, id);
+    return this.creditsService.getLedgerEntry(userId, id, timezone);
   }
 
   /**
@@ -135,7 +140,8 @@ export class CreditsController extends BaseController {
   @ApiResponse({ status: HttpStatus.CREATED, type: CreditLedgerResponseDto })
   async consumeCredits(
     @Body() dto: ConsumeCreditsRequestDto,
+    @Timezone() timezone: string,
   ): Promise<CreditLedgerResponseDto> {
-    return this.creditsService.consumeCredits(dto);
+    return this.creditsService.consumeCredits(dto, undefined, timezone);
   }
 }

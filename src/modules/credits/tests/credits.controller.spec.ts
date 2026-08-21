@@ -24,11 +24,11 @@ describe('CreditsController', () => {
     source: CreditSource.PURCHASE,
     referenceId: 'ref-123',
     expiresAt: null,
-    createdAt: DateUtil.now(),
+    createdAt: DateUtil.now().toISOString(),
   };
 
   const mockPaginatedLedger = {
-    data: [mockLedgerEntry],
+    data: [mockLedgerEntry as any],
     meta: {
       page: 1,
       limit: 20,
@@ -42,6 +42,7 @@ describe('CreditsController', () => {
   beforeEach(async () => {
     const mockService = {
       getBalance: jest.fn(),
+      getExpiringCredits: jest.fn(),
       getLedger: jest.fn(),
       getLedgerEntry: jest.fn(),
       consumeCredits: jest.fn(),
@@ -89,17 +90,38 @@ describe('CreditsController', () => {
     });
   });
 
+  describe('getExpiringCredits', () => {
+    it('should return expiring credits breakdown', async () => {
+      // Arrange
+      const mockExpiring = [
+        {
+          creditId: 'c1',
+          remainingBalance: 10,
+          expiresAt: '2026-10-30T18:29:59.999Z',
+        },
+      ];
+      service.getExpiringCredits.mockResolvedValue(mockExpiring as any);
+
+      // Act
+      const result = await controller.getExpiringCredits(userId, 'UTC');
+
+      // Assert
+      expect(service.getExpiringCredits).toHaveBeenCalledWith(userId, 'UTC');
+      expect(result).toEqual({ data: mockExpiring });
+    });
+  });
+
   describe('getLedger', () => {
     it('should return paginated credit ledger', async () => {
       // Arrange
       const query: CreditLedgerQueryRequestDto = { page: 1, limit: 20 };
-      service.getLedger.mockResolvedValue(mockPaginatedLedger);
+      service.getLedger.mockResolvedValue(mockPaginatedLedger as any);
 
       // Act
-      const result = await controller.getLedger(userId, query);
+      const result = await controller.getLedger(userId, 'UTC', query);
 
       // Assert
-      expect(service.getLedger).toHaveBeenCalledWith(userId, query);
+      expect(service.getLedger).toHaveBeenCalledWith(userId, query, 'UTC');
       expect(result).toEqual(mockPaginatedLedger);
     });
   });
@@ -107,13 +129,17 @@ describe('CreditsController', () => {
   describe('getLedgerEntry', () => {
     it('should return specific ledger entry', async () => {
       // Arrange
-      service.getLedgerEntry.mockResolvedValue(mockLedgerEntry);
+      service.getLedgerEntry.mockResolvedValue(mockLedgerEntry as any);
 
       // Act
-      const result = await controller.getLedgerEntry(userId, entryId);
+      const result = await controller.getLedgerEntry(userId, 'UTC', entryId);
 
       // Assert
-      expect(service.getLedgerEntry).toHaveBeenCalledWith(userId, entryId);
+      expect(service.getLedgerEntry).toHaveBeenCalledWith(
+        userId,
+        entryId,
+        'UTC',
+      );
       expect(result).toEqual(mockLedgerEntry);
     });
   });
@@ -133,10 +159,14 @@ describe('CreditsController', () => {
       );
 
       // Act
-      const result = await controller.consumeCredits(dto);
+      const result = await controller.consumeCredits(dto, 'UTC');
 
       // Assert
-      expect(service.consumeCredits).toHaveBeenCalledWith(dto);
+      expect(service.consumeCredits).toHaveBeenCalledWith(
+        dto,
+        undefined,
+        'UTC',
+      );
       expect(result).toEqual(mockLedgerEntry);
     });
   });

@@ -157,6 +157,22 @@ export class CreditsService extends BaseService {
     return balance;
   }
 
+  private formatLedgerDates<
+    T extends { createdAt: Date; expiresAt: Date | null },
+  >(entry: T, timezone?: string) {
+    return {
+      ...entry,
+      createdAt: timezone
+        ? dayjs(entry.createdAt).tz(timezone).format()
+        : entry.createdAt.toISOString(),
+      expiresAt: entry.expiresAt
+        ? timezone
+          ? dayjs(entry.expiresAt).tz(timezone).format()
+          : entry.expiresAt.toISOString()
+        : null,
+    };
+  }
+
   /**
    * Returns a breakdown of a user's current spendable credit balance by listing
    * each active credit bundle along with its unconsumed remaining balance and
@@ -167,11 +183,13 @@ export class CreditsService extends BaseService {
    * bundles, and only the unconsumed remainder of unexpired bundles is returned.
    *
    * @param userId - UUID of the user whose expiring credits to compute.
+   * @param timezone - Timezone string to format the expiration dates.
    * @param tx     - Optional Prisma transaction client.
    * @returns An array of active credit bundles and their remaining balances.
    */
   async getExpiringCredits(
     userId: string,
+    timezone?: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ExpiringCreditItemDto[]> {
     const client = tx ?? this.prisma;
@@ -230,10 +248,17 @@ export class CreditsService extends BaseService {
       const isExpired = credit.expiresAt !== null && credit.expiresAt <= now;
 
       if (!isExpired && unusedAmount > 0) {
+        let formattedExpiresAt: string | null = null;
+        if (credit.expiresAt) {
+          formattedExpiresAt = timezone
+            ? dayjs(credit.expiresAt).tz(timezone).format()
+            : credit.expiresAt.toISOString();
+        }
+
         expiringCredits.push({
           creditId: credit.id,
           remainingBalance: unusedAmount,
-          expiresAt: credit.expiresAt,
+          expiresAt: formattedExpiresAt,
         });
       }
     }
@@ -257,6 +282,7 @@ export class CreditsService extends BaseService {
   async getLedger(
     userId: string,
     query: CreditLedgerQueryRequestDto,
+    timezone?: string,
   ): Promise<PaginatedCreditLedgerResponseDto> {
     const {
       page = 1,
@@ -331,7 +357,7 @@ export class CreditsService extends BaseService {
       [sortBy]: sortOrder,
     };
 
-    const [total, data] = await Promise.all([
+    const [total, rawData] = await Promise.all([
       this.prisma.creditLedger.count({ where }),
       this.prisma.creditLedger.findMany({
         where,
@@ -349,6 +375,10 @@ export class CreditsService extends BaseService {
         },
       }),
     ]);
+
+    const data = rawData.map((entry) =>
+      this.formatLedgerDates(entry, timezone),
+    );
 
     const totalPages = Math.ceil(total / limit);
 
@@ -376,7 +406,7 @@ export class CreditsService extends BaseService {
    * @returns The matching ledger entry with its transaction details.
    * @throws {NotFoundException} When no entry exists for the given `id` owned by `userId`.
    */
-  async getLedgerEntry(userId: string, id: string) {
+  async getLedgerEntry(userId: string, id: string, timezone?: string) {
     const entry = await this.prisma.creditLedger.findFirst({
       where: { id, userId },
       select: {
@@ -399,7 +429,7 @@ export class CreditsService extends BaseService {
       throw new LedgerEntryNotFoundException();
     }
 
-    return entry;
+    return this.formatLedgerDates(entry, timezone);
   }
 
   /**
@@ -480,7 +510,7 @@ export class CreditsService extends BaseService {
       ledgerId: ledger.id,
       step: 'complete',
     });
-    return ledger;
+    return this.formatLedgerDates(ledger, timezone);
   }
 
   /**
@@ -501,6 +531,7 @@ export class CreditsService extends BaseService {
   async consumeCredits(
     dto: ConsumeCreditsRequestDto,
     tx?: Prisma.TransactionClient,
+    timezone?: string,
   ) {
     const client = tx ?? this.prisma;
 
@@ -556,7 +587,7 @@ export class CreditsService extends BaseService {
       ledgerId: ledger.id,
       step: 'complete',
     });
-    return ledger;
+    return this.formatLedgerDates(ledger, timezone);
   }
 
   /**

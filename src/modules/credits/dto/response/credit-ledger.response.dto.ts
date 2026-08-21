@@ -30,9 +30,9 @@ export class CreditLedgerResponseDto {
   /** `null` for permanent credits (e.g., `PURCHASE` source); non-null for time-limited bundles subject to the expiration job. */
   @ApiProperty({ required: false })
   @Expose()
-  expiresAt: Date | null;
+  expiresAt: string | null;
 
   @ApiProperty()
   @Expose()
-  createdAt: Date;
+  createdAt: string;
 }
