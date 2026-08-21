@@ -72,6 +72,14 @@ export class LikesController extends BaseController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Check if a like can be created' })
   @ApiResponse({ status: HttpStatus.OK, type: CanCreateLikeResponseDto })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'A like or active match already exists for this identity',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot like yourself or invalid identity data',
+  })
   @SerializeExpose(CanCreateLikeResponseDto)
   async canCreate(
     @CurrentUserId() userId: string,
@@ -98,6 +106,10 @@ export class LikesController extends BaseController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a like' })
   @ApiResponse({ status: HttpStatus.CREATED, type: LikeResponseDto })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Already liked or active match exists for this identity',
+  })
   @SerializeExpose(LikeResponseDto)
   @UseGuards(RequireTimezoneGuard)
   async create(

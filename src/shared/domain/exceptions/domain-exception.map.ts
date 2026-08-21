@@ -8,6 +8,7 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   IdentityNotFoundException: HttpStatus.NOT_FOUND,
   SelfLikeException: HttpStatus.BAD_REQUEST,
   AlreadyLikedException: HttpStatus.CONFLICT,
+  AlreadyMatchedException: HttpStatus.CONFLICT,
   LikeNotFoundException: HttpStatus.NOT_FOUND,
   InvalidLikeStateException: HttpStatus.BAD_REQUEST,
   MessageNotFoundException: HttpStatus.NOT_FOUND,
