@@ -8,6 +8,7 @@ import {
   MatchStatus,
   Prisma,
 } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -17,10 +18,13 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('MatchResolverService', () => {
   let service: MatchResolverService;
@@ -119,6 +123,7 @@ describe('MatchResolverService', () => {
     // By default, findFirst returns a mockReverseLike, mock no existing match
     prisma.like.findFirst.mockResolvedValue(mockReverseLike as unknown as Like);
     prisma.match.findUnique.mockResolvedValue(null);
+    prisma.userProfile.findMany.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(
       async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
         const mockTx = {
@@ -269,6 +274,22 @@ describe('MatchResolverService', () => {
         'Match resolved successfully',
         expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
       );
+      expect(notificationsService.dispatch).toHaveBeenCalledWith({
+        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        userIds: ['user-1'],
+        type: NotificationType.NEW_MATCH,
+        category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.HIGH,
+        payload: { name: 'someone', matchId: 'match-1' },
+      });
+      expect(notificationsService.dispatch).toHaveBeenCalledWith({
+        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        userIds: ['user-2'],
+        type: NotificationType.NEW_MATCH,
+        category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.HIGH,
+        payload: { name: 'someone', matchId: 'match-1' },
+      });
     });
 
     it('should correctly assign canonical likes based on user IDs sorting', async () => {

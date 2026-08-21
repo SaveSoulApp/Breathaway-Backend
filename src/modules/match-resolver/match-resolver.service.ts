@@ -11,6 +11,7 @@ import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
 import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
 import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
 import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 
@@ -210,6 +211,7 @@ export class MatchResolverService extends BaseService {
         userIds: [userOneId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.HIGH,
         payload: { name: userTwoName, matchId },
       });
       this.logger.debug('Notification dispatched to userOne', {
@@ -223,6 +225,7 @@ export class MatchResolverService extends BaseService {
         userIds: [userTwoId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.HIGH,
         payload: { name: userOneName, matchId },
       });
       this.logger.debug('Notification dispatched to userTwo', {
