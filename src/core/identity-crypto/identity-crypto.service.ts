@@ -10,6 +10,8 @@ import type { IKeyManager } from '@core/kms/key-manager.interface';
 import { LoggerService } from '@core/logger';
 import { Inject, Injectable } from '@nestjs/common';
 import { IdentityType } from '@prisma/client';
+import { parsePhoneNumberWithError } from 'libphonenumber-js';
+
 
 export interface EncryptedValue {
   ciphertextBase64: string;
@@ -52,7 +54,13 @@ export class IdentityCryptoService extends BaseService {
     const normalized = normalizeIdentityValue(value, type);
     const hash = await this.computeHash(normalized);
     const encryptedPublicValue = await this.encryptPublicValue(normalized);
-    const masked = this.maskPublicValue(normalized, type);
+
+    // For PHONE identities, mask from the original value so that `maskPhone` can
+    // receive the `+CC...` prefix and feed it to libphonenumber-js for an authoritative
+    // country-code split. For all other identity types the normalized form is used
+    // (email masking, for example, relies on the lowercase trimmed string).
+    const valueForMask = type === IdentityType.PHONE ? value : normalized;
+    const masked = this.maskPublicValue(valueForMask, type);
 
     return {
       publicValueHash: hash,
@@ -64,6 +72,7 @@ export class IdentityCryptoService extends BaseService {
       publicValueMasked: masked,
     };
   }
+
 
   /**
    * Encrypts and hashes a platform identifier (like an Apple or Google OAuth ID).
@@ -228,10 +237,29 @@ export class IdentityCryptoService extends BaseService {
   }
 
   private maskPhone(phone: string): string {
-    const cleaned = phone.replace(/\D/g, '');
+    const trimmed = phone.trim();
+
+    // When the value starts with `+`, use libphonenumber-js to unambiguously determine
+    // the country calling code (1–3 digits). This correctly handles +1 (US/CA), +91
+    // (IN), +852 (HK), etc., without any digit-counting heuristics.
+    if (trimmed.startsWith('+')) {
+      try {
+        const parsed = parsePhoneNumberWithError(trimmed);
+        const cc = parsed.countryCallingCode; // e.g. "91", "1", "852"
+        const digits = trimmed.replace(/\D/g, '');
+        return `+${cc}••••${digits.slice(-4)}`;
+      } catch {
+        // Fall through to the legacy path if libphonenumber rejects the number
+        // (e.g. it's not yet a complete number).
+      }
+    }
+
+    // Fallback for digits-only input (legacy values stored without the `+` prefix).
+    const cleaned = trimmed.replace(/\D/g, '');
     if (cleaned.length <= 6) return '••••';
     return `+${cleaned.slice(0, 2)}••••${cleaned.slice(-4)}`;
   }
+
 
   private maskEmail(email: string): string {
     const [name, domain] = email.split('@');

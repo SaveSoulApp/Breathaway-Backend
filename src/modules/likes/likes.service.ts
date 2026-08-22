@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LikeStatus, MatchStatus, Prisma } from '@prisma/client';
+import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
 import {
   AlreadyLikedException,
   AlreadyMatchedException,
@@ -15,6 +15,7 @@ import {
 import { SortOrder } from '@common/enums';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { isE164Phone } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -31,6 +32,7 @@ import {
   UpdateLikeLabelRequestDto,
 } from './dto';
 import { LIKE_SELECT, RawLike, CreateLikeResult } from './likes.types';
+
 
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
@@ -75,8 +77,12 @@ export class LikesService extends BaseService {
 
     if (!targetIdentityId && dto.targetIdentity) {
       const { type, publicValue } = dto.targetIdentity;
+      const resolvedPublicValue =
+        type === IdentityType.PHONE
+          ? await this.resolvePhoneWithCountryCode(publicValue, userId)
+          : publicValue;
       const publicValueData =
-        await this.identityCryptoService.processPublicValue(publicValue, type);
+        await this.identityCryptoService.processPublicValue(resolvedPublicValue, type);
 
       const existing = await this.prisma.identity.findUnique({
         where: {
@@ -93,6 +99,7 @@ export class LikesService extends BaseService {
       }
       targetIdentityId = existing.id;
     }
+
 
     if (!targetIdentityId) {
       throw new MissingTargetIdentityException();
@@ -196,8 +203,17 @@ export class LikesService extends BaseService {
 
     if (!targetIdentityId && dto.targetIdentity) {
       const { type, publicValue, platformId } = dto.targetIdentity;
+
+      // Normalise phone numbers to E.164 before hashing/encrypting so that a number
+      // submitted without a country code resolves to the same identity row as the
+      // same number submitted with a country code.
+      const resolvedPublicValue =
+        type === IdentityType.PHONE
+          ? await this.resolvePhoneWithCountryCode(publicValue, userId)
+          : publicValue;
+
       const publicValueData =
-        await this.identityCryptoService.processPublicValue(publicValue, type);
+        await this.identityCryptoService.processPublicValue(resolvedPublicValue, type);
 
       this.logger.debug('Public value hashed, looking up existing identity', {
         ...ctx,
@@ -247,6 +263,7 @@ export class LikesService extends BaseService {
         });
       }
     }
+
 
     if (!targetIdentityId) {
       this.logger.warn('Like creation failed: missing target identity', {
@@ -710,6 +727,48 @@ export class LikesService extends BaseService {
   // ----- Private helpers -----
 
   /**
+   * Ensures a raw phone number is in E.164 format before it is hashed and encrypted.
+   *
+   * When `rawPhone` already starts with `+` and has the correct digit count it is returned
+   * unchanged — no database round-trip is performed. When the country code is absent the
+   * method fetches the sender's own verified PHONE identity via `IdentitiesService`,
+   * extracts its country code prefix, and prepends it. If the sender has no verified
+   * PHONE identity the original value is returned as-is (graceful degradation).
+   *
+   * @param rawPhone - Phone number as supplied by the client (may or may not include country code).
+   * @param userId   - UUID of the authenticated user sending the like.
+   * @returns The phone number in E.164 format, or unchanged if enrichment is not possible.
+   */
+  private async resolvePhoneWithCountryCode(
+    rawPhone: string,
+    userId: string,
+  ): Promise<string> {
+    if (isE164Phone(rawPhone)) {
+      // Already fully qualified — no enrichment needed and no DB call required.
+      return rawPhone;
+    }
+
+    const countryCode =
+      await this.identitiesService.getSenderCountryCode(userId);
+
+    if (!countryCode) {
+      this.logger.warn(
+        'Phone country code enrichment skipped: sender has no verified PHONE identity',
+        { userId, step: 'country_code_enrichment' },
+      );
+      return rawPhone;
+    }
+
+    const enriched = `${countryCode}${rawPhone.trim()}`;
+    this.logger.debug('Phone number enriched with sender country code', {
+      userId,
+      step: 'country_code_enrichment',
+      countryCode,
+    });
+    return enriched;
+  }
+
+  /**
    * Delegates publicValue decryption to IdentitiesService (which owns that responsibility)
    * and attaches the result to the targetIdentity shape returned to the controller.
    */
@@ -727,3 +786,4 @@ export class LikesService extends BaseService {
     };
   }
 }
+

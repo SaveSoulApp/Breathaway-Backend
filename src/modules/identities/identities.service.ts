@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
+import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -10,6 +11,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+
 
 import {
   IdentityAlreadyExistsException,
@@ -800,6 +802,69 @@ export class IdentitiesService extends BaseService {
     }
     return identity;
   }
+
+
+  // ----- Country code resolution -----
+
+  /**
+   * Resolves the country code from the authenticated sender's own verified PHONE identity.
+   *
+   * The sender's phone number was registered via Firebase Auth, which guarantees E.164
+   * format, so extracting the country code prefix is a structural string operation.
+   * Only verified identities are consulted to avoid sourcing a bad prefix from an
+   * unconfirmed entry.
+   *
+   * @param userId - UUID of the authenticated user sending the like.
+   * @returns The country code including the leading `+` (e.g. `"+91"`), or `null`
+   *   when the user has no verified PHONE identity.
+   */
+  async getSenderCountryCode(userId: string): Promise<string | null> {
+    const phoneIdentity = await this.prisma.identity.findFirst({
+      where: {
+        userId,
+        type: IdentityType.PHONE,
+        isVerified: true,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        publicValueCiphertext: true,
+        publicValueIv: true,
+        publicValueTag: true,
+        publicValueWrappedKey: true,
+        publicValueKeyId: true,
+      },
+    });
+
+    if (!phoneIdentity) {
+      return null;
+    }
+
+    // Decrypt to recover the stored digit string (e.g. "919876541491").
+    // `normalizeIdentityValue` strips the `+` before encryption, so we speculatively
+    // prepend it to reconstruct a candidate E.164 string for libphonenumber-js.
+    // The library has an authoritative CC database and correctly splits "919876541491"
+    // into CC=91 / national="9876541491" — no digit-counting heuristics required.
+    const digits = await this.encryption.decryptPublicValue({
+      publicValueCiphertext: phoneIdentity.publicValueCiphertext,
+      publicValueIv: phoneIdentity.publicValueIv,
+      publicValueTag: phoneIdentity.publicValueTag,
+      publicValueWrappedKey: phoneIdentity.publicValueWrappedKey,
+      publicValueKeyId: phoneIdentity.publicValueKeyId,
+    });
+
+    try {
+      const parsed = parsePhoneNumberWithError(`+${digits}`);
+      return `+${parsed.countryCallingCode}`;
+    } catch {
+      // The stored value could not be parsed as a valid E.164 number — this should
+      // not happen for identities registered via Firebase Auth, but we degrade
+      // gracefully rather than throwing.
+      return null;
+    }
+  }
+
+  // ----- Private helpers -----
 
   /**
    * Projects a Prisma `Identity` record (or a narrowed select result) into the safe masked
