@@ -1,3 +1,4 @@
+import { TimezoneResponseInterceptor } from './common/interceptors';
 import { randomUUID } from 'crypto';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import {
@@ -130,6 +131,7 @@ import { ReportsModule } from './modules/reports/reports.module';
   controllers: [AppController],
   providers: [
     AppService,
+    TimezoneResponseInterceptor,
     {
       provide: APP_PIPE,
       useValue: new ValidationPipe({

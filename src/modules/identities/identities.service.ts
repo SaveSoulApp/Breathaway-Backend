@@ -12,7 +12,6 @@ import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
-
 import {
   IdentityAlreadyExistsException,
   IdentityAlreadyClaimedException,
@@ -802,7 +801,6 @@ export class IdentitiesService extends BaseService {
     }
     return identity;
   }
-
 
   // ----- Country code resolution -----
 

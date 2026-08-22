@@ -11,6 +11,8 @@ import { GlobalExceptionFilter } from './core/exception-filters/global-exception
 import { LoggerService, LoggingInterceptor } from './core/logger';
 import { PrismaExceptionFilter } from './infrastructure/database/exception-filters/prisma-exception.filter';
 
+import { TimezoneResponseInterceptor } from './common/interceptors';
+
 async function bootstrap(): Promise<void> {
   const app: INestApplication = await NestFactory.create(AppModule, {
     bufferLogs: true,
@@ -23,7 +25,10 @@ async function bootstrap(): Promise<void> {
   app.useLogger(logger);
 
   // 2. Global Middleware & Interceptors
-  app.useGlobalInterceptors(app.get(LoggingInterceptor));
+  app.useGlobalInterceptors(
+    app.get(LoggingInterceptor),
+    app.get(TimezoneResponseInterceptor),
+  );
   // Note: NestJS evaluates global filters in reverse order of registration (last registered runs first).
   // Therefore, the catch-all GlobalExceptionFilter MUST be registered FIRST in the arguments list.
   // Any specific filters (like PrismaExceptionFilter or future custom filters) MUST be registered

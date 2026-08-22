@@ -12,7 +12,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { IdentityType } from '@prisma/client';
 import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
-
 export interface EncryptedValue {
   ciphertextBase64: string;
   ivBase64: string;
@@ -72,7 +71,6 @@ export class IdentityCryptoService extends BaseService {
       publicValueMasked: masked,
     };
   }
-
 
   /**
    * Encrypts and hashes a platform identifier (like an Apple or Google OAuth ID).
@@ -259,7 +257,6 @@ export class IdentityCryptoService extends BaseService {
     if (cleaned.length <= 6) return '••••';
     return `+${cleaned.slice(0, 2)}••••${cleaned.slice(-4)}`;
   }
-
 
   private maskEmail(email: string): string {
     const [name, domain] = email.split('@');

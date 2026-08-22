@@ -310,7 +310,7 @@ describe('CreditsService', () => {
         data: [
           {
             ...mockLedgerEntry,
-            createdAt: mockLedgerEntry.createdAt.toISOString(),
+            createdAt: mockLedgerEntry.createdAt,
             expiresAt: mockLedgerEntry.expiresAt
               ? mockLedgerEntry.expiresAt.toISOString()
               : null,
@@ -421,7 +421,7 @@ describe('CreditsService', () => {
       });
       expect(result).toEqual({
         ...mockLedgerEntry,
-        createdAt: mockLedgerEntry.createdAt.toISOString(),
+        createdAt: mockLedgerEntry.createdAt,
         expiresAt: mockLedgerEntry.expiresAt
           ? mockLedgerEntry.expiresAt.toISOString()
           : null,
@@ -474,7 +474,7 @@ describe('CreditsService', () => {
       });
       expect(result).toEqual({
         ...mockLedgerEntry,
-        createdAt: mockLedgerEntry.createdAt.toISOString(),
+        createdAt: mockLedgerEntry.createdAt,
         expiresAt: mockLedgerEntry.expiresAt
           ? mockLedgerEntry.expiresAt.toISOString()
           : null,
@@ -519,7 +519,7 @@ describe('CreditsService', () => {
       });
       expect(result).toEqual({
         ...mockLedgerEntry,
-        createdAt: mockLedgerEntry.createdAt.toISOString(),
+        createdAt: mockLedgerEntry.createdAt,
         expiresAt: mockLedgerEntry.expiresAt
           ? mockLedgerEntry.expiresAt.toISOString()
           : null,

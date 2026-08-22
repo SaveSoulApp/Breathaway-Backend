@@ -8,9 +8,9 @@ import { IdentityType } from '@prisma/client';
 describe('identity.utils', () => {
   describe('normalizeIdentityValue', () => {
     it('should strip all non-digit characters from a PHONE value', () => {
-      expect(normalizeIdentityValue('+91 98765 41491', IdentityType.PHONE)).toBe(
-        '919876541491',
-      );
+      expect(
+        normalizeIdentityValue('+91 98765 41491', IdentityType.PHONE),
+      ).toBe('919876541491');
     });
 
     it('should strip the leading + from an E.164 phone number', () => {
@@ -20,15 +20,15 @@ describe('identity.utils', () => {
     });
 
     it('should lowercase and trim EMAIL values', () => {
-      expect(normalizeIdentityValue('  User@Example.COM  ', IdentityType.EMAIL)).toBe(
-        'user@example.com',
-      );
+      expect(
+        normalizeIdentityValue('  User@Example.COM  ', IdentityType.EMAIL),
+      ).toBe('user@example.com');
     });
 
     it('should strip leading @ and lowercase INSTAGRAM handles', () => {
-      expect(normalizeIdentityValue('@SomeHandle', IdentityType.INSTAGRAM)).toBe(
-        'somehandle',
-      );
+      expect(
+        normalizeIdentityValue('@SomeHandle', IdentityType.INSTAGRAM),
+      ).toBe('somehandle');
     });
   });
 

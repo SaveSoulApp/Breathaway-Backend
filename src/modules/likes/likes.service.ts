@@ -33,7 +33,6 @@ import {
 } from './dto';
 import { LIKE_SELECT, RawLike, CreateLikeResult } from './likes.types';
 
-
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
  *
@@ -82,7 +81,10 @@ export class LikesService extends BaseService {
           ? await this.resolvePhoneWithCountryCode(publicValue, userId)
           : publicValue;
       const publicValueData =
-        await this.identityCryptoService.processPublicValue(resolvedPublicValue, type);
+        await this.identityCryptoService.processPublicValue(
+          resolvedPublicValue,
+          type,
+        );
 
       const existing = await this.prisma.identity.findUnique({
         where: {
@@ -99,7 +101,6 @@ export class LikesService extends BaseService {
       }
       targetIdentityId = existing.id;
     }
-
 
     if (!targetIdentityId) {
       throw new MissingTargetIdentityException();
@@ -213,7 +214,10 @@ export class LikesService extends BaseService {
           : publicValue;
 
       const publicValueData =
-        await this.identityCryptoService.processPublicValue(resolvedPublicValue, type);
+        await this.identityCryptoService.processPublicValue(
+          resolvedPublicValue,
+          type,
+        );
 
       this.logger.debug('Public value hashed, looking up existing identity', {
         ...ctx,
@@ -263,7 +267,6 @@ export class LikesService extends BaseService {
         });
       }
     }
-
 
     if (!targetIdentityId) {
       this.logger.warn('Like creation failed: missing target identity', {
@@ -786,4 +789,3 @@ export class LikesService extends BaseService {
     };
   }
 }
-
