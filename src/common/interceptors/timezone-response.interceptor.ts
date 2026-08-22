@@ -18,7 +18,11 @@ import { dayjs } from '@common/utils/date.utils';
 export class TimezoneResponseInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    const timezone = request.timezone || 'UTC';
+    const timezone = request.timezone;
+
+    if (!timezone) {
+      return next.handle();
+    }
 
     return next.handle().pipe(
       map((data: unknown) => {

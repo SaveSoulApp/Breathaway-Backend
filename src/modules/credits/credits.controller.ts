@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiExtraModels,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -27,6 +28,7 @@ import {
   CreditLedgerResponseDto,
   PaginatedCreditLedgerResponseDto,
   ExpiringCreditsResponseDto,
+  ExpiringCreditItemDto,
 } from './dto';
 
 /**
@@ -40,6 +42,7 @@ import {
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @ApiStandardErrors()
+@ApiExtraModels(ExpiringCreditItemDto)
 @Controller({
   path: 'credits',
   version: ['1'],
