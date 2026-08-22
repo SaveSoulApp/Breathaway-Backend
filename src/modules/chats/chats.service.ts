@@ -119,11 +119,8 @@ export class ChatsService extends BaseService {
           step: 'fetch_profiles',
           err: serializeError(err),
         });
-        // We can choose to fail the request or just return null for otherUser.
-        // Returning 500 is safer to prevent UI crashes if frontend strictly expects names.
-        throw new InternalServerErrorException(
-          'Failed to fetch chat room details',
-        );
+        // Log the error but proceed with an empty profiles array.
+        // This returns partial data (rooms without otherUser profiles) instead of a hard failure.
       }
     }
 
