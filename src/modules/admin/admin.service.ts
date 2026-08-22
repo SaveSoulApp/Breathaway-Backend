@@ -7,7 +7,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
 import { AdminUserNotFoundException } from './application/exceptions';
-
+import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 @Injectable()
 export class AdminService extends BaseService {
   constructor(
@@ -82,5 +82,10 @@ export class AdminService extends BaseService {
         reason,
       },
     });
+
+    this.eventEmitter.emit(
+      USER_DELETED_EVENT,
+      new UserDeletedEvent(targetUserId),
+    );
   }
 }
