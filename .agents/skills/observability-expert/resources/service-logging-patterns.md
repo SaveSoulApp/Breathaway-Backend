@@ -21,14 +21,14 @@ add the log.
 
 **The boundary-crossing rule:**
 
-| ✅ Always log | ❌ Don't log |
-|---|---|
-| External service call result (success or failure) | Every variable assignment |
-| DB write (CREATE, UPDATE, DELETE) committed | Internal calculations |
-| Transaction committed or rolled back | Loop iterations (use `debug` if needed) |
+| ✅ Always log                                                     | ❌ Don't log                             |
+| ----------------------------------------------------------------- | ---------------------------------------- |
+| External service call result (success or failure)                 | Every variable assignment                |
+| DB write (CREATE, UPDATE, DELETE) committed                       | Internal calculations                    |
+| Transaction committed or rolled back                              | Loop iterations (use `debug` if needed)  |
 | Business rule guard triggered (duplicate check, self-check, etc.) | Helper method calls with no side effects |
-| Async fire-and-forget dispatch | Intermediate transformations |
-| Business state transition (status change) | Purely structural code |
+| Async fire-and-forget dispatch                                    | Intermediate transformations             |
+| Business state transition (status change)                         | Purely structural code                   |
 
 ---
 
@@ -46,6 +46,7 @@ async create(userId: string, dto: CreateLikeRequestDto) {
 ```
 
 **Rules:**
+
 - Always build `ctx` first — even for read-only methods.
 - Always spread `ctx` into every log in that method — never inline the same fields ad hoc.
 - Add operation-specific fields (e.g., `likeId`, `resolvedIdentityId`) to individual log calls
@@ -88,15 +89,28 @@ method-level summary log that say the same thing at the same level:
 
 ```typescript
 // ❌ Wrong — two info logs for the same fact (transaction commit + method exit)
-this.logger.log('Like and credit deduction committed', { ...ctx, step: 'persist_and_deduct' });
+this.logger.log('Like and credit deduction committed', {
+  ...ctx,
+  step: 'persist_and_deduct',
+});
 // ... 5 lines later ...
 this.logger.log('Like created successfully', { ...ctx, step: 'complete' });
 
 // ✅ Correct — transaction internals at debug (implementation detail), one info at exit (business event)
-this.logger.debug('Like record persisted within transaction', { ...ctx, step: 'persist_like' });
-this.logger.debug('Credits deducted within transaction', { ...ctx, step: 'deduct_credits' });
+this.logger.debug('Like record persisted within transaction', {
+  ...ctx,
+  step: 'persist_like',
+});
+this.logger.debug('Credits deducted within transaction', {
+  ...ctx,
+  step: 'deduct_credits',
+});
 // ... transaction block closes ...
-this.logger.log('Like created successfully', { ...ctx, step: 'complete', likeId: like.id });
+this.logger.log('Like created successfully', {
+  ...ctx,
+  step: 'complete',
+  likeId: like.id,
+});
 ```
 
 The rule: **transaction internals are `debug`** (they are implementation details of how the
@@ -107,25 +121,25 @@ fact adds noise without adding trace value — at scale, log volume is billed.
 Steps should be named consistently across the service. Standard step names for like/entity
 creation flows:
 
-| Step name | When |
-|---|---|
-| `init` | Entry log at the start of the method |
-| `credit_check` | Before/after crediting or debit validation |
-| `identity_resolution` | Identity lookup or creation |
-| `identity_validation` | Ownership, self-check, existence guard |
-| `duplicate_check` | Uniqueness constraint guard |
-| `persist_like` / `persist_entity` | DB write inside a transaction |
-| `deduct_credits` | Credits deduction within a transaction |
-| `persist_and_deduct` | Transaction-level catch (covers both) |
-| `match_resolution` | Async downstream dispatch |
-| `fetch` | DB read in read-only or update methods |
-| `status_check` | Status validation before write |
-| `complete` | Final success log at method exit |
+| Step name                         | When                                       |
+| --------------------------------- | ------------------------------------------ |
+| `init`                            | Entry log at the start of the method       |
+| `credit_check`                    | Before/after crediting or debit validation |
+| `identity_resolution`             | Identity lookup or creation                |
+| `identity_validation`             | Ownership, self-check, existence guard     |
+| `duplicate_check`                 | Uniqueness constraint guard                |
+| `persist_like` / `persist_entity` | DB write inside a transaction              |
+| `deduct_credits`                  | Credits deduction within a transaction     |
+| `persist_and_deduct`              | Transaction-level catch (covers both)      |
+| `match_resolution`                | Async downstream dispatch                  |
+| `fetch`                           | DB read in read-only or update methods     |
+| `status_check`                    | Status validation before write             |
+| `complete`                        | Final success log at method exit           |
 
 ```typescript
 this.logger.warn('Like creation failed: already liked', {
   ...ctx,
-  step: 'duplicate_check',   // ← queryable field
+  step: 'duplicate_check', // ← queryable field
   existingLikeId: existingLike.id,
 });
 ```
@@ -136,12 +150,12 @@ this.logger.warn('Like creation failed: already liked', {
 
 For a given point in a service method, choose the level as follows:
 
-| Level | Use for |
-|---|---|
-| `log` / `info` | Method entry on write operations, **one** canonical success log at method exit (`step: 'complete'`) |
-| `debug` | Method entry on read-only operations, every guard-passed confirmation, every step inside a transaction, intermediate state (which branch was taken, what the DB returned) |
-| `warn` | Any expected business rule rejection *before* throwing the domain exception — captures local variable context the global filter can't see |
-| `error` | Infrastructure call failure (DB down, external service failed) — log-and-rethrow, never swallow |
+| Level          | Use for                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `log` / `info` | Method entry on write operations, **one** canonical success log at method exit (`step: 'complete'`)                                                                       |
+| `debug`        | Method entry on read-only operations, every guard-passed confirmation, every step inside a transaction, intermediate state (which branch was taken, what the DB returned) |
+| `warn`         | Any expected business rule rejection _before_ throwing the domain exception — captures local variable context the global filter can't see                                 |
+| `error`        | Infrastructure call failure (DB down, external service failed) — log-and-rethrow, never swallow                                                                           |
 
 **The one-info-per-operation rule:**
 
@@ -153,7 +167,7 @@ internals, guard confirmations, resolution branches) is `debug`. This boundary i
 - `debug` = an implementation detail that an engineer needs only during active diagnosis
 
 A `debug` log inside a transaction (`persist_like`, `deduct_credits`) is an implementation
-detail of *how* the business event happened. The `info` log at exit is the event itself.
+detail of _how_ the business event happened. The `info` log at exit is the event itself.
 Emitting both a transaction-boundary `info` AND a method-exit `info` for the same operation
 is the canonical duplicate-success-signal anti-pattern — it doubles log volume for every
 successful write with no additional diagnostic value.
@@ -276,6 +290,7 @@ stack trace but will NOT have `targetIdentityId`, `step`, or any local variable 
 you get "something failed" not "step C failed with these IDs".
 
 **The rule:** Wrap any call that can fail for infrastructure reasons — specifically:
+
 - `prisma.$transaction(...)` — highest blast radius, multiple writes atomically
 - Any external HTTP service call
 - Any queue publish
@@ -324,6 +339,7 @@ this.logger.error('Failed', { ...ctx, step: '...', err: serializeError(err) });
 ```
 
 `serializeError` (in `src/common/utils/error.utils.ts`) produces:
+
 ```typescript
 { message: string, name: string, stack: string, code?: string }
 ```
@@ -342,7 +358,11 @@ to include which fields.
 
   ```typescript
   // ✅ Correct
-  this.logger.log('Label updated', { likeId: id, userId, labelCleared: dto.label === null });
+  this.logger.log('Label updated', {
+    likeId: id,
+    userId,
+    labelCleared: dto.label === null,
+  });
 
   // ❌ Wrong — "Sarah from the gym" is PII
   this.logger.log('Label updated', { likeId: id, userId, label: dto.label });
@@ -363,13 +383,14 @@ to include which fields.
 
 Understanding which layer owns which log prevents both duplication and gaps:
 
-| Layer | What it logs | What it does NOT log |
-|---|---|---|
-| **Service** | Domain context: entity IDs, step progression, business rule failures with local variable state | HTTP method/path/status (not its concern) |
-| **LoggingInterceptor** | Successful request: `statusCode`, `latencyMs` at `debug` level (for local dev tracing) | Errors — the filter owns error-path HTTP logging |
-| **GlobalExceptionFilter** | Error-path HTTP outcome: `statusCode`, `latencyMs`, `exceptionType`, error message | Domain context (no entity IDs — it doesn't have them) |
+| Layer                     | What it logs                                                                                   | What it does NOT log                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Service**               | Domain context: entity IDs, step progression, business rule failures with local variable state | HTTP method/path/status (not its concern)             |
+| **LoggingInterceptor**    | Successful request: `statusCode`, `latencyMs` at `debug` level (for local dev tracing)         | Errors — the filter owns error-path HTTP logging      |
+| **GlobalExceptionFilter** | Error-path HTTP outcome: `statusCode`, `latencyMs`, `exceptionType`, error message             | Domain context (no entity IDs — it doesn't have them) |
 
 This three-layer split means a single `requestId` query returns:
+
 1. The domain trace (service logs — who, what, which step)
 2. The HTTP outcome (filter log — status code, latency, exception class name)
 
@@ -399,6 +420,7 @@ multiple different exceptions mapped to the same status).
 The request start timestamp is stored in CLS by the `ClsModule` middleware setup
 (`cls.set('requestStart', Date.now())`), not by the interceptor. This is the correct placement
 because:
+
 - The middleware runs before the interceptor chain, giving a more accurate wall-clock start
 - Both the interceptor (success path) and the filter (error path) can read the same value
 - `Date.now()` is correct here — this is pure millisecond arithmetic for latency, not a
@@ -417,6 +439,7 @@ For a `POST /api/v1/likes` that hit the duplicate check:
 ```
 
 This three-entry trace, queryable by `requestId`, tells the complete story:
+
 - **WHO** — `userId`, `targetIdentityId`
 - **WHAT** — `AlreadyLikedException`, `existingLikeId`
 - **WHERE** — `step: duplicate_check` (steps 1–3 passed, stopped at 4)

@@ -8,7 +8,9 @@ patterns, and migration safety on PostgreSQL (Cloud SQL).
 ## 1. Indexing Fundamentals
 
 ### Prisma auto-indexes
+
 Prisma automatically creates an index for:
+
 - The `@id` field (primary key)
 - Any field marked `@unique`
 - The scalar field backing a `@relation` (the foreign key column) — **only since Prisma 5.x
@@ -22,7 +24,9 @@ grep "relationMode" prisma/schema.prisma
 ```
 
 ### When to add an explicit `@@index`
+
 Add an index when a field (or combination of fields) appears in:
+
 - A `where` clause on a query executed frequently (anything on a hot path: login, list
   endpoints, dashboard queries)
 - An `orderBy` clause on a list endpoint
@@ -44,6 +48,7 @@ model Order {
 ```
 
 ### Composite index column order matters
+
 PostgreSQL composite indexes are usable left-to-right — a query filtering on the first column(s)
 of the index can use it; a query filtering only on a later column cannot (without a separate
 index). Order composite index columns by: equality filters first, then range/sort filters last.
@@ -65,6 +70,7 @@ pattern seen in the existing `deleteProfile` transaction (updating `user`, `iden
 `authCredential` to set `deletedAt`, and `device` to set `isActive: false`).
 
 ### Schema pattern
+
 ```prisma
 model User {
   id        String    @id @default(uuid())
@@ -78,11 +84,13 @@ model User {
 ```
 
 ### Why `deletedAt` needs deliberate indexing
+
 Once a table has meaningful soft-deleted row volume, every query filtering on
 `deletedAt: null` benefits from `deletedAt` being part of a composite index alongside the
 query's other common filter — otherwise PostgreSQL may scan past many deleted rows.
 
 ### Unique constraints and soft delete interact badly — design around this explicitly
+
 A plain `@unique` on `email` blocks a new user from registering with an email that belongs to
 a soft-deleted account, which is usually wrong behaviour. Use a partial/composite approach:
 
@@ -96,14 +104,17 @@ model User {
   @@unique([email, deletedAt])
 }
 ```
+
 Note: `@@unique([email, deletedAt])` allows multiple soft-deleted rows with the same email
-(since `deletedAt` differs per deletion), but does **not** by itself prevent two *active*
+(since `deletedAt` differs per deletion), but does **not** by itself prevent two _active_
 rows — that's exactly the goal, but be aware NULL handling in PostgreSQL composite uniqueness
 means each NULL is treated as distinct, so confirm this matches the intended semantics, or use
 a Postgres partial unique index via a raw migration if stricter enforcement is needed:
+
 ```sql
 CREATE UNIQUE INDEX user_email_unique_active ON "User" (email) WHERE "deletedAt" IS NULL;
 ```
+
 This is the more precise fix when Prisma's declarative `@@unique` can't express "unique only
 among active rows" exactly as needed — apply via a custom migration SQL file since Prisma's
 schema language doesn't support partial indexes natively (verify against the Prisma version in
@@ -114,6 +125,7 @@ use, as this has evolved across versions).
 ## 3. Relation Modeling
 
 ### One-to-one (e.g., User ↔ UserProfile, as seen in this project)
+
 ```prisma
 model User {
   id      String       @id @default(uuid())
@@ -128,6 +140,7 @@ model UserProfile {
 ```
 
 ### One-to-many
+
 ```prisma
 model User {
   id     String  @id @default(uuid())
@@ -144,6 +157,7 @@ model Order {
 ```
 
 ### Many-to-many — prefer explicit join model over implicit
+
 Prisma supports implicit many-to-many (auto-generated join table), but prefer an **explicit**
 join model when the relationship itself carries data (timestamps, roles, status) or when
 direct queries against the join table are needed:
@@ -165,12 +179,14 @@ model UserOrganization {
 ```
 
 ### Cascade behaviour — be deliberate, not default
+
 ```prisma
 user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 ```
+
 Given this project's soft-delete convention, `onDelete: Cascade` at the database level is
 usually **not** what's wanted for user-related tables — hard-deleting a related row when the
-parent is soft-deleted (not hard-deleted) won't trigger anyway, but for any table that *is*
+parent is soft-deleted (not hard-deleted) won't trigger anyway, but for any table that _is_
 hard-deleted, confirm `Cascade` vs `Restrict` vs `SetNull` matches the actual intended business
 behaviour rather than leaving it at Prisma's default.
 
@@ -179,12 +195,14 @@ behaviour rather than leaving it at Prisma's default.
 ## 4. Migration Safety
 
 ### Additive changes — safe to deploy without coordination
+
 - Adding a new nullable column
 - Adding a new table
 - Adding a new index (consider `CREATE INDEX CONCURRENTLY` on large tables — see below)
 
 ### Breaking changes — require a multi-step rollout
-- Dropping a column: deploy code that stops reading/writing it first, deploy that, *then* drop
+
+- Dropping a column: deploy code that stops reading/writing it first, deploy that, _then_ drop
   the column in a later migration — never drop a column the currently-running code still
   references.
 - Renaming a column: treat as add-new + backfill + switch reads + drop-old, not an in-place
@@ -196,6 +214,7 @@ behaviour rather than leaving it at Prisma's default.
   then add the `NOT NULL` constraint in a follow-up migration.
 
 ### Large table index creation
+
 ```sql
 -- ❌ Locks the table for writes for the duration of index creation
 CREATE INDEX idx_orders_user_id ON "Order" ("userId");
@@ -203,6 +222,7 @@ CREATE INDEX idx_orders_user_id ON "Order" ("userId");
 -- ✅ Doesn't block writes, takes longer, can't run inside a transaction
 CREATE INDEX CONCURRENTLY idx_orders_user_id ON "Order" ("userId");
 ```
+
 Prisma migrations run inside a transaction by default, which is incompatible with
 `CREATE INDEX CONCURRENTLY`. For large tables in production, write a custom migration with
 `prisma migrate dev --create-only`, then manually edit the generated SQL to use

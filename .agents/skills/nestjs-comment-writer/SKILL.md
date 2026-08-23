@@ -28,18 +28,19 @@ generating any output.
 ## Core Principles
 
 **Three-layer commenting**: Every significant element needs these layers:
+
 1. **Business logic layer** — What domain problem is this solving? What is the strategy (e.g., FIFO allocation, append-only ledger)?
 2. **Architectural intent & Security** — How is this designed to be composed with other modules? (e.g., accepts a Prisma `tx` to prevent TOCTOU race conditions). How does it enforce security? (e.g., enforces row-level ownership via `userId`).
 3. **Utility & Hidden Mechanics** — What does it do mechanically? Crucially, expose hidden mutations (e.g., shifting dates to end-of-day UTC), idempotency guarantees, and side effects.
 
-**Explain the "Why" behind constraints and errors**: When documenting `@throws` or parameter constraints, explain the *domain reason* behind the block, not just the code condition. (e.g., Instead of "Throws when source is LIKE_USAGE", write "LIKE_USAGE is a system-only source; manual grants are blocked to prevent misuse.")
+**Explain the "Why" behind constraints and errors**: When documenting `@throws` or parameter constraints, explain the _domain reason_ behind the block, not just the code condition. (e.g., Instead of "Throws when source is LIKE_USAGE", write "LIKE_USAGE is a system-only source; manual grants are blocked to prevent misuse.")
 
 **Don't state the obvious**: If the parameter name and type already make the intent clear, don't
-repeat it in prose. Instead, spend that sentence explaining behavior that *isn't* captured in
+repeat it in prose. Instead, spend that sentence explaining behavior that _isn't_ captured in
 the signature (e.g., validation rules, side effects, caching behavior, external calls made).
 
 **Be specific about failure**: Use `@throws` whenever the method can throw — specify the
-exception class and the *condition* that triggers it, not just that it exists.
+exception class and the _condition_ that triggers it, not just that it exists.
 
 **Keep it punchy**: Comments should read like terse technical prose, not marketing copy. Aim
 for 1–2 sentences per logical point. Remove filler words like "this method is responsible for".
@@ -48,22 +49,23 @@ for 1–2 sentences per logical point. Remove filler words like "this method is 
 
 ## When to Apply Comments
 
-| Element | Class-level comment | Method/property comments |
-|---|---|---|
-| Controller | Yes — describe the HTTP resource group and auth scope | Every route handler |
-| Service / Provider | Yes — describe the business domain it owns | Every public method |
-| Module | Yes — explain the bounded context and why each import/export exists | N/A |
-| DTO | Yes — describe the shape's purpose | Decorate each field with validation context |
-| Guard | Yes — what access rule it enforces | `canActivate` + any helpers |
-| Interceptor | Yes — what transformation or cross-cutting concern | `intercept` |
-| Pipe | Yes — what validation or transformation | `transform` |
-| Repository / custom provider | Yes | Every public method |
+| Element                      | Class-level comment                                                 | Method/property comments                    |
+| ---------------------------- | ------------------------------------------------------------------- | ------------------------------------------- |
+| Controller                   | Yes — describe the HTTP resource group and auth scope               | Every route handler                         |
+| Service / Provider           | Yes — describe the business domain it owns                          | Every public method                         |
+| Module                       | Yes — explain the bounded context and why each import/export exists | N/A                                         |
+| DTO                          | Yes — describe the shape's purpose                                  | Decorate each field with validation context |
+| Guard                        | Yes — what access rule it enforces                                  | `canActivate` + any helpers                 |
+| Interceptor                  | Yes — what transformation or cross-cutting concern                  | `intercept`                                 |
+| Pipe                         | Yes — what validation or transformation                             | `transform`                                 |
+| Repository / custom provider | Yes                                                                 | Every public method                         |
 
 ---
 
 ## Comment Structure Rules
 
 ### Class-level JSDoc
+
 ```ts
 /**
  * [One sentence: what domain/resource this class owns and why it exists.]
@@ -73,6 +75,7 @@ for 1–2 sentences per logical point. Remove filler words like "this method is 
 ```
 
 ### Method-level JSDoc
+
 ```ts
 /**
  * [One sentence: business intent — what and why.]
@@ -88,6 +91,7 @@ for 1–2 sentences per logical point. Remove filler words like "this method is 
 ```
 
 ### Module-level JSDoc
+
 ```ts
 /**
  * [Domain capability this module encapsulates — one sentence.]
@@ -98,8 +102,10 @@ for 1–2 sentences per logical point. Remove filler words like "this method is 
 ```
 
 ### DTO property comments
+
 Use inline comments above each field if the field's purpose or validation constraints aren't
 obvious from its name and decorators alone:
+
 ```ts
 /** ISO 8601 date string; must be in the future relative to request time. */
 @IsDateString()

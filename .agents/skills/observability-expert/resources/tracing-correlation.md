@@ -30,6 +30,7 @@ site that wants the request ID present must include it in `meta` explicitly**, e
 or via a thin wrapper. Two viable approaches — pick one as the project standard, don't mix both:
 
 ### Approach A — explicit `meta.requestId` at every call site (more visible, more boilerplate)
+
 ```typescript
 this.logger.forContext('ProfilesService').info('Profile created', {
   userId,
@@ -38,6 +39,7 @@ this.logger.forContext('ProfilesService').info('Profile created', {
 ```
 
 ### Approach B (recommended) — wrap `forContext()` to auto-inject `requestId` from CLS
+
 Extend `LoggerService` so `forContext()` reads the current CLS request ID once and merges it
 into every call automatically, removing the need for every call site to remember to pass it:
 
@@ -64,6 +66,7 @@ forContext(context: string): ContextualLogger {
   };
 }
 ```
+
 `this.cls.isActive()` guards against calling `.get()` outside any CLS context (e.g., during
 app bootstrap, before any request has been received) — `ClsService.get()` outside an active
 context either returns `undefined` or throws depending on version/config, so guard explicitly
@@ -88,14 +91,15 @@ ClsModule.forRoot({
       (req.headers['x-request-id'] as string) ?? randomUUID(),
     setup: (cls, req: Request, res: Response) => {
       cls.set('requestStart', Date.now()); // ← wall-clock start for latency on both success and error paths
-      cls.set('requestId', cls.id);        // nestjs-cls exposes the generated/extracted ID as cls.id
+      cls.set('requestId', cls.id); // nestjs-cls exposes the generated/extracted ID as cls.id
       res.setHeader('x-request-id', cls.id);
     },
   },
-})
+});
 ```
 
 **Rules:**
+
 - `requestStart` must be set **first**, before anything else — it captures the true wall-clock
   entry point before any middleware or interceptor overhead. Both `LoggingInterceptor` (success
   path) and `GlobalExceptionFilter` (error path) read this value from CLS to compute `latencyMs`.
@@ -143,7 +147,9 @@ setup: (cls, req: Request, res: Response) => {
 const withRequestId = (meta?: Record<string, unknown>) => ({
   ...meta,
   requestId: this.cls.isActive() ? this.cls.get('requestId') : undefined,
-  'logging.googleapis.com/trace': this.cls.isActive() ? this.cls.get('gcpTrace') : undefined,
+  'logging.googleapis.com/trace': this.cls.isActive()
+    ? this.cls.get('gcpTrace')
+    : undefined,
 });
 ```
 
@@ -169,14 +175,16 @@ means an `@OnEvent(...)` handler firing during request handling will still see t
 @Injectable()
 export class OrderCreatedListener {
   constructor(
-    private readonly logger: LoggerService,  // requestId auto-included, no manual passing needed
+    private readonly logger: LoggerService, // requestId auto-included, no manual passing needed
   ) {}
 
   @OnEvent('order.created')
   async handle(event: OrderCreatedEvent) {
-    this.logger.forContext('OrderCreatedListener').info('Handling order created event', {
-      orderId: event.orderId,
-    });
+    this.logger
+      .forContext('OrderCreatedListener')
+      .info('Handling order created event', {
+        orderId: event.orderId,
+      });
   }
 }
 ```
@@ -205,7 +213,9 @@ export class InternalJobsController {
   @Post('nightly-cleanup')
   async runNightlyCleanup() {
     // requestId is already attached automatically via forContext()'s CLS read
-    this.logger.forContext('InternalJobsController').info('Starting nightly cleanup job');
+    this.logger
+      .forContext('InternalJobsController')
+      .info('Starting nightly cleanup job');
   }
 }
 ```
@@ -225,6 +235,7 @@ async callDownstreamService(payload: unknown) {
   });
 }
 ```
+
 The downstream service's own `ClsModule` `idGenerator` will see this incoming header and reuse
 it (per section 3's "prefer incoming header" rule) rather than generating a new one.
 

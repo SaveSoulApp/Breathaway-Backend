@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LikeStatus, Prisma } from '@prisma/client';
+import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
 import {
   AlreadyLikedException,
+  AlreadyMatchedException,
   IdentityNotFoundException,
   InsufficientCreditsException,
   InvalidLikeStateException,
@@ -14,6 +15,7 @@ import {
 import { SortOrder } from '@common/enums';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { isE164Phone } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
@@ -54,6 +56,93 @@ export class LikesService extends BaseService {
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
+  }
+
+  /**
+   * Evaluates if a like can be successfully created without actually creating it or consuming credits.
+   * Throws the corresponding domain exceptions if validation fails.
+   */
+  async canCreate(
+    userId: string,
+    dto: CreateLikeRequestDto,
+  ): Promise<{ canCreate: boolean }> {
+    const ctx = { userId, targetIdentityId: dto.targetIdentityId };
+    this.logger.debug('Like can-create check started', {
+      ...ctx,
+      step: 'init',
+    });
+
+    let targetIdentityId = dto.targetIdentityId;
+
+    if (!targetIdentityId && dto.targetIdentity) {
+      const { type, publicValue } = dto.targetIdentity;
+      const resolvedPublicValue =
+        type === IdentityType.PHONE
+          ? await this.resolvePhoneWithCountryCode(publicValue, userId)
+          : publicValue;
+      const publicValueData =
+        await this.identityCryptoService.processPublicValue(
+          resolvedPublicValue,
+          type,
+        );
+
+      const existing = await this.prisma.identity.findUnique({
+        where: {
+          type_publicValueHash: {
+            type,
+            publicValueHash: publicValueData.publicValueHash,
+          },
+        },
+      });
+
+      if (!existing) {
+        // Identity doesn't exist in our DB yet -> can't be already liked or matched.
+        return { canCreate: true };
+      }
+      targetIdentityId = existing.id;
+    }
+
+    if (!targetIdentityId) {
+      throw new MissingTargetIdentityException();
+    }
+
+    const targetIdentity = await this.prisma.identity.findUnique({
+      where: { id: targetIdentityId },
+    });
+
+    if (!targetIdentity) {
+      throw new IdentityNotFoundException();
+    }
+
+    if (targetIdentity.userId === userId) {
+      throw new SelfLikeException();
+    }
+
+    const existingLike = await this.prisma.like.findFirst({
+      where: {
+        senderUserId: userId,
+        targetIdentityId,
+        deletedAt: null,
+        status: { not: LikeStatus.DELETED },
+      },
+    });
+
+    if (existingLike) {
+      throw new AlreadyLikedException();
+    }
+
+    if (targetIdentity.userId) {
+      const [userOneId, userTwoId] = [userId, targetIdentity.userId].sort();
+      const existingMatch = await this.prisma.match.findUnique({
+        where: { userOneId_userTwoId: { userOneId, userTwoId } },
+      });
+
+      if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
+        throw new AlreadyMatchedException();
+      }
+    }
+
+    return { canCreate: true };
   }
 
   /**
@@ -115,8 +204,20 @@ export class LikesService extends BaseService {
 
     if (!targetIdentityId && dto.targetIdentity) {
       const { type, publicValue, platformId } = dto.targetIdentity;
+
+      // Normalise phone numbers to E.164 before hashing/encrypting so that a number
+      // submitted without a country code resolves to the same identity row as the
+      // same number submitted with a country code.
+      const resolvedPublicValue =
+        type === IdentityType.PHONE
+          ? await this.resolvePhoneWithCountryCode(publicValue, userId)
+          : publicValue;
+
       const publicValueData =
-        await this.identityCryptoService.processPublicValue(publicValue, type);
+        await this.identityCryptoService.processPublicValue(
+          resolvedPublicValue,
+          type,
+        );
 
       this.logger.debug('Public value hashed, looking up existing identity', {
         ...ctx,
@@ -229,6 +330,31 @@ export class LikesService extends BaseService {
       step: 'duplicate_check',
       targetIdentityId,
     });
+
+    // Step 4.5: Active Match Check
+    // If the target identity is already resolved to a user, check if we already have an active match
+    if (targetIdentity.userId) {
+      const [userOneId, userTwoId] = [userId, targetIdentity.userId].sort();
+      const existingMatch = await this.prisma.match.findUnique({
+        where: { userOneId_userTwoId: { userOneId, userTwoId } },
+      });
+
+      if (existingMatch && existingMatch.status === MatchStatus.ACTIVE) {
+        this.logger.warn('Like creation failed: active match already exists', {
+          ...ctx,
+          step: 'match_check',
+          targetUserId: targetIdentity.userId,
+          existingMatchId: existingMatch.id,
+        });
+        throw new AlreadyMatchedException();
+      }
+
+      this.logger.debug('Match check passed', {
+        ...ctx,
+        step: 'match_check',
+        targetUserId: targetIdentity.userId,
+      });
+    }
 
     // Step 5: Persist like + deduct credits atomically
     let expiresAt = DateUtil.now();
@@ -602,6 +728,48 @@ export class LikesService extends BaseService {
   }
 
   // ----- Private helpers -----
+
+  /**
+   * Ensures a raw phone number is in E.164 format before it is hashed and encrypted.
+   *
+   * When `rawPhone` already starts with `+` and has the correct digit count it is returned
+   * unchanged — no database round-trip is performed. When the country code is absent the
+   * method fetches the sender's own verified PHONE identity via `IdentitiesService`,
+   * extracts its country code prefix, and prepends it. If the sender has no verified
+   * PHONE identity the original value is returned as-is (graceful degradation).
+   *
+   * @param rawPhone - Phone number as supplied by the client (may or may not include country code).
+   * @param userId   - UUID of the authenticated user sending the like.
+   * @returns The phone number in E.164 format, or unchanged if enrichment is not possible.
+   */
+  private async resolvePhoneWithCountryCode(
+    rawPhone: string,
+    userId: string,
+  ): Promise<string> {
+    if (isE164Phone(rawPhone)) {
+      // Already fully qualified — no enrichment needed and no DB call required.
+      return rawPhone;
+    }
+
+    const countryCode =
+      await this.identitiesService.getSenderCountryCode(userId);
+
+    if (!countryCode) {
+      this.logger.warn(
+        'Phone country code enrichment skipped: sender has no verified PHONE identity',
+        { userId, step: 'country_code_enrichment' },
+      );
+      return rawPhone;
+    }
+
+    const enriched = `${countryCode}${rawPhone.trim()}`;
+    this.logger.debug('Phone number enriched with sender country code', {
+      userId,
+      step: 'country_code_enrichment',
+      countryCode,
+    });
+    return enriched;
+  }
 
   /**
    * Delegates publicValue decryption to IdentitiesService (which owns that responsibility)

@@ -12,16 +12,17 @@ export class ChatRoomResponseDto {
 
   @ApiProperty({
     description:
-      'Basic profile information of the other participant in the chat',
+      'Basic profile information of the other participant in the chat. May be null if the profile could not be loaded.',
     example: {
       id: '01H...XYZ',
       firstName: 'John',
       lastName: 'Doe',
     },
+    nullable: true,
   })
   otherUser: {
     id: string;
     firstName: string;
     lastName: string | null;
-  };
+  } | null;
 }

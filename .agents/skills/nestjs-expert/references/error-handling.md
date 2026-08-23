@@ -8,15 +8,19 @@ Services throw NestJS HTTP exceptions. The global `HttpExceptionFilter` handles 
 
 Prisma throws `PrismaClientKnownRequestError` with a `code` field. Map these to HTTP exceptions in the service — don't let Prisma errors bubble up to the client.
 
-| Prisma code | Meaning | Throw |
-|---|---|---|
-| `P2002` | Unique constraint violation | `ConflictException` |
-| `P2025` | Record not found (update/delete) | `NotFoundException` |
-| `P2003` | Foreign key constraint failed | `BadRequestException` |
-| `P2014` | Relation violation | `BadRequestException` |
+| Prisma code | Meaning                          | Throw                 |
+| ----------- | -------------------------------- | --------------------- |
+| `P2002`     | Unique constraint violation      | `ConflictException`   |
+| `P2025`     | Record not found (update/delete) | `NotFoundException`   |
+| `P2003`     | Foreign key constraint failed    | `BadRequestException` |
+| `P2014`     | Relation violation               | `BadRequestException` |
 
 ```typescript
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 function handlePrismaError(error: unknown): never {
@@ -96,7 +100,10 @@ export class UsersService {
     try {
       // ...
     } catch (error) {
-      this.logger.error('Failed to create user', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Failed to create user',
+        error instanceof Error ? error.stack : error,
+      );
       handlePrismaError(error);
     }
   }

@@ -11,6 +11,7 @@ All BreathAway REST APIs follow standard conventions for status codes, payload f
 ## 📡 HTTP Methods
 
 We use HTTP methods semantically:
+
 - **`GET`**: Retrieve a resource or list of resources. Safe and idempotent.
 - **`POST`**: Create a new resource. Non-idempotent.
 - **`PUT`**: Replace an existing resource or update it entirely. Idempotent.
@@ -27,7 +28,7 @@ All dates and timestamps in requests and responses must use **ISO 8601 format in
 "createdAt": "2026-07-06T03:52:51.294Z"
 ```
 
-*In the application bootstrap, the runtime timezone is explicitly locked to UTC using `process.env.TZ = 'UTC'`.*
+_In the application bootstrap, the runtime timezone is explicitly locked to UTC using `process.env.TZ = 'UTC'`._
 
 ---
 
@@ -64,6 +65,7 @@ List endpoints returning collections use a wrapped response envelope containing 
 When an API request fails, the server responds with a `Content-Type: application/problem+json` header and a standardized JSON structure adhering to the RFC 7807 Problem Details specification.
 
 ### 1. General Error Shape
+
 ```json
 {
   "type": "NOT_FOUND",
@@ -77,6 +79,7 @@ When an API request fails, the server responds with a `Content-Type: application
 ```
 
 ### 2. Validation Error Shape (class-validator)
+
 When body validation fails during request parsing, the filter automatically attaches the failure details in the `invalid_params` array field:
 
 ```json

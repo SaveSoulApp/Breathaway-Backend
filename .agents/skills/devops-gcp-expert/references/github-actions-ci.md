@@ -12,6 +12,7 @@ Identity Federation so GitHub Actions authenticates to GCP using short-lived, au
 rotated tokens tied to the specific repo/workflow.
 
 ### One-time GCP setup (via Terraform, see `terraform-standards.md`)
+
 ```hcl
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions-pool"
@@ -39,10 +40,11 @@ resource "google_service_account_iam_member" "github_actions_impersonation" {
 ```
 
 ### Workflow usage
+
 ```yaml
 permissions:
   contents: read
-  id-token: write   # required for Workload Identity Federation
+  id-token: write # required for Workload Identity Federation
 
 jobs:
   deploy:
@@ -58,6 +60,7 @@ jobs:
 ## 2. Pipeline Structure
 
 ### Stage gating principle
+
 Each stage must pass before the next runs. A failed lint or test blocks build and deploy
 entirely — never allow deployment to proceed past a failed quality gate.
 
@@ -66,6 +69,7 @@ lint → unit test → build (Docker image) → [E2E test, if applicable] → de
 ```
 
 ### Full workflow example
+
 ```yaml
 # .github/workflows/ci-cd.yml
 name: CI/CD
@@ -175,14 +179,15 @@ jobs:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       - uses: hashicorp/setup-terraform@v3
       - run: terraform -chdir=infrastructure/environments/staging init
-      - run: terraform -chdir=infrastructure/environments/staging apply -auto-approve
-                -var="api_image=${{ needs.build-and-push.outputs.image }}"
+      - run:
+          terraform -chdir=infrastructure/environments/staging apply -auto-approve
+          -var="api_image=${{ needs.build-and-push.outputs.image }}"
 
   deploy-production:
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
-    environment: production   # GitHub Environment with required reviewers — manual approval gate
+    environment: production # GitHub Environment with required reviewers — manual approval gate
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
@@ -195,11 +200,13 @@ jobs:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       - uses: hashicorp/setup-terraform@v3
       - run: terraform -chdir=infrastructure/environments/production init
-      - run: terraform -chdir=infrastructure/environments/production apply -auto-approve
-                -var="api_image=${{ needs.build-and-push.outputs.image }}"
+      - run:
+          terraform -chdir=infrastructure/environments/production apply -auto-approve
+          -var="api_image=${{ needs.build-and-push.outputs.image }}"
 ```
 
 **Key points:**
+
 - `e2e-test` spins up a real Postgres service container and runs `prisma migrate deploy`
   against it — matching the `test-automation-expert` skill's E2E conventions (real DB, not
   mocked).
@@ -254,6 +261,7 @@ jobs:
               body: `Terraform plan (${{ matrix.environment }}):\n\`\`\`\n${{ steps.plan.outputs.stdout }}\n\`\`\``
             });
 ```
+
 Posting `plan` output as a PR comment makes infrastructure changes reviewable the same way as
 code changes, before anyone runs `apply`.
 
@@ -274,6 +282,7 @@ gcloud run services update-traffic api-production \
 ```
 
 **Rules:**
+
 - Document this as a runbook step, not something improvised during an incident.
 - Database migrations are the hard part of rollback: if the new revision's migration is not
   backward-compatible with the previous revision's code, rolling back the Cloud Run revision
@@ -290,13 +299,13 @@ gcloud run services update-traffic api-production \
 
 Store these as GitHub Actions secrets/variables (`Settings → Secrets and variables → Actions`):
 
-| Name | Type | Purpose |
-|---|---|---|
-| `WIF_PROVIDER` | variable | Workload Identity Federation provider resource name |
-| `CI_DEPLOYER_SA` | variable | Service account email CI impersonates |
-| `PROJECT_ID` | variable | GCP project ID |
-| `STAGING_DATABASE_URL` | secret | Used only for the migration step against staging |
-| `PRODUCTION_DATABASE_URL` | secret | Used only for the migration step against production, gated by environment protection |
+| Name                      | Type     | Purpose                                                                              |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `WIF_PROVIDER`            | variable | Workload Identity Federation provider resource name                                  |
+| `CI_DEPLOYER_SA`          | variable | Service account email CI impersonates                                                |
+| `PROJECT_ID`              | variable | GCP project ID                                                                       |
+| `STAGING_DATABASE_URL`    | secret   | Used only for the migration step against staging                                     |
+| `PRODUCTION_DATABASE_URL` | secret   | Used only for the migration step against production, gated by environment protection |
 
 Use GitHub Environment-scoped secrets (not repo-wide) for anything production-specific, so
 they're only accessible to jobs running under the `production` environment with its approval

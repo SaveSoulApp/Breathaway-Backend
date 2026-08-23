@@ -49,6 +49,7 @@ resource blocks.
 ## 2. Remote State
 
 ### Backend configuration (GCS, per environment)
+
 ```hcl
 # environments/production/backend.tf
 terraform {
@@ -58,6 +59,7 @@ terraform {
   }
 }
 ```
+
 ```hcl
 # environments/staging/backend.tf
 terraform {
@@ -69,6 +71,7 @@ terraform {
 ```
 
 **Rules:**
+
 - Use a GCS bucket dedicated to Terraform state, with versioning enabled on the bucket (GCS
   object versioning provides a state history/rollback safety net).
 - Separate state per environment via distinct `prefix` values (or separate buckets) —
@@ -184,6 +187,7 @@ output "name" {
 ```
 
 ### Usage per environment
+
 ```hcl
 # environments/production/main.tf
 module "api_service" {
@@ -232,21 +236,26 @@ resource "google_secret_manager_secret_iam_member" "api_access" {
 Choose one of these patterns to populate the actual value:
 
 ### Option A — populate out-of-band via `gcloud`/console after `apply`
+
 Terraform creates the empty secret container; a human or a separate, restricted-access script
 adds the first version manually:
+
 ```bash
 echo -n "postgresql://..." | gcloud secrets versions add database-url-production --data-file=-
 ```
+
 Simplest and avoids the value ever touching Terraform state. Downside: secret creation and
 value population are two manual steps.
 
 ### Option B — inject via a CI-only variable, never committed
+
 ```hcl
 resource "google_secret_manager_secret_version" "database_url" {
   secret      = google_secret_manager_secret.database_url.id
   secret_data = var.database_url   # sourced from a CI secret (GitHub Actions secret), never .tfvars in git
 }
 ```
+
 The `var.database_url` value is passed via `TF_VAR_database_url` as a GitHub Actions secret at
 `terraform apply` time — never written to a `.tfvars` file that's committed. Note this does
 write the value into Terraform state, so state bucket access control (Option in section 2)
@@ -327,6 +336,7 @@ environment variables from CI, never hardcoded in a committed `tfvars` file.
   environments go through CI, ensuring a consistent, audited execution path and consistent
   provider/Terraform version.
 - Pin the Terraform and provider versions explicitly:
+
 ```hcl
 terraform {
   required_version = "~> 1.7.0"

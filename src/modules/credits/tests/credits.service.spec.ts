@@ -307,7 +307,15 @@ describe('CreditsService', () => {
         select: expect.any(Object),
       });
       expect(result).toEqual({
-        data: [mockLedgerEntry],
+        data: [
+          {
+            ...mockLedgerEntry,
+            createdAt: mockLedgerEntry.createdAt,
+            expiresAt: mockLedgerEntry.expiresAt
+              ? mockLedgerEntry.expiresAt.toISOString()
+              : null,
+          },
+        ],
         meta: {
           page: 1,
           limit: 20,
@@ -411,7 +419,13 @@ describe('CreditsService', () => {
         where: { id: entryId, userId },
         select: expect.any(Object),
       });
-      expect(result).toEqual(mockLedgerEntry);
+      expect(result).toEqual({
+        ...mockLedgerEntry,
+        createdAt: mockLedgerEntry.createdAt,
+        expiresAt: mockLedgerEntry.expiresAt
+          ? mockLedgerEntry.expiresAt.toISOString()
+          : null,
+      });
     });
 
     it('should throw LedgerEntryNotFoundException if entry not found', async () => {
@@ -458,7 +472,13 @@ describe('CreditsService', () => {
           expiresAt: expect.any(Date),
         },
       });
-      expect(result).toEqual(mockLedgerEntry);
+      expect(result).toEqual({
+        ...mockLedgerEntry,
+        createdAt: mockLedgerEntry.createdAt,
+        expiresAt: mockLedgerEntry.expiresAt
+          ? mockLedgerEntry.expiresAt.toISOString()
+          : null,
+      });
     });
   });
 
@@ -497,7 +517,13 @@ describe('CreditsService', () => {
           referenceId: 'like-ref-123',
         },
       });
-      expect(result).toEqual(mockLedgerEntry);
+      expect(result).toEqual({
+        ...mockLedgerEntry,
+        createdAt: mockLedgerEntry.createdAt,
+        expiresAt: mockLedgerEntry.expiresAt
+          ? mockLedgerEntry.expiresAt.toISOString()
+          : null,
+      });
     });
   });
 

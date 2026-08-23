@@ -89,6 +89,7 @@ afterEach(async () => {
 ```
 
 **Rules:**
+
 - Each test cleans up its own data — don't rely on test execution order for state.
 - Prefer `beforeEach`/`afterEach` scoped deletes over a full DB wipe between every test
   (full wipes are slow and hide ordering bugs that scoped cleanup would catch).
@@ -121,13 +122,17 @@ describe('POST /v1/profiles', () => {
       userId: testUserId,
     });
 
-    const dbRecord = await prisma.userProfile.findUnique({ where: { userId: testUserId } });
+    const dbRecord = await prisma.userProfile.findUnique({
+      where: { userId: testUserId },
+    });
     expect(dbRecord).not.toBeNull();
   });
 
   it('should return 409 if profile already exists', async () => {
     // Arrange
-    await prisma.userProfile.create({ data: { userId: testUserId, firstName: 'A', lastName: 'B' } });
+    await prisma.userProfile.create({
+      data: { userId: testUserId, firstName: 'A', lastName: 'B' },
+    });
 
     // Act & Assert
     await request(app.getHttpServer())
@@ -141,7 +146,7 @@ describe('POST /v1/profiles', () => {
     await request(app.getHttpServer())
       .post('/v1/profiles')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ firstName: '' })   // fails class-validator rules
+      .send({ firstName: '' }) // fails class-validator rules
       .expect(400);
   });
 
@@ -188,6 +193,7 @@ E2E suite — never run E2E auth tests against the real production/staging Ident
 
 For role-based E2E cases (testing `@Roles('ADMIN')` enforcement), set custom claims on the
 emulated user before generating the token:
+
 ```typescript
 await admin.auth().setCustomUserClaims(uid, { roles: ['ADMIN'] });
 ```
@@ -196,7 +202,7 @@ await admin.auth().setCustomUserClaims(uid, { roles: ['ADMIN'] });
 
 ## 6. Testing Validation Enforcement End-to-End
 
-E2E is the right place to confirm the *global* `ValidationPipe` config actually rejects
+E2E is the right place to confirm the _global_ `ValidationPipe` config actually rejects
 unexpected fields (mass-assignment protection) — this can't be verified at the unit level
 since it's pipeline configuration, not business logic:
 
@@ -205,7 +211,7 @@ it('should reject unexpected fields (mass assignment protection)', async () => {
   await request(app.getHttpServer())
     .post('/v1/profiles')
     .set('Authorization', `Bearer ${authToken}`)
-    .send({ firstName: 'John', lastName: 'Doe', role: 'ADMIN' })  // role is not a DTO field
+    .send({ firstName: 'John', lastName: 'Doe', role: 'ADMIN' }) // role is not a DTO field
     .expect(400);
 });
 ```
@@ -222,7 +228,15 @@ catches accidental leakage of fields that should have been excluded (cross-refer
 expect(response.body).not.toHaveProperty('password');
 expect(response.body).not.toHaveProperty('firebaseUid');
 expect(Object.keys(response.body).sort()).toEqual(
-  ['id', 'userId', 'firstName', 'lastName', 'dateOfBirth', 'createdAt', 'updatedAt'].sort(),
+  [
+    'id',
+    'userId',
+    'firstName',
+    'lastName',
+    'dateOfBirth',
+    'createdAt',
+    'updatedAt',
+  ].sort(),
 );
 ```
 
@@ -244,6 +258,7 @@ expect(Object.keys(response.body).sort()).toEqual(
 ## 9. Required Structure Summary
 
 Every `*.e2e-spec.ts` file must have:
+
 - [ ] `beforeAll`: bootstrap app with the same global pipes/filters as `main.ts`
 - [ ] `afterAll`: `app.close()`
 - [ ] `beforeEach`/`afterEach`: scoped test data cleanup, not a full DB wipe

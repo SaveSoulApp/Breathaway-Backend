@@ -22,6 +22,7 @@ correlated, actionable logs and metrics that make production issues diagnosable 
 Logging and Cloud Monitoring alone — without needing to reproduce locally.
 
 Before writing or reviewing logging/monitoring code, load the relevant reference files:
+
 - `references/pino-logging.md` — This project's actual LoggerService/GCP config, log levels, structured fields, redaction, `serializeError`.
 - `references/tracing-correlation.md` — Request IDs, Cloud Trace correlation, propagation across async boundaries, `requestStart` in CLS.
 - `references/service-logging-patterns.md` — **The primary reference for writing logs inside service methods.** `ctx` pattern, `step` field, level decision table, full create-method template, log-and-rethrow for infrastructure calls, layer responsibility breakdown.
@@ -35,6 +36,7 @@ for a narrowly scoped task (e.g., "just fix the log levels in this service").
 ## Core Responsibilities
 
 ### 1. Structured Logging (Plain Pino, hand-wrapped — not nestjs-pino)
+
 - All logs are structured JSON (Pino's default), never `console.log` string concatenation —
   Cloud Logging parses structured JSON fields directly into queryable log attributes.
 - Severity must be mapped via an **explicit lookup table**, not `label.toUpperCase()` — Pino's
@@ -52,14 +54,15 @@ for a narrowly scoped task (e.g., "just fix the log levels in this service").
   (secrets, full tokens, full request bodies with PII).
 
 ### 2. Request Correlation & Tracing
+
 - Every request gets a correlation/request ID, propagated through to every log line emitted
   while handling that request — so a single Cloud Logging query by request ID reconstructs the
   full request lifecycle across services and async boundaries.
 - `requestStart` is stored in CLS by the `ClsModule` middleware setup
   (`cls.set('requestStart', Date.now())`) so the `GlobalExceptionFilter` can compute accurate
   `latencyMs` on error paths, independent of the interceptor.
-- Cloud Run automatically populates `X-Cloud-Trace-Context` *if Cloud Trace is enabled on the
-  project* (verify, don't assume); capture and attach to every structured log.
+- Cloud Run automatically populates `X-Cloud-Trace-Context` _if Cloud Trace is enabled on the
+  project_ (verify, don't assume); capture and attach to every structured log.
 - See `references/tracing-correlation.md` for the full CLS-based propagation setup.
 
 ### 3. Step-Level Milestone Logging in Services
@@ -97,12 +100,12 @@ The four rules — see `references/service-logging-patterns.md` for full templat
 
 ### 4. What Gets Logged, At What Level
 
-| Level | When |
-|---|---|
-| `log` / `info` | Method entry on write operations, each step success milestone, method exit confirming the business event completed |
-| `debug` | Method entry on read-only operations, guards-passed confirmations, which identity-resolution branch was taken, DB read results |
-| `warn` | Any expected business rule rejection immediately before throwing a domain exception — captures entity IDs and local state the global filter cannot see |
-| `error` | Infrastructure call failure (DB down, external service timeout) in a log-and-rethrow catch block |
+| Level          | When                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `log` / `info` | Method entry on write operations, each step success milestone, method exit confirming the business event completed                                     |
+| `debug`        | Method entry on read-only operations, guards-passed confirmations, which identity-resolution branch was taken, DB read results                         |
+| `warn`         | Any expected business rule rejection immediately before throwing a domain exception — captures entity IDs and local state the global filter cannot see |
+| `error`        | Infrastructure call failure (DB down, external service timeout) in a log-and-rethrow catch block                                                       |
 
 - **Read methods** (`findOne`, `findAll`): Entry and result at `debug` only. `warn` on not-found before throwing.
 - **Write methods** (`create`, `update`, `delete`): Entry at `log`, guards at `debug`, transaction commit at `log`, exit at `log`.
@@ -119,7 +122,7 @@ import { serializeError } from '@common/utils/error.utils';
 this.logger.error('Transaction failed', {
   ...ctx,
   step: 'persist_and_deduct',
-  err: serializeError(err),  // → { message, name, stack, code? }
+  err: serializeError(err), // → { message, name, stack, code? }
 });
 ```
 
@@ -129,10 +132,10 @@ Cloud Logging queries and alert conditions field-consistent.
 
 ### 6. Layer Responsibility — No Double-Logging
 
-| Layer | Owns | Does NOT log |
-|---|---|---|
-| **Service** | Domain context: entity IDs, step name, business rule failure reason | HTTP method/path/status |
-| **LoggingInterceptor** | Successful request completion: `statusCode`, `latencyMs` at `debug` | Error paths — filter owns those |
+| Layer                     | Owns                                                                          | Does NOT log                               |
+| ------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------ |
+| **Service**               | Domain context: entity IDs, step name, business rule failure reason           | HTTP method/path/status                    |
+| **LoggingInterceptor**    | Successful request completion: `statusCode`, `latencyMs` at `debug`           | Error paths — filter owns those            |
 | **GlobalExceptionFilter** | Error HTTP outcome: `statusCode`, `latencyMs`, `exceptionType`, error message | Entity IDs (not available at filter level) |
 
 The `LoggingInterceptor` must NOT have an `error` tap. Using `tap({next, error})` produces a log
@@ -155,12 +158,17 @@ to the same status.
   its presence/absence instead:
   ```typescript
   // ✅
-  this.logger.log('Label updated', { likeId, userId, labelCleared: dto.label === null });
+  this.logger.log('Label updated', {
+    likeId,
+    userId,
+    labelCleared: dto.label === null,
+  });
   // ❌ — "Sarah from the gym" is PII
   this.logger.log('Label updated', { likeId, userId, label: dto.label });
   ```
 
 ### 8. Error Tracking
+
 - Unhandled exceptions reaching the global exception filter are logged with full stack trace
   server-side, tagged with `requestId`, and with `serviceContext` making them eligible for
   Cloud Error Reporting aggregation — no separate Sentry/Error Reporting SDK required.
@@ -168,12 +176,14 @@ to the same status.
   specific exception classes, not just HTTP 5xx rate.
 
 ### 9. Metrics & Dashboards
+
 - Rely on Cloud Run's built-in request metrics as the baseline.
 - Add custom metrics only for business-specific signals: queue depth, domain counters, job
   processing time — via log-based metrics derived from structured log fields (preferred) or
   Cloud Monitoring custom metrics API.
 
 ### 10. Alerting & SLOs
+
 - Define alerting policies for: error rate, p95/p99 latency, `/ready` failures, Cloud Run
   instance count at max.
 - See `references/monitoring-alerting.md` for Terraform-defined alert policy definitions.
@@ -185,6 +195,7 @@ to the same status.
 When doing a full observability review of a module or PR, verify all of the following:
 
 **Service-Level Logging**
+
 - [ ] Every service method opens with `const ctx = { ...primaryIds }` and spreads it into every log call
 - [ ] Every log call carries `step: 'snake_case_name'` as a queryable structured field
 - [ ] Method entry logged at `log` (writes) or `debug` (reads)
@@ -198,27 +209,32 @@ When doing a full observability review of a module or PR, verify all of the foll
 - [ ] Read-only methods (`findOne`, `findAll`) have `debug` entry/exit only — no unnecessary `info` logs
 
 **PII & Content Safety**
+
 - [ ] No names, emails, phone numbers, or free-text user-provided strings in any log payload
 - [ ] Free-text fields logged as boolean flags (`hasLabel: boolean`) not their content
 - [ ] `publicValue` (decrypted) never logged; `publicValueHash`/`publicValueMasked` are safe
 
 **Infrastructure Logging**
+
 - [ ] `LoggingInterceptor` uses `tap(fn)` (success-only), NOT `tap({next, error})` — no error tap
 - [ ] `GlobalExceptionFilter` emits `exceptionType`, `statusCode`, `latencyMs` on every error log
 - [ ] `requestStart` is set in CLS by the `ClsModule` middleware setup (`cls.set('requestStart', Date.now())`)
 - [ ] No `console.log`/`console.error` — all logging through `LoggerService.forContext(...)`
 
 **Correlation**
+
 - [ ] `LoggerService.forContext()` auto-injects `requestId` (and `traceContext`) from CLS
 - [ ] `cls.isActive()` guarded before reading CLS values outside request context
 - [ ] Cloud Trace context captured and attached (`logging.googleapis.com/trace` field)
 
 **Error Handling**
+
 - [ ] Global exception filter logs full error detail server-side, returns sanitized response to client
 - [ ] `serviceContext` field not stripped from GCP logger config (breaks Cloud Error Reporting)
 - [ ] `exceptionType` field present on filter error logs (enables structured audit queries)
 
 **Monitoring**
+
 - [ ] `/health` has an uptime check independent of Cloud Run's container-level probing
 - [ ] Alerting policies exist for error rate, latency, and `/ready` failures
 - [ ] New async flows have corresponding log-based metrics if failure wouldn't surface in request metrics

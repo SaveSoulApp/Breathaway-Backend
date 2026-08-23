@@ -8,6 +8,7 @@ patterns in Prisma against PostgreSQL (Cloud SQL).
 ## 1. The N+1 Problem — Detection and Fixes
 
 ### What it looks like
+
 Any pattern where a list is fetched, then a related entity is fetched **per item** in a
 subsequent loop or `Promise.all`.
 
@@ -27,6 +28,7 @@ queries instead of running them sequentially, but it's still N+1 round trips to 
 instead of one. Flag this pattern exactly the same as a sequential loop.
 
 ### Fix: nested select/include in the original query
+
 ```typescript
 // ✅ Single query, relation joined at the DB level
 const orders = await prisma.order.findMany({
@@ -39,6 +41,7 @@ const orders = await prisma.order.findMany({
 ```
 
 ### Fix: batch with `findMany` + `where: { in: [...] }` when nested select isn't viable
+
 If the relation can't be expressed as a direct Prisma relation (e.g., a computed lookup, or
 data from a different bounded context per the `clean-architecture-expert` module boundaries),
 batch-fetch by collecting IDs first, then a single `in` query:
@@ -52,10 +55,14 @@ const users = await prisma.user.findMany({
   select: { id: true, name: true, email: true },
 });
 const usersById = new Map(users.map((u) => [u.id, u]));
-const ordersWithUsers = orders.map((o) => ({ ...o, user: usersById.get(o.userId) }));
+const ordersWithUsers = orders.map((o) => ({
+  ...o,
+  user: usersById.get(o.userId),
+}));
 ```
 
 ### Where N+1 commonly hides
+
 - GraphQL resolvers resolving a relation field per parent (use DataLoader-style batching, or
   Prisma's nested select if the whole query can be planned upfront).
 - Event listeners that re-fetch the triggering entity's relations one at a time when handling
@@ -69,16 +76,16 @@ const ordersWithUsers = orders.map((o) => ({ ...o, user: usersById.get(o.userId)
 
 ### `select` vs `include` — pick deliberately, not by habit
 
-| | Fetches | Use when |
-|---|---|---|
-| `select` | Only the listed fields/relations | You know exactly which fields are needed (almost always — default to this) |
-| `include` | All scalar fields + the specified relations | The full related row is genuinely needed downstream |
-| Bare `findMany()` / `findUnique()` | All scalar fields, no relations | Rarely correct — usually should be `select` |
+|                                    | Fetches                                     | Use when                                                                   |
+| ---------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------- |
+| `select`                           | Only the listed fields/relations            | You know exactly which fields are needed (almost always — default to this) |
+| `include`                          | All scalar fields + the specified relations | The full related row is genuinely needed downstream                        |
+| Bare `findMany()` / `findUnique()` | All scalar fields, no relations             | Rarely correct — usually should be `select`                                |
 
 ```typescript
 // ❌ Fetches every column, including ones never used in the response
 const user = await prisma.user.findUnique({ where: { id } });
-return { id: user.id, email: user.email };  // fetched 10 columns, used 2
+return { id: user.id, email: user.email }; // fetched 10 columns, used 2
 
 // ✅ Fetch exactly what's used
 const user = await prisma.user.findUnique({
@@ -88,6 +95,7 @@ const user = await prisma.user.findUnique({
 ```
 
 ### Never select sensitive fields unless explicitly needed
+
 ```typescript
 // ❌ passwordHash fetched even though it's never used in this code path
 const user = await prisma.user.findUnique({
@@ -101,10 +109,12 @@ const user = await prisma.user.findUnique({
   select: { id: true, email: true },
 });
 ```
+
 This is both a performance and a security discipline — narrow `select` reduces the blast
 radius of any future bug that accidentally serializes the fetched object into a response.
 
 ### Nested select for relations
+
 ```typescript
 const profile = await prisma.userProfile.findUnique({
   where: { userId },
@@ -112,7 +122,7 @@ const profile = await prisma.userProfile.findUnique({
     firstName: true,
     lastName: true,
     user: {
-      select: { email: true },  // only email from the related user, not the whole row
+      select: { email: true }, // only email from the related user, not the whole row
     },
   },
 });
@@ -123,6 +133,7 @@ const profile = await prisma.userProfile.findUnique({
 ## 3. Pagination
 
 ### Offset-based (`take`/`skip`) — simple, fine for small/admin-facing lists
+
 ```typescript
 async findAll(query: UserQueryDto) {
   const { page = 1, limit = 20 } = query;
@@ -138,6 +149,7 @@ async findAll(query: UserQueryDto) {
   return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 ```
+
 Wrapping the data query and the count in `$transaction` (as a batch, not interactive) ensures
 both reflect the same consistent snapshot and executes as a single round trip pair.
 
@@ -147,6 +159,7 @@ past roughly 10,000–50,000 rows per typical query scope, or on any infinite-sc
 user-facing feed.
 
 ### Cursor-based — required for large or fast-growing datasets
+
 ```typescript
 async findAllCursor(cursor?: string, limit = 20) {
   const items = await prisma.order.findMany({
@@ -163,12 +176,15 @@ async findAllCursor(cursor?: string, limit = 20) {
   return { data, nextCursor, hasNextPage };
 }
 ```
+
 Cursor pagination requires a stable, unique, indexed sort column (`id` with `@default(uuid())`
 works, but verify ordering by UUID is acceptable — if insertion order matters, use a
 monotonically increasing column like `createdAt` combined with `id` as a tiebreaker).
 
 ### Always require a `limit` ceiling
+
 Never let a client request an unbounded `limit`. Validate it server-side:
+
 ```typescript
 @IsOptional()
 @Type(() => Number)
@@ -182,10 +198,12 @@ limit?: number = 20;
 ## 4. Transactions
 
 ### When required
+
 Any operation where multiple writes must succeed or fail together to preserve a business
 invariant — not just "writes that happen to be related."
 
 ### Interactive transactions (preferred for conditional/sequential logic)
+
 ```typescript
 await prisma.$transaction(async (tx) => {
   const order = await tx.order.create({ data: orderData });
@@ -194,13 +212,16 @@ await prisma.$transaction(async (tx) => {
     data: { stock: { decrement: orderData.quantity } },
   });
   if (order.total > 1000) {
-    await tx.auditLog.create({ data: { event: 'large_order', orderId: order.id } });
+    await tx.auditLog.create({
+      data: { event: 'large_order', orderId: order.id },
+    });
   }
   return order;
 });
 ```
 
 ### Batch transactions (for independent operations executed together)
+
 ```typescript
 // All-or-nothing, but no inter-dependency or conditional logic between them
 const [users, total] = await prisma.$transaction([
@@ -208,10 +229,12 @@ const [users, total] = await prisma.$transaction([
   prisma.user.count(),
 ]);
 ```
+
 Use the array form only when operations don't depend on each other's results — use the
 callback form whenever one write's outcome determines the next.
 
 ### Transaction timeout
+
 Default Prisma transaction timeout is 5 seconds. For transactions involving external calls
 (never put an external HTTP call inside a DB transaction) or unusually large batch writes,
 this is a signal to break the operation up, not to just raise the timeout — long-held
@@ -245,5 +268,6 @@ try {
 - For a suspected slow query, run `EXPLAIN ANALYZE` via `prisma.$queryRaw` during
   investigation to confirm whether an index is being used or a sequential scan is occurring:
   ```typescript
-  const plan = await prisma.$queryRaw`EXPLAIN ANALYZE SELECT * FROM "User" WHERE email = ${email}`;
+  const plan =
+    await prisma.$queryRaw`EXPLAIN ANALYZE SELECT * FROM "User" WHERE email = ${email}`;
   ```

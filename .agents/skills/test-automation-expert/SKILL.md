@@ -19,6 +19,7 @@ Jest and Supertest, following this project's established conventions exactly —
 NestJS testing boilerplate.
 
 Before writing tests, load the relevant reference files:
+
 - `references/mocking-strategy.md` — How to mock `PrismaService`, `LoggerService`, `ClsService`,
   `EventEmitter2`, and other project-standard injected dependencies.
 - `references/e2e-testing.md` — Structuring Supertest E2E specs against the full HTTP lifecycle.
@@ -34,6 +35,7 @@ These conventions were extracted from this codebase's existing specs. Every new 
 follow them, not generic Jest/NestJS patterns found elsewhere.
 
 ### 1. Standard Provider Mock Set
+
 Almost every service and controller test module needs this baseline set of mocked providers,
 even if the unit under test doesn't obviously touch all of them — they're part of the DI graph
 via shared modules/interceptors:
@@ -45,10 +47,11 @@ providers: [
   { provide: PrismaService, useValue: createPrismaMock() },
   { provide: LoggerService, useValue: loggerServiceMock },
   YourServiceUnderTest,
-]
+];
 ```
 
 ### 2. LoggerService Mock Pattern
+
 `LoggerService` is never injected as a flat logger — it's always accessed via `.forContext(name)`,
 which returns the actual logger interface. Mock it accordingly:
 
@@ -63,9 +66,11 @@ const loggerServiceMock = {
   }),
 } as unknown as jest.Mocked<LoggerService>;
 ```
+
 Assert against it via the same chain: `loggerServiceMock.forContext('ServiceName').error`.
 
 ### 3. PrismaService Mock — always the shared factory
+
 Never hand-roll a Prisma mock with `jest-mock-extended` inline in a spec file. Always import
 the shared factory:
 
@@ -79,29 +84,33 @@ let prisma: MockPrismaService;
 // ...
 prisma = module.get(PrismaService);
 ```
+
 This keeps Prisma client typing consistent across the whole test suite and avoids each spec
 file reinventing the mock shape. See `references/mocking-strategy.md` for the factory's
 internals and how to extend it for a new model.
 
 ### 4. DateUtil, not raw Date
+
 Never use `new Date()` or `Date.now()` directly in tests or assertions. Use the project's
 `DateUtil` wrapper (`DateUtil.parse(...)`, `DateUtil.now()`) so test dates stay consistent with
 what the application code actually produces, and timezone handling stays centralized.
 
 ### 5. AAA Structure with Comments
+
 Every test body is structured with explicit `// Arrange`, `// Act`, `// Assert` comments —
 not implicit grouping. Keep this even in short tests.
 
 ### 6. Exception-Specific Assertions Tied to Business Conditions
+
 Don't just assert "it throws" — assert the specific exception class tied to the specific
 business rule, matching this project's existing exception vocabulary:
 
-| Condition | Exception |
-|---|---|
-| Resource already exists (e.g., profile already created for user) | `ConflictException` |
-| Resource not found (e.g., profile/user lookup by id) | `NotFoundException` |
-| Authenticated but lacking permission | `ForbiddenException` |
-| Missing/invalid token | `UnauthorizedException` |
+| Condition                                                        | Exception               |
+| ---------------------------------------------------------------- | ----------------------- |
+| Resource already exists (e.g., profile already created for user) | `ConflictException`     |
+| Resource not found (e.g., profile/user lookup by id)             | `NotFoundException`     |
+| Authenticated but lacking permission                             | `ForbiddenException`    |
+| Missing/invalid token                                            | `UnauthorizedException` |
 
 ```typescript
 await expect(service.createProfile(userId, createDto)).rejects.toThrow(
@@ -110,6 +119,7 @@ await expect(service.createProfile(userId, createDto)).rejects.toThrow(
 ```
 
 ### 7. "Log and Rethrow" Is Its Own Required Test Case
+
 For every mutating service method (`create`, `update`, `patch`, `delete`), include a dedicated
 test case that simulates a database error and asserts both that the error propagates **and**
 that it was logged:
@@ -120,13 +130,19 @@ it('should log and rethrow an error if create fails', async () => {
   prisma.userProfile.findUnique.mockResolvedValue(null);
   prisma.userProfile.create.mockRejectedValue(dbError);
 
-  await expect(service.createProfile(userId, createDto)).rejects.toThrow(dbError);
-  expect(loggerServiceMock.forContext('ProfilesService').error).toHaveBeenCalled();
+  await expect(service.createProfile(userId, createDto)).rejects.toThrow(
+    dbError,
+  );
+  expect(
+    loggerServiceMock.forContext('ProfilesService').error,
+  ).toHaveBeenCalled();
 });
 ```
+
 This is a required case, not an optional edge case — flag its absence in any review.
 
 ### 8. Soft Delete via Transaction — Test the Full Cascade
+
 Deletes in this project are soft deletes performed inside `prisma.$transaction`, touching
 multiple related tables in one callback. Tests must mock the transaction callback and assert
 **every** table mutation inside it, not just the top-level call:
@@ -139,7 +155,9 @@ const mockTx = {
   device: { updateMany: jest.fn() },
 };
 
-prisma.$transaction.mockImplementation(async (callback) => callback(mockTx as any));
+prisma.$transaction.mockImplementation(async (callback) =>
+  callback(mockTx as any),
+);
 
 await service.deleteProfile(userId);
 
@@ -152,12 +170,14 @@ expect(mockTx.device.updateMany).toHaveBeenCalledWith({
   data: { isActive: false },
 });
 ```
+
 When reviewing or writing a delete-path test, check the actual service implementation for
 every table touched inside the transaction and assert each one individually — a passing test
 that only checks `prisma.$transaction).toHaveBeenCalled()` without asserting the inner table
 calls is incomplete and must be flagged.
 
 ### 9. Existence-Check Methods Use `select`
+
 Boolean existence-check methods (e.g., `profileExists`) query with a minimal `select` to avoid
 fetching the full row. Assert the `select` shape, not just that `findUnique` was called:
 
@@ -169,6 +189,7 @@ expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
 ```
 
 ### 10. Controller Tests Mock the Service, Not Prisma
+
 Controller specs (`*.controller.spec.ts`) mock the service layer entirely — they never reach
 down to `PrismaService`. The controller test's job is to verify the controller calls the right
 service method with the right arguments and returns its result, nothing more:
@@ -180,6 +201,7 @@ const mockService = {
   // ...one jest.fn() per public method
 };
 ```
+
 Do not duplicate business-logic edge cases (conflict, not-found, transaction cascades) in the
 controller spec — those belong exclusively in the service spec.
 

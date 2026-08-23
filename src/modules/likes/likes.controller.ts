@@ -31,6 +31,7 @@ import {
   LikeResponseDto,
   PaginatedLikeResponseDto,
   UpdateLikeLabelRequestDto,
+  CanCreateLikeResponseDto,
 } from './dto';
 import { LikesService } from './likes.service';
 
@@ -58,6 +59,36 @@ export class LikesController extends BaseController {
   }
 
   /**
+   * Checks if a like can be successfully created.
+   *
+   * Evaluates if the target identity is valid and if the user is not trying to
+   * duplicate an existing like or like a user they are already matched with.
+   *
+   * @param dto - Target identity reference.
+   * @returns An object indicating if creation is possible.
+   * @throws {ConflictException} If a like or active match already exists.
+   */
+  @Post('can-create')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check if a like can be created' })
+  @ApiResponse({ status: HttpStatus.OK, type: CanCreateLikeResponseDto })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'A like or active match already exists for this identity',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot like yourself or invalid identity data',
+  })
+  @SerializeExpose(CanCreateLikeResponseDto)
+  async canCreate(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreateLikeRequestDto,
+  ) {
+    return this.likesService.canCreate(userId, dto);
+  }
+
+  /**
    * Records the authenticated user's like for a target identity.
    *
    * If the caller provides a raw `targetIdentity` instead of a `targetIdentityId`,
@@ -75,6 +106,10 @@ export class LikesController extends BaseController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a like' })
   @ApiResponse({ status: HttpStatus.CREATED, type: LikeResponseDto })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Already liked or active match exists for this identity',
+  })
   @SerializeExpose(LikeResponseDto)
   @UseGuards(RequireTimezoneGuard)
   async create(

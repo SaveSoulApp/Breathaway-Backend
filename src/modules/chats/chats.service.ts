@@ -1,11 +1,13 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OnEvent } from '@nestjs/event-emitter';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
 import { MessageNotFoundException } from './application/exceptions';
 import {
@@ -119,11 +121,8 @@ export class ChatsService extends BaseService {
           step: 'fetch_profiles',
           err: serializeError(err),
         });
-        // We can choose to fail the request or just return null for otherUser.
-        // Returning 500 is safer to prevent UI crashes if frontend strictly expects names.
-        throw new InternalServerErrorException(
-          'Failed to fetch chat room details',
-        );
+        // Log the error but proceed with an empty profiles array.
+        // This returns partial data (rooms without otherUser profiles) instead of a hard failure.
       }
     }
 
@@ -387,5 +386,40 @@ export class ChatsService extends BaseService {
       step: 'simulate_push',
     });
     return Promise.resolve();
+  }
+
+  /**
+   * Event handler for when a user account is deleted.
+   * Cleans up Supabase chat history (rooms and their messages via cascade)
+   * where the user was a participant.
+   */
+  @OnEvent(USER_DELETED_EVENT)
+  async handleUserDeletedEvent(payload: UserDeletedEvent) {
+    const { userId } = payload;
+    try {
+      const response = await this.supabase
+        .from('ChatRoom')
+        .delete()
+        .or(`userOneId.eq.${userId},userTwoId.eq.${userId}`);
+
+      if (response.error) {
+        this.logger.error('Failed to delete chat rooms for deleted user', {
+          userId,
+          step: 'delete_user_chats',
+          err: serializeError(response.error),
+        });
+      } else {
+        this.logger.log('Successfully deleted chat rooms for user', {
+          userId,
+          step: 'delete_user_chats',
+        });
+      }
+    } catch (err) {
+      this.logger.error('Exception while deleting chat rooms for user', {
+        userId,
+        step: 'delete_user_chats',
+        err: serializeError(err),
+      });
+    }
   }
 }

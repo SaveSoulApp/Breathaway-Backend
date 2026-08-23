@@ -6,9 +6,7 @@
   "transform": {
     "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
   },
-  "transformIgnorePatterns": [
-    "node_modules/(?!(.pnpm/nanoid|nanoid))"
-  ],
+  "transformIgnorePatterns": ["node_modules/(?!(.pnpm/nanoid|nanoid))"],
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/src/$1",
     "^@common/(.*)$": "<rootDir>/src/common/$1",

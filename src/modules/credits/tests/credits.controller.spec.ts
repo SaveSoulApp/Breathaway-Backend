@@ -42,6 +42,7 @@ describe('CreditsController', () => {
   beforeEach(async () => {
     const mockService = {
       getBalance: jest.fn(),
+      getExpiringCredits: jest.fn(),
       getLedger: jest.fn(),
       getLedgerEntry: jest.fn(),
       consumeCredits: jest.fn(),
@@ -86,6 +87,27 @@ describe('CreditsController', () => {
       // Assert
       expect(service.getBalance).toHaveBeenCalledWith(userId);
       expect(result).toEqual({ balance: 100 });
+    });
+  });
+
+  describe('getExpiringCredits', () => {
+    it('should return expiring credits breakdown', async () => {
+      // Arrange
+      const mockExpiring = [
+        {
+          creditId: 'c1',
+          remainingBalance: 10,
+          expiresAt: new Date('2026-10-30T18:29:59.999Z'),
+        },
+      ];
+      service.getExpiringCredits.mockResolvedValue(mockExpiring);
+
+      // Act
+      const result = await controller.getExpiringCredits(userId);
+
+      // Assert
+      expect(service.getExpiringCredits).toHaveBeenCalledWith(userId);
+      expect(result).toEqual({ data: mockExpiring });
     });
   });
 

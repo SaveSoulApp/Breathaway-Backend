@@ -60,7 +60,7 @@ describe('AdminController', () => {
   });
 
   describe('grantCredits', () => {
-    it('should call creditsService.grantCredits with dto, no tx, and timezone from req', async () => {
+    it('should call creditsService.grantCredits with dto, undefined, no tx, and timezone from req', async () => {
       // Arrange
       const mockLedgerEntry = { id: 'entry-1', amount: 100 } as any;
       creditsService.grantCredits.mockResolvedValue(mockLedgerEntry);
@@ -72,17 +72,11 @@ describe('AdminController', () => {
       };
 
       // The controller reads timezone from req (attached by TimezoneMiddleware).
-      const mockReq = { timezone: 'Asia/Kolkata' } as any;
 
       // Act
-      const result = await controller.grantCredits(mockReq, dto);
+      const result = await controller.grantCredits(dto);
 
-      // Assert — controller passes (dto, undefined, timezone); no tx is used here.
-      expect(creditsService.grantCredits).toHaveBeenCalledWith(
-        dto,
-        undefined,
-        'Asia/Kolkata',
-      );
+      expect(creditsService.grantCredits).toHaveBeenCalledWith(dto, undefined);
       expect(result).toEqual(mockLedgerEntry);
     });
   });

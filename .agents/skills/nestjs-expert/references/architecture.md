@@ -111,13 +111,18 @@ export class UsersController {
 ## Service Patterns
 
 Services own business logic and all Prisma calls. They must:
+
 - Return typed response DTOs, never raw Prisma models
 - Use a private `mapToResponse()` method for entity → DTO mapping
 - Throw NestJS HTTP exceptions (not custom error classes) so the global filter catches them
 
 ```typescript
 // src/modules/users/users.service.ts
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 
@@ -151,7 +156,10 @@ export class UsersService {
     return this.mapToResponse(user);
   }
 
-  async update(id: string, dto: UpdateUserRequestDto): Promise<UserResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateUserRequestDto,
+  ): Promise<UserResponseDto> {
     await this.findOneOrFail(id); // validate existence first
     const user = await this.prisma.user.update({
       where: { id },
@@ -240,7 +248,10 @@ describe('UsersService', () => {
 
   describe('create', () => {
     it('throws ConflictException if email already exists', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', email: 'a@b.com' });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: '1',
+        email: 'a@b.com',
+      });
       await expect(
         service.create({ email: 'a@b.com', password: 'secret123' }),
       ).rejects.toThrow(ConflictException);
@@ -249,7 +260,10 @@ describe('UsersService', () => {
     it('returns a UserResponseDto on success', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: '2', email: 'new@b.com' });
-      const result = await service.create({ email: 'new@b.com', password: 'secret123' });
+      const result = await service.create({
+        email: 'new@b.com',
+        password: 'secret123',
+      });
       expect(result).toEqual({ id: '2', email: 'new@b.com' });
     });
   });
@@ -257,7 +271,9 @@ describe('UsersService', () => {
   describe('findOneOrFail', () => {
     it('throws NotFoundException if user does not exist', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.findOneOrFail('missing-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOneOrFail('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

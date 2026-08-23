@@ -12,6 +12,7 @@ import {
   ProfileAlreadyExistsException,
   ProfileNotFoundException,
 } from './application/exceptions';
+import { USER_DELETED_EVENT, UserDeletedEvent } from './events';
 import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
@@ -406,6 +407,8 @@ export class ProfilesService extends BaseService {
         actionType: AuditActionType.ACCOUNT_DELETED,
         userId: userId,
       });
+
+      this.eventEmitter.emit(USER_DELETED_EVENT, new UserDeletedEvent(userId));
 
       this.logger.log('Account soft-deleted successfully', {
         ...ctx,

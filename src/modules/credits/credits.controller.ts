@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiExtraModels,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -26,6 +27,8 @@ import {
   CreditLedgerQueryRequestDto,
   CreditLedgerResponseDto,
   PaginatedCreditLedgerResponseDto,
+  ExpiringCreditsResponseDto,
+  ExpiringCreditItemDto,
 } from './dto';
 
 /**
@@ -39,6 +42,7 @@ import {
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @ApiStandardErrors()
+@ApiExtraModels(ExpiringCreditItemDto)
 @Controller({
   path: 'credits',
   version: ['1'],
@@ -64,6 +68,23 @@ export class CreditsController extends BaseController {
   ): Promise<CreditBalanceResponseDto> {
     const balance = await this.creditsService.getBalance(userId);
     return { balance };
+  }
+
+  /**
+   * Returns a list of active credit bundles for the caller, including the
+   * unconsumed remaining balance and expiry date for each bundle.
+   *
+   * @returns An array of active credit bundles and their remaining balances.
+   */
+  @Get('expiring')
+  @ApiOperation({ summary: 'Get expiring credits breakdown' })
+  @ApiResponse({ status: HttpStatus.OK, type: ExpiringCreditsResponseDto })
+  async getExpiringCredits(
+    @CurrentUserId() userId: string,
+  ): Promise<ExpiringCreditsResponseDto> {
+    const expiringCredits =
+      await this.creditsService.getExpiringCredits(userId);
+    return { data: expiringCredits };
   }
 
   /**

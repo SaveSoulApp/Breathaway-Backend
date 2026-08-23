@@ -19,14 +19,15 @@ The `IdentitiesModule` handles the storage, lookups, and cryptographic protectio
 ## ⚙️ Managed Enums
 
 ### IdentityType
+
 Defines the channel categories for a user identity link:
 
-* **`PHONE`**: User mobile phone number. Requires OTP validation.
-* **`EMAIL`**: User email address.
-* **`INSTAGRAM`**: Instagram social identifier.
-* **`LINKEDIN`**: LinkedIn profile link identifier.
-* **`TWITTER`**: Twitter profile handle link identifier.
-* **`OTHER`**: Generic fallback category for custom integrations.
+- **`PHONE`**: User mobile phone number. Requires OTP validation.
+- **`EMAIL`**: User email address.
+- **`INSTAGRAM`**: Instagram social identifier.
+- **`LINKEDIN`**: LinkedIn profile link identifier.
+- **`TWITTER`**: Twitter profile handle link identifier.
+- **`OTHER`**: Generic fallback category for custom integrations.
 
 ---
 
@@ -65,10 +66,13 @@ Identity
 ## 🧠 Business Logic & Core Concepts
 
 ### 1. Atomic Identity Claiming
+
 During OAuth or OTP flows, if an identity exists and is unowned (`userId = null`), `claimOrCreateIdentity` updates it to belong to the authenticated user rather than creating a duplicate row. This seamlessly resolves pre-existing "Ghost Identities" created by the Likes system.
 
 ### 2. Soft Deletion Hash Mangling
+
 If the service discovers a duplicate, unverified identity during an update operation, it soft-deletes the duplicate but also mangles its hash (e.g., appending `-del-ID` to the `publicValueHash`). This guarantees that the soft-deleted row won't cause unique constraint collisions if the same value is inserted or queried in the future.
 
 ### 3. Asynchronous Match Triggers
+
 After successfully claiming an identity, the service does not resolve matches synchronously. Instead, it acts as a fire-and-forget publisher, emitting `IDENTITY_CLAIMED` to Pub/Sub. This prevents heavy match-resolution logic from delaying the user's HTTP response.

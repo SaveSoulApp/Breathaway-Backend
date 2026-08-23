@@ -35,6 +35,7 @@ describe('ProfilesService', () => {
 ```
 
 ### Factory internals (for reference / extension)
+
 The factory wraps `jest-mock-extended`'s `mockDeep<PrismaClient>()` so every model
 (`prisma.userProfile`, `prisma.user`, `prisma.identity`, etc.) and method
 (`findUnique`, `findMany`, `create`, `update`, `updateMany`, `delete`, `$transaction`)
@@ -58,6 +59,7 @@ an optional configuration parameter to `createPrismaMock()` rather than overridi
 in individual spec files — keeps mock behaviour discoverable in one place.
 
 ### Mocking `$transaction`
+
 `$transaction` is mocked by capturing and immediately invoking the callback with a `tx` mock
 object exposing only the models actually touched inside that transaction:
 
@@ -73,6 +75,7 @@ prisma.$transaction.mockImplementation(async (callback) => {
   return callback(mockTx as any);
 });
 ```
+
 Build `mockTx` to match exactly what the service implementation uses inside the transaction —
 don't include unused models, and don't omit any that are actually called (a missing one means
 that mutation goes silently unverified).
@@ -99,6 +102,7 @@ const loggerServiceMock = {
 
 For controller specs where logging isn't the focus of any assertion, a lighter version is
 acceptable:
+
 ```typescript
 const loggerServiceMock = {
   forContext: jest.fn().mockReturnValue({ log: jest.fn() }),
@@ -107,8 +111,11 @@ const loggerServiceMock = {
 
 **Asserting log calls** — always assert through the same chain, matching the exact context
 name the service uses:
+
 ```typescript
-expect(loggerServiceMock.forContext('ProfilesService').error).toHaveBeenCalled();
+expect(
+  loggerServiceMock.forContext('ProfilesService').error,
+).toHaveBeenCalled();
 ```
 
 > ⚠️ Common mistake: calling `loggerServiceMock.forContext('ProfilesService')` a second time
@@ -134,6 +141,7 @@ interceptor/module. Mock minimally unless the test specifically exercises CLS-st
 
 If a test needs a specific CLS value (e.g., a correlation ID used in logging), configure the
 mock's return value explicitly in that test:
+
 ```typescript
 clsServiceMock.get.mockReturnValue('correlation-id-123');
 ```
@@ -143,12 +151,14 @@ clsServiceMock.get.mockReturnValue('correlation-id-123');
 ## 4. EventEmitter2
 
 Mock with a bare `emit` spy unless the test asserts event payloads:
+
 ```typescript
 { provide: EventEmitter2, useValue: { emit: jest.fn() } }
 ```
 
 When a service is expected to emit a domain event (e.g., after a successful create), assert
 both the event name and payload shape:
+
 ```typescript
 expect(eventEmitter.emit).toHaveBeenCalledWith(
   'profile.created',
@@ -176,6 +186,7 @@ const mockUserProfile: UserProfile = {
 When asserting a value the service sets dynamically (e.g., `deletedAt` on soft delete), use
 `expect.any(Date)` rather than a fixed `DateUtil.now()` call, since the exact timestamp won't
 match between test setup and execution:
+
 ```typescript
 expect(mockTx.user.update).toHaveBeenCalledWith({
   where: { id: userId },
@@ -213,6 +224,7 @@ const module: TestingModule = await Test.createTestingModule({
 ```
 
 A controller test asserts two things only, per method:
+
 1. The service method was called with the correct arguments (mapped correctly from the
    request — path param, body, decorator-extracted user ID, etc.)
 2. The controller returns the service's result unmodified (unless the controller is
@@ -220,7 +232,10 @@ A controller test asserts two things only, per method:
 
 ```typescript
 it('should successfully create and return a profile', async () => {
-  const createDto: CreateProfileRequestDto = { firstName: 'John', lastName: 'Doe' };
+  const createDto: CreateProfileRequestDto = {
+    firstName: 'John',
+    lastName: 'Doe',
+  };
   service.createProfile.mockResolvedValue(mockUserProfile);
 
   const result = await controller.createProfile(userId, createDto);
@@ -252,11 +267,13 @@ real-network calls that a method-level mock would silently hide.
 ## 8. Required Cleanup
 
 Every spec file must include:
+
 ```typescript
 afterEach(() => {
   jest.clearAllMocks();
 });
 ```
+
 This is mandatory, not optional — omitting it allows mock call history to leak between tests
 within the same `describe` block, producing false positives on `toHaveBeenCalledWith`
 assertions in later tests.

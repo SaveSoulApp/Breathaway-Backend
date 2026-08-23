@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AlreadyLikedException,
+  AlreadyMatchedException,
   IdentityNotFoundException,
   InsufficientCreditsException,
   InvalidLikeStateException,
@@ -16,6 +17,7 @@ import {
   IntentType,
   Like,
   LikeStatus,
+  MatchStatus,
 } from '@prisma/client';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -40,7 +42,7 @@ describe('LikesService', () => {
   let configServiceMock: jest.Mocked<ConfigService>;
   let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
   let identitiesServiceMock: jest.Mocked<
-    Pick<IdentitiesService, 'getDecryptedPublicValue'>
+    Pick<IdentitiesService, 'getDecryptedPublicValue' | 'getSenderCountryCode'>
   >;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
@@ -117,6 +119,7 @@ describe('LikesService', () => {
       getDecryptedPublicValue: jest
         .fn()
         .mockResolvedValue(decryptedPublicValue),
+      getSenderCountryCode: jest.fn().mockResolvedValue(null),
     };
 
     matchResolverServiceMock = {
@@ -313,6 +316,20 @@ describe('LikesService', () => {
       );
     });
 
+    it('should throw AlreadyMatchedException if active match exists', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+
+      const existingMatch = { id: 'match-123', status: MatchStatus.ACTIVE };
+      prisma.match.findUnique.mockResolvedValue(existingMatch as any);
+
+      // Act & Assert
+      await expect(service.create(userId, dtoWithId)).rejects.toThrow(
+        new AlreadyMatchedException(),
+      );
+    });
+
     it('should create like and trigger match resolver asynchronously', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
@@ -359,6 +376,95 @@ describe('LikesService', () => {
       expect(
         loggerServiceMock.forContext('LikesService').error,
       ).toHaveBeenCalled();
+    });
+
+    describe('phone country-code enrichment', () => {
+      const phoneDto: CreateLikeRequestDto = {
+        intent: IntentType.RELATIONSHIP,
+        targetIdentity: { type: IdentityType.PHONE, publicValue: '9876541491' },
+      };
+
+      const processValueData = {
+        publicValueHash: 'enriched-hash',
+        publicValueCiphertext: 'enc',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'wk',
+        publicValueKeyId: 'key',
+        publicValueMasked: '+91••••1491',
+      };
+
+      beforeEach(() => {
+        prisma.identity.create.mockResolvedValue(mockTargetIdentity);
+        prisma.identity.findUnique
+          .mockResolvedValueOnce(null) // hash lookup misses → new identity
+          .mockResolvedValueOnce(mockTargetIdentity); // ID lookup for validation
+        prisma.like.findFirst.mockResolvedValue(null);
+        prisma.like.create.mockResolvedValue(mockLikeData);
+        identityCryptoServiceMock.processPublicValue.mockResolvedValue(
+          processValueData as unknown as Awaited<
+            ReturnType<IdentityCryptoService['processPublicValue']>
+          >,
+        );
+      });
+
+      it('should prepend sender country code when phone has no country code and sender has verified PHONE', async () => {
+        // Arrange — sender's country code is +91
+        (
+          identitiesServiceMock.getSenderCountryCode as jest.Mock
+        ).mockResolvedValue('+91');
+
+        // Act
+        await service.create(userId, phoneDto);
+
+        // Assert — processPublicValue receives the E.164-enriched number
+        expect(identitiesServiceMock.getSenderCountryCode).toHaveBeenCalledWith(
+          userId,
+        );
+        expect(
+          identityCryptoServiceMock.processPublicValue,
+        ).toHaveBeenCalledWith('+919876541491', IdentityType.PHONE);
+      });
+
+      it('should pass phone through unchanged when sender has no verified PHONE identity', async () => {
+        // Arrange — default mock returns null (no verified phone identity)
+        (
+          identitiesServiceMock.getSenderCountryCode as jest.Mock
+        ).mockResolvedValue(null);
+
+        // Act
+        await service.create(userId, phoneDto);
+
+        // Assert — raw value passed through, getSenderCountryCode was still called
+        expect(identitiesServiceMock.getSenderCountryCode).toHaveBeenCalledWith(
+          userId,
+        );
+        expect(
+          identityCryptoServiceMock.processPublicValue,
+        ).toHaveBeenCalledWith('9876541491', IdentityType.PHONE);
+      });
+
+      it('should skip getSenderCountryCode entirely when phone is already E.164', async () => {
+        // Arrange
+        const e164Dto: CreateLikeRequestDto = {
+          intent: IntentType.RELATIONSHIP,
+          targetIdentity: {
+            type: IdentityType.PHONE,
+            publicValue: '+919876541491',
+          },
+        };
+
+        // Act
+        await service.create(userId, e164Dto);
+
+        // Assert — E.164 fast-path: no DB call for country code
+        expect(
+          identitiesServiceMock.getSenderCountryCode,
+        ).not.toHaveBeenCalled();
+        expect(
+          identityCryptoServiceMock.processPublicValue,
+        ).toHaveBeenCalledWith('+919876541491', IdentityType.PHONE);
+      });
     });
   });
 
