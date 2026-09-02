@@ -30,6 +30,7 @@ enum LikeStatus {
   PENDING
   MATCHED
   VOIDED
+  WITHDRAWN
   DELETED
 }
 
@@ -452,4 +453,47 @@ model SubscriptionEvent {
   @@index([subscriptionId])
   @@index([eventType])
   @@index([storeEventId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Chat (Supabase Realtime)
+//
+// Prisma owns all DDL for these tables. Supabase-specific concerns
+// (supabase_realtime publication membership and client RLS policies)
+// are applied separately via supabase/migrations/ and must never
+// appear here.
+//
+// Deployment order: prisma migrate deploy → supabase db push
+// ──────────────────────────────────────────────────────────────────
+
+model ChatRoom {
+  id        String    @id @default(uuid()) @db.Uuid
+
+  /// Canonical ordering: userOneId < userTwoId (sorted deterministically at write time).
+  userOneId String
+  userTwoId String
+
+  messages  Message[]
+
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @default(now()) @db.Timestamptz
+
+  @@unique([userOneId, userTwoId])
+  @@index([userOneId])
+  @@index([userTwoId])
+}
+
+model Message {
+  id        String    @id @default(uuid()) @db.Uuid
+
+  roomId    String    @db.Uuid
+  room      ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  /// Stores the sender's ULID from the primary database as plain text.
+  /// No FK — cross-database reference enforced at the application layer.
+  senderId  String
+  content   String
+
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  readAt    DateTime? @db.Timestamptz
 }
