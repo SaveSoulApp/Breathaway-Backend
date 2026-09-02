@@ -123,7 +123,12 @@ export class LikesService extends BaseService {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        status: { not: LikeStatus.DELETED },
+        // Only an in-flight PENDING like blocks re-liking.
+        // WITHDRAWN (initiator of an unmatch) and VOIDED (other party) are
+        // terminal system-set states that must allow a fresh like — the upsert
+        // path in create() will update those rows rather than inserting a new one.
+        // MATCHED is implicitly blocked by the AlreadyMatchedException guard below.
+        status: LikeStatus.PENDING,
       },
     });
 
@@ -305,34 +310,53 @@ export class LikesService extends BaseService {
       targetIdentityId,
     });
 
-    // Step 4: Duplicate check
-    const existingLike = await this.prisma.like.findFirst({
+    // Step 4: Duplicate check — only a live PENDING like is a hard block.
+    const existingPendingLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        status: { not: LikeStatus.DELETED },
+        // Only an in-flight PENDING like blocks re-liking.
+        // WITHDRAWN (initiator of an unmatch) and VOIDED (other party) are
+        // terminal system-set states that must allow a fresh like — the upsert
+        // path below will update those rows rather than inserting a new one.
+        // MATCHED is implicitly blocked by the AlreadyMatchedException guard above.
+        status: LikeStatus.PENDING,
       },
     });
 
-    if (existingLike) {
+    if (existingPendingLike) {
       this.logger.warn('Like creation failed: already liked', {
         ...ctx,
         step: 'duplicate_check',
         targetIdentityId,
-        existingLikeId: existingLike.id,
+        existingLikeId: existingPendingLike.id,
       });
       throw new AlreadyLikedException();
     }
 
-    this.logger.debug('Duplicate check passed', {
+    // Step 4.5: Detect an existing WITHDRAWN or VOIDED row for the same pair.
+    // The @@unique([senderUserId, targetIdentityId]) constraint means we cannot
+    // INSERT a new row — we must UPDATE the existing one back to PENDING instead.
+    const reusableLike = await this.prisma.like.findFirst({
+      where: {
+        senderUserId: userId,
+        targetIdentityId,
+        deletedAt: null,
+        status: { in: [LikeStatus.WITHDRAWN, LikeStatus.VOIDED] },
+      },
+      select: { id: true },
+    });
+
+    this.logger.debug('Duplicate and reusable-like check passed', {
       ...ctx,
       step: 'duplicate_check',
       targetIdentityId,
+      willUpsert: reusableLike !== null,
+      reusableLikeId: reusableLike?.id ?? null,
     });
 
-    // Step 4.5: Active Match Check
-    // If the target identity is already resolved to a user, check if we already have an active match
+    // Step 4.6: Active Match Check
     if (targetIdentity.userId) {
       const [userOneId, userTwoId] = [userId, targetIdentity.userId].sort();
       const existingMatch = await this.prisma.match.findUnique({
@@ -356,7 +380,12 @@ export class LikesService extends BaseService {
       });
     }
 
-    // Step 5: Persist like + deduct credits atomically
+    // Step 5: Persist like + deduct credits atomically.
+    // Two paths:
+    //   a) Upsert — an existing WITHDRAWN/VOIDED row is updated back to PENDING
+    //      with a fresh expiresAt, intent, and label. The row ID is preserved so
+    //      any existing references (audit history, match links) remain intact.
+    //   b) Insert — no prior row exists, create a new one as before.
     let expiresAt = DateUtil.now();
     if (timezone) {
       expiresAt = dayjs
@@ -372,40 +401,76 @@ export class LikesService extends BaseService {
 
     try {
       like = await this.prisma.$transaction(async (tx) => {
-        const createdLike = await tx.like.create({
-          data: {
-            senderUserId: userId,
-            targetIdentityId,
-            intent: dto.intent,
-            status: LikeStatus.PENDING,
-            label: dto.label ?? null,
-            expiresAt,
-          },
-          select: {
-            ...LIKE_SELECT,
-            senderUserId: true,
-            targetIdentityId: true,
-            targetIdentity: {
-              select: {
-                ...LIKE_SELECT.targetIdentity.select,
-                userId: true,
+        let persistedLike: CreateLikeResult;
+
+        if (reusableLike) {
+          // Path a: update the existing WITHDRAWN/VOIDED row.
+          persistedLike = await tx.like.update({
+            where: { id: reusableLike.id },
+            data: {
+              intent: dto.intent,
+              status: LikeStatus.PENDING,
+              label: dto.label ?? null,
+              expiresAt,
+              deletedAt: null,
+            },
+            select: {
+              ...LIKE_SELECT,
+              senderUserId: true,
+              targetIdentityId: true,
+              targetIdentity: {
+                select: {
+                  ...LIKE_SELECT.targetIdentity.select,
+                  userId: true,
+                },
               },
             },
-          },
-        });
+          });
 
-        this.logger.debug('Like record persisted within transaction', {
-          ...ctx,
-          step: 'persist_like',
-          likeId: createdLike.id,
-          targetIdentityId,
-        });
+          this.logger.debug('Existing like row upserted to PENDING', {
+            ...ctx,
+            step: 'persist_like',
+            likeId: persistedLike.id,
+            targetIdentityId,
+            previousStatus: 'WITHDRAWN_OR_VOIDED',
+          });
+        } else {
+          // Path b: no prior row — insert fresh.
+          persistedLike = await tx.like.create({
+            data: {
+              senderUserId: userId,
+              targetIdentityId,
+              intent: dto.intent,
+              status: LikeStatus.PENDING,
+              label: dto.label ?? null,
+              expiresAt,
+            },
+            select: {
+              ...LIKE_SELECT,
+              senderUserId: true,
+              targetIdentityId: true,
+              targetIdentity: {
+                select: {
+                  ...LIKE_SELECT.targetIdentity.select,
+                  userId: true,
+                },
+              },
+            },
+          });
+
+          this.logger.debug('Like record persisted within transaction', {
+            ...ctx,
+            step: 'persist_like',
+            likeId: persistedLike.id,
+            targetIdentityId,
+          });
+        }
 
         await this.creditsService.consumeCredits(
           {
             userId,
             amount: LikesConfig.CREDITS_PER_LIKE,
-            referenceId: createdLike.id,
+            referenceId: persistedLike.id,
           },
           tx,
         );
@@ -413,11 +478,11 @@ export class LikesService extends BaseService {
         this.logger.debug('Credits deducted within transaction', {
           ...ctx,
           step: 'deduct_credits',
-          likeId: createdLike.id,
+          likeId: persistedLike.id,
           creditsConsumed: LikesConfig.CREDITS_PER_LIKE,
         });
 
-        return createdLike;
+        return persistedLike;
       });
     } catch (err) {
       this.logger.error('Like creation transaction failed', {

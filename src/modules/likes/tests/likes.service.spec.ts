@@ -333,6 +333,7 @@ describe('LikesService', () => {
     it('should create like and trigger match resolver asynchronously', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      // No pending like, no reusable like
       prisma.like.findFirst.mockResolvedValue(null);
       prisma.like.create.mockResolvedValue(mockLikeData);
 
@@ -354,6 +355,59 @@ describe('LikesService', () => {
       expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
         mockLikeData,
       );
+      expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should upsert (update) an existing WITHDRAWN like row instead of inserting a new one', async () => {
+      // Arrange — no PENDING like, but a WITHDRAWN like exists (A was the unmatch initiator)
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      const withdrawnLike = { id: 'withdrawn-like-id' } as unknown as Like;
+      prisma.like.findFirst
+        .mockResolvedValueOnce(null)              // PENDING check → not found
+        .mockResolvedValueOnce(withdrawnLike);    // WITHDRAWN/VOIDED check → found
+      prisma.like.update.mockResolvedValue(mockLikeData);
+
+      // Act
+      const result = await service.create(userId, dtoWithId);
+
+      // Assert — update is called, create is NOT
+      expect(prisma.like.update).toHaveBeenCalledWith({
+        where: { id: 'withdrawn-like-id' },
+        data: {
+          intent: IntentType.RELATIONSHIP,
+          status: LikeStatus.PENDING,
+          label: null,
+          expiresAt: expect.any(Date),
+          deletedAt: null,
+        },
+        select: expect.any(Object),
+      });
+      expect(prisma.like.create).not.toHaveBeenCalled();
+      expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
+        mockLikeData,
+      );
+      expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should upsert (update) an existing VOIDED like row instead of inserting a new one', async () => {
+      // Arrange — no PENDING like, but a VOIDED like exists (B was unmatched by A)
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      const voidedLike = { id: 'voided-like-id' } as unknown as Like;
+      prisma.like.findFirst
+        .mockResolvedValueOnce(null)           // PENDING check → not found
+        .mockResolvedValueOnce(voidedLike);    // WITHDRAWN/VOIDED check → found
+      prisma.like.update.mockResolvedValue(mockLikeData);
+
+      // Act
+      const result = await service.create(userId, dtoWithId);
+
+      // Assert — update is called, create is NOT
+      expect(prisma.like.update).toHaveBeenCalledWith({
+        where: { id: 'voided-like-id' },
+        data: expect.objectContaining({ status: LikeStatus.PENDING }),
+        select: expect.any(Object),
+      });
+      expect(prisma.like.create).not.toHaveBeenCalled();
       expect(result).toEqual(mockLikeResponse);
     });
 

@@ -168,7 +168,9 @@ describe('MatchResolverService', () => {
         where: {
           senderUserId: 'user-2',
           targetIdentity: { userId: 'user-1' },
-          status: LikeStatus.PENDING,
+          // Option A: VOIDED likes (system-set after unmatch) are included so
+          // that a re-like from the other side triggers a frictionless re-match.
+          status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
           deletedAt: null,
           expiresAt: { gt: expect.any(Date) },
         },

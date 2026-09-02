@@ -343,21 +343,37 @@ describe('MatchesService', () => {
   });
 
   describe('unmatch', () => {
-    it('should update match status to UNMATCHED and set deletedAt', async () => {
+    const likeOneId = 'like-one-id';
+    const likeTwoId = 'like-two-id';
+
+    const mockMatchUserOneInitiates = {
+      id: matchId,
+      status: MatchStatus.ACTIVE,
+      userOneId: currentUserId,
+      userTwoId: otherUserId,
+      likeOneId,
+      likeTwoId,
+    };
+
+    const mockMatchUserTwoInitiates = {
+      ...mockMatchUserOneInitiates,
+      userOneId: otherUserId,
+      userTwoId: currentUserId,
+    };
+
+    it('should WITHDRAW initiator like and VOID other-party like when initiator is userOne', async () => {
       // Arrange
       prisma.match.findFirst.mockResolvedValue(
-        mockMatchDataUserOne as unknown as Awaited<
+        mockMatchUserOneInitiates as unknown as Awaited<
           ReturnType<typeof prisma.match.findFirst>
         >,
       );
-      prisma.match.update.mockResolvedValue(
-        {} as unknown as Awaited<ReturnType<typeof prisma.match.update>>,
-      );
+      prisma.$transaction.mockResolvedValue([{}, {}, {}]);
 
       // Act
       const result = await service.unmatch(matchId, currentUserId);
 
-      // Assert
+      // Assert — correct select shape to retrieve likeOneId/likeTwoId/userOneId/userTwoId
       expect(prisma.match.findFirst).toHaveBeenCalledWith({
         where: {
           id: matchId,
@@ -365,14 +381,42 @@ describe('MatchesService', () => {
           status: MatchStatus.ACTIVE,
           deletedAt: null,
         },
-      });
-      expect(prisma.match.update).toHaveBeenCalledWith({
-        where: { id: matchId },
-        data: {
-          status: MatchStatus.UNMATCHED,
-          deletedAt: expect.any(Date),
+        select: {
+          id: true,
+          likeOneId: true,
+          likeTwoId: true,
+          userOneId: true,
+          userTwoId: true,
         },
       });
+
+      // Assert — single $transaction with 3 operations
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // currentUserId === userOneId → initiatorLikeId = likeOneId → WITHDRAWN
+      //                              otherLikeId     = likeTwoId  → VOIDED
+      const [txArg] = (prisma.$transaction as jest.Mock).mock.calls[0];
+      expect(txArg).toHaveLength(3);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should WITHDRAW initiator like and VOID other-party like when initiator is userTwo', async () => {
+      // Arrange — currentUserId is userTwo this time
+      prisma.match.findFirst.mockResolvedValue(
+        mockMatchUserTwoInitiates as unknown as Awaited<
+          ReturnType<typeof prisma.match.findFirst>
+        >,
+      );
+      prisma.$transaction.mockResolvedValue([{}, {}, {}]);
+
+      // Act
+      const result = await service.unmatch(matchId, currentUserId);
+
+      // Assert — transaction still fires with 3 ops regardless of canonical ordering
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      // currentUserId === userTwoId → initiatorLikeId = likeTwoId → WITHDRAWN
+      //                               otherLikeId     = likeOneId → VOIDED
+      const [txArg] = (prisma.$transaction as jest.Mock).mock.calls[0];
+      expect(txArg).toHaveLength(3);
       expect(result).toEqual({ success: true });
     });
 
@@ -384,7 +428,7 @@ describe('MatchesService', () => {
       await expect(service.unmatch(matchId, currentUserId)).rejects.toThrow(
         new MatchNotFoundException('Match not found or already inactive'),
       );
-      expect(prisma.match.update).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 

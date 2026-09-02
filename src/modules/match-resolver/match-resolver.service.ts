@@ -272,7 +272,12 @@ export class MatchResolverService extends BaseService {
       where: {
         senderUserId: userBId,
         targetIdentity: { userId: userAId },
-        status: LikeStatus.PENDING,
+        // Include VOIDED so that B's like — which was system-voided when a
+        // previous match was dissolved — can still satisfy the mutual-like
+        // condition when A re-likes B (Option A: frictionless re-match).
+        // expiresAt is still enforced to prevent zombie re-matches from
+        // very old voided likes.
+        status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
         deletedAt: null,
         expiresAt: { gt: DateUtil.now() },
       },
