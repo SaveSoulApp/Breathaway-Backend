@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GenderType, IntentType, MatchStatus } from '@prisma/client';
+import { GenderType, IntentType, LikeStatus, MatchStatus } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -280,6 +280,13 @@ export class MatchesService extends BaseService {
         status: MatchStatus.ACTIVE,
         deletedAt: null,
       },
+      select: {
+        id: true,
+        likeOneId: true,
+        likeTwoId: true,
+        userOneId: true,
+        userTwoId: true,
+      },
     });
 
     if (!match) {
@@ -290,24 +297,52 @@ export class MatchesService extends BaseService {
       throw new MatchNotFoundException('Match not found or already inactive');
     }
 
+    // Determine which like belongs to the initiator and which to the other party.
+    // likeOne always belongs to userOne (canonical ordering set at match creation).
+    const initiatorLikeId =
+      userId === match.userOneId ? match.likeOneId : match.likeTwoId;
+    const otherLikeId =
+      userId === match.userOneId ? match.likeTwoId : match.likeOneId;
+
     this.logger.debug('Match existence verified for unmatch', {
       ...ctx,
       step: 'existence_check',
+      initiatorLikeId,
+      otherLikeId,
     });
 
     try {
-      await this.prisma.match.update({
-        where: { id: matchId },
-        data: {
-          status: MatchStatus.UNMATCHED,
-          deletedAt: DateUtil.now(),
-        },
-      });
+      // Atomically dissolve the match, mark the initiator's like as WITHDRAWN
+      // (they actively ended the relationship) and the other party's like as
+      // VOIDED (ended by the system on their behalf). This asymmetry is what
+      // prevents the other party from triggering an accidental re-match.
+      await this.prisma.$transaction([
+        this.prisma.match.update({
+          where: { id: matchId },
+          data: {
+            status: MatchStatus.UNMATCHED,
+            deletedAt: DateUtil.now(),
+          },
+        }),
+        this.prisma.like.update({
+          where: { id: initiatorLikeId },
+          data: { status: LikeStatus.WITHDRAWN },
+        }),
+        this.prisma.like.update({
+          where: { id: otherLikeId },
+          data: { status: LikeStatus.VOIDED },
+        }),
+      ]);
 
-      this.logger.debug('Match record updated for unmatch', {
-        ...ctx,
-        step: 'persist_unmatch',
-      });
+      this.logger.debug(
+        'Match unmatched: initiator like WITHDRAWN, other like VOIDED',
+        {
+          ...ctx,
+          step: 'persist_unmatch',
+          initiatorLikeId,
+          otherLikeId,
+        },
+      );
     } catch (error) {
       this.logger.error('Failed to unmatch match', {
         ...ctx,
@@ -319,8 +354,23 @@ export class MatchesService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.MATCH_UNMATCHED,
-      userId: userId,
+      userId,
       resourceId: matchId,
+      metadata: { initiatorLikeId, otherLikeId },
+    });
+
+    // Emit individual like-level audit events for abuse-detection queries.
+    this.emitAuditLog({
+      actionType: AuditActionType.LIKE_WITHDRAWN,
+      userId,
+      resourceId: initiatorLikeId,
+      metadata: { matchId },
+    });
+    this.emitAuditLog({
+      actionType: AuditActionType.LIKE_VOIDED,
+      userId,
+      resourceId: otherLikeId,
+      metadata: { matchId },
     });
 
     this.logger.log('Match unmatched successfully', {

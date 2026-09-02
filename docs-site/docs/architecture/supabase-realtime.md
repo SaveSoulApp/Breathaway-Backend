@@ -5,94 +5,98 @@ title: Supabase Realtime Architecture
 
 # Supabase Realtime Architecture
 
-BreathAway uses a decoupled microservice architecture for the chat system. While the core application (Users, Matches, Subscriptions) is managed by Prisma and a primary PostgreSQL database, the high-volume, real-time messaging data is entirely offloaded to a separate **Supabase PostgreSQL Database**.
-
-This document explains how this architecture works under the hood, how to set it up for the first time, and how to safely run migrations without breaking the separation of concerns.
+BreathAway uses a **two-layer ownership model** for the chat system. The table DDL for `ChatRoom` and `Message` is managed by Prisma (so `migrate dev` works without drift). The Supabase-specific infrastructure — the `supabase_realtime` publication and Row Level Security policies — is managed separately via raw SQL in `supabase/migrations/` and applied once per environment via the Supabase Dashboard.
 
 ---
 
 ## 🏗️ Architecture Overview
 
-The architecture splits responsibilities to prevent chat volume from degrading core API performance:
+### Layer 1 — Table DDL (Prisma)
 
-1. **Primary Database (Prisma)**
-   - Manages the `User`, `UserProfile`, `Match`, and `Like` tables.
-   - Accessed strictly via Prisma ORM (`PrismaService`).
-   - Does **not** know about chat rooms or messages.
+`ChatRoom` and `Message` are declared as standard models in `schema.prisma`. Prisma owns:
+- The `CREATE TABLE` statements
+- Column types, constraints, indexes
+- Schema evolution via `migrate dev`
 
-2. **Chat Database (Supabase)**
-   - Manages the `ChatRoom` and `Message` tables.
-   - Accessed natively via the `@supabase/supabase-js` client.
-   - Supabase Realtime sits on top of this database, listening to PostgreSQL replication logs (wal2json) and broadcasting `INSERT/UPDATE` events over WebSockets to the React Native mobile app.
+### Layer 2 — Supabase Infrastructure (supabase/migrations/)
+
+The following are **Supabase-specific** and live exclusively in `supabase/migrations/`:
+- `ALTER PUBLICATION supabase_realtime ADD TABLE ...` — registers the tables with the Realtime engine
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` — enables RLS
+- `CREATE POLICY ... USING ((auth.jwt() ->> 'sub') = ...)` — client-facing access control
+
+> [!IMPORTANT]
+> Supabase Realtime is a PostgreSQL logical replication feature. It fires on **any** `INSERT`/`UPDATE`/`DELETE` to the registered tables — regardless of whether the writer is Prisma, the Supabase JS client, or raw SQL. Adding the models to Prisma does not affect Realtime behaviour.
 
 ### API Composition (The Bridge)
 
-Because the databases are physically separated, we cannot use SQL `JOIN`s to fetch a user's name alongside their chat room. Instead, we use the **API Composition Pattern** in `ChatsService.getRooms()`:
+Because `userOneId`, `userTwoId`, and `senderId` are plain `text` columns storing ULIDs from the primary database, we cannot use SQL `JOIN`s. Instead, `ChatsService.getRooms()` uses the **API Composition Pattern**:
 
-1. Fetch 20 `ChatRoom` rows from Supabase.
-2. Extract the unique `otherUserId`s from the results in-memory.
-3. Make a single, highly optimized `PrismaService.userProfile.findMany({ where: { userId: { in: otherUserIds } } })` query to the primary DB.
-4. Merge the names (`firstName`, `lastName`) back into the response payload as the `otherUser` object.
+1. Fetch `ChatRoom` rows via the Supabase JS client (service-role key, bypasses RLS).
+2. Extract unique `otherUserId`s in-memory.
+3. Single `PrismaService.userProfile.findMany({ where: { userId: { in: otherUserIds } } })` call.
+4. Merge names into the response payload.
 
 ---
 
-## 🚀 Setting it up for the first time
+## 🚀 Setting it up for a new environment
 
-To initialize the Supabase database for a new environment, you **must not** add these tables to `schema.prisma`.
+### Step 1: Run the Prisma migration (creates the tables)
 
-Instead, we maintain raw SQL scripts in `supabase/migrations/` in the repository root.
+```bash
+pnpm run migrate:local   # or the equivalent deploy command for production
+```
 
-**Step 1: Create the tables in Supabase**
-Go to the **Supabase Dashboard -> SQL Editor** and run the initial migration script: `supabase/migrations/20260730000000_init_chat_schema.sql`.
+This creates `ChatRoom` and `Message` with indexes and constraints.
 
-**Step 2: What the script does**
+### Step 2: Apply the Supabase-specific infrastructure
 
-- Creates `ChatRoom` and `Message` tables using `uuid` primary keys.
-- Sets `userOneId`, `userTwoId`, and `senderId` as plain `text` columns to store the ULIDs from our primary database (enforcing decoupling).
-- Executes `alter publication supabase_realtime add table "Message";` to explicitly tell the Realtime engine to broadcast WebSocket events for these tables.
-- Enables **Row Level Security (RLS)** using `(auth.jwt() ->> 'sub')` so the frontend React Native app can safely subscribe to channels without seeing other users' messages.
+Go to the **Supabase Dashboard → SQL Editor** and run:
+
+```
+supabase/migrations/20260730000000_init_chat_schema.sql
+```
+
+This file adds the tables to the `supabase_realtime` publication, enables RLS, and creates the client access policies. It is **idempotent-safe** to re-run only the publication and policy sections.
 
 ---
 
 ## 🗄️ Database Migrations
 
-Because the systems are decoupled, migrations are completely isolated.
+### Modifying the table structure (columns, indexes, constraints)
 
-### Modifying the Primary DB
+Edit `schema.prisma` and run:
 
-- Run `npx prisma migrate dev` as normal.
-- **Impact on Chats:** Zero. The chat database will not be affected. Note that because there are no strict Foreign Keys between the databases, if you delete a `User` in Prisma, their chat history remains in Supabase unless your backend explicitly deletes it via a Supabase API call.
+```bash
+pnpm run migrate:local
+```
 
-### Modifying the Chat DB
+Prisma generates and applies the migration. **Impact on Realtime:** Zero — the publication and RLS policies are unaffected by DDL changes.
 
-- Create a new `.sql` file in `supabase/migrations/`.
-- Run the raw SQL in the Supabase Dashboard SQL Editor (or use the Supabase CLI: `supabase db push`).
-- **Impact on Prisma:** Zero. Your `schema.prisma` will not complain because it doesn't know the chat tables exist.
+### Modifying Supabase-specific infrastructure (publication, RLS)
+
+1. Create a new `.sql` file in `supabase/migrations/`.
+2. Apply it via the **Supabase Dashboard SQL Editor**.
+3. **Impact on Prisma:** Zero — `schema.prisma` does not declare publications or policies.
 
 ---
 
 ## 🔐 Authentication & RLS
 
-The backend and frontend interact with Supabase differently:
-
 **The Backend (NestJS)**
-The `ChatsService` initializes the Supabase client using the `SUPABASE_SERVICE_ROLE_KEY`. This is a master key that **bypasses Row Level Security (RLS)**. The backend handles all the INSERTS and UPDATES natively, ensuring data integrity.
+`ChatsService` initializes the Supabase client with `SUPABASE_SERVICE_ROLE_KEY`. This master key bypasses RLS so the backend can read and write all rooms and messages without restriction.
 
 **The Frontend (React Native)**
-The mobile app does not have the Service Role Key. Instead:
-
-1. It calls `GET /api/v1/chats/supabase-token`.
-2. `SupabaseAuthService` mints a short-lived, custom JWT signed with `SUPABASE_JWT_PRIVATE_KEY` where the `sub` claim is the user's ULID.
-3. The mobile app connects to Supabase WebSockets using this custom JWT.
-4. The Supabase RLS policies (e.g., `USING ((auth.jwt() ->> 'sub') = "userOneId")`) securely parse the ULID out of the token and restrict the WebSocket stream so the user only receives their own messages.
+1. Calls `GET /api/v1/chats/supabase-token`.
+2. `SupabaseAuthService` mints a short-lived custom JWT signed with `SUPABASE_JWT_PRIVATE_KEY` where the `sub` claim is the user's ULID.
+3. The mobile app connects to Supabase WebSockets using this JWT.
+4. The RLS policies (`USING ((auth.jwt() ->> 'sub') = "userOneId")`) parse the ULID from the token and restrict the stream to the user's own messages.
 
 ---
 
-## ⚠️ Future Amendments (For AI and Developers)
+## ⚠️ Rules for AI Agents and Developers
 
-If you need to change the chat system in the future, adhere strictly to these rules:
-
-1. **NEVER** add `ChatRoom` or `Message` to `schema.prisma`.
-2. **NEVER** use `auth.uid()` in Supabase RLS policies. The primary database uses 26-character ULIDs, but `auth.uid()` strictly expects a UUID. You must always extract the ID via `(auth.jwt() ->> 'sub')`.
-3. Keep the `supabase/migrations/` folder as the absolute source of truth for the Chat DB schema.
-4. Only grant `SELECT` access in Supabase RLS. Write operations (`INSERT`/`UPDATE`) should always flow through the NestJS backend to enforce business logic (e.g., verifying if the users are actively matched before allowing a message).
+1. **NEVER** add `ALTER PUBLICATION supabase_realtime` or `CREATE POLICY ... auth.jwt()` to a Prisma migration — these are Supabase-specific and will fail on the shadow database.
+2. **NEVER** use `auth.uid()` in Supabase RLS policies. The primary database uses 26-character ULIDs. Always use `(auth.jwt() ->> 'sub')`.
+3. Only grant `SELECT` access in Supabase RLS. Write operations (`INSERT`/`UPDATE`) must always flow through the NestJS backend.
+4. `ChatRoom` and `Message` are in `schema.prisma` — treat them like any other Prisma model for DDL changes. For Supabase infrastructure changes, use `supabase/migrations/`.
