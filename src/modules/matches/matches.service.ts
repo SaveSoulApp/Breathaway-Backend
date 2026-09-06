@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { GenderType, IntentType, LikeStatus, MatchStatus } from '@prisma/client';
+import {
+  GenderType,
+  IntentType,
+  LikeStatus,
+  MatchStatus,
+} from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';

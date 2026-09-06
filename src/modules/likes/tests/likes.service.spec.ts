@@ -1,4 +1,28 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  Identity,
+  IdentityType,
+  IntentType,
+  Like,
+  LikeStatus,
+  MatchStatus,
+} from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
+
+import { DateUtil } from '@common/utils/date.utils';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  createPrismaMock,
+  MockPrismaService,
+} from '@infrastructure/database/tests/mocks/prisma.mock';
+import { CreditsService } from '@modules/credits/credits.service';
+import { IdentitiesService } from '@modules/identities/identities.service';
+import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
+
 import {
   AlreadyLikedException,
   AlreadyMatchedException,
@@ -9,32 +33,9 @@ import {
   MissingTargetIdentityException,
   SelfLikeException,
 } from '../application/exceptions';
-import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
-import {
-  Identity,
-  IdentityType,
-  IntentType,
-  Like,
-  LikeStatus,
-  MatchStatus,
-} from '@prisma/client';
-
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import {
-  createPrismaMock,
-  MockPrismaService,
-} from '@infrastructure/database/tests/mocks/prisma.mock';
-import { IdentitiesService } from '@modules/identities/identities.service';
-import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-
+import { LikesConfig } from '../config/likes.config';
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
 import { LikesService } from '../likes.service';
-import { ClsService } from 'nestjs-cls';
-import { CreditsService } from '@modules/credits/credits.service';
 
 describe('LikesService', () => {
   let service: LikesService;
@@ -45,6 +46,7 @@ describe('LikesService', () => {
     Pick<IdentitiesService, 'getDecryptedPublicValue' | 'getSenderCountryCode'>
   >;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
+  let creditsServiceMock: jest.Mocked<CreditsService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
@@ -52,6 +54,11 @@ describe('LikesService', () => {
   const targetUserId = 'target-user-id';
   const likeId = 'like-id-123';
   const decryptedPublicValue = '+1234567890';
+
+  const dtoWithId: CreateLikeRequestDto = {
+    targetIdentityId,
+    intent: IntentType.RELATIONSHIP,
+  };
 
   const mockTargetIdentity: Identity = {
     id: targetIdentityId,
@@ -160,6 +167,7 @@ describe('LikesService', () => {
 
     service = module.get<LikesService>(LikesService);
     prisma = module.get(PrismaService);
+    creditsServiceMock = module.get(CreditsService);
     (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
       return cb(prisma);
     });
@@ -170,11 +178,6 @@ describe('LikesService', () => {
   });
 
   describe('create', () => {
-    const dtoWithId: CreateLikeRequestDto = {
-      targetIdentityId,
-      intent: IntentType.RELATIONSHIP,
-    };
-
     it('should throw MissingTargetIdentityException if neither targetIdentityId nor targetIdentity is provided', async () => {
       // Act & Assert
       await expect(service.create(userId, {} as any)).rejects.toThrow(
@@ -363,8 +366,8 @@ describe('LikesService', () => {
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
       const withdrawnLike = { id: 'withdrawn-like-id' } as unknown as Like;
       prisma.like.findFirst
-        .mockResolvedValueOnce(null)              // PENDING check → not found
-        .mockResolvedValueOnce(withdrawnLike);    // WITHDRAWN/VOIDED check → found
+        .mockResolvedValueOnce(null) // PENDING check → not found
+        .mockResolvedValueOnce(withdrawnLike); // WITHDRAWN/VOIDED check → found
       prisma.like.update.mockResolvedValue(mockLikeData);
 
       // Act
@@ -394,8 +397,8 @@ describe('LikesService', () => {
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
       const voidedLike = { id: 'voided-like-id' } as unknown as Like;
       prisma.like.findFirst
-        .mockResolvedValueOnce(null)           // PENDING check → not found
-        .mockResolvedValueOnce(voidedLike);    // WITHDRAWN/VOIDED check → found
+        .mockResolvedValueOnce(null) // PENDING check → not found
+        .mockResolvedValueOnce(voidedLike); // WITHDRAWN/VOIDED check → found
       prisma.like.update.mockResolvedValue(mockLikeData);
 
       // Act
@@ -408,6 +411,49 @@ describe('LikesService', () => {
         select: expect.any(Object),
       });
       expect(prisma.like.create).not.toHaveBeenCalled();
+      expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should upsert (update) an existing DELETED like row instead of inserting a new one', async () => {
+      // Arrange — no live PENDING like, but a soft-deleted like exists
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      const deletedLike = {
+        id: 'deleted-like-id',
+        status: LikeStatus.DELETED,
+        deletedAt: DateUtil.now(),
+      } as unknown as Like;
+      prisma.like.findFirst
+        .mockResolvedValueOnce(null) // Live PENDING check → not found
+        .mockResolvedValueOnce(deletedLike); // Reusable check (WITHDRAWN/VOIDED/DELETED) → found
+      prisma.like.update.mockResolvedValue(mockLikeData);
+
+      // Act
+      const result = await service.create(userId, dtoWithId);
+
+      // Assert — update is called, create is NOT
+      expect(prisma.like.update).toHaveBeenCalledWith({
+        where: { id: 'deleted-like-id' },
+        data: {
+          intent: IntentType.RELATIONSHIP,
+          status: LikeStatus.PENDING,
+          label: null,
+          expiresAt: expect.any(Date),
+          deletedAt: null,
+        },
+        select: expect.any(Object),
+      });
+      expect(prisma.like.create).not.toHaveBeenCalled();
+      expect(creditsServiceMock.consumeCredits).toHaveBeenCalledWith(
+        {
+          userId,
+          amount: LikesConfig.CREDITS_PER_LIKE,
+          referenceId: mockLikeData.id,
+        },
+        prisma,
+      );
+      expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
+        mockLikeData,
+      );
       expect(result).toEqual(mockLikeResponse);
     });
 
@@ -639,6 +685,56 @@ describe('LikesService', () => {
         },
       });
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('canCreate', () => {
+    it('should return { canCreate: true } when target identity exists and no active like exists', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+
+      // Act
+      const result = await service.canCreate(userId, dtoWithId);
+
+      // Assert
+      expect(result).toEqual({ canCreate: true });
+    });
+
+    it('should return { canCreate: true } when an existing like is DELETED', async () => {
+      // Arrange — deleted likes are excluded from the live PENDING check
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+
+      // Act
+      const result = await service.canCreate(userId, dtoWithId);
+
+      // Assert
+      expect(result).toEqual({ canCreate: true });
+    });
+
+    it('should throw AlreadyLikedException when an active PENDING like exists', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(mockLikeData);
+
+      // Act & Assert
+      await expect(service.canCreate(userId, dtoWithId)).rejects.toThrow(
+        AlreadyLikedException,
+      );
+    });
+
+    it('should throw SelfLikeException when target identity belongs to the caller', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue({
+        ...mockTargetIdentity,
+        userId,
+      });
+
+      // Act & Assert
+      await expect(service.canCreate(userId, dtoWithId)).rejects.toThrow(
+        SelfLikeException,
+      );
     });
   });
 });

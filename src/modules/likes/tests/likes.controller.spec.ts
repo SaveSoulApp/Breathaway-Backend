@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
@@ -13,7 +14,6 @@ import {
 } from '../dto';
 import { LikesController } from '../likes.controller';
 import { LikesService } from '../likes.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('LikesController', () => {
   let controller: LikesController;
@@ -43,6 +43,7 @@ describe('LikesController', () => {
 
   beforeEach(async () => {
     const mockService = {
+      canCreate: jest.fn(),
       create: jest.fn(),
       findAllForUser: jest.fn(),
       findOneForUser: jest.fn(),
@@ -75,6 +76,24 @@ describe('LikesController', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('canCreate', () => {
+    it('should verify if a like can be created', async () => {
+      // Arrange
+      const dto: CreateLikeRequestDto = {
+        targetIdentityId: 'target-identity-id',
+        intent: IntentType.RELATIONSHIP,
+      };
+      service.canCreate.mockResolvedValue({ canCreate: true });
+
+      // Act
+      const result = await controller.canCreate(userId, dto);
+
+      // Assert
+      expect(service.canCreate).toHaveBeenCalledWith(userId, dto);
+      expect(result).toEqual({ canCreate: true });
+    });
   });
 
   describe('create', () => {

@@ -1,16 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
-import {
-  AlreadyLikedException,
-  AlreadyMatchedException,
-  IdentityNotFoundException,
-  InsufficientCreditsException,
-  InvalidLikeStateException,
-  LikeNotFoundException,
-  MissingTargetIdentityException,
-  SelfLikeException,
-} from './application/exceptions';
 
 import { SortOrder } from '@common/enums';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
@@ -25,13 +15,23 @@ import { CreditsService } from '@modules/credits/credits.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 
+import {
+  AlreadyLikedException,
+  AlreadyMatchedException,
+  IdentityNotFoundException,
+  InsufficientCreditsException,
+  InvalidLikeStateException,
+  LikeNotFoundException,
+  MissingTargetIdentityException,
+  SelfLikeException,
+} from './application/exceptions';
 import { LikesConfig } from './config/likes.config';
 import {
   CreateLikeRequestDto,
   LikeListQueryDto,
   UpdateLikeLabelRequestDto,
 } from './dto';
-import { LIKE_SELECT, RawLike, CreateLikeResult } from './likes.types';
+import { CreateLikeResult, LIKE_SELECT, RawLike } from './likes.types';
 
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
@@ -124,9 +124,10 @@ export class LikesService extends BaseService {
         targetIdentityId,
         deletedAt: null,
         // Only an in-flight PENDING like blocks re-liking.
-        // WITHDRAWN (initiator of an unmatch) and VOIDED (other party) are
-        // terminal system-set states that must allow a fresh like — the upsert
-        // path in create() will update those rows rather than inserting a new one.
+        // WITHDRAWN (initiator of an unmatch), VOIDED (other party), and
+        // DELETED (soft-deleted likes) are terminal or inactive states that
+        // must allow a fresh like — the upsert path in create() will update
+        // those rows rather than inserting a new one.
         // MATCHED is implicitly blocked by the AlreadyMatchedException guard below.
         status: LikeStatus.PENDING,
       },
@@ -335,17 +336,23 @@ export class LikesService extends BaseService {
       throw new AlreadyLikedException();
     }
 
-    // Step 4.5: Detect an existing WITHDRAWN or VOIDED row for the same pair.
+    // Step 4.5: Detect an existing WITHDRAWN, VOIDED, or DELETED row for the same pair.
     // The @@unique([senderUserId, targetIdentityId]) constraint means we cannot
     // INSERT a new row — we must UPDATE the existing one back to PENDING instead.
     const reusableLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
         targetIdentityId,
-        deletedAt: null,
-        status: { in: [LikeStatus.WITHDRAWN, LikeStatus.VOIDED] },
+        OR: [
+          {
+            status: {
+              in: [LikeStatus.WITHDRAWN, LikeStatus.VOIDED, LikeStatus.DELETED],
+            },
+          },
+          { deletedAt: { not: null } },
+        ],
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
     this.logger.debug('Duplicate and reusable-like check passed', {
@@ -404,7 +411,7 @@ export class LikesService extends BaseService {
         let persistedLike: CreateLikeResult;
 
         if (reusableLike) {
-          // Path a: update the existing WITHDRAWN/VOIDED row.
+          // Path a: update the existing WITHDRAWN/VOIDED/DELETED row.
           persistedLike = await tx.like.update({
             where: { id: reusableLike.id },
             data: {
@@ -432,7 +439,7 @@ export class LikesService extends BaseService {
             step: 'persist_like',
             likeId: persistedLike.id,
             targetIdentityId,
-            previousStatus: 'WITHDRAWN_OR_VOIDED',
+            previousStatus: reusableLike.status,
           });
         } else {
           // Path b: no prior row — insert fresh.
