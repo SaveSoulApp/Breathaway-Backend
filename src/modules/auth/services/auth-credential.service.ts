@@ -1,3 +1,6 @@
+import { Injectable } from '@nestjs/common';
+import { AuthCredentialType, IdentityType, User } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -6,11 +9,10 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { Injectable } from '@nestjs/common';
-import { AccountAlreadyExistsException } from '../application/exceptions';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
-import { AuthCredentialType, IdentityType, User } from '@prisma/client';
-import { AuthMethod } from '../utils/auth-method.utils';
+
+import { AccountAlreadyExistsException } from '../application/exceptions';
+import { AuthMethod, isPhoneAuthMethod } from '../utils/auth-method.utils';
 
 export interface CreateUserResult {
   user: User;
@@ -57,8 +59,9 @@ export class AuthCredentialService extends BaseService {
     const ctx: Record<string, unknown> = { authMethod, isVerified };
     this.logger.log('User provisioning started', { ...ctx, step: 'init' });
 
-    const identityType =
-      authMethod === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
+    const identityType = isPhoneAuthMethod(authMethod)
+      ? IdentityType.PHONE
+      : IdentityType.EMAIL;
 
     // processPublicValue normalizes the value (strips non-digits for PHONE,
     // lowercases for EMAIL) before hashing and encrypting. This is the
@@ -215,7 +218,7 @@ export class AuthCredentialService extends BaseService {
    * @returns The corresponding DB-level AuthCredentialType.
    */
   toCredentialType(method: AuthMethod): AuthCredentialType {
-    return method === AuthMethod.PHONE
+    return isPhoneAuthMethod(method)
       ? AuthCredentialType.PHONE
       : AuthCredentialType.EMAIL;
   }

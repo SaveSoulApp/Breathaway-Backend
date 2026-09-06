@@ -1,6 +1,18 @@
 import { IdentityType } from '@prisma/client';
 
 /**
+ * Sanitizes an email address by trimming leading/trailing whitespace and converting to lowercase.
+ *
+ * Ensures consistent canonical representation for lookup, hashing, and storage across all auth flows.
+ *
+ * @param email - The raw email string to sanitize.
+ * @returns The trimmed, lowercased email string.
+ */
+export function sanitizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
  * Normalizes user identity values (email, phone, or social handles) to a standard format
  * for consistent database querying and uniqueness checks.
  *
@@ -18,7 +30,7 @@ export function normalizeIdentityValue(
 ): string {
   switch (type) {
     case IdentityType.EMAIL:
-      return value.trim().toLowerCase();
+      return sanitizeEmail(value);
     case IdentityType.PHONE:
       // Strip ALL non-digit characters (including the leading `+`) to produce a
       // pure digit string for deterministic hashing. Country code application

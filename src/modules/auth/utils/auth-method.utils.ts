@@ -1,3 +1,7 @@
+import { sanitizeEmail } from '@common/utils/identity.utils';
+
+export { sanitizeEmail };
+
 /**
  * Supported authentication methods and identity provider identifiers.
  *
@@ -9,11 +13,42 @@ export enum AuthMethod {
   PHONE = 'phone',
   /** Email and password authentication. */
   EMAIL = 'password', // Firebase uses 'password' for email/password auth
+  /** Passwordless email link (magic link) authentication. */
+  EMAIL_LINK = 'emailLink',
   /** Google OAuth authentication. */
   GOOGLE = 'google.com',
+  /** Apple OAuth authentication. */
+  APPLE = 'apple.com',
   /** Facebook OAuth authentication. */
   FACEBOOK = 'facebook.com',
   // Add other providers as needed
+}
+
+/**
+ * Checks if the authentication method corresponds to an email-based identity.
+ *
+ * Covers email/password, passwordless email link (magic link), Google OAuth, and Apple OAuth.
+ *
+ * @param method - The application auth method to check.
+ * @returns True if the method authenticates an email address.
+ */
+export function isEmailAuthMethod(method: AuthMethod): boolean {
+  return (
+    method === AuthMethod.EMAIL ||
+    method === AuthMethod.EMAIL_LINK ||
+    method === AuthMethod.GOOGLE ||
+    method === AuthMethod.APPLE
+  );
+}
+
+/**
+ * Checks if the authentication method corresponds to a phone-based identity.
+ *
+ * @param method - The application auth method to check.
+ * @returns True if the method authenticates a phone number.
+ */
+export function isPhoneAuthMethod(method: AuthMethod): boolean {
+  return method === AuthMethod.PHONE;
 }
 
 /**
@@ -101,7 +136,20 @@ export function getAuthMethodFromDecodedToken(
       if (!email) {
         throw new Error('Email missing from token for email authentication');
       }
-      identifier = email;
+      identifier = sanitizeEmail(email);
+      isVerified = decodedToken.email_verified || false;
+      break;
+    }
+
+    case 'emailLink': {
+      method = AuthMethod.EMAIL_LINK;
+      const email = decodedToken.email;
+      if (!email) {
+        throw new Error(
+          'Email missing from token for emailLink authentication',
+        );
+      }
+      identifier = sanitizeEmail(email);
       isVerified = decodedToken.email_verified || false;
       break;
     }
@@ -112,7 +160,18 @@ export function getAuthMethodFromDecodedToken(
       if (!email) {
         throw new Error('Email missing from token for Google authentication');
       }
-      identifier = email;
+      identifier = sanitizeEmail(email);
+      isVerified = decodedToken.email_verified || false;
+      break;
+    }
+
+    case 'apple.com': {
+      method = AuthMethod.APPLE;
+      const email = decodedToken.email;
+      if (!email) {
+        throw new Error('Email missing from token for Apple authentication');
+      }
+      identifier = sanitizeEmail(email);
       isVerified = decodedToken.email_verified || false;
       break;
     }
