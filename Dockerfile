@@ -21,7 +21,7 @@ COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client (writes binaries to node_modules/.prisma)
-RUN pnpm dlx prisma generate
+RUN pnpm exec prisma generate
 
 # Copy source code and compile
 COPY tsconfig*.json nest-cli.json ./
