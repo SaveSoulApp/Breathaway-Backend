@@ -640,6 +640,7 @@ describe('IdentitiesService', () => {
         isVerified: true,
         verifiedAt: updatedIdentity.verifiedAt,
       });
+      expect(pubSubPublisher.publish).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if identity not owned by user', async () => {

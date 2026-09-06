@@ -145,15 +145,16 @@ export class AuthService extends BaseService {
     const { user } = await this.authCredentialService.createUserWithCredential(
       value,
       authMethod.method,
-      false,
+      authMethod.isVerified,
     );
     this.logger.debug('User provisioned', {
       ...ctx,
       step: 'create_user',
       userId: user.id,
+      isVerified: authMethod.isVerified,
     });
 
-    // TODO: Send OTP / magic link to the value
+    // Send OTP / magic link if verification is still required
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
@@ -165,7 +166,10 @@ export class AuthService extends BaseService {
       step: 'complete',
       userId: user.id,
     });
-    return { userId: user.id, status: 'pending_verification' };
+    return {
+      userId: user.id,
+      status: authMethod.isVerified ? 'verified' : 'pending_verification',
+    };
   }
 
   /**
@@ -225,13 +229,51 @@ export class AuthService extends BaseService {
     });
 
     if (!credIdentity?.isVerified) {
-      // Resend OTP / magic link – frontend should show verification screen
-      this.logger.warn('Signin failed: account unverified', {
-        ...ctx,
-        step: 'credential_lookup',
-        userId: credential.userId,
-      });
-      throw new UnverifiedAccountException();
+      if (authMethod.isVerified) {
+        // Auto-reconcile verification status when authenticated via a verified provider token
+        await this.prisma.identity.update({
+          where: { id: credential.identityId },
+          data: {
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+          },
+        });
+        this.logger.log('Auto-verified identity from verified provider token', {
+          ...ctx,
+          step: 'auto_verify_identity',
+          identityId: credential.identityId,
+          userId: credential.userId,
+        });
+
+        // Trigger match resolution for any pending likes targeting this newly verified identity
+        this.pubSubPublisher
+          .publish(
+            PubSubTopic.IDENTITY_WORKFLOWS,
+            PubSubEvent.IDENTITY_CLAIMED,
+            {
+              userId: credential.userId,
+            },
+          )
+          .catch((err: unknown) => {
+            this.logger.error(
+              'Failed to publish IDENTITY_CLAIMED event on signin auto-verification',
+              {
+                ...ctx,
+                step: 'pubsub_publish',
+                userId: credential.userId,
+                err: serializeError(err),
+              },
+            );
+          });
+      } else {
+        // Resend OTP / magic link – frontend should show verification screen
+        this.logger.warn('Signin failed: account unverified', {
+          ...ctx,
+          step: 'credential_lookup',
+          userId: credential.userId,
+        });
+        throw new UnverifiedAccountException();
+      }
     }
     this.logger.debug('Credential verified', {
       ...ctx,
@@ -344,12 +386,50 @@ export class AuthService extends BaseService {
     });
 
     if (!credIdentity?.isVerified) {
-      this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
-        ...ctx,
-        step: 'credential_lookup',
-        userId: credential.userId,
-      });
-      throw new UnverifiedAccountException();
+      if (authMethod.isVerified) {
+        // Provider has cryptographically verified this credential (e.g. Google Sign-In, Firebase Email Link)
+        await this.prisma.identity.update({
+          where: { id: credential.identityId },
+          data: {
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+          },
+        });
+        this.logger.log('Auto-verified identity from verified provider token', {
+          ...ctx,
+          step: 'auto_verify_identity',
+          identityId: credential.identityId,
+          userId: credential.userId,
+        });
+
+        // Trigger match resolution for any pending likes targeting this newly verified identity
+        this.pubSubPublisher
+          .publish(
+            PubSubTopic.IDENTITY_WORKFLOWS,
+            PubSubEvent.IDENTITY_CLAIMED,
+            {
+              userId: credential.userId,
+            },
+          )
+          .catch((err: unknown) => {
+            this.logger.error(
+              'Failed to publish IDENTITY_CLAIMED event on signInOrSignUp auto-verification',
+              {
+                ...ctx,
+                step: 'pubsub_publish',
+                userId: credential.userId,
+                err: serializeError(err),
+              },
+            );
+          });
+      } else {
+        this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
+          ...ctx,
+          step: 'credential_lookup',
+          userId: credential.userId,
+        });
+        throw new UnverifiedAccountException();
+      }
     }
     this.logger.debug('Existing credential verified', {
       ...ctx,

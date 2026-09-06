@@ -551,6 +551,8 @@ export class IdentitiesService extends BaseService {
       },
     });
 
+    this.publishIdentityClaimedEvent(userId);
+
     return this.toMaskedResponse(updated);
   }
 
