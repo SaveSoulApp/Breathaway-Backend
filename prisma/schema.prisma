@@ -87,6 +87,7 @@ model User {
   devices          Device[]
   creditLedger     CreditLedger[]
   subscriptions    UserSubscription[]
+  transactions     Transaction[]
 
   createdAt        DateTime         @default(now()) @db.Timestamptz
   deletedAt        DateTime?        @db.Timestamptz
@@ -308,6 +309,90 @@ model NotificationPreference {
 
   createdAt       DateTime @default(now()) @db.Timestamptz
   updatedAt       DateTime @updatedAt     @db.Timestamptz
+}
+
+// ──────────────────────────────────────────────
+// Transactions (payment gateways)
+//
+// Gateway-agnostic record of every inbound money event
+// (RevenueCat, Razorpay, ...). A Transaction row is the
+// canonical reference for a purchase: its ULID is written
+// to CreditLedger.referenceId, while the gateway's own
+// identifiers stay here.
+// ──────────────────────────────────────────────
+
+enum PaymentGateway {
+  REVENUECAT
+  RAZORPAY
+}
+
+enum TransactionType {
+  PURCHASE
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TransactionEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+model Transaction {
+  id                   String                 @id @default(ulid())
+
+  /// Nullable by design: a purchase whose gateway user ID cannot be resolved to
+  /// a local account is still recorded, so it can be reconciled later rather
+  /// than silently dropped.
+  userId               String?
+  user                 User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  gateway              PaymentGateway
+  /// The gateway's own transaction identifier (RevenueCat `transaction_id`).
+  /// Unique per gateway — this pair is the idempotency guard for redelivered webhooks.
+  gatewayTransactionId String
+  /// The gateway's event identifier (RevenueCat `id`). Diagnostics only; a retry
+  /// reuses it, so it is deliberately not the dedupe key.
+  gatewayEventId       String?
+  /// The user handle exactly as the gateway sent it, before resolution.
+  /// Retained so unresolved rows can be matched up by hand.
+  gatewayUserId        String?
+
+  type                 TransactionType        @default(PURCHASE)
+  status               TransactionStatus      @default(COMPLETED)
+  environment          TransactionEnvironment
+
+  /// Store product identifier (e.g. "likes_10"), mapped to a SubscriptionPlan.
+  productId            String
+  /// Credits actually granted, frozen at grant time so a later change to the
+  /// plan mapping never rewrites history.
+  creditsGranted       Int?
+
+  /// Plain ISO-4217 code rather than the CurrencyCode enum: stores auto-generate
+  /// prices in ~150 currencies, and a transaction must record whatever the
+  /// gateway reported rather than a curated subset.
+  amount               Decimal?               @db.Decimal(12, 2)
+  currency             String?                @db.Char(3)
+  countryCode          String?                @db.Char(2)
+
+  /// When the purchase happened at the gateway, not when we recorded it.
+  occurredAt           DateTime               @db.Timestamptz
+  /// Gateway payload with PII stripped (see TransactionsService.sanitizePayload).
+  rawPayload           Json?
+
+  createdAt            DateTime               @default(now()) @db.Timestamptz
+  updatedAt            DateTime               @updatedAt      @db.Timestamptz
+
+  @@unique([gateway, gatewayTransactionId])
+  @@index([userId])
+  @@index([gateway, gatewayEventId])
+  @@index([status])
+  @@index([occurredAt])
 }
 
 // ──────────────────────────────────────────────

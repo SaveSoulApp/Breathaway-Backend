@@ -214,6 +214,50 @@ export class SubscriptionPlansService extends BaseService {
   }
 
   /**
+   * Resolves a plan from a store product ID without knowing which storefront it
+   * came from.
+   *
+   * Aggregator webhooks (RevenueCat) report a single `product_id` and a store
+   * value that may be neither Apple nor Google — a Test Store purchase reports
+   * `TEST_STORE` — so there is no platform to switch on. Matching either column
+   * also reflects how these products are configured in practice: the same
+   * identifier is registered across every storefront.
+   *
+   * @param productId - The product ID as reported by the gateway.
+   * @returns The internal plan mapped to this product.
+   * @throws {SubscriptionPlanNotFoundException} When no plan is configured for the product ID.
+   */
+  async getPlanByProductId(productId: string) {
+    const plan = await this.prisma.subscriptionPlan.findFirst({
+      where: {
+        OR: [{ appleProductId: productId }, { googleProductId: productId }],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        appleProductId: true,
+        googleProductId: true,
+        creditsGranted: true,
+        validityDays: true,
+        status: true,
+      },
+    });
+
+    if (!plan) {
+      this.logger.warn('Get plan by product ID failed: plan not found', {
+        productId,
+        step: 'fetch_by_product_id',
+      });
+      throw new SubscriptionPlanNotFoundException(
+        `Subscription plan not found for product ID "${productId}"`,
+      );
+    }
+
+    return plan;
+  }
+
+  /**
    * Provisions a new subscription tier in the system.
    *
    * Automatically logs an audit event for traceability.

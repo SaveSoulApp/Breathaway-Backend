@@ -4,7 +4,7 @@ import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { Injectable } from '@nestjs/common';
 import { ParsedInstagramMessage } from '../interfaces/meta-webhook-result.interface';
-import { WebhookMessageHandler } from './webhook-message.handler.interface';
+import { WebhookMessageHandler } from './webhook-handler.interface';
 
 @Injectable()
 export class OtpVerificationHandler

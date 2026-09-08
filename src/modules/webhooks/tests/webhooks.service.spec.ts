@@ -7,9 +7,15 @@ import { LoggerService } from '@core/logger';
 
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
-import { WebhookMessageHandler } from '../handlers/webhook-message.handler.interface';
+import {
+  WebhookMessageHandler,
+  WebhookPurchaseHandler,
+} from '../handlers/webhook-handler.interface';
 import { WebhooksService } from '../webhooks.service';
-import { WEBHOOK_MESSAGE_HANDLERS } from '../webhooks.constants';
+import {
+  WEBHOOK_MESSAGE_HANDLERS,
+  WEBHOOK_PURCHASE_HANDLERS,
+} from '../webhooks.constants';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -26,6 +32,7 @@ describe('WebhooksService', () => {
   };
   let mockHandler1: jest.Mocked<WebhookMessageHandler>;
   let mockHandler2: jest.Mocked<WebhookMessageHandler>;
+  let mockPurchaseHandler: jest.Mocked<WebhookPurchaseHandler>;
 
   beforeEach(async () => {
     contextualLogger = {
@@ -54,6 +61,11 @@ describe('WebhooksService', () => {
       handle: jest.fn().mockResolvedValue(undefined),
     };
 
+    mockPurchaseHandler = {
+      canHandle: jest.fn().mockReturnValue(false),
+      handle: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
@@ -63,6 +75,10 @@ describe('WebhooksService', () => {
         {
           provide: WEBHOOK_MESSAGE_HANDLERS,
           useValue: [mockHandler1, mockHandler2],
+        },
+        {
+          provide: WEBHOOK_PURCHASE_HANDLERS,
+          useValue: [mockPurchaseHandler],
         },
         {
           provide: LoggerService,

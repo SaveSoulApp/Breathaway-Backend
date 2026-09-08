@@ -8,10 +8,19 @@ import { LoggerService } from '@core/logger';
 
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
-import { WebhookMessageHandler } from './handlers/webhook-message.handler.interface';
+import { PurchaseEventType } from './enums/purchase-event-type.enum';
+import {
+  WebhookMessageHandler,
+  WebhookPurchaseHandler,
+} from './handlers/webhook-handler.interface';
 import { MetaWebhookResult } from './interfaces/meta-webhook-result.interface';
+import { ParsedPurchaseEvent } from './interfaces/purchase-event.interface';
 import { determineIntent, extractMessages } from './utils/meta-webhook.parser';
-import { WEBHOOK_MESSAGE_HANDLERS } from './webhooks.constants';
+import { parseRevenueCatWebhook } from './utils/revenuecat-webhook.parser';
+import {
+  WEBHOOK_MESSAGE_HANDLERS,
+  WEBHOOK_PURCHASE_HANDLERS,
+} from './webhooks.constants';
 
 @Injectable()
 export class WebhooksService extends BaseService {
@@ -20,6 +29,8 @@ export class WebhooksService extends BaseService {
     private readonly configService: ConfigService,
     @Inject(WEBHOOK_MESSAGE_HANDLERS)
     private readonly messageHandlers: WebhookMessageHandler[],
+    @Inject(WEBHOOK_PURCHASE_HANDLERS)
+    private readonly purchaseHandlers: WebhookPurchaseHandler[],
   ) {
     super(logger);
   }
@@ -106,6 +117,65 @@ export class WebhooksService extends BaseService {
           break;
       }
     }
+  }
+
+  /**
+   * Normalises a RevenueCat webhook delivery into a provider-neutral event.
+   *
+   * @param payload - The raw webhook body; shape is checked during parsing.
+   * @returns The parsed purchase event.
+   */
+  parseRevenueCatWebhook(payload: unknown): ParsedPurchaseEvent {
+    return parseRevenueCatWebhook(payload);
+  }
+
+  /**
+   * Routes a parsed purchase event to the first handler that claims it.
+   *
+   * Events this system does not act on — subscription lifecycle types, and the
+   * dashboard's synthetic `TEST` event — are logged and dropped rather than
+   * treated as failures, so the gateway is never told to retry something that
+   * will never be processed.
+   *
+   * @param event - The provider-neutral purchase event.
+   */
+  async handlePurchaseEvent(event: ParsedPurchaseEvent): Promise<void> {
+    const ctx = {
+      gateway: event.gateway,
+      providerEventType: event.providerEventType,
+      gatewayTransactionId: event.gatewayTransactionId,
+      environment: event.environment,
+    };
+
+    if (event.type === PurchaseEventType.UNKNOWN) {
+      this.logger.debug('Ignoring unhandled purchase event type', {
+        ...ctx,
+        step: 'event_routing',
+      });
+      return;
+    }
+
+    for (const handler of this.purchaseHandlers) {
+      if (!handler.canHandle(event)) continue;
+
+      try {
+        await handler.handle(event);
+      } catch (error) {
+        this.logger.error('Failed to handle purchase event', {
+          ...ctx,
+          step: 'handle_purchase',
+          handler: handler.constructor.name,
+          err: serializeError(error),
+        });
+        throw error;
+      }
+      return; // Stop at the first handler that claims the event.
+    }
+
+    this.logger.warn('No handler claimed purchase event', {
+      ...ctx,
+      step: 'event_routing',
+    });
   }
 
   // ──────────────────────────────────────────────
