@@ -26,7 +26,7 @@ export class CreateIdentityRequestDto {
   @IsString()
   @IsNotEmpty()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.toLowerCase() : value,
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   publicValue: string;
 

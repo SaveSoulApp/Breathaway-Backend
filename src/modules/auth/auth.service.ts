@@ -1,3 +1,6 @@
+import { Injectable } from '@nestjs/common';
+import { IdentityType, User } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -8,11 +11,13 @@ import { AuditActionType } from '@modules/audit/dto';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { Injectable } from '@nestjs/common';
+import { DomainException } from '@shared/domain/exceptions/domain.exception';
+
 import {
   AccountAlreadyExistsException,
   AccountNotFoundException,
   AuthTypeMismatchException,
+  CredentialAlreadyLinkedException,
   DeletedAccountReverificationException,
   RegistrationPendingException,
   SocialAccountAlreadyLinkedException,
@@ -20,7 +25,6 @@ import {
   UnverifiedAccountException,
   UserNotFoundException,
 } from './application/exceptions';
-import { IdentityType, User } from '@prisma/client';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
@@ -30,8 +34,12 @@ import {
 } from './dto';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
-import { AuthMethod } from './utils/auth-method.utils';
-import { DomainException } from '@shared/domain/exceptions/domain.exception';
+import {
+  AuthMethod,
+  isEmailAuthMethod,
+  isPhoneAuthMethod,
+  sanitizeEmail,
+} from './utils/auth-method.utils';
 
 /**
  * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
@@ -81,10 +89,9 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier; // raw phone or email
-    const identityType =
-      authMethod.method === AuthMethod.PHONE
-        ? IdentityType.PHONE
-        : IdentityType.EMAIL;
+    const identityType = isPhoneAuthMethod(authMethod.method)
+      ? IdentityType.PHONE
+      : IdentityType.EMAIL;
 
     Object.assign(ctx, { method: authMethod.method, identityType });
     this.logger.debug('Firebase token validated', {
@@ -138,15 +145,16 @@ export class AuthService extends BaseService {
     const { user } = await this.authCredentialService.createUserWithCredential(
       value,
       authMethod.method,
-      false,
+      authMethod.isVerified,
     );
     this.logger.debug('User provisioned', {
       ...ctx,
       step: 'create_user',
       userId: user.id,
+      isVerified: authMethod.isVerified,
     });
 
-    // TODO: Send OTP / magic link to the value
+    // Send OTP / magic link if verification is still required
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
@@ -158,7 +166,10 @@ export class AuthService extends BaseService {
       step: 'complete',
       userId: user.id,
     });
-    return { userId: user.id, status: 'pending_verification' };
+    return {
+      userId: user.id,
+      status: authMethod.isVerified ? 'verified' : 'pending_verification',
+    };
   }
 
   /**
@@ -184,10 +195,9 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const identityType =
-      authMethod.method === AuthMethod.PHONE
-        ? IdentityType.PHONE
-        : IdentityType.EMAIL;
+    const identityType = isPhoneAuthMethod(authMethod.method)
+      ? IdentityType.PHONE
+      : IdentityType.EMAIL;
     const { publicValueHash: valueHash } =
       await this.encryptionService.processPublicValue(value, identityType);
 
@@ -219,13 +229,51 @@ export class AuthService extends BaseService {
     });
 
     if (!credIdentity?.isVerified) {
-      // Resend OTP / magic link – frontend should show verification screen
-      this.logger.warn('Signin failed: account unverified', {
-        ...ctx,
-        step: 'credential_lookup',
-        userId: credential.userId,
-      });
-      throw new UnverifiedAccountException();
+      if (authMethod.isVerified) {
+        // Auto-reconcile verification status when authenticated via a verified provider token
+        await this.prisma.identity.update({
+          where: { id: credential.identityId },
+          data: {
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+          },
+        });
+        this.logger.log('Auto-verified identity from verified provider token', {
+          ...ctx,
+          step: 'auto_verify_identity',
+          identityId: credential.identityId,
+          userId: credential.userId,
+        });
+
+        // Trigger match resolution for any pending likes targeting this newly verified identity
+        this.pubSubPublisher
+          .publish(
+            PubSubTopic.IDENTITY_WORKFLOWS,
+            PubSubEvent.IDENTITY_CLAIMED,
+            {
+              userId: credential.userId,
+            },
+          )
+          .catch((err: unknown) => {
+            this.logger.error(
+              'Failed to publish IDENTITY_CLAIMED event on signin auto-verification',
+              {
+                ...ctx,
+                step: 'pubsub_publish',
+                userId: credential.userId,
+                err: serializeError(err),
+              },
+            );
+          });
+      } else {
+        // Resend OTP / magic link – frontend should show verification screen
+        this.logger.warn('Signin failed: account unverified', {
+          ...ctx,
+          step: 'credential_lookup',
+          userId: credential.userId,
+        });
+        throw new UnverifiedAccountException();
+      }
     }
     this.logger.debug('Credential verified', {
       ...ctx,
@@ -277,10 +325,9 @@ export class AuthService extends BaseService {
     this.ensurePhoneOrEmail(authMethod.method);
 
     const value = authMethod.identifier;
-    const identityType =
-      authMethod.method === AuthMethod.PHONE
-        ? IdentityType.PHONE
-        : IdentityType.EMAIL;
+    const identityType = isPhoneAuthMethod(authMethod.method)
+      ? IdentityType.PHONE
+      : IdentityType.EMAIL;
     const { publicValueHash: valueHash } =
       await this.encryptionService.processPublicValue(value, identityType);
 
@@ -339,12 +386,50 @@ export class AuthService extends BaseService {
     });
 
     if (!credIdentity?.isVerified) {
-      this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
-        ...ctx,
-        step: 'credential_lookup',
-        userId: credential.userId,
-      });
-      throw new UnverifiedAccountException();
+      if (authMethod.isVerified) {
+        // Provider has cryptographically verified this credential (e.g. Google Sign-In, Firebase Email Link)
+        await this.prisma.identity.update({
+          where: { id: credential.identityId },
+          data: {
+            isVerified: true,
+            verifiedAt: DateUtil.now(),
+          },
+        });
+        this.logger.log('Auto-verified identity from verified provider token', {
+          ...ctx,
+          step: 'auto_verify_identity',
+          identityId: credential.identityId,
+          userId: credential.userId,
+        });
+
+        // Trigger match resolution for any pending likes targeting this newly verified identity
+        this.pubSubPublisher
+          .publish(
+            PubSubTopic.IDENTITY_WORKFLOWS,
+            PubSubEvent.IDENTITY_CLAIMED,
+            {
+              userId: credential.userId,
+            },
+          )
+          .catch((err: unknown) => {
+            this.logger.error(
+              'Failed to publish IDENTITY_CLAIMED event on signInOrSignUp auto-verification',
+              {
+                ...ctx,
+                step: 'pubsub_publish',
+                userId: credential.userId,
+                err: serializeError(err),
+              },
+            );
+          });
+      } else {
+        this.logger.warn('Sign-in-or-sign-up failed: account unverified', {
+          ...ctx,
+          step: 'credential_lookup',
+          userId: credential.userId,
+        });
+        throw new UnverifiedAccountException();
+      }
     }
     this.logger.debug('Existing credential verified', {
       ...ctx,
@@ -619,8 +704,8 @@ export class AuthService extends BaseService {
 
     if (
       (authType === AuthMethod.PHONE &&
-        authMethod.method !== AuthMethod.PHONE) ||
-      (authType === AuthMethod.EMAIL && authMethod.method !== AuthMethod.EMAIL)
+        !isPhoneAuthMethod(authMethod.method)) ||
+      (authType === AuthMethod.EMAIL && !isEmailAuthMethod(authMethod.method))
     ) {
       this.logger.warn('Add secondary auth failed: auth type mismatch', {
         ...ctx,
@@ -631,9 +716,28 @@ export class AuthService extends BaseService {
     }
     this.logger.debug('Auth type check passed', { ...ctx, step: 'type_check' });
 
+    if (!authMethod.isVerified) {
+      this.logger.warn('Add secondary auth failed: credential unverified', {
+        ...ctx,
+        step: 'verification_check',
+        method: authMethod.method,
+      });
+      throw new UnverifiedAccountException(
+        'Credential must be verified with the authentication provider before linking',
+      );
+    }
+    this.logger.debug('Verification check passed', {
+      ...ctx,
+      step: 'verification_check',
+    });
+
     const value = authMethod.identifier;
-    const identityType =
-      authType === AuthMethod.PHONE ? IdentityType.PHONE : IdentityType.EMAIL;
+    const identityType = isPhoneAuthMethod(authMethod.method)
+      ? IdentityType.PHONE
+      : IdentityType.EMAIL;
+    const credentialType = this.authCredentialService.toCredentialType(
+      authMethod.method,
+    );
 
     // Normalize before hashing – must match what processPublicValue produces
     const publicValueData = await this.encryptionService.processPublicValue(
@@ -646,7 +750,35 @@ export class AuthService extends BaseService {
       identityType,
     });
 
-    // 2. Check global uniqueness — active credentials only
+    // 2. Check if current user already has an active credential of this type
+    const existingUserCred = await this.prisma.authCredential.findFirst({
+      where: {
+        userId,
+        type: credentialType,
+        deletedAt: null,
+      },
+    });
+    if (existingUserCred) {
+      this.logger.warn(
+        'Add secondary auth failed: user already has an active credential of this type',
+        {
+          ...ctx,
+          step: 'user_credential_check',
+          credentialType,
+        },
+      );
+      throw new CredentialAlreadyLinkedException(
+        existingUserCred.valueHash === publicValueData.publicValueHash
+          ? 'This credential is already linked to your account'
+          : 'A credential of this type is already linked to this account',
+      );
+    }
+    this.logger.debug('User credential check passed', {
+      ...ctx,
+      step: 'user_credential_check',
+    });
+
+    // 3. Check global uniqueness — active credentials only
     const existingCred = await this.prisma.authCredential.findFirst({
       where: { valueHash: publicValueData.publicValueHash, deletedAt: null },
     });
@@ -662,7 +794,7 @@ export class AuthService extends BaseService {
       step: 'uniqueness_check',
     });
 
-    // 3. Verify user exists
+    // 4. Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -675,13 +807,14 @@ export class AuthService extends BaseService {
     }
     this.logger.debug('User found', { ...ctx, step: 'user_lookup' });
 
-    // 4. Encrypt and create Identity + AuthCredential atomically
+    // 5. Encrypt and create Identity + AuthCredential atomically
+    let claimedGhostIdentity = false;
     try {
       await this.prisma.$transaction(async (tx) => {
         const existingIdentity = await tx.identity.findUnique({
           where: {
             type_publicValueHash: {
-              type: this.authCredentialService.toCredentialType(authType),
+              type: identityType,
               publicValueHash: publicValueData.publicValueHash,
             },
           },
@@ -706,11 +839,13 @@ export class AuthService extends BaseService {
             where: { id: existingIdentity.id },
             data: {
               userId: user.id,
-              isVerified: false,
+              isVerified: true,
+              verifiedAt: DateUtil.now(),
               ...publicValueData,
             },
           });
           identityId = updatedIdentity.id;
+          claimedGhostIdentity = true;
           this.logger.debug('Ghost identity claimed for secondary auth', {
             ...ctx,
             step: 'link_credential',
@@ -719,10 +854,11 @@ export class AuthService extends BaseService {
         } else {
           const newIdentity = await tx.identity.create({
             data: {
-              type: this.authCredentialService.toCredentialType(authType),
+              type: identityType,
               ...publicValueData,
               userId: user.id,
-              isVerified: false, // will need verification
+              isVerified: true,
+              verifiedAt: DateUtil.now(),
             },
           });
           identityId = newIdentity.id;
@@ -735,14 +871,14 @@ export class AuthService extends BaseService {
 
         // Determine if this should be primary (if user has no primary credential yet, set true)
         const primaryCount = await tx.authCredential.count({
-          where: { userId: user.id, isPrimary: true },
+          where: { userId: user.id, isPrimary: true, deletedAt: null },
         });
         const isPrimary = primaryCount === 0;
 
         await tx.authCredential.create({
           data: {
             userId: user.id,
-            type: this.authCredentialService.toCredentialType(authType),
+            type: credentialType,
             valueHash: publicValueData.publicValueHash,
             valueMasked: publicValueData.publicValueMasked ?? null,
             isPrimary,
@@ -768,7 +904,32 @@ export class AuthService extends BaseService {
       throw err;
     }
 
-    // TODO: Send verification code to the new value
+    if (claimedGhostIdentity) {
+      this.pubSubPublisher
+        .publish(PubSubTopic.IDENTITY_WORKFLOWS, PubSubEvent.IDENTITY_CLAIMED, {
+          userId: user.id,
+        })
+        .catch((err: unknown) => {
+          this.logger.error(
+            'Failed to publish IDENTITY_CLAIMED event for secondary auth',
+            {
+              ...ctx,
+              step: 'pubsub_publish',
+              userId: user.id,
+              err: serializeError(err),
+            },
+          );
+        });
+      this.logger.debug(
+        'IDENTITY_CLAIMED event dispatched for secondary auth',
+        {
+          ...ctx,
+          step: 'pubsub_publish',
+          userId: user.id,
+        },
+      );
+    }
+
     this.logger.log('Add secondary auth complete', {
       ...ctx,
       step: 'complete',
@@ -792,14 +953,10 @@ export class AuthService extends BaseService {
    * @throws {NotFoundException} When no credential matches the provided identifier.
    */
   async devLogin(dto: DevLoginRequestDto) {
-    const value = dto.identifier;
-
-    // Normalize before hashing so it matches the canonical hash stored at
-    // signup time. Phone numbers are stripped of non-digits; emails are
-    // lowercased. Use a simple heuristic: if it contains '@' it's an email.
-    const identityType = value.includes('@')
-      ? IdentityType.EMAIL
-      : IdentityType.PHONE;
+    const rawValue = dto.identifier.trim();
+    const isEmail = rawValue.includes('@');
+    const value = isEmail ? sanitizeEmail(rawValue) : rawValue;
+    const identityType = isEmail ? IdentityType.EMAIL : IdentityType.PHONE;
 
     const ctx = { identityType };
     this.logger.debug('Dev login started', { ...ctx, step: 'init' });
@@ -840,7 +997,7 @@ export class AuthService extends BaseService {
   }
 
   private ensurePhoneOrEmail(method: AuthMethod) {
-    if (method !== AuthMethod.PHONE && method !== AuthMethod.EMAIL) {
+    if (!isPhoneAuthMethod(method) && !isEmailAuthMethod(method)) {
       this.logger.warn('Auth method unsupported', {
         method,
         step: 'method_validation',

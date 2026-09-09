@@ -94,4 +94,44 @@ describe('AuthController', () => {
       expect(result).toEqual(mockSigninResponse);
     });
   });
+
+  describe('addPhone', () => {
+    it('should add a secondary phone credential', async () => {
+      const dto = { uid: 'uid-phone-123', uidToken: 'token-phone-123' };
+      const mockResponse = {
+        access_token: 'mock-access-token',
+        user_id: 'user-id-123',
+      };
+      service.addSecondaryAuth.mockResolvedValue(mockResponse);
+
+      const result = await controller.addPhone('user-id-123', dto);
+
+      expect(service.addSecondaryAuth).toHaveBeenCalledWith(
+        'user-id-123',
+        dto,
+        'phone',
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('addEmail', () => {
+    it('should add a secondary email credential', async () => {
+      const dto = { uid: 'uid-email-123', uidToken: 'token-email-123' };
+      const mockResponse = {
+        access_token: 'mock-access-token',
+        user_id: 'user-id-123',
+      };
+      service.addSecondaryAuth.mockResolvedValue(mockResponse);
+
+      const result = await controller.addEmail('user-id-123', dto);
+
+      expect(service.addSecondaryAuth).toHaveBeenCalledWith(
+        'user-id-123',
+        dto,
+        'password',
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
 });

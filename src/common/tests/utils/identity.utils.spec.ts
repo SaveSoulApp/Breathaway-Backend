@@ -2,10 +2,23 @@ import {
   applyCountryCode,
   isE164Phone,
   normalizeIdentityValue,
+  sanitizeEmail,
 } from '@common/utils/identity.utils';
 import { IdentityType } from '@prisma/client';
 
 describe('identity.utils', () => {
+  describe('sanitizeEmail', () => {
+    it('should trim leading and trailing spaces and convert to lowercase', () => {
+      expect(sanitizeEmail('  John.Doe@Example.COM  ')).toBe(
+        'john.doe@example.com',
+      );
+    });
+
+    it('should handle already lowercase and trimmed email', () => {
+      expect(sanitizeEmail('user@test.org')).toBe('user@test.org');
+    });
+  });
+
   describe('normalizeIdentityValue', () => {
     it('should strip all non-digit characters from a PHONE value', () => {
       expect(

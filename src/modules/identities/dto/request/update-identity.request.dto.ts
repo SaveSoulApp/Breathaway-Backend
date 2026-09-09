@@ -17,7 +17,7 @@ export class UpdateIdentityRequestDto {
   @IsOptional()
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.toLowerCase() : value,
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   publicValue?: string;
 
