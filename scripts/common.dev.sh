@@ -59,3 +59,6 @@ export BREVO_API_KEY='your_brevo_api_key_here'
 export SWAGGER_ENABLED='true'
 
 export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
+
+export CREDIT_EXPIRY_DAYS='90'
+export LIKE_EXPIRY_DAYS='90'

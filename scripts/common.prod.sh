@@ -41,6 +41,9 @@ export JWT_ISSUER='https://breathaway.app'
 export OTP_TTL='300'
 export OTP_RATE_LIMIT_TTL='120'
 
+export CREDIT_EXPIRY_DAYS='90'
+export LIKE_EXPIRY_DAYS='90'
+
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
 export SWAGGER_ENABLED='true'

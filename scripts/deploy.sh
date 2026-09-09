@@ -123,6 +123,8 @@ deploy_service() {
         "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
         "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
+        "CREDIT_EXPIRY_DAYS=${CREDIT_EXPIRY_DAYS}"
+        "LIKE_EXPIRY_DAYS=${LIKE_EXPIRY_DAYS}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
