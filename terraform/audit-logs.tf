@@ -82,3 +82,76 @@ resource "google_pubsub_subscription" "audit_logs_bq_sub" {
     google_project_iam_member.pubsub_bq_writer
   ]
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NEW: Cloud Logging → Log Bucket → BigQuery Linked Dataset
+#
+# Architecture:
+#   NestJS stdout (pino JSON)
+#     → Cloud Run log agent
+#     → Cloud Logging
+#     → Log Bucket (breathaway-app-logs)
+#     → BigQuery Linked Dataset (app_logs_dataset)
+#
+# IMPORTANT: The Terraform state file in this repo is local (no remote backend).
+# Confirm `terraform plan` output before applying to the live project.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 7. Cloud Logging Log Bucket
+resource "google_logging_project_bucket_config" "app_logs_bucket" {
+  project          = data.google_project.project.project_id
+  location         = "asia-south1"
+  bucket_id        = "breathaway-app-logs"
+  description      = "Application observability log bucket for structured Pino logs"
+  retention_days   = 90
+  enable_analytics = true
+}
+
+# 8. Log Sink — routes structured application logs to the Log Bucket
+#
+# Note: `unique_writer_identity` is intentionally omitted. For log sinks whose
+# destination is a log bucket in the SAME project, GCP automatically uses the
+# project's Cloud Logging service agent and no explicit IAM grant is required.
+# Setting unique_writer_identity = true produces an empty writer_identity for
+# same-project bucket destinations, which causes the IAM binding to fail.
+resource "google_logging_project_sink" "app_logs_sink" {
+  project     = data.google_project.project.project_id
+  name        = "breathaway-app-log-sink"
+  destination = "logging.googleapis.com/${google_logging_project_bucket_config.app_logs_bucket.id}"
+  description = "Routes Breathaway API application logs to the observability log bucket"
+  filter      = "resource.type=\"cloud_run_revision\" AND jsonPayload.serviceContext.service=\"breathaway-api\""
+
+  depends_on = [google_logging_project_bucket_config.app_logs_bucket]
+}
+
+# 9. (Removed — no IAM binding needed for same-project log bucket sinks.
+#    GCP's Cloud Logging service agent is granted access implicitly.)
+
+# 10. BigQuery Linked Dataset from Log Bucket
+#
+# This links the Log Bucket to BigQuery so logs can be queried with SQL.
+# The `link_id` becomes the BigQuery dataset name in the project.
+#
+# Note on arguments:
+#   - `parent`  is used instead of `project` (resource-specific field name).
+#   - `bucket`  takes the full resource ID from the bucket config (.id).
+#   - There is no `bigquery_dataset` block — the link_id itself IS the BQ dataset.
+#   - `link_id` must use underscores, not hyphens (GCP naming restriction).
+#
+# Example query after provisioning:
+#   SELECT timestamp, jsonPayload.event, jsonPayload.requestId
+#   FROM `breathaway-dev.app_logs_bq_link.cloudlogging_*`
+#   WHERE jsonPayload.requestId = 'req-abc123'
+#   ORDER BY timestamp ASC
+resource "google_logging_linked_dataset" "app_logs_bq_link" {
+  link_id     = "app_logs_bq_link"
+  bucket      = google_logging_project_bucket_config.app_logs_bucket.id
+  parent      = "projects/${data.google_project.project.project_id}"
+  location    = "asia-south1"
+  description = "BigQuery linked dataset for querying Breathaway application logs"
+
+  depends_on = [
+    google_logging_project_bucket_config.app_logs_bucket,
+    google_logging_project_sink.app_logs_sink,
+  ]
+}
