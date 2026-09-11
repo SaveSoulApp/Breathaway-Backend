@@ -18,7 +18,6 @@ export IMAGE_BASE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SE
 # ==============================================================================
 export NODE_ENV='development'
 export LOG_LEVEL='info'
-export SHOULD_LOG_RESPONSE='false'
 export DEPLOYMENT_ENV='gcp'
 
 export APP_NAME="BreathAway"

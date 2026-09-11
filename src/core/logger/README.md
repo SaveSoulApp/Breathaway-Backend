@@ -288,7 +288,7 @@ SELECT
   jsonPayload.context,
   jsonPayload.step,
   jsonPayload.durationMs
-FROM `breathaway-dev.app_logs_dataset.cloudlogging_*`
+FROM `breathaway-dev.app_logs_dataset._AllLogs`
 WHERE jsonPayload.requestId = 'req-abc-123'
 ORDER BY timestamp ASC
 ```
@@ -302,7 +302,7 @@ SELECT
   jsonPayload.userId,
   jsonPayload.likeId,
   jsonPayload.targetIdentityId
-FROM `breathaway-dev.app_logs_dataset.cloudlogging_*`
+FROM `breathaway-dev.app_logs_dataset._AllLogs`
 WHERE
   jsonPayload.event = 'LIKE_CREATED'
   AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
@@ -319,7 +319,7 @@ SELECT
   jsonPayload.message,
   jsonPayload.context,
   jsonPayload.err.message AS error_message
-FROM `breathaway-dev.app_logs_dataset.cloudlogging_*`
+FROM `breathaway-dev.app_logs_dataset._AllLogs`
 WHERE
   jsonPayload.severity = 'ERROR'
   AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)
@@ -331,7 +331,7 @@ ORDER BY timestamp DESC
 ```sql
 -- Pub/Sub messageId becomes the requestId in all handler logs
 SELECT timestamp, jsonPayload.severity, jsonPayload.event, jsonPayload.message, jsonPayload.step
-FROM `breathaway-dev.app_logs_dataset.cloudlogging_*`
+FROM `breathaway-dev.app_logs_dataset._AllLogs`
 WHERE jsonPayload.requestId = 'pubsub-message-id-here'
 ORDER BY timestamp ASC
 ```

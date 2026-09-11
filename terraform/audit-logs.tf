@@ -119,7 +119,10 @@ resource "google_logging_project_sink" "app_logs_sink" {
   name        = "breathaway-app-log-sink"
   destination = "logging.googleapis.com/${google_logging_project_bucket_config.app_logs_bucket.id}"
   description = "Routes Breathaway API application logs to the observability log bucket"
-  filter      = "resource.type=\"cloud_run_revision\" AND jsonPayload.serviceContext.service=\"breathaway-api\""
+
+  # serviceContext.service is set from the APP_NAME env var in the NestJS app.
+  # The current value in scripts/common.dev.sh is "BreathAway" — must match exactly.
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.serviceContext.service=\"BreathAway\""
 
   depends_on = [google_logging_project_bucket_config.app_logs_bucket]
 }
@@ -140,7 +143,7 @@ resource "google_logging_project_sink" "app_logs_sink" {
 #
 # Example query after provisioning:
 #   SELECT timestamp, jsonPayload.event, jsonPayload.requestId
-#   FROM `breathaway-dev.app_logs_bq_link.cloudlogging_*`
+#   FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 #   WHERE jsonPayload.requestId = 'req-abc123'
 #   ORDER BY timestamp ASC
 resource "google_logging_linked_dataset" "app_logs_bq_link" {
