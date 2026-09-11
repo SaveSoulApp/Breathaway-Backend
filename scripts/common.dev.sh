@@ -19,7 +19,7 @@ export IMAGE_BASE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SE
 export NODE_ENV='development'
 export LOG_LEVEL='info'
 export DEPLOYMENT_ENV='gcp'
-
+export SHOULD_LOG_RESPONSE='false'
 export APP_NAME="BreathAway"
 export REQUIRED_PLATFORMS='["iOS","Android","Postman"]'
 export MIN_APP_VERSION="1.0.0"
