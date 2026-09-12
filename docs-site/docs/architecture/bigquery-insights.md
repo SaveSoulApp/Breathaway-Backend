@@ -8,7 +8,7 @@ With our structured logging architecture routing JSON payloads from Cloud Run in
 
 Because BigQuery is a columnar database, always ensure you only `SELECT` the columns you need and apply `timestamp` filters (using the native `timestamp` column) to partition the data and keep query costs minimal.
 
-> **Table Placeholder**: In the queries below, replace `` `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout` `` with your actual GCP BigQuery table name.
+> **Table Placeholder**: In the queries below, replace `` `breathaway-dev.app_logs_bq_link._AllLogs` `` with your actual GCP BigQuery table name.
 
 ---
 
@@ -26,7 +26,7 @@ SELECT
   JSON_VALUE(json_payload, '$.step') AS step,
   JSON_VALUE(json_payload, '$.message') AS message,
   JSON_VALUE(json_payload, '$.event') AS event_name
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.requestId') = 'YOUR_REQUEST_ID_HERE'
 ORDER BY timestamp ASC;
 ```
@@ -41,7 +41,7 @@ SELECT
   COUNT(*) as request_count,
   APPROX_QUANTILES(CAST(JSON_VALUE(json_payload, '$.durationMs') AS INT64), 100)[OFFSET(95)] AS p95_latency_ms,
   MAX(CAST(JSON_VALUE(json_payload, '$.durationMs') AS INT64)) AS max_latency_ms
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') = 'REQUEST_COMPLETED'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
 GROUP BY controller_method
@@ -57,7 +57,7 @@ LIMIT 20;
 SELECT
   JSON_VALUE(json_payload, '$.context') AS service_context,
   COUNT(*) AS error_count
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE severity = 'ERROR'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
 GROUP BY service_context
@@ -74,7 +74,7 @@ SELECT
   JSON_VALUE(json_payload, '$.messageId') AS pubsub_message_id,
   JSON_VALUE(json_payload, '$.context') AS subscriber,
   JSON_VALUE(json_payload, '$.err.message') AS error_details
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('PUBSUB_MESSAGE_FAILED', 'PUBSUB_PUBLISH_FAILED')
 ORDER BY timestamp DESC;
 ```
@@ -91,7 +91,7 @@ ORDER BY timestamp DESC;
 SELECT
   EXTRACT(DATE FROM timestamp) AS log_date,
   COUNT(*) AS total_requests
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') = 'REQUEST_RECEIVED'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 GROUP BY log_date
@@ -108,7 +108,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'IDENTITY_CREATED') AS identities_created,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'PROFILE_CREATED') AS profiles_created,
   ROUND(SAFE_DIVIDE(COUNTIF(JSON_VALUE(json_payload, '$.event') = 'PROFILE_CREATED'), COUNTIF(JSON_VALUE(json_payload, '$.event') = 'IDENTITY_CREATED')) * 100, 2) AS funnel_completion_percentage
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('IDENTITY_CREATED', 'PROFILE_CREATED')
 GROUP BY log_date
 ORDER BY log_date ASC;
@@ -123,7 +123,7 @@ SELECT
   EXTRACT(DATE FROM timestamp) AS log_date,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'MATCH_CREATED') AS matches_created,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'MATCH_DISSOLVED') AS matches_dissolved
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('MATCH_CREATED', 'MATCH_DISSOLVED')
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -137,7 +137,7 @@ ORDER BY log_date DESC;
 SELECT
   JSON_VALUE(json_payload, '$.platform') AS device_platform,
   COUNT(*) AS registered_devices
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') = 'DEVICE_REGISTERED'
 GROUP BY device_platform;
 ```
@@ -152,7 +152,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'OTP_SENT') AS otps_sent,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'OTP_VERIFIED') AS otps_verified,
   ROUND(SAFE_DIVIDE(COUNTIF(JSON_VALUE(json_payload, '$.event') = 'OTP_VERIFIED'), COUNTIF(JSON_VALUE(json_payload, '$.event') = 'OTP_SENT')) * 100, 2) AS conversion_percentage
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('OTP_SENT', 'OTP_VERIFIED')
 GROUP BY log_date
 ORDER BY log_date ASC;
@@ -168,7 +168,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_COMPLETED') AS purchases,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_RENEWED') AS renewals,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_CANCELLED') AS cancellations
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') LIKE 'SUBSCRIPTION_%'
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -190,7 +190,7 @@ SELECT
   COUNTIF(CAST(JSON_VALUE(json_payload, '$.statusCode') AS INT64) < 500) AS successful_requests,
   COUNTIF(CAST(JSON_VALUE(json_payload, '$.statusCode') AS INT64) >= 500) AS server_errors,
   ROUND((COUNTIF(CAST(JSON_VALUE(json_payload, '$.statusCode') AS INT64) < 500) / COUNT(*)) * 100, 4) AS uptime_percentage
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('REQUEST_COMPLETED', 'REQUEST_FAILED')
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -206,7 +206,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'EXTERNAL_REQUEST_COMPLETED') AS successful_calls,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'EXTERNAL_REQUEST_FAILED') AS failed_calls,
   ROUND(SAFE_DIVIDE(COUNTIF(JSON_VALUE(json_payload, '$.event') = 'EXTERNAL_REQUEST_FAILED'), COUNT(*)) * 100, 2) AS failure_rate_percentage
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') LIKE 'EXTERNAL_REQUEST_%'
 GROUP BY external_provider
 ORDER BY failure_rate_percentage DESC;
@@ -222,7 +222,7 @@ SELECT
   JSON_VALUE(json_payload, '$.remoteAddress') AS ip_address,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'USER_AUTHENTICATION_FAILED') AS failed_logins,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'OTP_VERIFICATION_FAILED') AS failed_otps
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('USER_AUTHENTICATION_FAILED', 'OTP_VERIFICATION_FAILED')
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
 GROUP BY hour_of_day, ip_address
@@ -239,7 +239,7 @@ SELECT
   EXTRACT(DATE FROM timestamp) AS log_date,
   COUNT(*) AS blocks_issued,
   COUNT(DISTINCT JSON_VALUE(json_payload, '$.blockedUserId')) AS unique_users_blocked
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') = 'BLOCK_CREATED'
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -255,7 +255,7 @@ SELECT
   EXTRACT(MONTH FROM timestamp) AS month,
   SUM(CAST(JSON_VALUE(json_payload, '$.amount') AS INT64)) AS total_credits_granted,
   SUM(CAST(JSON_VALUE(json_payload, '$.amount') AS INT64)) AS total_credits_deducted
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('CREDITS_GRANTED', 'CREDITS_DEDUCTED')
 GROUP BY year, month
 ORDER BY year DESC, month DESC;
@@ -278,7 +278,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_COMPLETED') AS payment_succeeded,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_FAILED') AS payment_failed,
   ROUND(SAFE_DIVIDE(COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_COMPLETED'), COUNTIF(JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_INITIATED')) * 100, 2) AS checkout_conversion_rate
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') LIKE 'SUBSCRIPTION_PURCHASE_%'
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -291,12 +291,12 @@ ORDER BY log_date DESC;
 ```sql
 WITH VerifiedUsers AS (
   SELECT DISTINCT JSON_VALUE(json_payload, '$.userId') AS user_id
-  FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+  FROM `breathaway-dev.app_logs_bq_link._AllLogs`
   WHERE JSON_VALUE(json_payload, '$.event') = 'SOCIAL_IDENTITY_VERIFIED'
 ),
 Purchasers AS (
   SELECT DISTINCT JSON_VALUE(json_payload, '$.userId') AS user_id
-  FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+  FROM `breathaway-dev.app_logs_bq_link._AllLogs`
   WHERE JSON_VALUE(json_payload, '$.event') = 'SUBSCRIPTION_PURCHASE_COMPLETED'
 )
 SELECT
@@ -324,7 +324,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'PUSH_NOTIFICATION_SENT') AS delivered_to_fcm,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'PUSH_NOTIFICATION_FAILED') AS provider_failures,
   ROUND(SAFE_DIVIDE(COUNTIF(JSON_VALUE(json_payload, '$.event') = 'PUSH_NOTIFICATION_FAILED'), COUNTIF(JSON_VALUE(json_payload, '$.event') = 'NOTIFICATION_QUEUED')) * 100, 2) AS failure_rate
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') LIKE '%NOTIFICATION%'
 GROUP BY log_date
 ORDER BY log_date DESC;
@@ -339,7 +339,7 @@ SELECT
   JSON_VALUE(json_payload, '$.userId') AS user_id,
   JSON_VALUE(json_payload, '$.event') AS event_name,
   timestamp
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('MATCH_DISSOLVED', 'BLOCK_CREATED', 'ACCOUNT_DELETED')
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 ORDER BY user_id, timestamp ASC;
@@ -356,7 +356,7 @@ SELECT
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'LIKE_CREATED') AS likes_sent,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'MATCH_RESOLUTION_TRIGGERED') AS match_resolutions_started,
   COUNTIF(JSON_VALUE(json_payload, '$.event') = 'INSTAGRAM_IDENTITY_LINKED') AS instagram_links
-FROM `breathaway-dev.app_logs_dataset.run_googleapis_com_stdout`
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('LIKE_CREATED', 'MATCH_RESOLUTION_TRIGGERED', 'INSTAGRAM_IDENTITY_LINKED')
 GROUP BY week_of_year
 ORDER BY week_of_year DESC;
