@@ -6,6 +6,7 @@ const sidebars: SidebarsConfig = {
     'getting-started',
     'architecture',
     'architecture/supabase-realtime',
+    'architecture/logging',
     'folder-structure',
     {
       type: 'category',
