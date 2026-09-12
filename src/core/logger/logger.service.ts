@@ -116,7 +116,7 @@ export class LoggerService implements NestLoggerService, OnApplicationShutdown {
        * trace, spanId) are auto-injected from the active CLS context.
        */
       event: (name: LogEvent, meta?: Record<string, unknown>) =>
-        this.write(childLogger, 'info', { event: name, ...meta }),
+        this.write(childLogger, 'info', `[EVENT] ${name}`, { event: name, ...meta }),
     };
   }
 
