@@ -45,6 +45,7 @@ describe('PubSubPublisherService', () => {
       log: jest.fn(),
       debug: jest.fn(),
       error: jest.fn(),
+      event: jest.fn(),
       forContext: jest.fn().mockReturnThis(),
     };
 

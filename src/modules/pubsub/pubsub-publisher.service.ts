@@ -5,7 +5,7 @@ import { PubSub } from '@google-cloud/pubsub';
 import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 /**
  * Outbound GCP Pub/Sub adapter responsible for serialising and publishing
@@ -77,15 +77,8 @@ export class PubSubPublisherService
         attributes: mergedAttributes,
       });
 
-      this.logger.debug('Event published to Pub/Sub topic', {
+      this.logger.event(LOG_EVENT.PUBSUB_EVENT_PUBLISHED, {
         ...ctx,
-        step: 'publish',
-        messageId,
-      });
-
-      this.logger.log('Event published successfully', {
-        ...ctx,
-        step: 'complete',
         messageId,
       });
       return messageId;
@@ -93,6 +86,10 @@ export class PubSubPublisherService
       this.logger.error('Failed to publish event to Pub/Sub', {
         ...ctx,
         step: 'publish',
+        err: serializeError(error),
+      });
+      this.logger.event(LOG_EVENT.PUBSUB_PUBLISH_FAILED, {
+        ...ctx,
         err: serializeError(error),
       });
       throw error;

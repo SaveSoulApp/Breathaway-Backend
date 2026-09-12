@@ -554,11 +554,11 @@ export class CreditsService extends BaseService {
       },
     });
 
-    this.logger.log('Credits consumed successfully', {
+    this.logger.event(LOG_EVENT.CREDITS_DEDUCTED, {
       userId: dto.userId,
-      amount: dto.amount,
+      amount: Math.abs(dto.amount),
       ledgerId: ledger.id,
-      step: 'complete',
+      referenceId: dto.referenceId ?? null,
     });
     return ledger;
   }
