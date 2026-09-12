@@ -2,9 +2,10 @@ import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import * as pino from 'pino';
 
-import { parseCloudTraceContext, PINO_REDACT_PATHS } from './gcp-logger.config';
+import { parseCloudTraceContext, } from './gcp-logger.config';
 import { LOG_EVENT } from './log-event.constants';
 import { LoggerService } from './logger.service';
+import { PINO_REDACT_PATHS } from './logger-redact.constants';
 
 // ---------------------------------------------------------------------------
 // Test-mode GCP severity map (mirrors PINO_LEVEL_TO_CLOUD_SEVERITY exactly)
