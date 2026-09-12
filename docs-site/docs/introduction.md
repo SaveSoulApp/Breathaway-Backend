@@ -33,3 +33,14 @@ BreathAway is a progressive social and relationship platform that facilitates me
 - **[NestJS Modules](./modules/auth.md)**: Technical deep-dives into all 25 modules of the BreathAway API.
 - **[API reference](./api/overview.md)**: Documentation on HTTP protocols, authentication, and endpoints.
 - **[Testing](./testing.md)**: Run unit and E2E tests.
+
+---
+
+## 🧭 Documentation Portals
+
+Our documentation is segregated into three dedicated hubs via the top navigation bar:
+
+1. **[Modules](./modules/overview.md)**: In-depth technical documentation for all 25 NestJS domain and infrastructure modules (Authentication, Profiles, Matches, Credits, Notifications, etc.).
+2. **[Engineering](./architecture.md)**: System architecture, Cloud SQL database & Prisma ORM patterns, Supabase Realtime, GCP BigQuery, Cloud Logging, and deployment testing.
+3. **[Spec](./spec/overview.md)**: Product specifications, standardized PRD templates, and formal feature requirements.
+
