@@ -4,7 +4,7 @@ import { Device, DevicePlatform } from '@prisma/client';
 import { Platform } from '@common/interfaces';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
@@ -147,9 +147,8 @@ export class DevicesService extends BaseService {
         },
       });
 
-      this.logger.log('Device registered successfully', {
+      this.logger.event(LOG_EVENT.DEVICE_REGISTERED, {
         ...ctx,
-        step: 'complete',
         deviceId: device.id,
       });
       return device;
@@ -270,9 +269,8 @@ export class DevicesService extends BaseService {
         step: 'persist_device',
       });
 
-      this.logger.log('Device updated successfully', {
+      this.logger.event(LOG_EVENT.DEVICE_UPDATED, {
         ...ctx,
-        step: 'complete',
       });
       return updated;
     } catch (error) {
@@ -348,9 +346,8 @@ export class DevicesService extends BaseService {
         step: 'persist_device',
       });
 
-      this.logger.log('Device patched successfully', {
+      this.logger.event(LOG_EVENT.DEVICE_UPDATED, {
         ...ctx,
-        step: 'complete',
       });
       return patched;
     } catch (error) {
@@ -419,9 +416,8 @@ export class DevicesService extends BaseService {
         resourceId: deviceId,
       });
 
-      this.logger.log('Device deleted successfully', {
+      this.logger.event(LOG_EVENT.DEVICE_DEREGISTERED, {
         ...ctx,
-        step: 'complete',
       });
     } catch (error) {
       this.logger.error('Failed to delete device', {

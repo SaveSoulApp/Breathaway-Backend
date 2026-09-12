@@ -9,7 +9,7 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
@@ -378,9 +378,8 @@ export class MatchesService extends BaseService {
       metadata: { matchId },
     });
 
-    this.logger.log('Match unmatched successfully', {
+    this.logger.event(LOG_EVENT.MATCH_DISSOLVED, {
       ...ctx,
-      step: 'complete',
     });
     return { success: true };
   }

@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import {
   MissingSocialIdentityConfigException,
@@ -24,6 +24,8 @@ describe('SocialidentitiesService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
 

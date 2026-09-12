@@ -7,7 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -48,7 +48,8 @@ describe('ProfilesService', () => {
         error: jest.fn(),
         warn: jest.fn(),
         debug: jest.fn(),
-        info: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       }),
     } as unknown as jest.Mocked<LoggerService>;
 

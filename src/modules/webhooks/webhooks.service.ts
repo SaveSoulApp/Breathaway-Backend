@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import { MetaWebhookDto } from './dto';
 import { MetaWebhookIntent } from './enums/meta-webhook-intent.enum';
@@ -49,7 +49,7 @@ export class WebhooksService extends BaseService {
     const VERIFY_TOKEN = this.configService.get<string>('META_VERIFY_TOKEN');
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      this.logger.log('Meta webhook verified successfully', {
+      this.logger.event(LOG_EVENT.META_WEBHOOK_VERIFIED, {
         ...ctx,
         step: 'verify',
       });

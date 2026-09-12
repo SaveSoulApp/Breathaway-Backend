@@ -4,7 +4,7 @@ import * as admin from 'firebase-admin';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 
@@ -161,9 +161,8 @@ export class FcmProviderService
 
         try {
           await messaging.send(message);
-          this.logger.log('FCM single-device notification sent', {
+          this.logger.event(LOG_EVENT.PUSH_NOTIFICATION_SENT, {
             platform,
-            step: 'fcm_single',
           });
         } catch (error) {
           const isInvalid = this.isInvalidTokenError(

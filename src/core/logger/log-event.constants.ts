@@ -21,12 +21,23 @@ export type LogEvent =
   // ── Authentication ─────────────────────────────────────────────────────────
   | 'USER_AUTHENTICATED'
   | 'USER_AUTHENTICATION_FAILED'
+  | 'USER_REGISTERED'
+  | 'USER_PROVISIONED'
+  | 'SECONDARY_AUTH_ADDED'
+  | 'USER_SIGNED_OUT'
 
   // ── Likes ──────────────────────────────────────────────────────────────────
   | 'LIKE_CREATED'
   | 'LIKE_DELETED'
   | 'LIKE_LABEL_UPDATED'
   | 'LIKE_CREATION_DENIED'
+
+  // ── Blocks ─────────────────────────────────────────────────────────────────
+  | 'BLOCK_CREATED'
+  | 'BLOCK_REMOVED'
+
+  // ── Chats ──────────────────────────────────────────────────────────────────
+  | 'CHAT_HISTORY_CLEARED'
 
   // ── Credits ────────────────────────────────────────────────────────────────
   | 'CREDITS_BALANCE_CHECKED'
@@ -43,6 +54,8 @@ export type LogEvent =
   | 'MATCH_RESOLUTION_FAILED'
 
   // ── Subscriptions & Payments ───────────────────────────────────────────────
+  | 'TRANSACTION_RECORDED'
+  | 'META_WEBHOOK_VERIFIED'
   | 'SUBSCRIPTION_PURCHASE_INITIATED'
   | 'SUBSCRIPTION_PURCHASE_COMPLETED'
   | 'SUBSCRIPTION_PURCHASE_FAILED'
@@ -70,9 +83,21 @@ export type LogEvent =
   | 'PROFILE_CREATED'
   | 'PROFILE_UPDATED'
   | 'PROFILE_DELETED'
+  | 'ACCOUNT_DELETED'
   | 'IDENTITY_CLAIMED'
   | 'IDENTITY_CREATED'
   | 'IDENTITY_RESOLVED'
+  | 'IDENTITY_UPDATED'
+  | 'IDENTITY_DELETED'
+  | 'IDENTITY_VERIFIED'
+
+  // ── Workflows ──────────────────────────────────────────────────────────────
+  | 'INSTAGRAM_IDENTITY_LINKED'
+  | 'SOCIAL_IDENTITY_VERIFIED'
+
+  // ── Subscriptions ──────────────────────────────────────────────────────────
+  | 'SUBSCRIPTION_EXPIRED_BATCH'
+  | 'MATCH_RESOLUTION_COMPLETED'
 
   // ── Pub/Sub ────────────────────────────────────────────────────────────────
   | 'PUBSUB_MESSAGE_RECEIVED'
@@ -99,7 +124,10 @@ export type LogEvent =
   // ── OTP ────────────────────────────────────────────────────────────────────
   | 'OTP_SENT'
   | 'OTP_VERIFIED'
-  | 'OTP_VERIFICATION_FAILED';
+  | 'OTP_VERIFICATION_FAILED'
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
+  | 'ADMIN_ACCOUNT_DELETED';
 
 /**
  * Constant object providing IDE autocompletion and preventing typos at call-sites.
@@ -118,12 +146,23 @@ export const LOG_EVENT = {
   // Authentication
   USER_AUTHENTICATED: 'USER_AUTHENTICATED',
   USER_AUTHENTICATION_FAILED: 'USER_AUTHENTICATION_FAILED',
+  USER_REGISTERED: 'USER_REGISTERED',
+  USER_PROVISIONED: 'USER_PROVISIONED',
+  SECONDARY_AUTH_ADDED: 'SECONDARY_AUTH_ADDED',
+  USER_SIGNED_OUT: 'USER_SIGNED_OUT',
 
   // Likes
   LIKE_CREATED: 'LIKE_CREATED',
   LIKE_DELETED: 'LIKE_DELETED',
   LIKE_LABEL_UPDATED: 'LIKE_LABEL_UPDATED',
   LIKE_CREATION_DENIED: 'LIKE_CREATION_DENIED',
+
+  // Blocks
+  BLOCK_CREATED: 'BLOCK_CREATED',
+  BLOCK_REMOVED: 'BLOCK_REMOVED',
+
+  // Chats
+  CHAT_HISTORY_CLEARED: 'CHAT_HISTORY_CLEARED',
 
   // Credits
   CREDITS_BALANCE_CHECKED: 'CREDITS_BALANCE_CHECKED',
@@ -140,6 +179,8 @@ export const LOG_EVENT = {
   MATCH_RESOLUTION_FAILED: 'MATCH_RESOLUTION_FAILED',
 
   // Subscriptions & Payments
+  TRANSACTION_RECORDED: 'TRANSACTION_RECORDED',
+  META_WEBHOOK_VERIFIED: 'META_WEBHOOK_VERIFIED',
   SUBSCRIPTION_PURCHASE_INITIATED: 'SUBSCRIPTION_PURCHASE_INITIATED',
   SUBSCRIPTION_PURCHASE_COMPLETED: 'SUBSCRIPTION_PURCHASE_COMPLETED',
   SUBSCRIPTION_PURCHASE_FAILED: 'SUBSCRIPTION_PURCHASE_FAILED',
@@ -167,9 +208,21 @@ export const LOG_EVENT = {
   PROFILE_CREATED: 'PROFILE_CREATED',
   PROFILE_UPDATED: 'PROFILE_UPDATED',
   PROFILE_DELETED: 'PROFILE_DELETED',
+  ACCOUNT_DELETED: 'ACCOUNT_DELETED',
   IDENTITY_CLAIMED: 'IDENTITY_CLAIMED',
   IDENTITY_CREATED: 'IDENTITY_CREATED',
   IDENTITY_RESOLVED: 'IDENTITY_RESOLVED',
+  IDENTITY_UPDATED: 'IDENTITY_UPDATED',
+  IDENTITY_DELETED: 'IDENTITY_DELETED',
+  IDENTITY_VERIFIED: 'IDENTITY_VERIFIED',
+
+  // Workflows
+  INSTAGRAM_IDENTITY_LINKED: 'INSTAGRAM_IDENTITY_LINKED',
+  SOCIAL_IDENTITY_VERIFIED: 'SOCIAL_IDENTITY_VERIFIED',
+
+  // Subscriptions
+  SUBSCRIPTION_EXPIRED_BATCH: 'SUBSCRIPTION_EXPIRED_BATCH',
+  MATCH_RESOLUTION_COMPLETED: 'MATCH_RESOLUTION_COMPLETED',
 
   // Pub/Sub
   PUBSUB_MESSAGE_RECEIVED: 'PUBSUB_MESSAGE_RECEIVED',
@@ -197,4 +250,7 @@ export const LOG_EVENT = {
   OTP_SENT: 'OTP_SENT',
   OTP_VERIFIED: 'OTP_VERIFIED',
   OTP_VERIFICATION_FAILED: 'OTP_VERIFICATION_FAILED',
+
+  // Admin
+  ADMIN_ACCOUNT_DELETED: 'ADMIN_ACCOUNT_DELETED',
 } as const satisfies Record<LogEvent, LogEvent>;

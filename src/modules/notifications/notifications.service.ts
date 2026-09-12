@@ -4,7 +4,7 @@ import { Device } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PreferencesService } from '@modules/preferences/preferences.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
@@ -79,9 +79,8 @@ export class NotificationsService extends BaseService {
         step: 'publish',
       });
 
-      this.logger.log('Notification request dispatched successfully', {
+      this.logger.event(LOG_EVENT.NOTIFICATION_QUEUED, {
         ...ctx,
-        step: 'complete',
       });
     } catch (error) {
       this.logger.error('Failed to dispatch notification request to Pub/Sub', {
@@ -214,9 +213,8 @@ export class NotificationsService extends BaseService {
       }
     });
 
-    this.logger.log('Notification request processing completed', {
+    this.logger.event(LOG_EVENT.NOTIFICATION_SENT, {
       ...ctx,
-      step: 'complete',
     });
   }
 }

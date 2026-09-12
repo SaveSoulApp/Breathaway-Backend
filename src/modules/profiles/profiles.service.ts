@@ -4,7 +4,7 @@ import { Prisma, UserProfile } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
@@ -97,9 +97,8 @@ export class ProfilesService extends BaseService {
         userId: userId,
       });
 
-      this.logger.log('Profile created successfully', {
+      this.logger.event(LOG_EVENT.PROFILE_CREATED, {
         ...ctx,
-        step: 'complete',
         profileId: profile.id,
       });
       return profile;
@@ -410,9 +409,8 @@ export class ProfilesService extends BaseService {
 
       this.eventEmitter.emit(USER_DELETED_EVENT, new UserDeletedEvent(userId));
 
-      this.logger.log('Account soft-deleted successfully', {
+      this.logger.event(LOG_EVENT.ACCOUNT_DELETED, {
         ...ctx,
-        step: 'complete',
       });
     } catch (error) {
       this.logger.error('Account soft-deletion transaction failed', {

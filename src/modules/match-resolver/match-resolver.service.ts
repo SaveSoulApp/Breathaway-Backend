@@ -4,7 +4,7 @@ import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { BlocksService } from '@modules/blocks/blocks.service';

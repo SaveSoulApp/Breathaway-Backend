@@ -5,7 +5,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { Platform } from '@common/interfaces';
 import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -32,6 +32,8 @@ describe('DevicesService', () => {
     warn: jest.Mock;
     error: jest.Mock;
     debug: jest.Mock;
+    info: jest.Mock;
+    event: jest.Mock;
     verbose: jest.Mock;
   };
 
@@ -41,6 +43,8 @@ describe('DevicesService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
 
@@ -360,12 +364,11 @@ describe('DevicesService', () => {
           step: 'init',
         },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device updated successfully',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.DEVICE_UPDATED,
         {
           userId: 'user-1',
           deviceId: 'device-id-123',
-          step: 'complete',
         },
       );
     });
@@ -524,12 +527,11 @@ describe('DevicesService', () => {
           step: 'init',
         },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device patched successfully',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.DEVICE_UPDATED,
         {
           userId: 'user-1',
           deviceId: 'device-id-123',
-          step: 'complete',
         },
       );
     });
@@ -673,12 +675,11 @@ describe('DevicesService', () => {
           step: 'init',
         },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Device deleted successfully',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.DEVICE_DEREGISTERED,
         {
           userId: 'user-1',
           deviceId: 'device-id-123',
-          step: 'complete',
         },
       );
     });

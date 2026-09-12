@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep, MockProxy } from 'jest-mock-extended';
 import * as fs from 'fs';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   EmailService,
@@ -39,6 +39,8 @@ describe('EmailService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
     mockLogger.forContext.mockReturnValue(contextualLogger as never);

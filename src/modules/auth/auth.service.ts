@@ -5,7 +5,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { FirebaseService } from '@modules/firebase/firebase.service';
@@ -161,9 +161,8 @@ export class AuthService extends BaseService {
       metadata: { method: authMethod.method },
     });
 
-    this.logger.log('Signup complete', {
+    this.logger.event(LOG_EVENT.USER_REGISTERED, {
       ...ctx,
-      step: 'complete',
       userId: user.id,
     });
     return {
@@ -291,9 +290,8 @@ export class AuthService extends BaseService {
       userId: user.id,
     });
 
-    this.logger.log('Signin complete', {
+    this.logger.event(LOG_EVENT.USER_AUTHENTICATED, {
       ...ctx,
-      step: 'complete',
       userId: user.id,
     });
     return this.authTokenService.generateAuthResponse(user, {
@@ -366,9 +364,8 @@ export class AuthService extends BaseService {
         metadata: { method: authMethod.method },
       });
 
-      this.logger.log('Sign-in or sign-up complete', {
+      this.logger.event(LOG_EVENT.USER_REGISTERED, {
         ...ctx,
-        step: 'complete',
         userId: user.id,
         isNewUser: true,
       });
@@ -441,9 +438,8 @@ export class AuthService extends BaseService {
       where: { id: credential.userId },
     });
 
-    this.logger.log('Sign-in or sign-up complete', {
+    this.logger.event(LOG_EVENT.USER_AUTHENTICATED, {
       ...ctx,
-      step: 'complete',
       userId: user.id,
       isNewUser: false,
     });
@@ -510,9 +506,8 @@ export class AuthService extends BaseService {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: identity.userId },
       });
-      this.logger.log('Social auth complete', {
+      this.logger.event(LOG_EVENT.USER_AUTHENTICATED, {
         ...ctx,
-        step: 'complete',
         userId: user.id,
         isNewUser: false,
       });
@@ -653,9 +648,8 @@ export class AuthService extends BaseService {
       metadata: { method: type },
     });
 
-    this.logger.log('Social auth complete', {
+    this.logger.event(LOG_EVENT.USER_REGISTERED, {
       ...ctx,
-      step: 'complete',
       userId: user.id,
       isNewUser: true,
     });
@@ -930,9 +924,8 @@ export class AuthService extends BaseService {
       );
     }
 
-    this.logger.log('Add secondary auth complete', {
+    this.logger.event(LOG_EVENT.SECONDARY_AUTH_ADDED, {
       ...ctx,
-      step: 'complete',
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
@@ -1016,7 +1009,7 @@ export class AuthService extends BaseService {
    * @returns A confirmation message object.
    */
   signout(userId: string) {
-    this.logger.log('User signed out', { userId, step: 'complete' });
+    this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
     // Token revocation can be implemented later
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,

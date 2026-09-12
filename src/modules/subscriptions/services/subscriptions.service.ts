@@ -11,7 +11,7 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
@@ -800,13 +800,9 @@ export class SubscriptionsService extends BaseService {
           })),
         });
 
-        this.logger.log(
-          `Expired ${expiredSubscriptions.length} subscription(s) past their expiresAt date.`,
-          {
+        this.logger.event(LOG_EVENT.SUBSCRIPTION_EXPIRED_BATCH, {
             expiredCount: expiredSubscriptions.length,
-            step: 'complete',
-          },
-        );
+          });
 
         return expiredSubscriptions.length;
       });

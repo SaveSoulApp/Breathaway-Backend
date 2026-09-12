@@ -29,8 +29,11 @@ describe('PubSubPublisherService', () => {
   let service: PubSubPublisherService;
   let mockLogger: {
     log: jest.Mock;
+    info: jest.Mock;
+    warn: jest.Mock;
     debug: jest.Mock;
     error: jest.Mock;
+    event: jest.Mock;
     forContext: jest.Mock;
   };
 
@@ -43,6 +46,8 @@ describe('PubSubPublisherService', () => {
 
     mockLogger = {
       log: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
       debug: jest.fn(),
       error: jest.fn(),
       event: jest.fn(),

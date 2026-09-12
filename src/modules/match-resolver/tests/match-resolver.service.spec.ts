@@ -10,7 +10,7 @@ import {
 } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -38,6 +38,8 @@ describe('MatchResolverService', () => {
     warn: jest.Mock;
     error: jest.Mock;
     debug: jest.Mock;
+    info: jest.Mock;
+    event: jest.Mock;
     verbose: jest.Mock;
   };
 
@@ -67,6 +69,8 @@ describe('MatchResolverService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
 
@@ -75,6 +79,8 @@ describe('MatchResolverService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       setContext: jest.fn(),
       forContext: jest.fn().mockReturnValue(contextualLogger),
     } as unknown as jest.Mocked<LoggerService>;

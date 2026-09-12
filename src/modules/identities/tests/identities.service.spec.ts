@@ -1,6 +1,6 @@
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -44,6 +44,7 @@ describe('IdentitiesService', () => {
     error: jest.Mock;
     warn: jest.Mock;
     debug: jest.Mock;
+    event: jest.Mock;
     log: jest.Mock;
   };
 
@@ -53,6 +54,7 @@ describe('IdentitiesService', () => {
       error: jest.fn(),
       warn: jest.fn(),
       debug: jest.fn(),
+      event: jest.fn(),
       log: jest.fn(),
     };
 

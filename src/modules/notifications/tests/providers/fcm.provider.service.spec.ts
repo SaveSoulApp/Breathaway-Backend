@@ -4,7 +4,7 @@ import { DevicePlatform } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -33,6 +33,8 @@ describe('FcmProviderService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
 

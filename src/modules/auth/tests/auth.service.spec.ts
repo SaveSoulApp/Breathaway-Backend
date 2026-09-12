@@ -207,6 +207,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           warn: jest.fn(),
           error: jest.fn(),
           debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
         }),
       };
 
@@ -547,6 +549,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           warn: jest.fn(),
           error: jest.fn(),
           debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
         }),
       };
 
@@ -718,6 +722,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           warn: jest.fn(),
           error: jest.fn(),
           debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
         }),
       };
 
@@ -901,6 +907,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           warn: jest.fn(),
           error: jest.fn(),
           debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
         }),
       };
 

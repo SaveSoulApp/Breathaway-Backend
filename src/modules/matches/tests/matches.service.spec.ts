@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -120,6 +120,7 @@ describe('MatchesService', () => {
         error: jest.fn(),
         debug: jest.fn(),
         info: jest.fn(),
+        event: jest.fn(),
       }),
     };
 

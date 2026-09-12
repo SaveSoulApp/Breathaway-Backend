@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
 import { hashString } from '@core/crypto/crypto.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import {
   OtpRateLimitExceededException,
@@ -58,6 +58,8 @@ describe('OneTimePasswordsService', () => {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
         debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
         warn: jest.fn(),
         error: jest.fn(),
       }),

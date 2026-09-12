@@ -6,7 +6,7 @@ import * as path from 'path';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import { EmailType } from '../enums/email-type.enum';
@@ -149,9 +149,8 @@ export class EmailService extends BaseService implements OnModuleInit {
       }
     });
 
-    this.logger.log('Email sending completed', {
+    this.logger.event(LOG_EVENT.EMAIL_SENT, {
       ...ctx,
-      step: 'complete',
     });
   }
 

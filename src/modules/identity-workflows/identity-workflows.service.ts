@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import {
@@ -106,9 +106,8 @@ export class IdentityWorkflowsService extends BaseService {
           senderId,
           userId,
         );
-        this.logger.log('Successfully linked Instagram identity', {
+        this.logger.event(LOG_EVENT.INSTAGRAM_IDENTITY_LINKED, {
           ...resolvedCtx,
-          step: 'complete',
         });
 
         // TODO: take the next steps
@@ -257,9 +256,8 @@ export class IdentityWorkflowsService extends BaseService {
       ),
     );
 
-    this.logger.log('Match resolution complete for claimed identities', {
+    this.logger.event(LOG_EVENT.MATCH_RESOLUTION_COMPLETED, {
       ...ctx,
-      step: 'complete',
     });
   }
 }
