@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'BreathAway Backend Docs',
+  title: 'BreathAway',
   tagline: 'Technical documentation for the BreathAway API backend service',
   favicon: 'img/favicon.ico',
   url: 'https://breathaway.example.com',
@@ -51,7 +51,7 @@ const config: Config = {
 
   themeConfig: {
     navbar: {
-      title: 'BreathAway Backend Docs',
+      title: 'BreathAway',
       logo: {
         alt: 'BreathAway Logo',
         src: 'img/logo.svg',
