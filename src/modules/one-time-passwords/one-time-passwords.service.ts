@@ -7,7 +7,7 @@ import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
@@ -177,9 +177,8 @@ export class OneTimePasswordsService
       userId: userId,
     });
 
-    this.logger.log('OTP verified and consumed successfully', {
+    this.logger.event(LOG_EVENT.OTP_VERIFIED, {
       ...resolvedCtx,
-      step: 'complete',
     });
 
     return userId;

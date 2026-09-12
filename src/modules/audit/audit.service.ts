@@ -4,7 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -56,10 +56,9 @@ export class AuditService extends BaseService {
         { actionType: payload.actionType },
       );
 
-      this.logger.debug('Audit event published successfully', {
+      this.logger.event(LOG_EVENT.AUDIT_EVENT_EMITTED, {
         userId: payload.userId,
         actionType: payload.actionType,
-        step: 'publish_event',
       });
     } catch (error: unknown) {
       this.logger.error('Failed to publish audit event', {

@@ -1,4 +1,5 @@
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import {
   CallHandler,
@@ -9,19 +10,25 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { ClsService } from 'nestjs-cls';
+import { LOG_EVENT } from './log-event.constants';
 import { LoggerService } from './logger.service';
 
 /**
- * Intercepts incoming HTTP requests to log their lifecycle, performance, and metadata.
+ * Intercepts incoming HTTP requests to log their lifecycle at INFO level.
  *
- * Automatically injects an `X-Request-ID` (or generates a random UUID) into the log context
- * to enable distributed tracing. Measures wall-clock execution time and logs both the
- * inbound request and outbound response details.
+ * Emits three structured events using the typed {@link LOG_EVENT} names:
+ * - `REQUEST_RECEIVED` — on every incoming request (method, route, ids).
+ * - `REQUEST_COMPLETED` — on success (adds status code and duration).
+ * - `REQUEST_FAILED` — on error (adds status code and duration); re-throws
+ *   the error so the `GlobalExceptionFilter` can handle exception detail.
+ *   This split avoids log duplication: lifecycle metadata here, stack trace there.
+ *
+ * Correlation context (`requestId`, `logging.googleapis.com/trace`) is
+ * injected automatically from CLS — call-sites never pass them manually.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly isProduction: boolean;
-  private readonly shouldLogResponse: boolean;
 
   constructor(
     private readonly loggerService: LoggerService,
@@ -29,16 +36,15 @@ export class LoggingInterceptor implements NestInterceptor {
     private readonly cls: ClsService,
   ) {
     this.isProduction = this.configService.get('NODE_ENV') === 'production';
-    this.shouldLogResponse =
-      this.configService.get('SHOULD_LOG_RESPONSE') === 'true';
   }
 
   /**
    * Wraps the route handler to capture request timing and outcome.
    *
-   * Logs a 'debug' entry immediately upon request arrival. Upon successful completion,
-   * logs another entry containing the response latency and status code. In non-production
-   * environments (if configured), it also includes the full response body for debugging.
+   * Logs `REQUEST_RECEIVED` immediately (INFO). On successful completion logs
+   * `REQUEST_COMPLETED` (INFO). On any error logs `REQUEST_FAILED` (WARN for
+   * 4xx, ERROR for 5xx) as a **lifecycle event only** — the exception detail
+   * is left to `GlobalExceptionFilter` to avoid duplicate stack traces.
    */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<{
@@ -57,10 +63,9 @@ export class LoggingInterceptor implements NestInterceptor {
     const requestId = this.cls.get<string>('requestId');
     const start = Date.now();
 
-    // Create a child logger for this interceptor context
     const logger = this.loggerService.forContext(contextName);
 
-    logger.debug(`Incoming request: ${method} ${url}`, {
+    logger.event(LOG_EVENT.REQUEST_RECEIVED, {
       requestId,
       httpRequest: {
         method,
@@ -71,21 +76,46 @@ export class LoggingInterceptor implements NestInterceptor {
     });
 
     return next.handle().pipe(
-      tap((responseBody: unknown) => {
-        const delay = Date.now() - start;
-        const baseMeta = {
+      tap(() => {
+        const durationMs = Date.now() - start;
+
+        logger.event(LOG_EVENT.REQUEST_COMPLETED, {
           requestId,
           statusCode: res.statusCode,
-          latencyMs: delay,
-        };
+          durationMs,
+          httpRequest: { method, url },
+        });
+      }),
+      catchError((err: unknown) => {
+        const durationMs = Date.now() - start;
 
-        const shouldIncludeResponseBody =
-          !this.isProduction && this.shouldLogResponse;
-        const logMeta = shouldIncludeResponseBody
-          ? { ...baseMeta, responseBody }
-          : baseMeta;
+        // Determine the status code from the error when possible.
+        // HttpException exposes getStatus(); fall back to 500 for unknowns.
+        const statusCode =
+          err != null &&
+          typeof err === 'object' &&
+          'getStatus' in err &&
+          typeof (err as { getStatus: unknown }).getStatus === 'function'
+            ? (err as { getStatus: () => number }).getStatus()
+            : 500;
 
-        logger.debug(`Completed request: ${method} ${url}`, logMeta);
+        const logLevel = statusCode >= 500 ? 'error' : 'warn';
+
+        // Log only the REQUEST_FAILED lifecycle event here.
+        // The exception detail (stack trace, error message) is logged by
+        // GlobalExceptionFilter to avoid duplicate error log entries.
+        logger[logLevel](
+          { event: LOG_EVENT.REQUEST_FAILED },
+          {
+            requestId,
+            statusCode,
+            durationMs,
+            httpRequest: { method, url },
+          },
+        );
+
+        // Always re-throw — the GlobalExceptionFilter must still handle it.
+        return throwError(() => err);
       }),
     );
   }

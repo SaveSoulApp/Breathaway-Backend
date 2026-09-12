@@ -5,7 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
@@ -409,10 +409,7 @@ export class ChatsService extends BaseService {
           err: serializeError(response.error),
         });
       } else {
-        this.logger.log('Successfully deleted chat rooms for user', {
-          userId,
-          step: 'delete_user_chats',
-        });
+        this.logger.event(LOG_EVENT.CHAT_HISTORY_CLEARED, { userId });
       }
     } catch (err) {
       this.logger.error('Exception while deleting chat rooms for user', {

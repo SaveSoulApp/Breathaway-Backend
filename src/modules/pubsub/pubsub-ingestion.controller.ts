@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import {
   Body,
   Controller,
@@ -17,7 +19,8 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
+import { ClsService } from 'nestjs-cls';
 
 import { PubSubPushRequestDto } from './dto';
 import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
@@ -45,6 +48,7 @@ export class PubSubIngestionController extends BaseController {
   constructor(
     logger: LoggerService,
     private readonly registryService: PubSubRegistryService,
+    private readonly cls: ClsService,
   ) {
     super(logger);
   }
@@ -73,11 +77,22 @@ export class PubSubIngestionController extends BaseController {
   async ingest(@Body() rawPayload: Record<string, unknown>): Promise<void> {
     const payload = rawPayload as unknown as PubSubPushRequestDto;
 
+    // Seed a synthetic CLS requestId from the Pub/Sub messageId so all
+    // @PubSubListener handler logs carry a correlation ID. The messageId is
+    // stable across Pub/Sub retries, so correlated logs from retry attempts
+    // will share the same requestId and be queriable together.
+    //
+    // Note: AsyncLocalStorage context does NOT cross the queue boundary
+    // automatically. We must explicitly seed it here from the message envelope.
+    const incomingMessageId = payload?.message?.messageId;
+    const correlationId = incomingMessageId ?? randomUUID();
+    this.cls.set('requestId', correlationId);
+    this.cls.set('pubsubMessageId', incomingMessageId ?? null);
+
     // Do NOT log the full payload wholesale (PII safety). Log the metadata instead.
-    this.logger.info('Incoming Pub/Sub ingest payload', {
-      messageId: payload?.message?.messageId,
+    this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_RECEIVED, {
+      messageId: incomingMessageId,
       eventType: payload?.message?.attributes?.eventType,
-      step: 'init',
     });
 
     if (!payload?.message) {
@@ -131,6 +146,9 @@ export class PubSubIngestionController extends BaseController {
       // Route to the registered handler (pure execution)
       const { target, method } = handlerContext;
       await method.call(target, parsedData, messageId);
+      this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_PROCESSED, {
+        ...ctx,
+      });
     } catch (error) {
       this.logger.error('Error processing event', {
         ...ctx,

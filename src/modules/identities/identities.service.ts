@@ -6,7 +6,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
@@ -179,10 +179,9 @@ export class IdentitiesService extends BaseService {
       },
     });
 
-    this.logger.log('Identity created successfully', {
+    this.logger.event(LOG_EVENT.IDENTITY_CREATED, {
       ...ctx,
       identityId: identity.id,
-      step: 'complete',
     });
     return this.toMaskedResponse(identity);
   }
@@ -456,10 +455,9 @@ export class IdentitiesService extends BaseService {
       throw error;
     }
 
-    this.logger.log('Identity updated successfully', {
+    this.logger.event(LOG_EVENT.IDENTITY_UPDATED, {
       identityId: updated.id,
       userId,
-      step: 'complete',
     });
     return this.toMaskedResponse(updated);
   }
@@ -493,10 +491,9 @@ export class IdentitiesService extends BaseService {
       });
       throw error;
     }
-    this.logger.log('Identity soft-deleted successfully', {
+    this.logger.event(LOG_EVENT.IDENTITY_DELETED, {
       identityId: id,
       userId,
-      step: 'complete',
     });
   }
 
@@ -534,10 +531,9 @@ export class IdentitiesService extends BaseService {
       throw error;
     }
 
-    this.logger.log('Identity verified successfully', {
+    this.logger.event(LOG_EVENT.IDENTITY_VERIFIED, {
       identityId: id,
       userId,
-      step: 'complete',
     });
 
     this.emitAuditLog({
@@ -644,10 +640,9 @@ export class IdentitiesService extends BaseService {
       },
     });
 
-    this.logger.log('Identity created and claimed successfully', {
+    this.logger.event(LOG_EVENT.IDENTITY_CLAIMED, {
       identityId: identity.id,
       userId,
-      step: 'complete',
     });
     return this.toMaskedResponse(identity);
   }

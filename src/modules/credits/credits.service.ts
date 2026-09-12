@@ -4,7 +4,7 @@ import { CreditSource, CreditTransactionType, Prisma } from '@prisma/client';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
@@ -423,11 +423,15 @@ export class CreditsService extends BaseService {
     timezone?: string,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
-      this.logger.warn('Grant credits failed: invalid source', {
-        source: dto.source,
-        userId: dto.userId,
-        step: 'validate',
-      });
+      this.logger.warn(
+        'Grant credits failed: LIKE_USAGE is a system-only source',
+        {
+          event: LOG_EVENT.CREDITS_GRANTED,
+          userId: dto.userId,
+          source: dto.source,
+          step: 'validate',
+        },
+      );
       throw new InvalidCreditSourceException();
     }
 
@@ -474,12 +478,15 @@ export class CreditsService extends BaseService {
       },
     });
 
-    this.logger.log('Credits granted successfully', {
+    this.logger.event(LOG_EVENT.CREDITS_GRANTED, {
       userId: dto.userId,
-      amount: dto.amount,
       ledgerId: ledger.id,
-      step: 'complete',
+      amount: Math.abs(dto.amount),
+      source: dto.source,
+      referenceId: dto.referenceId ?? null,
+      expiresAt: ledger.expiresAt?.toISOString() ?? null,
     });
+
     return ledger;
   }
 
@@ -550,11 +557,11 @@ export class CreditsService extends BaseService {
       },
     });
 
-    this.logger.log('Credits consumed successfully', {
+    this.logger.event(LOG_EVENT.CREDITS_DEDUCTED, {
       userId: dto.userId,
-      amount: dto.amount,
+      amount: Math.abs(dto.amount),
       ledgerId: ledger.id,
-      step: 'complete',
+      referenceId: dto.referenceId ?? null,
     });
     return ledger;
   }

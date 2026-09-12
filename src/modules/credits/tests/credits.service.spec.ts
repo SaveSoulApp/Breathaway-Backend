@@ -54,6 +54,7 @@ describe('CreditsService', () => {
       error: jest.fn(),
       warn: jest.fn(),
       debug: jest.fn(),
+      event: jest.fn(),
     };
     const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue(mockLogger),

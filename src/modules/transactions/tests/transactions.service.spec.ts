@@ -1,4 +1,4 @@
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -75,6 +75,8 @@ describe('TransactionsService', () => {
       error: jest.fn(),
       warn: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

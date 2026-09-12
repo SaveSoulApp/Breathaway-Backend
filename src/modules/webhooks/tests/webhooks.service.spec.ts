@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
@@ -25,6 +25,8 @@ describe('WebhooksService', () => {
     warn: jest.Mock;
     error: jest.Mock;
     debug: jest.Mock;
+    info: jest.Mock;
+    event: jest.Mock;
     verbose: jest.Mock;
   };
   let logger: {
@@ -40,6 +42,8 @@ describe('WebhooksService', () => {
       warn: jest.fn(),
       error: jest.fn(),
       debug: jest.fn(),
+      info: jest.fn(),
+      event: jest.fn(),
       verbose: jest.fn(),
     };
 
@@ -108,9 +112,9 @@ describe('WebhooksService', () => {
         'Meta webhook verification started',
         { mode: 'subscribe', step: 'verify' },
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Meta webhook verified successfully',
-        { mode: 'subscribe', step: 'verify' },
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.META_WEBHOOK_VERIFIED,
+        expect.objectContaining({ mode: 'subscribe' }),
       );
     });
 

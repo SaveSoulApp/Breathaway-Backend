@@ -65,6 +65,7 @@ describe('BlocksService', () => {
         error: jest.fn(),
         debug: jest.fn(),
         info: jest.fn(),
+        event: jest.fn(),
       }),
     };
 

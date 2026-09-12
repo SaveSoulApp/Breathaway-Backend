@@ -15,8 +15,11 @@ describe('AdminService', () => {
   const mockLoggerService = {
     forContext: jest.fn().mockReturnValue({
       log: jest.fn(),
+      info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
+      debug: jest.fn(),
+      event: jest.fn(),
     }),
   };
 

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { AdminUserNotFoundException } from './application/exceptions';
@@ -69,9 +69,9 @@ export class AdminService extends BaseService {
       throw error;
     }
 
-    this.logger.log('Admin deleted account successfully', {
-      ...ctx,
-      step: 'complete',
+    this.logger.event(LOG_EVENT.ADMIN_ACCOUNT_DELETED, {
+      targetUserId: ctx.targetUserId,
+      reason: ctx.reason,
     });
 
     this.emitAuditLog({

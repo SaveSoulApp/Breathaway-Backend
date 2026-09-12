@@ -1,6 +1,6 @@
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { AuditActionType } from '@modules/audit/dto';
 import { ConfigService } from '@nestjs/config';
 import { Injectable } from '@nestjs/common';
@@ -127,9 +127,8 @@ export class SocialidentitiesService extends BaseService {
         });
       }
 
-      this.logger.log('Instagram identity verification complete', {
+      this.logger.event(LOG_EVENT.SOCIAL_IDENTITY_VERIFIED, {
         ...ctx,
-        step: 'complete',
       });
 
       // Map to standard response format

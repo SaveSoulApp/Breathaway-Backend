@@ -6,6 +6,8 @@ const sidebars: SidebarsConfig = {
     'getting-started',
     'architecture',
     'architecture/supabase-realtime',
+    'architecture/logging',
+    'architecture/bigquery-insights',
     'folder-structure',
     {
       type: 'category',

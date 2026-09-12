@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreateBlockDto } from './dto';
@@ -139,10 +139,9 @@ export class BlocksService extends BaseService {
         metadata: { blockedUserId },
       });
 
-      this.logger.log('Block reactivated successfully', {
+      this.logger.event(LOG_EVENT.BLOCK_CREATED, {
         ...ctx,
         blockId: reactivatedBlock.id,
-        step: 'complete',
       });
       return this.mapToResponseDto(reactivatedBlock);
     }
@@ -187,10 +186,9 @@ export class BlocksService extends BaseService {
       metadata: { blockedUserId },
     });
 
-    this.logger.log('Block created successfully', {
+    this.logger.event(LOG_EVENT.BLOCK_CREATED, {
       ...ctx,
       blockId: newBlock.id,
-      step: 'complete',
     });
     return this.mapToResponseDto(newBlock);
   }
@@ -320,11 +318,10 @@ export class BlocksService extends BaseService {
       throw error;
     }
 
-    this.logger.log('Block soft-deleted successfully', {
+    this.logger.event(LOG_EVENT.BLOCK_REMOVED, {
       blockId: block.id,
       blockerUserId: userId,
       blockedUserId: block.blockedUserId,
-      step: 'complete',
     });
     this.emitAuditLog({
       actionType: AuditActionType.BLOCK_DELETED,

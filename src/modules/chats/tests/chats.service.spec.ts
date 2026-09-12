@@ -29,6 +29,8 @@ describe('ChatsService', () => {
     warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
+    info: jest.fn(),
+    event: jest.fn(),
     verbose: jest.fn(),
   };
 

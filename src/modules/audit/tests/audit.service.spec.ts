@@ -1,4 +1,4 @@
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { ConfigService } from '@nestjs/config';
@@ -21,6 +21,7 @@ describe('AuditService', () => {
     const mockLoggerService = {
       forContext: jest.fn().mockReturnThis(),
       debug: jest.fn(),
+      event: jest.fn(),
       error: jest.fn(),
     };
 
@@ -69,12 +70,11 @@ describe('AuditService', () => {
         payload,
         { actionType: AuditActionType.USER_LOGIN },
       );
-      expect(loggerService.debug).toHaveBeenCalledWith(
-        'Audit event published successfully',
+      expect((loggerService as any).event).toHaveBeenCalledWith(
+        LOG_EVENT.AUDIT_EVENT_EMITTED,
         expect.objectContaining({
           userId: 'test-user-id',
           actionType: AuditActionType.USER_LOGIN,
-          step: 'publish_event',
         }),
       );
     });

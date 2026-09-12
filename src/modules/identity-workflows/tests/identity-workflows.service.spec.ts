@@ -7,7 +7,7 @@ import {
   Like,
   LikeStatus,
 } from '@prisma/client';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   MockPrismaService,
@@ -36,6 +36,7 @@ describe('IdentityWorkflowsService', () => {
     error: jest.Mock;
     info: jest.Mock;
     debug: jest.Mock;
+    event: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -45,6 +46,7 @@ describe('IdentityWorkflowsService', () => {
       error: jest.fn(),
       info: jest.fn(),
       debug: jest.fn(),
+      event: jest.fn(),
     };
 
     const logger = {
@@ -148,13 +150,12 @@ describe('IdentityWorkflowsService', () => {
         'sender_1',
         'user_123',
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Successfully linked Instagram identity',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.INSTAGRAM_IDENTITY_LINKED,
         expect.objectContaining({
           messageId: 'msg_1',
           senderId: 'sender_1',
           userId: 'user_123',
-          step: 'complete',
         }),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
@@ -386,12 +387,11 @@ describe('IdentityWorkflowsService', () => {
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledWith(
         pendingLike,
       );
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete for claimed identities',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.MATCH_RESOLUTION_COMPLETED,
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-          step: 'complete',
         }),
       );
     });
@@ -441,12 +441,11 @@ describe('IdentityWorkflowsService', () => {
         }),
       );
       // Final completion log still emitted
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete for claimed identities',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.MATCH_RESOLUTION_COMPLETED,
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-          step: 'complete',
         }),
       );
     });
@@ -501,12 +500,11 @@ describe('IdentityWorkflowsService', () => {
 
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(2);
       expect(contextualLogger.error).not.toHaveBeenCalled();
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolution complete for claimed identities',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.MATCH_RESOLUTION_COMPLETED,
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-          step: 'complete',
         }),
       );
     });

@@ -8,7 +8,7 @@ import { serializeError } from '@common/utils/error.utils';
 import { isE164Phone } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
@@ -265,7 +265,7 @@ export class LikesService extends BaseService {
           },
         });
         targetIdentityId = newIdentity.id;
-        this.logger.log('New unresolved identity created', {
+        this.logger.event(LOG_EVENT.IDENTITY_CREATED, {
           ...ctx,
           step: 'identity_resolution',
           newIdentityId: newIdentity.id,
@@ -529,9 +529,8 @@ export class LikesService extends BaseService {
       },
     });
 
-    this.logger.log('Like created successfully', {
+    this.logger.event(LOG_EVENT.LIKE_CREATED, {
       ...ctx,
-      step: 'complete',
       likeId: like.id,
       targetIdentityId: targetIdentity.id,
     });
@@ -719,9 +718,8 @@ export class LikesService extends BaseService {
       resourceId: id,
     });
 
-    this.logger.log('Like soft-deleted successfully', {
+    this.logger.event(LOG_EVENT.LIKE_DELETED, {
       ...ctx,
-      step: 'complete',
     });
     return { success: true };
   }
@@ -791,9 +789,8 @@ export class LikesService extends BaseService {
       throw error;
     }
 
-    this.logger.log('Like label updated successfully', {
+    this.logger.event(LOG_EVENT.LIKE_LABEL_UPDATED, {
       ...ctx,
-      step: 'complete',
       labelCleared: dto.label === null || dto.label === undefined,
     });
     return this.attachPublicValue(updated);

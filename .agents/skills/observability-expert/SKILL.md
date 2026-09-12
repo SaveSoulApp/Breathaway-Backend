@@ -102,13 +102,15 @@ The four rules — see `references/service-logging-patterns.md` for full templat
 
 | Level          | When                                                                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `log` / `info` | Method entry on write operations, each step success milestone, method exit confirming the business event completed                                     |
+| `event()`      | Business completion events that are analytically meaningful (e.g., `LIKE_CREATED`, `SUBSCRIPTION_ACTIVATED`). Synced to BigQuery.                      |
+| `log` / `info` | Method entry on write operations, or major operational milestones that aren't business completions.                                                    |
 | `debug`        | Method entry on read-only operations, guards-passed confirmations, which identity-resolution branch was taken, DB read results                         |
 | `warn`         | Any expected business rule rejection immediately before throwing a domain exception — captures entity IDs and local state the global filter cannot see |
 | `error`        | Infrastructure call failure (DB down, external service timeout) in a log-and-rethrow catch block                                                       |
 
 - **Read methods** (`findOne`, `findAll`): Entry and result at `debug` only. `warn` on not-found before throwing.
-- **Write methods** (`create`, `update`, `delete`): Entry at `log`, guards at `debug`, transaction commit at `log`, exit at `log`.
+- **Write methods** (`create`, `update`, `delete`): Entry at `log`, guards at `debug`, transaction commit at `debug`, exit at `this.logger.event(LOG_EVENT.X)`.
+- **Strict Event Logging:** Never use `.log` or `.info` for the final success of a business operation. Always use `this.logger.event(LOG_EVENT.NAME)`. The `.event` method automatically flags the log for BigQuery extraction.
 - **Never log at `info` for every incoming request** — Cloud Run's own request logs already provide method/path/status/latency. Application `info` logs mark business-meaningful events.
 - **Every `catch` block that doesn't rethrow** must log at `error` or `warn`. Silently swallowed exceptions are the hardest thing to diagnose in production.
 
@@ -198,8 +200,8 @@ When doing a full observability review of a module or PR, verify all of the foll
 
 - [ ] Every service method opens with `const ctx = { ...primaryIds }` and spreads it into every log call
 - [ ] Every log call carries `step: 'snake_case_name'` as a queryable structured field
-- [ ] Method entry logged at `log` (writes) or `debug` (reads)
-- [ ] Exactly **one** `info`/`log` at `step: 'complete'` per write method — no duplicate success signals (e.g., a "committed" info AND a "created successfully" info for the same operation)
+- [ ] Method entry logged at `log` (writes) or `debug` (reads). Final business completion must use `this.logger.event()`.
+- [ ] Exactly **one** `this.logger.event(LOG_EVENT.NAME)` per write method — no duplicate success signals (e.g., a "committed" event AND a "created successfully" event for the same operation)
 - [ ] Transaction-internal steps (`persist_entity`, `deduct_credits`) logged at `debug`, not `info` — they are implementation details, not business events
 - [ ] Each guard-passed confirmation emits exactly **one** `debug` — not a `debug` before and after the same check
 - [ ] Every business rule rejection (not-found, duplicate, self-action, insufficient credits) has an explicit `warn` immediately before the `throw`, capturing local entity IDs
