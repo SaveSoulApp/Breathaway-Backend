@@ -177,9 +177,8 @@ export class OneTimePasswordsService
       userId: userId,
     });
 
-    this.logger.log('OTP verified and consumed successfully', {
+    this.logger.event(LOG_EVENT.OTP_VERIFIED, {
       ...resolvedCtx,
-      step: 'complete',
     });
 
     return userId;

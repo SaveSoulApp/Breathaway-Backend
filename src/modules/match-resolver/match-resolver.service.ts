@@ -132,7 +132,7 @@ export class MatchResolverService extends BaseService {
         isEligible.existingMatch,
       );
 
-      this.logger.log('Match resolved successfully', {
+      this.logger.event(LOG_EVENT.MATCH_CREATED, {
         ...ctx,
         step: 'complete',
         matchId: match.id,

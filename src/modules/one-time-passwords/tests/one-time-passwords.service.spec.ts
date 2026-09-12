@@ -58,8 +58,8 @@ describe('OneTimePasswordsService', () => {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
         debug: jest.fn(),
-      info: jest.fn(),
-      event: jest.fn(),
+        info: jest.fn(),
+        event: jest.fn(),
         warn: jest.fn(),
         error: jest.fn(),
       }),

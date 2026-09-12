@@ -1,6 +1,6 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -34,6 +34,7 @@ describe('PreferencesService', () => {
         warn: jest.fn(),
         error: jest.fn(),
         debug: jest.fn(),
+      event: jest.fn(),
         info: jest.fn(),
       }),
       log: jest.fn(),

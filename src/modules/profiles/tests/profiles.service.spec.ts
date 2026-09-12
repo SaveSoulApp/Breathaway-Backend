@@ -48,8 +48,8 @@ describe('ProfilesService', () => {
         error: jest.fn(),
         warn: jest.fn(),
         debug: jest.fn(),
-      info: jest.fn(),
-      event: jest.fn(),
+        info: jest.fn(),
+        event: jest.fn(),
       }),
     } as unknown as jest.Mocked<LoggerService>;
 

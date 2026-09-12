@@ -156,7 +156,7 @@ describe('IdentityWorkflowsService', () => {
           messageId: 'msg_1',
           senderId: 'sender_1',
           userId: 'user_123',
-                  }),
+        }),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -392,7 +392,7 @@ describe('IdentityWorkflowsService', () => {
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-                  }),
+        }),
       );
     });
 
@@ -446,7 +446,7 @@ describe('IdentityWorkflowsService', () => {
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-                  }),
+        }),
       );
     });
 
@@ -505,7 +505,7 @@ describe('IdentityWorkflowsService', () => {
         expect.objectContaining({
           messageId: 'msg_claim_1',
           userId: 'user_abc',
-                  }),
+        }),
       );
     });
   });

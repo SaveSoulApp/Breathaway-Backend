@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
@@ -172,9 +172,8 @@ export class PreferencesService extends BaseService {
         },
       });
 
-      this.logger.log('Notification preferences updated successfully', {
+      this.logger.event(LOG_EVENT.PREFERENCES_UPDATED, {
         ...ctx,
-        step: 'complete',
       });
       return updated;
     } catch (error) {

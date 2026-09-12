@@ -423,12 +423,15 @@ export class CreditsService extends BaseService {
     timezone?: string,
   ) {
     if (dto.source === CreditSource.LIKE_USAGE) {
-      this.logger.warn('Grant credits failed: LIKE_USAGE is a system-only source', {
-        event: LOG_EVENT.CREDITS_GRANTED,
-        userId: dto.userId,
-        source: dto.source,
-        step: 'validate',
-      });
+      this.logger.warn(
+        'Grant credits failed: LIKE_USAGE is a system-only source',
+        {
+          event: LOG_EVENT.CREDITS_GRANTED,
+          userId: dto.userId,
+          source: dto.source,
+          step: 'validate',
+        },
+      );
       throw new InvalidCreditSourceException();
     }
 

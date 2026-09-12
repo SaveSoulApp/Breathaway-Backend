@@ -84,7 +84,8 @@ function makeGcpLogger(
   );
 
   // Access the private field — acceptable in unit tests for precise control.
-  (service as unknown as { baseLogger: pino.Logger }).baseLogger = testPinoLogger;
+  (service as unknown as { baseLogger: pino.Logger }).baseLogger =
+    testPinoLogger;
 
   return { service, lines };
 }
@@ -121,12 +122,18 @@ describe('parseCloudTraceContext', () => {
   });
 
   it('sets traceSampled=true when o=1', () => {
-    const { traceSampled } = parseCloudTraceContext('abc123/999;o=1', PROJECT_ID);
+    const { traceSampled } = parseCloudTraceContext(
+      'abc123/999;o=1',
+      PROJECT_ID,
+    );
     expect(traceSampled).toBe(true);
   });
 
   it('sets traceSampled=false when o=0', () => {
-    const { traceSampled } = parseCloudTraceContext('abc123/999;o=0', PROJECT_ID);
+    const { traceSampled } = parseCloudTraceContext(
+      'abc123/999;o=0',
+      PROJECT_ID,
+    );
     expect(traceSampled).toBe(false);
   });
 
@@ -164,8 +171,15 @@ describe('LoggerService — schema_version', () => {
 
 describe('LoggerService — severity mapping', () => {
   const GCP_SEVERITY_VALUES = new Set([
-    'DEFAULT', 'DEBUG', 'INFO', 'NOTICE', 'WARNING',
-    'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY',
+    'DEFAULT',
+    'DEBUG',
+    'INFO',
+    'NOTICE',
+    'WARNING',
+    'ERROR',
+    'CRITICAL',
+    'ALERT',
+    'EMERGENCY',
   ]);
 
   it('always emits a valid GCP severity value', () => {
@@ -248,7 +262,10 @@ describe('LoggerService — event() typed helper', () => {
   it('emits a log with the event field set to the LogEvent name', () => {
     const { service, lines } = makeGcpLogger({ requestId: 'r1' });
     const logger = service.forContext('LikesService');
-    logger.event(LOG_EVENT.LIKE_CREATED, { likeId: 'like-1', userId: 'user-1' });
+    logger.event(LOG_EVENT.LIKE_CREATED, {
+      likeId: 'like-1',
+      userId: 'user-1',
+    });
 
     const line = lines.find((l) => l['event'] === LOG_EVENT.LIKE_CREATED);
     expect(line).toBeDefined();
@@ -305,7 +322,10 @@ describe('LoggerService — centralized redaction', () => {
       const { service, lines } = makeGcpLogger();
       const logger = service.forContext('RedactionTest');
 
-      logger.info('action with sensitive data', { [field]: value, userId: 'u-1' });
+      logger.info('action with sensitive data', {
+        [field]: value,
+        userId: 'u-1',
+      });
 
       const serialized = JSON.stringify(lines);
       expect(serialized).not.toContain(value);
@@ -355,7 +375,9 @@ describe('LoggerService — resilience (§1.2)', () => {
     const service = new LoggerService(configService, brokenCls);
 
     // The only assertion: no exception propagates out of the log call.
-    expect(() => service.log('important business event', 'MyService')).not.toThrow();
+    expect(() =>
+      service.log('important business event', 'MyService'),
+    ).not.toThrow();
   });
 });
 
@@ -386,7 +408,6 @@ describe('Pub/Sub CLS correlation seeding', () => {
   });
 
   it('generates a valid UUID v4 requestId when messageId is absent', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { randomUUID } = require('crypto') as typeof import('crypto');
     const storedValues: Record<string, unknown> = {};
     const clsMock = {
@@ -400,7 +421,7 @@ describe('Pub/Sub CLS correlation seeding', () => {
     const correlationId = messageId ?? randomUUID();
     clsMock.set('requestId', correlationId);
 
-    const requestId = clsMock.get('requestId') as string;
+    const requestId = clsMock.get('requestId');
     expect(requestId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );

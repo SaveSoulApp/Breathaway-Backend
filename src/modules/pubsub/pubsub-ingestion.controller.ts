@@ -19,7 +19,7 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { ClsService } from 'nestjs-cls';
 
 import { PubSubPushRequestDto } from './dto';
@@ -90,10 +90,9 @@ export class PubSubIngestionController extends BaseController {
     this.cls.set('pubsubMessageId', incomingMessageId ?? null);
 
     // Do NOT log the full payload wholesale (PII safety). Log the metadata instead.
-    this.logger.info('Incoming Pub/Sub ingest payload', {
+    this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_RECEIVED, {
       messageId: incomingMessageId,
       eventType: payload?.message?.attributes?.eventType,
-      step: 'init',
     });
 
     if (!payload?.message) {
@@ -147,6 +146,9 @@ export class PubSubIngestionController extends BaseController {
       // Route to the registered handler (pure execution)
       const { target, method } = handlerContext;
       await method.call(target, parsedData, messageId);
+      this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_PROCESSED, {
+        ...ctx,
+      });
     } catch (error) {
       this.logger.error('Error processing event', {
         ...ctx,

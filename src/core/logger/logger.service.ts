@@ -7,7 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import * as pino from 'pino';
 
-import { createGcpLoggerConfig, parseCloudTraceContext } from './gcp-logger.config';
+import {
+  createGcpLoggerConfig,
+  parseCloudTraceContext,
+} from './gcp-logger.config';
 import { LogEvent } from './log-event.constants';
 import { ContextualLogger } from './logger.interface';
 
@@ -116,7 +119,10 @@ export class LoggerService implements NestLoggerService, OnApplicationShutdown {
        * trace, spanId) are auto-injected from the active CLS context.
        */
       event: (name: LogEvent, meta?: Record<string, unknown>) =>
-        this.write(childLogger, 'info', `[EVENT] ${name}`, { event: name, ...meta }),
+        this.write(childLogger, 'info', `[EVENT] ${name}`, {
+          event: name,
+          ...meta,
+        }),
     };
   }
 

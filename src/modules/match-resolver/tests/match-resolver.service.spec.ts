@@ -282,8 +282,8 @@ describe('MatchResolverService', () => {
         where: { id: 'like-2' },
         data: { status: LikeStatus.MATCHED },
       });
-      expect(contextualLogger.log).toHaveBeenCalledWith(
-        'Match resolved successfully',
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.MATCH_CREATED,
         expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith({

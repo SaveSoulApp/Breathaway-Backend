@@ -801,8 +801,8 @@ export class SubscriptionsService extends BaseService {
         });
 
         this.logger.event(LOG_EVENT.SUBSCRIPTION_EXPIRED_BATCH, {
-            expiredCount: expiredSubscriptions.length,
-          });
+          expiredCount: expiredSubscriptions.length,
+        });
 
         return expiredSubscriptions.length;
       });
