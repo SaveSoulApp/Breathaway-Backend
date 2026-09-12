@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'BreathAway Backend Docs',
+  title: 'BreathAway',
   tagline: 'Technical documentation for the BreathAway API backend service',
   favicon: 'img/favicon.ico',
   url: 'https://breathaway.example.com',
@@ -51,7 +51,7 @@ const config: Config = {
 
   themeConfig: {
     navbar: {
-      title: 'BreathAway Backend Docs',
+      title: 'BreathAway',
       logo: {
         alt: 'BreathAway Logo',
         src: 'img/logo.svg',
@@ -59,9 +59,21 @@ const config: Config = {
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'modulesSidebar',
           position: 'left',
-          label: 'Documentation',
+          label: 'Modules',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'engineeringSidebar',
+          position: 'left',
+          label: 'Engineering',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'specSidebar',
+          position: 'left',
+          label: 'Spec',
         },
         {
           href: 'http://localhost:3000/api/public',
@@ -79,7 +91,7 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Engineering',
           items: [
             {
               label: 'Overview',
@@ -90,13 +102,59 @@ const config: Config = {
               to: '/architecture',
             },
             {
-              label: 'Modules Guide',
-              to: '/modules/auth',
+              label: 'Database & Prisma',
+              to: '/architecture/database',
+            },
+            {
+              label: 'Deployment',
+              to: '/deployment',
+            },
+            {
+              label: 'Testing',
+              to: '/testing',
             },
           ],
         },
         {
-          title: 'Conventions',
+          title: 'Modules',
+          items: [
+            {
+              label: 'Modules Map',
+              to: '/modules/overview',
+            },
+            {
+              label: 'Authentication',
+              to: '/modules/auth',
+            },
+            {
+              label: 'Matches',
+              to: '/modules/matches',
+            },
+            {
+              label: 'Credits Ledger',
+              to: '/modules/credits',
+            },
+          ],
+        },
+        {
+          title: 'Spec & PRDs',
+          items: [
+            {
+              label: 'Spec Hub',
+              to: '/spec/overview',
+            },
+            {
+              label: 'PRD Template',
+              to: '/spec/prd-template',
+            },
+            {
+              label: 'Matching PRD',
+              to: '/spec/features/matching-workflow',
+            },
+          ],
+        },
+        {
+          title: 'Standards & API',
           items: [
             {
               label: 'Coding Standards',
@@ -105,6 +163,14 @@ const config: Config = {
             {
               label: 'API Conventions',
               to: '/api/conventions',
+            },
+            {
+              label: 'Public Swagger UI',
+              href: 'http://localhost:3000/api/public',
+            },
+            {
+              label: 'Admin Swagger UI',
+              href: 'http://localhost:3000/api/admin',
             },
           ],
         },

@@ -26,3 +26,58 @@
 html[data-theme='dark'] .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.3);
 }
+
+/* RevenueCat-inspired Navbar Tabs & Navigation */
+.navbar__item {
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.navbar__link {
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  position: relative;
+}
+
+.navbar__link:hover {
+  color: var(--ifm-color-primary);
+  background-color: rgba(37, 194, 160, 0.08);
+}
+
+/* Active top-level tab highlight */
+.navbar__link--active {
+  color: var(--ifm-color-primary) !important;
+  font-weight: 700;
+  background-color: rgba(37, 194, 160, 0.12);
+}
+
+.navbar__link--active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background-color: var(--ifm-color-primary);
+  border-radius: 2px;
+}
+
+/* Sidebar styling polish */
+.theme-doc-sidebar-menu .menu__link {
+  font-size: 0.9rem;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+}
+
+.theme-doc-sidebar-menu .menu__link--active:not(.menu__link--sublist) {
+  background-color: rgba(37, 194, 160, 0.12);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+.theme-doc-sidebar-menu .menu__list-item-collapsible {
+  font-weight: 600;
+}
