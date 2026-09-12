@@ -70,7 +70,7 @@ describe('AuditService', () => {
         payload,
         { actionType: AuditActionType.USER_LOGIN },
       );
-      expect(loggerService.event).toHaveBeenCalledWith(
+      expect((loggerService as any).event).toHaveBeenCalledWith(
         LOG_EVENT.AUDIT_EVENT_EMITTED,
         expect.objectContaining({
           userId: 'test-user-id',
