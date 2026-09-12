@@ -18,6 +18,131 @@ The `LikesModule` manages liking mechanics, capturing user intents, and executin
 
 ---
 
+## 🔄 End-to-End Like Creation Workflow
+
+The following sequence diagram illustrates the end-to-end execution path when a client issues a `POST /api/v1/likes` request, as implemented across `LikesController` and `LikesService`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Mobile Client
+    participant Controller as LikesController
+    participant Service as LikesService
+    participant Credits as CreditsService
+    participant Identities as IdentitiesService
+    participant Crypto as IdentityCryptoService
+    participant DB as PrismaService / Cloud SQL
+    participant Resolver as MatchResolverService
+    participant Audit as AuditModule
+
+    Client->>Controller: POST /api/v1/likes (DTO, x-timezone)
+    Note over Controller: JwtAuthGuard validates token (userId)<br/>RequireTimezoneGuard extracts req.timezone
+    Controller->>Service: create(userId, dto, timezone)
+
+    rect rgb(240, 248, 255)
+    Note over Service, Credits: Phase 1: Pre-Flight Credit Verification
+    Service->>Credits: hasSufficientCredits(userId, CREDITS_PER_LIKE)
+    Credits-->>Service: boolean
+    alt Insufficient Credits
+        Service->>Audit: emitAuditLog(USAGE_DENIED)
+        Service-->>Controller: throw InsufficientCreditsException (400)
+        Controller-->>Client: 400 Bad Request (Insufficient credits)
+    end
+    end
+
+    rect rgb(255, 250, 240)
+    Note over Service, Crypto: Phase 2: Target Identity Resolution
+    alt Raw targetIdentity provided (without targetIdentityId)
+        opt Phone Number without Country Code
+            Service->>Identities: getSenderCountryCode(userId)
+            Identities-->>Service: senderCountryCode
+            Service->>Service: Prepend country code to E.164 format
+        end
+        Service->>Crypto: processPublicValue(resolvedValue, type)
+        Crypto-->>Service: { publicValueHash, encryptedPublicValue }
+        Service->>DB: identity.findUnique({ type, publicValueHash })
+        alt Identity Found
+            DB-->>Service: existing targetIdentityId
+        else Identity Not Found (Ghost Identity)
+            Service->>DB: identity.create(userId: null, isVerified: false, ...)
+            DB-->>Service: new unresolved targetIdentityId
+        end
+    end
+    end
+
+    rect rgb(245, 255, 250)
+    Note over Service, DB: Phase 3: Identity & Self-Like Validation
+    Service->>DB: identity.findUnique({ id: targetIdentityId })
+    alt Target Identity Does Not Exist
+        Service-->>Controller: throw IdentityNotFoundException (404)
+    else Target Belongs to Sender (targetIdentity.userId === userId)
+        Service-->>Controller: throw SelfLikeException (400)
+    end
+    end
+
+    rect rgb(255, 245, 245)
+    Note over Service, DB: Phase 4: Duplicate & Active Match Pre-Flight Guards
+    Service->>DB: like.findFirst(senderUserId, targetIdentityId, status: PENDING)
+    opt Active PENDING Like Already Exists
+        Service-->>Controller: throw AlreadyLikedException (409)
+    end
+    Service->>DB: like.findFirst(status IN [WITHDRAWN, VOIDED, DELETED] OR deletedAt != null)
+    Note over Service: Identifies reusable row to resurrect instead of creating duplicate
+    opt Target Identity has an Associated Registered User
+        Service->>DB: match.findUnique(userOneId, userTwoId, status: ACTIVE)
+        opt Active Match Already Exists
+            Service-->>Controller: throw AlreadyMatchedException (409)
+        end
+    end
+    end
+
+    rect rgb(240, 255, 240)
+    Note over Service, DB: Phase 5: Atomic Persistence & Credit Deduction ($transaction)
+    Service->>DB: $transaction(async tx => ...)
+    alt Reusable Like Row Exists (Resurrection)
+        Service->>DB: tx.like.update(status: PENDING, deletedAt: null, expiresAt, intent, label)
+    else Fresh Like
+        Service->>DB: tx.like.create(senderUserId, targetIdentityId, status: PENDING, expiresAt, ...)
+    end
+    Service->>Credits: consumeCredits({ userId, amount: CREDITS_PER_LIKE, referenceId: like.id }, tx)
+    Credits->>DB: tx.creditLedgerEntry.create(...) + tx.creditAccount.update(...)
+    DB-->>Service: Transaction Committed (Persisted Like)
+    end
+
+    rect rgb(255, 240, 255)
+    Note over Service, Resolver: Phase 6: Non-Blocking Asynchronous Match Resolution
+    Service->>Resolver: resolveFromLike(like) [Async / Non-blocking]
+    Note over Resolver, DB: Checks target user for mutual reverse like, intent compatibility, and active blocks.<br/>If mutual, creates Match atomically and dispatches push notifications.
+    end
+
+    rect rgb(245, 245, 255)
+    Note over Service, Client: Phase 7: Audit Logging & Decrypted Response Hydration
+    Service->>Audit: emitAuditLog(LIKE_CREATED)
+    Service->>Identities: getDecryptedPublicValue(targetIdentityId)
+    Identities-->>Service: decrypted publicValue
+    Service-->>Controller: Hydrated Like with targetIdentity publicValue
+    Controller-->>Client: 201 Created (LikeResponseDto)
+    end
+```
+
+### Key Execution Phases Explained
+
+1. **Guard Execution**: `JwtAuthGuard` validates the caller's JWT token and extracts the authenticated `userId`. `RequireTimezoneGuard` extracts and validates the client's `x-timezone` header, attaching it to `req.timezone` to compute accurate midnight expiration dates.
+2. **Phase 1 (Credit Pre-Check)**: Before performing database queries or mutations, `CreditsService.hasSufficientCredits` ensures the user possesses at least `CREDITS_PER_LIKE` credits. If insufficient, an audit log (`USAGE_DENIED`) is recorded and `InsufficientCreditsException` is thrown.
+3. **Phase 2 (Target Identity Resolution)**: If the client passed raw identity details (`targetIdentity`) rather than a known UUID, phone numbers are normalized to E.164 (using the caller's verified country code if omitted). SHA-256 hashing and AES-256 envelope encryption are performed by `IdentityCryptoService`. If no matching row exists, an unresolved "Ghost Identity" (`userId = null`) is created so intent can be registered even before the target registers.
+4. **Phase 3 (Identity & Self-Like Validation)**: Verifies the target identity exists and ensures `targetIdentity.userId !== userId` (self-liking is rejected with `SelfLikeException`).
+5. **Phase 4 (Duplicate & Active Match Pre-Flight Guards)**:
+   - Rejects existing active `PENDING` likes with `AlreadyLikedException`.
+   - Checks for reusable soft-deleted, withdrawn, or voided rows to prepare for resurrection.
+   - Verifies whether an `ACTIVE` match already exists between the two users, aborting with `AlreadyMatchedException` before any credits are deducted.
+6. **Phase 5 (Atomic Transaction)**: Inside a Prisma `$transaction`:
+   - Either updates an existing inactive row back to `PENDING` (preserving row ID and audit trail) or inserts a new row.
+   - Atomically deducts credits via `CreditsService.consumeCredits`, appending an immutable ledger entry.
+7. **Phase 6 (Asynchronous Match Resolution)**: Calls `MatchResolverService.resolveFromLike` without blocking the HTTP response. If the counterpart previously liked this user with compatible intent, a mutual match is instantiated.
+8. **Phase 7 (Response Hydration & Audit)**: Emits `LIKE_CREATED` audit event, decrypts the target identity's `publicValue` via `IdentitiesService`, and returns `LikeResponseDto` with HTTP 201.
+
+---
+
 ## 🧠 Business Logic & Core Concepts
 
 ### 1. Atomic Credit Consumption
