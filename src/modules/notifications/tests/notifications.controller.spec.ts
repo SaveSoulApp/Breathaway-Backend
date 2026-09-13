@@ -1,13 +1,19 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LoggerService } from '@core/logger';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+
+import {
+  SendNotificationRequestDto,
+  SendNotificationResponseDto,
+} from '../dto';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsController } from '../notifications.controller';
 import { NotificationsService } from '../notifications.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('NotificationsController', () => {
   let controller: NotificationsController;
@@ -38,7 +44,10 @@ describe('NotificationsController', () => {
         { provide: NotificationsService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
-    }).compile();
+    })
+      .overrideGuard(AdminBasicAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     controller = module.get<NotificationsController>(NotificationsController);
     service = module.get(NotificationsService);
@@ -49,7 +58,8 @@ describe('NotificationsController', () => {
   });
 
   describe('send', () => {
-    it('should successfully dispatch a notification request', async () => {
+    it('should successfully dispatch a notification request and return SendNotificationResponseDto', async () => {
+      // Arrange
       const dto: SendNotificationRequestDto = {
         userIds: ['user-1'],
         channels: [NotificationChannel.PUSH],
@@ -61,14 +71,35 @@ describe('NotificationsController', () => {
 
       service.dispatch.mockResolvedValue();
 
-      const result = await controller.send(dto);
+      // Act
+      const result: SendNotificationResponseDto = await controller.send(dto);
 
+      // Assert
       expect(service.dispatch).toHaveBeenCalledWith(dto);
       expect(result).toEqual({
         success: true,
         message: 'Notification dispatch requested for 1 users',
         userCount: 1,
       });
+    });
+
+    it('should propagate error when dispatch fails without duplicate local error handling', async () => {
+      // Arrange
+      const dto: SendNotificationRequestDto = {
+        userIds: ['user-1'],
+        channels: [NotificationChannel.PUSH],
+        title: 'Test Notification',
+        body: 'This is a test notification.',
+        type: NotificationType.SYSTEM_ALERT,
+        category: NotificationCategory.SYSTEM,
+      };
+
+      const dispatchError = new Error('Pub/Sub queue unavailable');
+      service.dispatch.mockRejectedValue(dispatchError);
+
+      // Act & Assert
+      await expect(controller.send(dto)).rejects.toThrow(dispatchError);
+      expect(service.dispatch).toHaveBeenCalledWith(dto);
     });
   });
 });

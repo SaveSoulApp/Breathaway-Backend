@@ -10,6 +10,7 @@ import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-wo
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { LikesModule } from '@modules/likes/likes.module';
 import { MatchesModule } from '@modules/matches/matches.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
@@ -176,7 +177,12 @@ function publicApiDocumentation(app: INestApplication): void {
 }
 
 function adminApiDocumentation(app: INestApplication): void {
-  const adminModules = [InstagramModule, IdentityWorkflowsModule, AdminModule];
+  const adminModules = [
+    InstagramModule,
+    IdentityWorkflowsModule,
+    AdminModule,
+    NotificationsModule,
+  ];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
     .setDescription(
