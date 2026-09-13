@@ -1,15 +1,8 @@
-import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
-  Body,
   Controller,
   Get,
-  HttpCode,
   HttpStatus,
   Param,
-  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -20,23 +13,27 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { CreditsService } from './credits.service';
 import {
-  ConsumeCreditsRequestDto,
   CreditBalanceResponseDto,
   CreditLedgerQueryRequestDto,
   CreditLedgerResponseDto,
-  PaginatedCreditLedgerResponseDto,
-  ExpiringCreditsResponseDto,
   ExpiringCreditItemDto,
+  ExpiringCreditsResponseDto,
+  PaginatedCreditLedgerResponseDto,
 } from './dto';
 
 /**
  * HTTP resource for the /credits domain; all endpoints require a valid JWT.
- * The `internal/consume` route is intended exclusively for server-to-server
- * calls (e.g., scheduler, internal services) and must not be exposed through
- * the public API gateway. Credit grants are handled exclusively by the Admin
- * controller (`POST /admin/credits/grant`) which is protected by Basic Auth.
+ * Credit grants and debits/consumption are handled exclusively by the Admin
+ * controller (`POST /admin/credits/grant`, `POST /admin/credits/consume`) which
+ * is protected by Basic Auth.
  */
 @ApiTags('Credits')
 @ApiBearerAuth()
@@ -122,23 +119,5 @@ export class CreditsController extends BaseController {
     @Param('id') id: string,
   ): Promise<CreditLedgerResponseDto> {
     return this.creditsService.getLedgerEntry(userId, id);
-  }
-
-  /**
-   * Internal endpoint that deducts credits from a user's balance and records
-   * the debit ledger entry.
-   *
-   * @param dto - Consume payload including target userId, amount, and source.
-   * @returns The newly created ledger entry for the debit transaction.
-   * @throws `BadRequestException` when the user's current balance is insufficient to cover the requested amount.
-   */
-  @Post('internal/consume')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Consume credits (Internal)' })
-  @ApiResponse({ status: HttpStatus.CREATED, type: CreditLedgerResponseDto })
-  async consumeCredits(
-    @Body() dto: ConsumeCreditsRequestDto,
-  ): Promise<CreditLedgerResponseDto> {
-    return this.creditsService.consumeCredits(dto);
   }
 }

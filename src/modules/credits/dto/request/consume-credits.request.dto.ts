@@ -2,8 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsPositive, IsString } from 'class-validator';
 
 /**
- * Payload for the `POST /credits/internal/consume` endpoint; used by internal services
- * to deduct credits from a user's account for feature usage.
+ * Payload for the `POST /admin/credits/consume` endpoint; used by administrative operations
+ * and internal callers to deduct credits from a user's account.
  */
 export class ConsumeCreditsRequestDto {
   @ApiProperty({ description: 'The ULID of the user consuming credits' })

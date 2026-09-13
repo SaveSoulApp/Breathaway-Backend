@@ -137,10 +137,23 @@ describe('CreditsModule (e2e)', () => {
       expect(res.body.amount).toBe(100);
     });
 
-    it('POST /api/v1/credits/internal/consume - fails when insufficient balance', async () => {
+    it('POST /api/v1/admin/credits/consume - fails when called with user JWT instead of admin basic auth', async () => {
       const res = await authedRequest(app)
-        .post('/api/v1/credits/internal/consume')
+        .post('/api/v1/admin/credits/consume')
         .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          userId: seededUserId,
+          amount: 10,
+          referenceId: 'test-usage-456',
+        });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/v1/admin/credits/consume - fails when insufficient balance', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/credits/consume')
+        .set('authorization', adminBasicAuthHeader)
         .send({
           userId: seededUserId,
           amount: 1000,
