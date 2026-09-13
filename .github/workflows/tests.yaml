@@ -21,6 +21,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Env Parity ────────────────────────────────────────────────────────────────
+  # Enforces that common.prod.sh defines every key present in common.dev.sh.
+  # Acts as a TS-interface-style contract: dev is the "interface", prod "implements" it.
+  env-parity:
+    name: Env Parity · dev vs prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate env key parity
+        run: bash scripts/validate-env-parity.sh
+
   ci:
     name: Lint · Type-check · Unit Tests
     runs-on: ubuntu-latest
