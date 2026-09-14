@@ -2,12 +2,13 @@ jest.mock('nanoid', () => ({
   nanoid: () => 'mocked-id',
 }));
 
+import { GoneException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { LoggerService } from '@core/logger';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { LoggerService } from '@core/logger';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
-import { AuthSignupRequestDto, AuthSigninRequestDto } from '../dto';
+import { AuthSigninRequestDto, AuthSignupRequestDto } from '../dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -132,6 +133,14 @@ describe('AuthController', () => {
         'password',
       );
       expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('socialAuth', () => {
+    it('should throw GoneException and not invoke authService.socialAuth', () => {
+      // Arrange & Act & Assert
+      expect(() => controller.socialAuth({})).toThrow(GoneException);
+      expect(service.socialAuth).not.toHaveBeenCalled();
     });
   });
 });

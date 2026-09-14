@@ -21,6 +21,9 @@ export enum SocialAuthType {
  * Payload representing credentials and handle details from a third-party social media platform.
  *
  * Used to link external social accounts, verify profile ownership, or perform OAuth/handle-based authentication.
+ *
+ * @deprecated The corresponding endpoint `POST /api/v1/auth/social` has been permanently disabled
+ * with HTTP 410 Gone to prevent unverified account takeover.
  */
 export class SocialAuthRequestDto {
   /**
