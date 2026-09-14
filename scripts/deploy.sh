@@ -83,7 +83,8 @@ deploy_service() {
         "ADMIN_USERNAME=admin-username:latest"
         "ADMIN_PASSWORD=admin-password:latest"
         "SWAGGER_USERNAME=swagger-username:latest"
-        "SWAGGER_PASSWORD=swagger-password:latest"
+        "SWAGGER_PASSWORD=swagger-password:latest",
+        "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
     )
 
     local gcloud_run_args=(
