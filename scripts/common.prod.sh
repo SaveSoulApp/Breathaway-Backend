@@ -62,3 +62,14 @@ export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
 
 export CREDIT_EXPIRY_DAYS='90'
 export LIKE_EXPIRY_DAYS='90'
+
+# Cloud Run Autoscaling & Concurrency Limits
+export MAX_INSTANCES='20'
+export CONCURRENCY='160'
+
+# Database Connection Pool Sizing & Timeouts
+export DB_POOL_MAX='4'
+export DB_POOL_MIN='0'
+export DB_POOL_ACQUISITION_TIMEOUT_MS='5000'
+export DB_POOL_IDLE_TIMEOUT_MS='10000'
+export DB_POOL_STATEMENT_TIMEOUT_MS='15000'

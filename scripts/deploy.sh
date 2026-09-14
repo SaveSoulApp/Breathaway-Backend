@@ -130,6 +130,8 @@ deploy_service() {
         --region="${REGION}"
         --memory=2Gi
         --cpu=2
+        --max-instances="${MAX_INSTANCES:-20}"
+        --concurrency="${CONCURRENCY:-80}"
         --allow-unauthenticated # Remove if this is a private microservice
         --quiet
     )
@@ -163,6 +165,11 @@ deploy_service() {
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
         "CREDIT_EXPIRY_DAYS=${CREDIT_EXPIRY_DAYS}"
         "LIKE_EXPIRY_DAYS=${LIKE_EXPIRY_DAYS}"
+        "DB_POOL_MAX=${DB_POOL_MAX:-4}"
+        "DB_POOL_MIN=${DB_POOL_MIN:-0}"
+        "DB_POOL_ACQUISITION_TIMEOUT_MS=${DB_POOL_ACQUISITION_TIMEOUT_MS:-5000}"
+        "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
+        "DB_POOL_STATEMENT_TIMEOUT_MS=${DB_POOL_STATEMENT_TIMEOUT_MS:-15000}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
