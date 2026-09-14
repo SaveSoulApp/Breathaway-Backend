@@ -1,12 +1,7 @@
 import { TimezoneResponseInterceptor } from './common/interceptors';
 import { randomUUID } from 'crypto';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  ValidationPipe,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -14,6 +9,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
+import { AppValidationPipe } from '@core/pipes';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { configureMiddleware, MiddlewareModule } from './common/middlewares';
@@ -136,14 +132,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     TimezoneResponseInterceptor,
     {
       provide: APP_PIPE,
-      useValue: new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true, // Strict payload injection protection
-        transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
-      }),
+      useValue: new AppValidationPipe(),
     },
     {
       provide: APP_GUARD,

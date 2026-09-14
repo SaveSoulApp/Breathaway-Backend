@@ -1,14 +1,15 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
 
-import { MetaWebhookDto } from '../dto';
+import { MetaWebhookDto, RevenueCatWebhookRequestDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+import { RevenueCatWebhookGuard } from '../guards';
 import { MetaWebhookResult } from '../interfaces/meta-webhook-result.interface';
 import { WebhooksController } from '../webhooks.controller';
 import { WebhooksService } from '../webhooks.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('WebhooksController', () => {
   let controller: WebhooksController;
@@ -38,6 +39,8 @@ describe('WebhooksController', () => {
       verifyMetaWebhook: jest.fn(),
       parseMetaWebhook: jest.fn(),
       handleMetaWebhookEvents: jest.fn(),
+      parseRevenueCatWebhook: jest.fn(),
+      handlePurchaseEvent: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -48,7 +51,10 @@ describe('WebhooksController', () => {
         { provide: WebhooksService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
-    }).compile();
+    })
+      .overrideGuard(RevenueCatWebhookGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     controller = module.get<WebhooksController>(WebhooksController);
     service = module.get(WebhooksService);
@@ -128,6 +134,41 @@ describe('WebhooksController', () => {
         parsedResults,
       );
       expect(result).toBe('EVENT_RECEIVED');
+    });
+  });
+
+  describe('handleRevenueCatWebhook', () => {
+    it('should parse payload, dispatch purchase event, and return status ok', async () => {
+      // Arrange
+      const dto: RevenueCatWebhookRequestDto = {
+        api_version: '1.0',
+        event: {
+          id: 'evt-100',
+          type: 'NON_RENEWING_PURCHASE',
+          app_user_id: 'user-123',
+          product_id: 'credit_pack_10',
+          transaction_id: 'txn-100',
+        },
+      };
+
+      const parsedEvent = {
+        gateway: 'REVENUECAT' as any,
+        providerEventType: 'NON_RENEWING_PURCHASE',
+        gatewayTransactionId: 'txn-100',
+        productId: 'credit_pack_10',
+        environment: 'SANDBOX' as any,
+      } as any;
+
+      service.parseRevenueCatWebhook.mockReturnValue(parsedEvent);
+      service.handlePurchaseEvent.mockResolvedValue(undefined);
+
+      // Act
+      const result = await controller.handleRevenueCatWebhook(dto);
+
+      // Assert
+      expect(service.parseRevenueCatWebhook).toHaveBeenCalledWith(dto);
+      expect(service.handlePurchaseEvent).toHaveBeenCalledWith(parsedEvent);
+      expect(result).toEqual({ status: 'ok' });
     });
   });
 });
