@@ -20,8 +20,6 @@ const PINO_LEVEL_TO_CLOUD_SEVERITY: Record<string, string> = {
   fatal: 'CRITICAL',
 };
 
-
-
 /**
  * Parses a raw `X-Cloud-Trace-Context` header value into its components.
  *

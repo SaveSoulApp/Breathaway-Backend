@@ -40,15 +40,19 @@ export class AppValidationPipe extends ValidationPipe {
     });
   }
 
-  override async transform(value: unknown, metadata: ArgumentMetadata) {
-    const isAllowedNonWhitelisted =
+  override async transform(
+    value: unknown,
+    metadata: ArgumentMetadata,
+  ): Promise<unknown> {
+    const isAllowedNonWhitelisted = Boolean(
       metadata.metatype &&
-      Reflect.getMetadata(ALLOW_NON_WHITELISTED_KEY, metadata.metatype);
+      Reflect.getMetadata(ALLOW_NON_WHITELISTED_KEY, metadata.metatype),
+    );
 
     if (isAllowedNonWhitelisted) {
-      return this.relaxedPipe.transform(value, metadata);
+      return (await this.relaxedPipe.transform(value, metadata)) as unknown;
     }
 
-    return super.transform(value, metadata);
+    return (await super.transform(value, metadata)) as unknown;
   }
 }

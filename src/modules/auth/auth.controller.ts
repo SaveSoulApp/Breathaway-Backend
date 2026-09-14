@@ -134,6 +134,7 @@ export class AuthController extends BaseController {
   @Post('social')
   @ApiExcludeEndpoint()
   socialAuth(@Body() _dto?: unknown): never {
+    void _dto;
     throw new GoneException(
       'Social authentication via this endpoint has been disabled.',
     );
