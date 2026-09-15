@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import * as pino from 'pino';
 
-import { parseCloudTraceContext, } from './gcp-logger.config';
+import { parseCloudTraceContext } from './gcp-logger.config';
 import { LOG_EVENT } from './log-event.constants';
 import { LoggerService } from './logger.service';
 import { PINO_REDACT_PATHS } from './logger-redact.constants';
@@ -351,6 +351,10 @@ describe('LoggerService — centralized redaction', () => {
 
 describe('LoggerService — resilience (§1.2)', () => {
   it('does not propagate exceptions when write() encounters an internal error', () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
     const configService = {
       get: (key: string) => {
         const cfg: Record<string, string> = {
@@ -379,6 +383,13 @@ describe('LoggerService — resilience (§1.2)', () => {
     expect(() =>
       service.log('important business event', 'MyService'),
     ).not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[LoggerService] Failed to write log entry:',
+      expect.any(Error),
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });
 

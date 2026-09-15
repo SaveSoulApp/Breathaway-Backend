@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  GoneException,
   HttpCode,
   HttpStatus,
   Patch,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -24,7 +26,6 @@ import {
   AuthSigninRequestDto,
   AuthSignupRequestDto,
   DevLoginRequestDto,
-  SocialAuthRequestDto,
   UserAuthResponseDto,
 } from './dto';
 import { AuthMethod } from './utils/auth-method.utils';
@@ -121,28 +122,22 @@ export class AuthController extends BaseController {
   }
 
   /**
-   * Authenticates or registers a user using a social media platform identifier.
+   * Disallowed social authentication endpoint.
    *
-   * If a social identity matches, the user is authenticated. If the identity exists as a ghost identity
-   * (e.g., from likes targeting their handle), it is claimed, the user is registered, and an event is
-   * published via Pub/Sub to trigger matching workflows.
+   * @deprecated Social authentication via raw platform IDs is permanently disabled to prevent
+   * unverified account takeover. Clients must authenticate using verified credentials
+   * via Firebase (Phone/Email) and link social identities via the verified Instagram DM OTP flow.
    *
-   * @param dto - Social provider details, platform user ID, and username/handle.
-   * @returns The authenticated user details and JWT access and refresh tokens.
-   * @throws {ConflictException} When the social account is already linked to another active user,
-   *   or represents a deleted account that requires re-verification.
+   * @param _dto - Optional arbitrary payload sent by legacy callers.
+   * @throws {GoneException} Always thrown with HTTP 410 to indicate the endpoint is permanently disabled.
    */
   @Post('social')
-  @ApiOperation({ summary: 'Authenticate user using a social platform' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'User successfully authenticated via social provider',
-    type: UserAuthResponseDto,
-  })
-  @SerializeExpose(UserAuthResponseDto)
-  @HttpCode(HttpStatus.OK)
-  socialAuth(@Body() dto: SocialAuthRequestDto) {
-    return this.authService.socialAuth(dto);
+  @ApiExcludeEndpoint()
+  socialAuth(@Body() _dto?: unknown): never {
+    void _dto;
+    throw new GoneException(
+      'Social authentication via this endpoint has been disabled.',
+    );
   }
 
   /**

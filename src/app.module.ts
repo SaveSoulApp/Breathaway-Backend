@@ -1,12 +1,6 @@
-import { TimezoneResponseInterceptor } from './common/interceptors';
 import { randomUUID } from 'crypto';
-import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  ValidationPipe,
-} from '@nestjs/common';
+
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -14,9 +8,18 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
+
+import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import { AppValidationPipe } from '@core/pipes';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { TimezoneResponseInterceptor } from './common/interceptors';
 import { configureMiddleware, MiddlewareModule } from './common/middlewares';
+import {
+  envValidationOptions,
+  envValidationSchema,
+} from './config/env.validation';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
@@ -24,6 +27,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
+import { ChatsModule } from './modules/chats/chats.module';
 import { CreditsModule } from './modules/credits/credits.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
@@ -40,12 +44,11 @@ import { OneTimePasswordsModule } from './modules/one-time-passwords/one-time-pa
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
-import { ChatsModule } from './modules/chats/chats.module';
-import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -53,6 +56,8 @@ import { ReportsModule } from './modules/reports/reports.module';
       isGlobal: true,
       envFilePath: `.env.${process.env.NODE_ENV}`,
       cache: true,
+      validationSchema: envValidationSchema,
+      validationOptions: envValidationOptions,
     }),
     ClsModule.forRoot({
       global: true,
@@ -136,14 +141,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     TimezoneResponseInterceptor,
     {
       provide: APP_PIPE,
-      useValue: new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true, // Strict payload injection protection
-        transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
-      }),
+      useValue: new AppValidationPipe(),
     },
     {
       provide: APP_GUARD,

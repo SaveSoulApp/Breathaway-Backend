@@ -9,15 +9,16 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+import { AllowNonWhitelisted } from '@common/decorators';
+
 /**
  * The `event` object inside a RevenueCat webhook delivery.
  *
  * Only the fields this system reads are declared. RevenueCat adds fields over
  * time — the `discount_*` trio appeared in real purchase payloads but not in the
- * dashboard's test event — so the route deliberately validates with
- * `forbidNonWhitelisted: false`. Rejecting an unknown field would return a 400,
- * and RevenueCat would retry into the same wall until the event expired.
+ * dashboard's test event — so the route validates with `@AllowNonWhitelisted()`.
  */
+@AllowNonWhitelisted()
 export class RevenueCatEventDto {
   @ApiProperty({
     description: 'RevenueCat event type (e.g. NON_RENEWING_PURCHASE)',
@@ -110,6 +111,7 @@ export class RevenueCatEventDto {
  * A RevenueCat webhook delivery. The event is wrapped in an envelope alongside
  * the payload version.
  */
+@AllowNonWhitelisted()
 export class RevenueCatWebhookRequestDto {
   @ApiProperty({ type: RevenueCatEventDto })
   @IsObject()

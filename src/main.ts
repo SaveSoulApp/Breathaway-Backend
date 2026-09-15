@@ -16,6 +16,7 @@ import { TimezoneResponseInterceptor } from './common/interceptors';
 async function bootstrap(): Promise<void> {
   const app: INestApplication = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    rawBody: true,
   });
 
   // 1. Core Services Setup

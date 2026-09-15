@@ -1,12 +1,3 @@
-import { ApiStandardErrors } from '@common/decorators';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { CreditsService } from '@modules/credits/credits.service';
-import {
-  CreditLedgerResponseDto,
-  GrantCreditsRequestDto,
-} from '@modules/credits/dto';
 import {
   Body,
   Controller,
@@ -23,7 +14,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { RequireTimezoneGuard } from '@common/guards';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { CreditsService } from '@modules/credits/credits.service';
+import {
+  ConsumeCreditsRequestDto,
+  CreditLedgerResponseDto,
+  GrantCreditsRequestDto,
+} from '@modules/credits/dto';
 
 import { AdminService } from './admin.service';
 import { DeleteAccountRequestDto } from './dto';
@@ -73,7 +75,7 @@ export class AdminController extends BaseController {
    *
    * @param dto - Grant payload: target `userId`, `amount`, `source`, and optional `referenceId` / `expiresAt`.
    * @returns The newly created ledger entry recording the credit grant.
-   * @throws `BadRequestException` when the `LIKE_USAGE` credit source is supplied.
+   * @throws {BadRequestException} When the `LIKE_USAGE` credit source is supplied.
    */
   @Post('credits/grant')
   @HttpCode(HttpStatus.CREATED)
@@ -94,5 +96,32 @@ export class AdminController extends BaseController {
     // req.timezone is attached by TimezoneMiddleware, defaulting to UTC if invalid
     // Since we enforce x-timezone header, req.timezone will be the normalized IANA timezone
     return this.creditsService.grantCredits(dto, undefined);
+  }
+
+  /**
+   * Consumes (deducts) credits from a user's account. Callable only with valid admin
+   * Basic Auth credentials — no user JWT is accepted on this route.
+   *
+   * @param dto - Consume payload: target `userId`, `amount`, and `referenceId`.
+   * @returns The newly created ledger entry recording the debit transaction.
+   * @throws {BadRequestException} When the user's current balance is insufficient to cover the requested amount.
+   * @throws {UserNotFoundException} When the target user does not exist.
+   */
+  @Post('credits/consume')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Consume credits from a user (Admin)',
+    description:
+      'Deducts credits from a specified user. Requires HTTP Basic Auth with admin credentials. Not accessible via user JWTs.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Credits successfully consumed; debit ledger entry returned.',
+    type: CreditLedgerResponseDto,
+  })
+  async consumeCredits(
+    @Body() dto: ConsumeCreditsRequestDto,
+  ): Promise<CreditLedgerResponseDto> {
+    return this.creditsService.consumeCredits(dto);
   }
 }

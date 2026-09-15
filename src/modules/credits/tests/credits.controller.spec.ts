@@ -1,14 +1,14 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreditSource, CreditTransactionType } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 
 import { CreditsController } from '../credits.controller';
 import { CreditsService } from '../credits.service';
-import { ConsumeCreditsRequestDto, CreditLedgerQueryRequestDto } from '../dto';
-import { ClsService } from 'nestjs-cls';
+import { CreditLedgerQueryRequestDto } from '../dto';
 
 describe('CreditsController', () => {
   let controller: CreditsController;
@@ -45,7 +45,6 @@ describe('CreditsController', () => {
       getExpiringCredits: jest.fn(),
       getLedger: jest.fn(),
       getLedgerEntry: jest.fn(),
-      consumeCredits: jest.fn(),
     };
 
     const loggerServiceMock = {
@@ -136,29 +135,6 @@ describe('CreditsController', () => {
 
       // Assert
       expect(service.getLedgerEntry).toHaveBeenCalledWith(userId, entryId);
-      expect(result).toEqual(mockLedgerEntry);
-    });
-  });
-
-  describe('consumeCredits', () => {
-    it('should consume credits and return ledger entry', async () => {
-      // Arrange
-      const dto: ConsumeCreditsRequestDto = {
-        userId,
-        amount: 10,
-        referenceId: 'like-ref-123',
-      };
-      service.consumeCredits.mockResolvedValue(
-        mockLedgerEntry as unknown as Awaited<
-          ReturnType<typeof service.consumeCredits>
-        >,
-      );
-
-      // Act
-      const result = await controller.consumeCredits(dto);
-
-      // Assert
-      expect(service.consumeCredits).toHaveBeenCalledWith(dto);
       expect(result).toEqual(mockLedgerEntry);
     });
   });

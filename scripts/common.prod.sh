@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ==============================================================================
-# Environment Configuration: Development
+# Environment Configuration: Production
 # ==============================================================================
 
-export PROJECT_ID="breathaway-dev"
+export PROJECT_ID="${GCP_PROJECT_ID:-${PROJECT_ID:-breathaway-dev}}"
 export REGION="asia-south1"
 export REPOSITORY="breathaway-backend"
 export SERVICE_NAME="backend-service"
@@ -16,7 +16,7 @@ export IMAGE_BASE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SE
 # ==============================================================================
 # Non-Sensitive Application Configuration
 # ==============================================================================
-export NODE_ENV='development'
+export NODE_ENV='production'
 export LOG_LEVEL='info'
 export SHOULD_LOG_RESPONSE='false'
 export DEPLOYMENT_ENV='gcp'
@@ -41,9 +41,35 @@ export JWT_ISSUER='https://breathaway.app'
 export OTP_TTL='300'
 export OTP_RATE_LIMIT_TTL='120'
 
-export CREDIT_EXPIRY_DAYS='90'
-export LIKE_EXPIRY_DAYS='90'
+export EMAIL_FROM_ADDRESS='no-reply@breathaway.com'
+export EMAIL_FROM_NAME='BreathAway'
+
+export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app'
+
+# Mail provider
+export EMAIL_PROVIDER='mailgun'
+
+export MAILGUN_API_KEY='some-api-key'
+export MAILGUN_DOMAIN='domain@domaincom'
+export SENDGRID_API_KEY='SG.some-api-key'
+export BREVO_API_KEY='your_brevo_api_key_here'
 
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
-export SWAGGER_ENABLED='true'
+export SWAGGER_ENABLED='false'
+
+export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
+
+export CREDIT_EXPIRY_DAYS='90'
+export LIKE_EXPIRY_DAYS='90'
+
+# Cloud Run Autoscaling & Concurrency Limits
+export MAX_INSTANCES='20'
+export CONCURRENCY='160'
+
+# Database Connection Pool Sizing & Timeouts
+export DB_POOL_MAX='4'
+export DB_POOL_MIN='0'
+export DB_POOL_ACQUISITION_TIMEOUT_MS='5000'
+export DB_POOL_IDLE_TIMEOUT_MS='10000'
+export DB_POOL_STATEMENT_TIMEOUT_MS='15000'

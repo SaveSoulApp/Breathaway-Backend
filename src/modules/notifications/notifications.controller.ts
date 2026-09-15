@@ -1,15 +1,43 @@
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBasicAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { SendNotificationRequestDto } from './dto/request/send-notification.request.dto';
-import { NotificationsService } from './notifications.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
+import { SendNotificationRequestDto, SendNotificationResponseDto } from './dto';
+import { NotificationsService } from './notifications.service';
+
+/**
+ * HTTP resource for the /notifications domain.
+ *
+ * Dedicated to administrative and operational notification dispatch (Push, Email, SMS).
+ * All endpoints require HTTP Basic Authentication with admin credentials; this route is
+ * never exposed to client JWTs or unauthenticated public traffic.
+ */
 @ApiTags('Notifications')
+@SkipClientIdentity()
+@ApiStandardErrors()
 @Controller({
   path: 'notifications',
   version: ['1'],
 })
+@UseGuards(AdminBasicAuthGuard)
+@ApiBasicAuth()
 export class NotificationsController extends BaseController {
   constructor(
     loggerService: LoggerService,
@@ -18,29 +46,39 @@ export class NotificationsController extends BaseController {
     super(loggerService);
   }
 
+  /**
+   * Dispatches a multi-channel notification (Push, Email, SMS) to target users.
+   *
+   * Queues the request via Google Cloud Pub/Sub for asynchronous processing and delivery.
+   *
+   * @param dto - Target user IDs, channel list, and message content.
+   * @returns Confirmation that the dispatch request was enqueued.
+   */
   @Post('send')
-  @ApiOperation({ summary: 'Send a notification' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Dispatch multi-channel notifications (Admin)',
+    description:
+      'Queues multi-channel notifications (Push, Email, SMS) for specified users via Pub/Sub. Requires HTTP Basic Auth with admin credentials.',
+  })
   @ApiResponse({
     status: HttpStatus.ACCEPTED,
-    description: 'Notification dispatch requested successfully',
+    description: 'Notification dispatch requested and queued successfully.',
+    type: SendNotificationResponseDto,
   })
-  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or missing admin Basic Auth credentials.',
+  })
   async send(
-    @Body() sendNotificationRequestDto: SendNotificationRequestDto,
-  ): Promise<{ success: boolean; message: string; userCount: number }> {
-    try {
-      await this.notificationsService.dispatch(sendNotificationRequestDto);
+    @Body() dto: SendNotificationRequestDto,
+  ): Promise<SendNotificationResponseDto> {
+    await this.notificationsService.dispatch(dto);
 
-      return {
-        success: true,
-        message: `Notification dispatch requested for ${sendNotificationRequestDto.userIds.length} users`,
-        userCount: sendNotificationRequestDto.userIds.length,
-      };
-    } catch (error) {
-      this.logger.error('Failed to process send notification request:', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+    return {
+      success: true,
+      message: `Notification dispatch requested for ${dto.userIds.length} users`,
+      userCount: dto.userIds.length,
+    };
   }
 }

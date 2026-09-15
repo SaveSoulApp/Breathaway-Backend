@@ -458,6 +458,11 @@ export class AuthService extends BaseService {
    * and publishes an IDENTITY_CLAIMED Pub/Sub event for match resolution. No AuthCredential
    * is stored for social identities — the platformIdHash is the authoritative lookup key.
    *
+   * @deprecated Direct invocation via HTTP is disabled at the controller boundary
+   * (`POST /api/v1/auth/social` returns 410 Gone) to prevent unverified account takeover.
+   * This implementation is preserved for future reactivation when server-side OAuth
+   * access token verification is implemented.
+   *
    * @param dto - Social platform type, platform user ID, and public handle.
    * @returns The user's ID, signed JWT access token, and an `isNewUser` boolean.
    * @throws {ConflictException} When the platform account is already linked to another active user.

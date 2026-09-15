@@ -1,23 +1,64 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Ensure common.dev.sh exists
-if [[ ! -f "${SCRIPT_DIR}/common.dev.sh" ]]; then
-    echo -e "\033[0;31m❌ Error: common.dev.sh not found at ${SCRIPT_DIR}/common.dev.sh\033[0m"
-    exit 1
+# Default values
+ENV="dev"
+FORCE_BUILD="false"
+
+# Helper logging functions
+print_status() { echo -e "\033[0;34m🔨 $1\033[0m"; }
+print_success() { echo -e "\033[0;32m✅ $1\033[0m"; }
+print_error() { echo -e "\033[0;31m❌ $1\033[0m"; exit 1; }
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --env=*)
+            ENV="${1#*=}"
+            shift
+            ;;
+        --env|-e)
+            if [[ -z "${2:-}" ]]; then
+                print_error "Missing value for $1 flag"
+            fi
+            ENV="$2"
+            shift 2
+            ;;
+        --force)
+            FORCE_BUILD="true"
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --env=<dev|prod>, -e <dev|prod>   Target deployment environment (default: dev)"
+            echo "  --force                           Force Docker image rebuild even if tag exists"
+            echo "  --help, -h                        Show this help message"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown argument '$1'. Run '$0 --help' for usage."
+            ;;
+    esac
+done
+
+# Validate environment
+if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
+    print_error "Invalid environment '${ENV}'. Allowed values are 'dev' or 'prod'."
 fi
 
-source "${SCRIPT_DIR}/common.dev.sh"
+# Locate and source environment configuration
+ENV_CONFIG_FILE="${SCRIPT_DIR}/common.${ENV}.sh"
+if [[ ! -f "${ENV_CONFIG_FILE}" ]]; then
+    print_error "Environment configuration not found at ${ENV_CONFIG_FILE}"
+fi
 
-FORCE_BUILD="false"
-for arg in "$@"; do
-    if [[ "$arg" == "--force" ]]; then
-        FORCE_BUILD="true"
-    fi
-done
+print_status "Loading environment configuration: [${ENV}] (${ENV_CONFIG_FILE})"
+source "${ENV_CONFIG_FILE}"
 
 # Validate required variables
 : "${PROJECT_ID:?Variable PROJECT_ID is not set}"
@@ -28,10 +69,6 @@ done
 # Bind image tag to Git Commit Hash
 GIT_COMMIT=$(git rev-parse --short HEAD)
 IMAGE_TAG_WITH_COMMIT="${IMAGE_BASE_URL}:${GIT_COMMIT}"
-
-print_status() { echo -e "\033[0;34m🔨 $1\033[0m"; }
-print_success() { echo -e "\033[0;32m✅ $1\033[0m"; }
-print_error() { echo -e "\033[0;31m❌ $1\033[0m"; exit 1; }
 
 build_image() {
     print_status "Checking Artifact Registry for existing image: ${IMAGE_TAG_WITH_COMMIT}"
@@ -84,6 +121,7 @@ deploy_service() {
         "ADMIN_PASSWORD=admin-password:latest"
         "SWAGGER_USERNAME=swagger-username:latest"
         "SWAGGER_PASSWORD=swagger-password:latest"
+        "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
     )
 
     local gcloud_run_args=(
@@ -92,6 +130,8 @@ deploy_service() {
         --region="${REGION}"
         --memory=2Gi
         --cpu=2
+        --max-instances="${MAX_INSTANCES:-20}"
+        --concurrency="${CONCURRENCY:-80}"
         --allow-unauthenticated # Remove if this is a private microservice
         --quiet
     )
@@ -125,6 +165,11 @@ deploy_service() {
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
         "CREDIT_EXPIRY_DAYS=${CREDIT_EXPIRY_DAYS}"
         "LIKE_EXPIRY_DAYS=${LIKE_EXPIRY_DAYS}"
+        "DB_POOL_MAX=${DB_POOL_MAX:-4}"
+        "DB_POOL_MIN=${DB_POOL_MIN:-0}"
+        "DB_POOL_ACQUISITION_TIMEOUT_MS=${DB_POOL_ACQUISITION_TIMEOUT_MS:-5000}"
+        "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
+        "DB_POOL_STATEMENT_TIMEOUT_MS=${DB_POOL_STATEMENT_TIMEOUT_MS:-15000}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)
@@ -146,7 +191,7 @@ deploy_service() {
 }
 
 main() {
-    print_status "Starting deployment for ${SERVICE_NAME} (Commit: ${GIT_COMMIT})"
+    print_status "Starting deployment for ${SERVICE_NAME} in environment [${ENV}] (Commit: ${GIT_COMMIT})"
     build_image
     deploy_service
 }

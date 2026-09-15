@@ -1,8 +1,4 @@
-import {
-  INestApplication,
-  ValidationPipe,
-  VersioningType,
-} from '@nestjs/common';
+import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -13,6 +9,7 @@ import { ClsModule, ClsService } from 'nestjs-cls';
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
 import { LoggerModule, LoggerService } from '@core/logger';
+import { AppValidationPipe } from '@core/pipes';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -89,7 +86,7 @@ export async function createAuthTestApp(
     })
     .compile();
 
-  const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication({ rawBody: true });
 
   // Mirror main.ts bootstrap
   const logger = app.get(LoggerService);
@@ -130,14 +127,7 @@ export async function createAuthTestApp(
     ),
     new PrismaExceptionFilter(logger, app.get(ClsService)),
   );
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
+  app.useGlobalPipes(new AppValidationPipe());
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',

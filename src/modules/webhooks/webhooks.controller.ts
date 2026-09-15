@@ -1,6 +1,3 @@
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -9,10 +6,17 @@ import {
   HttpStatus,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { MetaWebhookDto, RevenueCatWebhookRequestDto } from './dto';
+import { RevenueCatWebhookGuard } from './guards';
 import { WebhooksService } from './webhooks.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
 @ApiTags('Webhooks')
 @Controller({
@@ -60,31 +64,40 @@ export class WebhooksController extends BaseController {
   /**
    * Receives RevenueCat purchase notifications and grants the corresponding credits.
    *
-   * The body is deliberately typed as a plain object rather than a DTO class.
-   * The application-wide `ValidationPipe` runs with `forbidNonWhitelisted: true`
-   * and a route-level pipe does not replace it — both execute — so binding a DTO
-   * here would reject any property RevenueCat adds later. Real purchases already
-   * carry `discount_*` fields the dashboard's test event lacks, and a 400 would
-   * simply be retried into the same wall until the event expired. A plain object
-   * metatype makes the pipe skip validation; the parser checks the shape instead.
-   * `RevenueCatWebhookRequestDto` documents the payload for Swagger.
+   * Authenticates incoming requests via `RevenueCatWebhookGuard` using HMAC-SHA256
+   * signature verification (`X-RevenueCat-Webhook-Signature`).
+   *
+   * Validates payload against `RevenueCatWebhookRequestDto`. Because third-party webhooks
+   * evolve over time (e.g. `discount_*` fields on real purchases), the DTO is annotated
+   * with `@AllowNonWhitelisted()`, which signals `AppValidationPipe` to accept newly added
+   * properties without throwing `400 Bad Request`.
    *
    * Every outcome the system cannot act on (an unmapped product, an unresolvable
    * customer, a redelivered event) still answers 200: retrying those would never
    * succeed. Genuine faults propagate so the delivery is retried.
    */
   @Post('revenuecat')
+  @UseGuards(RevenueCatWebhookGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Handle RevenueCat purchase webhook events' })
-  @ApiBody({ type: RevenueCatWebhookRequestDto })
+  @ApiHeader({
+    name: 'X-RevenueCat-Webhook-Signature',
+    description:
+      'RevenueCat HMAC-SHA256 delivery signature (format: t=<unix_timestamp>,v1=<hmac_hex>)',
+    required: true,
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Event received and processed',
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid RevenueCat webhook signature',
+  })
   async handleRevenueCatWebhook(
-    @Body() body: Record<string, unknown>,
+    @Body() dto: RevenueCatWebhookRequestDto,
   ): Promise<{ status: string }> {
-    const event = this.webhookService.parseRevenueCatWebhook(body);
+    const event = this.webhookService.parseRevenueCatWebhook(dto);
 
     this.logger.debug('RevenueCat webhook received', {
       providerEventType: event.providerEventType,
