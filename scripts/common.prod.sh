@@ -4,7 +4,7 @@
 # Environment Configuration: Production
 # ==============================================================================
 
-export PROJECT_ID="${GCP_PROJECT_ID:-${PROJECT_ID:-breathaway-dev}}"
+export PROJECT_ID="breathaway"
 export REGION="asia-south1"
 export REPOSITORY="breathaway-backend"
 export SERVICE_NAME="backend-service"
@@ -22,8 +22,9 @@ export SHOULD_LOG_RESPONSE='false'
 export DEPLOYMENT_ENV='gcp'
 
 export APP_NAME="BreathAway"
-export REQUIRED_PLATFORMS='["iOS","Android","Postman"]'
+export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'
 export MIN_APP_VERSION="1.0.0"
+export CORS_ORIGINS='["https://breathaway.com","https://www.breathaway.com"]'
 
 export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'

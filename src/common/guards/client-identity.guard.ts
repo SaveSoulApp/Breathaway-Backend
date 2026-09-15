@@ -131,13 +131,18 @@ export class ClientIdentityGuard implements CanActivate {
 
     const [, parsedAppName, version, platform, osVersion, deviceModel] = match;
 
-    if (!this.requiredPlatforms.has(platform)) {
+    const matchingPlatform = Array.from(this.requiredPlatforms).find(
+      (p) => p.toLowerCase() === platform.toLowerCase(),
+    );
+
+    if (!matchingPlatform) {
       throw new UnauthorizedException(
         `Invalid platform. Supported: ${Array.from(this.requiredPlatforms).join(', ')}`,
       );
     }
 
-    if (!this.isVersionValid(version)) {
+    const isWeb = (platform.toLowerCase() as Platform) === Platform.WEB;
+    if (!isWeb && !this.isVersionValid(version)) {
       throw new UnauthorizedException(
         `App version must be at least ${this.minAppVersion}`,
       );

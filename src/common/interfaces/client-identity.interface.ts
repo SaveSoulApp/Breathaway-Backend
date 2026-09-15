@@ -20,9 +20,10 @@ export interface ClientIdentityData {
 }
 
 /**
- * Supported mobile operating systems.
+ * Supported client platforms.
  */
 export enum Platform {
   ANDROID = 'android',
   IOS = 'ios',
+  WEB = 'web',
 }

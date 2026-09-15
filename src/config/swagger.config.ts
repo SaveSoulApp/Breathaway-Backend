@@ -117,7 +117,8 @@ function publicApiDocumentation(app: INestApplication): void {
         type: 'apiKey',
         name: 'x-device-id',
         in: 'header',
-        description: 'Unique Device Identifier',
+        description:
+          'Unique Device Identifier (persistent client UUID on Web or hardware/vendor ID on mobile)',
       },
       'x-device-id',
     )
@@ -126,7 +127,8 @@ function publicApiDocumentation(app: INestApplication): void {
         type: 'apiKey',
         name: 'x-user-agent',
         in: 'header',
-        description: 'Client App Version Information',
+        description:
+          'Client Application Information (e.g., BreathAway/1.0.0 (iOS 17.0; iPhone15) or BreathAway/1.0.0 (Web macOS; Chrome))',
       },
       'x-user-agent',
     )

@@ -31,7 +31,12 @@ describe('envValidationSchema', () => {
       expect(value.DEPLOYMENT_ENV).toBe('gcp');
       expect(value.APP_NAME).toBe('BreathAway');
       expect(value.MIN_APP_VERSION).toBe('1.0.0');
-      expect(value.REQUIRED_PLATFORMS).toBe('["iOS","Android","Postman"]');
+      expect(value.REQUIRED_PLATFORMS).toBe(
+        '["iOS","Android","Postman","Web"]',
+      );
+      expect(value.CORS_ORIGINS).toBe(
+        '["http://localhost:3000","http://localhost:5173"]',
+      );
 
       // Observability defaults
       expect(value.LOG_LEVEL).toBe('info');

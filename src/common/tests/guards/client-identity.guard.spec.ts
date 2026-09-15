@@ -32,7 +32,7 @@ describe(ClientIdentityGuard.name, () => {
         .mockImplementation((key: string, defaultValue: unknown): unknown => {
           if (key === 'API_KEYS') return '["valid-api-key"]';
           if (key === 'CLIENT_IDS') return '["valid-client-id"]';
-          if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]';
+          if (key === 'REQUIRED_PLATFORMS') return '["iOS", "Android", "Web"]';
           if (key === 'MIN_APP_VERSION') return '1.0.0';
           if (key === 'APP_NAME') return 'TestApp';
           return defaultValue;
@@ -195,7 +195,9 @@ describe(ClientIdentityGuard.name, () => {
     });
 
     expect(() => guard.canActivate(context)).toThrow(
-      new UnauthorizedException('Invalid platform. Supported: ios, android'),
+      new UnauthorizedException(
+        'Invalid platform. Supported: iOS, Android, Web',
+      ),
     );
   });
 
@@ -348,6 +350,92 @@ describe(ClientIdentityGuard.name, () => {
         'Failed to parse config as JSON array',
         { envKey: 'API_KEYS', step: 'parse_config' },
       );
+    });
+  });
+
+  describe('Web platform support', () => {
+    it('should allow Web platform even if version is lower than minAppVersion', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'x-user-agent': 'TestApp/0.1.0 (Web macOS; Chrome)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'valid-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '0.1.0',
+          platform: 'web',
+          osVersion: 'macOS',
+          deviceModel: 'Chrome',
+        },
+      });
+    });
+
+    it('should allow Web platform with non-semver version string', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'x-user-agent': 'TestApp/web (Web Windows; Firefox)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'valid-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: 'web',
+          platform: 'web',
+          osVersion: 'Windows',
+          deviceModel: 'Firefox',
+        },
+      });
+    });
+
+    it('should match platform case-insensitively and normalize to lowercase', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'valid-device-id',
+          'x-user-agent': 'TestApp/1.0.0 (wEb macOS; Safari)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'valid-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'macOS',
+          deviceModel: 'Safari',
+        },
+      });
     });
   });
 });
