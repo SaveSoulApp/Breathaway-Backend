@@ -12,56 +12,8 @@ import { LoggerService, LoggingInterceptor } from '@core/logger';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 
 import { AppModule } from './app.module';
+import { configureCors } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
-
-/**
- * Configures Cross-Origin Resource Sharing (CORS) for incoming browser requests.
- * Parses origins from the `CORS_ORIGINS` environment variable (JSON array with fallback).
- */
-function configureCors(
-  app: INestApplication,
-  configService: ConfigService,
-): void {
-  const rawCorsOrigins = configService.get<string>('CORS_ORIGINS', '[]');
-  let allowedOrigins: string[];
-
-  try {
-    const parsed = JSON.parse(rawCorsOrigins) as unknown;
-    allowedOrigins = Array.isArray(parsed)
-      ? parsed.map((item) => String(item).trim()).filter(Boolean)
-      : [];
-  } catch {
-    allowedOrigins = rawCorsOrigins
-      ? rawCorsOrigins
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : [];
-  }
-
-  if (allowedOrigins.length === 0) {
-    allowedOrigins = ['http://localhost:3000', 'http://localhost:5173'];
-  }
-
-  app.enableCors({
-    origin: allowedOrigins.includes('*') ? true : allowedOrigins,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'x-api-key',
-      'x-client-id',
-      'x-device-id',
-      'x-user-agent',
-      'x-request-id',
-      'x-timezone',
-      'x-cloud-trace-context',
-    ],
-    credentials: true,
-    optionsSuccessStatus: 204,
-  });
-}
 
 /**
  * Configures HTTP security headers via Helmet.
