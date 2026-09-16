@@ -16,6 +16,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TimezoneResponseInterceptor } from './common/interceptors';
 import { configureMiddleware, MiddlewareModule } from './common/middlewares';
+import { corsConfig } from './config/cors.config';
 import {
   envValidationOptions,
   envValidationSchema,
@@ -56,6 +57,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
       isGlobal: true,
       envFilePath: `.env.${process.env.NODE_ENV}`,
       cache: true,
+      load: [corsConfig],
       validationSchema: envValidationSchema,
       validationOptions: envValidationOptions,
     }),

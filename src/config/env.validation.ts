@@ -27,7 +27,10 @@ export const envValidationSchema = Joi.object({
     .default('gcp'),
   APP_NAME: Joi.string().default('BreathAway'),
   MIN_APP_VERSION: Joi.string().default('1.0.0'),
-  REQUIRED_PLATFORMS: Joi.string().default('["iOS","Android","Postman"]'),
+  REQUIRED_PLATFORMS: Joi.string().default('["iOS","Android","Postman","Web"]'),
+  CORS_ORIGINS: Joi.string().default(
+    '["http://localhost:3000","http://localhost:5173"]',
+  ),
 
   // Database Connection & Pool Management (Serverless Cloud Run)
   DATABASE_URL: Joi.string().required(),
