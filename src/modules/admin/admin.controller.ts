@@ -50,23 +50,24 @@ export class AdminController extends BaseController {
   }
 
   @Delete('users/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete a user account',
     description: 'Soft deletes a user account and their associated data.',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.NO_CONTENT,
     description: 'Account successfully soft-deleted.',
   })
   @ApiResponse({
-    status: 404,
+    status: HttpStatus.NOT_FOUND,
     description: 'User not found or already deleted.',
   })
   async deleteAccount(
     @Param('userId') userId: string,
     @Body() dto: DeleteAccountRequestDto,
   ): Promise<void> {
-    return this.adminService.deleteAccount(userId, dto.reason);
+    await this.adminService.deleteAccount(userId, dto.reason);
   }
 
   /**
