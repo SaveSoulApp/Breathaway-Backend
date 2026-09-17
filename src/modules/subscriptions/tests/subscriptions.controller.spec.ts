@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ActiveSubscriptionNotFoundException } from '../application/exceptions';
 import { StorePlatform } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 
 import { LoggerService } from '@core/logger';
 
+import { ActiveSubscriptionNotFoundException } from '../application/exceptions';
+import { UserSubscriptionResponseDto } from '../dto';
 import { SubscriptionPlansService } from '../services/subscription-plans.service';
 import { SubscriptionsService } from '../services/subscriptions.service';
 import { SubscriptionsController } from '../subscriptions.controller';
@@ -122,7 +124,11 @@ describe('SubscriptionsController', () => {
       expect(
         subscriptionsService.verifyAndCreateSubscription,
       ).toHaveBeenCalledWith(userId, dto);
-      expect(result).toEqual(mockSubscription);
+      expect(result).toEqual(
+        plainToInstance(UserSubscriptionResponseDto, mockSubscription, {
+          excludeExtraneousValues: true,
+        }),
+      );
     });
   });
 
@@ -140,7 +146,11 @@ describe('SubscriptionsController', () => {
       expect(subscriptionsService.getActiveSubscription).toHaveBeenCalledWith(
         userId,
       );
-      expect(result).toEqual(mockSubscription);
+      expect(result).toEqual(
+        plainToInstance(UserSubscriptionResponseDto, mockSubscription, {
+          excludeExtraneousValues: true,
+        }),
+      );
     });
 
     it('should throw ActiveSubscriptionNotFoundException if no active subscription exists', async () => {
@@ -173,7 +183,11 @@ describe('SubscriptionsController', () => {
         1,
         20,
       );
-      expect(result).toEqual([mockSubscription]);
+      expect(result).toEqual(
+        plainToInstance(UserSubscriptionResponseDto, [mockSubscription], {
+          excludeExtraneousValues: true,
+        }),
+      );
     });
   });
 });

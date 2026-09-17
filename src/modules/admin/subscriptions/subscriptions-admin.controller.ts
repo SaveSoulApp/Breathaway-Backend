@@ -1,15 +1,3 @@
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
-import {
-  CreatePlanPriceRequestDto,
-  CreatePlanRequestDto,
-  SubscriptionPlanPriceResponseDto,
-  SubscriptionPlanResponseDto,
-  UpdatePlanRequestDto,
-} from '@modules/subscriptions/dto';
-import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
 import {
   Body,
   Controller,
@@ -28,6 +16,21 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { DecimalUtils } from '@common/utils/decimal.utils';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import {
+  CreatePlanPriceRequestDto,
+  CreatePlanRequestDto,
+  SubscriptionPlanPriceResponseDto,
+  SubscriptionPlanResponseDto,
+  UpdatePlanRequestDto,
+} from '@modules/subscriptions/dto';
+import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
 
 /**
  * Handles HTTP operations for the /admin/subscriptions resource.
@@ -67,9 +70,12 @@ export class SubscriptionsAdminController extends BaseController {
   async createPlan(
     @Body() dto: CreatePlanRequestDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return (await this.subscriptionPlansService.createPlan(
-      dto,
-    )) as unknown as SubscriptionPlanResponseDto;
+    const plan = await this.subscriptionPlansService.createPlan(dto);
+    return plainToInstance(
+      SubscriptionPlanResponseDto,
+      DecimalUtils.convertDecimals(plan),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -85,7 +91,12 @@ export class SubscriptionsAdminController extends BaseController {
     type: [SubscriptionPlanResponseDto],
   })
   async listPlans(): Promise<SubscriptionPlanResponseDto[]> {
-    return (await this.subscriptionPlansService.listAllPlans()) as unknown as SubscriptionPlanResponseDto[];
+    const plans = await this.subscriptionPlansService.listAllPlans();
+    return plainToInstance(
+      SubscriptionPlanResponseDto,
+      DecimalUtils.convertDecimals(plans),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -109,10 +120,12 @@ export class SubscriptionsAdminController extends BaseController {
     @Param('id') id: string,
     @Body() dto: UpdatePlanRequestDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return (await this.subscriptionPlansService.updatePlan(
-      id,
-      dto,
-    )) as unknown as SubscriptionPlanResponseDto;
+    const plan = await this.subscriptionPlansService.updatePlan(id, dto);
+    return plainToInstance(
+      SubscriptionPlanResponseDto,
+      DecimalUtils.convertDecimals(plan),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -134,10 +147,12 @@ export class SubscriptionsAdminController extends BaseController {
     @Param('planId') planId: string,
     @Body() dto: CreatePlanPriceRequestDto,
   ): Promise<SubscriptionPlanPriceResponseDto> {
-    return (await this.subscriptionPlansService.addPlanPrice(
-      planId,
-      dto,
-    )) as unknown as SubscriptionPlanPriceResponseDto;
+    const price = await this.subscriptionPlansService.addPlanPrice(planId, dto);
+    return plainToInstance(
+      SubscriptionPlanPriceResponseDto,
+      DecimalUtils.convertDecimals(price),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**

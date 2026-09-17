@@ -1,10 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CurrencyCode, SubscriptionPlanStatus } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 
 import { LoggerService } from '@core/logger';
-
+import { SubscriptionPlanPriceResponseDto } from '@modules/subscriptions/dto';
 import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
+
 import { SubscriptionsAdminController } from '../subscriptions-admin.controller';
 
 describe('SubscriptionsAdminController', () => {
@@ -31,8 +33,8 @@ describe('SubscriptionsAdminController', () => {
 
   const mockPrice = {
     id: priceId,
-    planId,
-    currencyCode: 'USD',
+    countryCode: 'US',
+    currencyCode: CurrencyCode.USD,
     price: 9.99,
   };
 
@@ -137,7 +139,11 @@ describe('SubscriptionsAdminController', () => {
 
       // Assert
       expect(service.addPlanPrice).toHaveBeenCalledWith(planId, dto);
-      expect(result).toEqual(mockPrice);
+      expect(result).toEqual(
+        plainToInstance(SubscriptionPlanPriceResponseDto, mockPrice, {
+          excludeExtraneousValues: true,
+        }),
+      );
     });
   });
 

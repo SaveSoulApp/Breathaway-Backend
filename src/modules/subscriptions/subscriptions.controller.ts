@@ -1,7 +1,3 @@
-import { CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -13,7 +9,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -21,13 +16,21 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+
+import { CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { DecimalUtils } from '@common/utils/decimal.utils';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
   SubscriptionHistoryQueryDto,
   SubscriptionPlanResponseDto,
   UserSubscriptionResponseDto,
   VerifyPurchaseRequestDto,
 } from './dto';
-
 import { SubscriptionPlansService } from './services/subscription-plans.service';
 import { SubscriptionsService } from './services/subscriptions.service';
 
@@ -76,9 +79,13 @@ export class SubscriptionsController extends BaseController {
   async listPlans(
     @Query('countryCode') countryCode?: string,
   ): Promise<SubscriptionPlanResponseDto[]> {
-    return (await this.subscriptionPlansService.listActivePlans(
-      countryCode,
-    )) as unknown as SubscriptionPlanResponseDto[];
+    const plans =
+      await this.subscriptionPlansService.listActivePlans(countryCode);
+    return plainToInstance(
+      SubscriptionPlanResponseDto,
+      DecimalUtils.convertDecimals(plans),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -98,9 +105,12 @@ export class SubscriptionsController extends BaseController {
     type: SubscriptionPlanResponseDto,
   })
   async getPlan(@Param('id') id: string): Promise<SubscriptionPlanResponseDto> {
-    return (await this.subscriptionPlansService.getPlanById(
-      id,
-    )) as unknown as SubscriptionPlanResponseDto;
+    const plan = await this.subscriptionPlansService.getPlanById(id);
+    return plainToInstance(
+      SubscriptionPlanResponseDto,
+      DecimalUtils.convertDecimals(plan),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -133,10 +143,13 @@ export class SubscriptionsController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() dto: VerifyPurchaseRequestDto,
   ): Promise<UserSubscriptionResponseDto> {
-    return (await this.subscriptionsService.verifyAndCreateSubscription(
-      userId,
-      dto,
-    )) as unknown as UserSubscriptionResponseDto;
+    const subscription =
+      await this.subscriptionsService.verifyAndCreateSubscription(userId, dto);
+    return plainToInstance(
+      UserSubscriptionResponseDto,
+      DecimalUtils.convertDecimals(subscription),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -162,7 +175,11 @@ export class SubscriptionsController extends BaseController {
       throw new ActiveSubscriptionNotFoundException();
     }
 
-    return subscription as unknown as UserSubscriptionResponseDto;
+    return plainToInstance(
+      UserSubscriptionResponseDto,
+      DecimalUtils.convertDecimals(subscription),
+      { excludeExtraneousValues: true },
+    );
   }
 
   /**
@@ -196,10 +213,15 @@ export class SubscriptionsController extends BaseController {
     @CurrentUserId() userId: string,
     @Query() query: SubscriptionHistoryQueryDto,
   ): Promise<UserSubscriptionResponseDto[]> {
-    return (await this.subscriptionsService.getSubscriptionHistory(
+    const history = await this.subscriptionsService.getSubscriptionHistory(
       userId,
       query.page,
       query.limit,
-    )) as unknown as UserSubscriptionResponseDto[];
+    );
+    return plainToInstance(
+      UserSubscriptionResponseDto,
+      DecimalUtils.convertDecimals(history),
+      { excludeExtraneousValues: true },
+    );
   }
 }

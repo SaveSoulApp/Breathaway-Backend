@@ -1,10 +1,3 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { ClientIdentity } from '@common/decorators/client-identity.decorator';
-import { ClientIdentityKey } from '@common/enums';
-import { JwtAuthGuard } from '@common/guards';
-import * as interfaces from '@common/interfaces';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -25,6 +18,17 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
+
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
+import { ClientIdentity } from '@common/decorators/client-identity.decorator';
+import { ClientIdentityKey } from '@common/enums';
+import { JwtAuthGuard } from '@common/guards';
+import * as interfaces from '@common/interfaces';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { DevicesService } from './devices.service';
 import {
   CreateDeviceRequestDto,
@@ -71,6 +75,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Registers a new push notification device for the authenticated user.
    *
@@ -91,7 +96,7 @@ export class DevicesController extends BaseController {
     @ClientIdentity(ClientIdentityKey.USER_AGENT)
     userAgentData: interfaces.UserAgentData,
     @Body() createDeviceDto: CreateDeviceRequestDto,
-  ) {
+  ): Promise<DeviceResponseDto> {
     // Override/app device metadata from headers if provided
     if (deviceId) createDeviceDto.deviceId = deviceId;
     if (userAgentData.version)
@@ -99,7 +104,13 @@ export class DevicesController extends BaseController {
     if (userAgentData.platform)
       createDeviceDto.platform = userAgentData.platform;
 
-    return this.devicesService.createDevice(userId, createDeviceDto);
+    const device = await this.devicesService.createDevice(
+      userId,
+      createDeviceDto,
+    );
+    return plainToInstance(DeviceResponseDto, device, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Get()
@@ -109,14 +120,20 @@ export class DevicesController extends BaseController {
     description: 'List of devices',
     type: [DeviceResponseDto],
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Returns all devices registered by the authenticated user, ordered by registration date descending.
    *
    * @param userId - UUID of the authenticated user, extracted from the JWT.
    * @returns An array of device records belonging to the user; empty array if none are registered.
    */
-  async getUserDevices(@CurrentUserId() userId: string) {
-    return this.devicesService.getUserDevices(userId);
+  async getUserDevices(
+    @CurrentUserId() userId: string,
+  ): Promise<DeviceResponseDto[]> {
+    const devices = await this.devicesService.getUserDevices(userId);
+    return plainToInstance(DeviceResponseDto, devices, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Get(':id')
@@ -131,6 +148,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Retrieves a single device record, scoped to the authenticated user.
    *
@@ -142,8 +160,11 @@ export class DevicesController extends BaseController {
   async getDeviceById(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
-  ) {
-    return this.devicesService.getDeviceById(userId, deviceId);
+  ): Promise<DeviceResponseDto> {
+    const device = await this.devicesService.getDeviceById(userId, deviceId);
+    return plainToInstance(DeviceResponseDto, device, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Put(':id')
@@ -158,6 +179,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Fully replaces a device record's fields with the provided payload.
    *
@@ -175,8 +197,15 @@ export class DevicesController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
     @Body() updateDeviceDto: UpdateDeviceRequestDto,
-  ) {
-    return this.devicesService.updateDevice(userId, deviceId, updateDeviceDto);
+  ): Promise<DeviceResponseDto> {
+    const device = await this.devicesService.updateDevice(
+      userId,
+      deviceId,
+      updateDeviceDto,
+    );
+    return plainToInstance(DeviceResponseDto, device, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Patch(':id')
@@ -191,6 +220,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Partially updates a device record, applying only the provided fields.
    *
@@ -208,8 +238,15 @@ export class DevicesController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
     @Body() patchDeviceDto: PatchDeviceRequestDto,
-  ) {
-    return this.devicesService.patchDevice(userId, deviceId, patchDeviceDto);
+  ): Promise<DeviceResponseDto> {
+    const device = await this.devicesService.patchDevice(
+      userId,
+      deviceId,
+      patchDeviceDto,
+    );
+    return plainToInstance(DeviceResponseDto, device, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Delete(':id')
