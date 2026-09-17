@@ -23,7 +23,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiBasicAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -37,7 +37,7 @@ import {
  */
 @ApiTags('Admin - Subscriptions')
 @SkipClientIdentity()
-@ApiBearerAuth()
+@ApiBasicAuth()
 @UseGuards(AdminBasicAuthGuard)
 @Controller({
   path: 'admin/subscriptions',

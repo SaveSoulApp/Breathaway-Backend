@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiBasicAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -34,7 +34,7 @@ import { TransactionsService } from './transactions.service';
  */
 @ApiTags('Admin - Transactions')
 @SkipClientIdentity()
-@ApiBearerAuth()
+@ApiBasicAuth()
 @UseGuards(AdminBasicAuthGuard)
 @Controller({
   path: 'admin/transactions',
