@@ -1,3 +1,11 @@
+import { join } from 'path';
+
+import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import * as express from 'express';
+import redoc from 'redoc-express';
+
 import { AdminModule } from '@modules/admin/admin.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { BlocksModule } from '@modules/blocks/blocks.module';
@@ -9,18 +17,18 @@ import { IdentitiesModule } from '@modules/identities/identities.module';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
 import { LikesModule } from '@modules/likes/likes.module';
+import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 import { MatchesModule } from '@modules/matches/matches.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
 import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
+import { ReportsModule } from '@modules/reports/reports.module';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
-import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
-import * as express from 'express';
-import { join } from 'path';
-import redoc from 'redoc-express';
+import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
+import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { WebhooksModule } from '@modules/webhooks/webhooks.module';
+
 import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
 import {
   DOCS_PATH,
@@ -54,7 +62,7 @@ export function setupSwagger(
 }
 
 function publicApiDocumentation(app: INestApplication): void {
-  // All mobile-facing modules. Excludes: FirebaseModule (no HTTP controller),
+  // All mobile-facing and external webhook modules. Excludes: FirebaseModule (no HTTP controller),
   // PubSubModule (internal bus), MatchResolverModule (background job).
   const publicModules = [
     AuthModule,
@@ -66,10 +74,13 @@ function publicApiDocumentation(app: INestApplication): void {
     IdentitiesModule,
     LikesModule,
     MatchesModule,
+    NotificationsModule,
     OneTimePasswordsModule,
-    ProfilesModule,
     PreferencesModule,
+    ProfilesModule,
     SocialIdentitiesModule,
+    SubscriptionsModule,
+    WebhooksModule,
   ];
   const publicConfig = new DocumentBuilder()
     .setTitle('BreathAway APIs')
@@ -180,10 +191,13 @@ function publicApiDocumentation(app: INestApplication): void {
 
 function adminApiDocumentation(app: INestApplication): void {
   const adminModules = [
-    InstagramModule,
-    IdentityWorkflowsModule,
     AdminModule,
+    IdentityWorkflowsModule,
+    InstagramModule,
+    MaintenanceModule,
     NotificationsModule,
+    ReportsModule,
+    TransactionsModule,
   ];
   const adminConfig = new DocumentBuilder()
     .setTitle('BreathAway Admin APIs')
