@@ -16,10 +16,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
 
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { DecimalUtils } from '@common/utils/decimal.utils';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
@@ -67,15 +66,9 @@ export class SubscriptionsAdminController extends BaseController {
     status: HttpStatus.CREATED,
     type: SubscriptionPlanResponseDto,
   })
-  async createPlan(
-    @Body() dto: CreatePlanRequestDto,
-  ): Promise<SubscriptionPlanResponseDto> {
-    const plan = await this.subscriptionPlansService.createPlan(dto);
-    return plainToInstance(
-      SubscriptionPlanResponseDto,
-      DecimalUtils.convertDecimals(plan),
-      { excludeExtraneousValues: true },
-    );
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async createPlan(@Body() dto: CreatePlanRequestDto) {
+    return this.subscriptionPlansService.createPlan(dto);
   }
 
   /**
@@ -90,13 +83,9 @@ export class SubscriptionsAdminController extends BaseController {
     status: HttpStatus.OK,
     type: [SubscriptionPlanResponseDto],
   })
-  async listPlans(): Promise<SubscriptionPlanResponseDto[]> {
-    const plans = await this.subscriptionPlansService.listAllPlans();
-    return plainToInstance(
-      SubscriptionPlanResponseDto,
-      DecimalUtils.convertDecimals(plans),
-      { excludeExtraneousValues: true },
-    );
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async listPlans() {
+    return this.subscriptionPlansService.listAllPlans();
   }
 
   /**
@@ -116,16 +105,9 @@ export class SubscriptionsAdminController extends BaseController {
     status: HttpStatus.OK,
     type: SubscriptionPlanResponseDto,
   })
-  async updatePlan(
-    @Param('id') id: string,
-    @Body() dto: UpdatePlanRequestDto,
-  ): Promise<SubscriptionPlanResponseDto> {
-    const plan = await this.subscriptionPlansService.updatePlan(id, dto);
-    return plainToInstance(
-      SubscriptionPlanResponseDto,
-      DecimalUtils.convertDecimals(plan),
-      { excludeExtraneousValues: true },
-    );
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async updatePlan(@Param('id') id: string, @Body() dto: UpdatePlanRequestDto) {
+    return this.subscriptionPlansService.updatePlan(id, dto);
   }
 
   /**
@@ -143,16 +125,12 @@ export class SubscriptionsAdminController extends BaseController {
     status: HttpStatus.CREATED,
     type: SubscriptionPlanPriceResponseDto,
   })
+  @SerializeExpose(SubscriptionPlanPriceResponseDto)
   async addPlanPrice(
     @Param('planId') planId: string,
     @Body() dto: CreatePlanPriceRequestDto,
-  ): Promise<SubscriptionPlanPriceResponseDto> {
-    const price = await this.subscriptionPlansService.addPlanPrice(planId, dto);
-    return plainToInstance(
-      SubscriptionPlanPriceResponseDto,
-      DecimalUtils.convertDecimals(price),
-      { excludeExtraneousValues: true },
-    );
+  ) {
+    return this.subscriptionPlansService.addPlanPrice(planId, dto);
   }
 
   /**

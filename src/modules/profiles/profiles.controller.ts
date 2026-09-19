@@ -18,7 +18,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
 
 import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
@@ -87,14 +86,8 @@ export class ProfilesController extends BaseController {
   async createProfile(
     @CurrentUserId() userId: string,
     @Body() createProfileDto: CreateProfileRequestDto,
-  ): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.createProfile(
-      userId,
-      createProfileDto,
-    );
-    return plainToInstance(ProfileResponseDto, profile, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.profilesService.createProfile(userId, createProfileDto);
   }
 
   @Get()
@@ -115,13 +108,8 @@ export class ProfilesController extends BaseController {
    * @returns The authenticated user's `ProfileResponseDto`.
    * @throws {NotFoundException} When the authenticated user has no profile yet.
    */
-  async getMyProfile(
-    @CurrentUserId() userId: string,
-  ): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.getProfileByUserId(userId);
-    return plainToInstance(ProfileResponseDto, profile, {
-      excludeExtraneousValues: true,
-    });
+  async getMyProfile(@CurrentUserId() userId: string) {
+    return this.profilesService.getProfileByUserId(userId);
   }
 
   @Get(':id')
@@ -148,11 +136,8 @@ export class ProfilesController extends BaseController {
    * @returns The matching `ProfileResponseDto`.
    * @throws {NotFoundException} When no profile exists with the given ID.
    */
-  async getProfileById(@Param('id') id: string): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.getProfileById(id);
-    return plainToInstance(ProfileResponseDto, profile, {
-      excludeExtraneousValues: true,
-    });
+  async getProfileById(@Param('id') id: string) {
+    return this.profilesService.getProfileById(id);
   }
 
   @Put()
@@ -179,14 +164,8 @@ export class ProfilesController extends BaseController {
   async updateProfile(
     @CurrentUserId() userId: string,
     @Body() updateProfileDto: UpdateProfileRequestDto,
-  ): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.updateProfile(
-      userId,
-      updateProfileDto,
-    );
-    return plainToInstance(ProfileResponseDto, profile, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.profilesService.updateProfile(userId, updateProfileDto);
   }
 
   @Patch()
@@ -213,14 +192,8 @@ export class ProfilesController extends BaseController {
   async patchProfile(
     @CurrentUserId() userId: string,
     @Body() patchProfileDto: PatchProfileRequestDto,
-  ): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.patchProfile(
-      userId,
-      patchProfileDto,
-    );
-    return plainToInstance(ProfileResponseDto, profile, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.profilesService.patchProfile(userId, patchProfileDto);
   }
 
   @Delete()

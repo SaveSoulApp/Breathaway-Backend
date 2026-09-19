@@ -16,11 +16,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
 
 import { CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
-import { DecimalUtils } from '@common/utils/decimal.utils';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -76,16 +75,9 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: [SubscriptionPlanResponseDto],
   })
-  async listPlans(
-    @Query('countryCode') countryCode?: string,
-  ): Promise<SubscriptionPlanResponseDto[]> {
-    const plans =
-      await this.subscriptionPlansService.listActivePlans(countryCode);
-    return plainToInstance(
-      SubscriptionPlanResponseDto,
-      DecimalUtils.convertDecimals(plans),
-      { excludeExtraneousValues: true },
-    );
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async listPlans(@Query('countryCode') countryCode?: string) {
+    return this.subscriptionPlansService.listActivePlans(countryCode);
   }
 
   /**
@@ -104,13 +96,9 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: SubscriptionPlanResponseDto,
   })
-  async getPlan(@Param('id') id: string): Promise<SubscriptionPlanResponseDto> {
-    const plan = await this.subscriptionPlansService.getPlanById(id);
-    return plainToInstance(
-      SubscriptionPlanResponseDto,
-      DecimalUtils.convertDecimals(plan),
-      { excludeExtraneousValues: true },
-    );
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async getPlan(@Param('id') id: string) {
+    return this.subscriptionPlansService.getPlanById(id);
   }
 
   /**
@@ -139,17 +127,12 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: UserSubscriptionResponseDto,
   })
+  @SerializeExpose(UserSubscriptionResponseDto)
   async verifyPurchase(
     @CurrentUserId() userId: string,
     @Body() dto: VerifyPurchaseRequestDto,
-  ): Promise<UserSubscriptionResponseDto> {
-    const subscription =
-      await this.subscriptionsService.verifyAndCreateSubscription(userId, dto);
-    return plainToInstance(
-      UserSubscriptionResponseDto,
-      DecimalUtils.convertDecimals(subscription),
-      { excludeExtraneousValues: true },
-    );
+  ) {
+    return this.subscriptionsService.verifyAndCreateSubscription(userId, dto);
   }
 
   /**
@@ -165,9 +148,8 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: UserSubscriptionResponseDto,
   })
-  async getMySubscription(
-    @CurrentUserId() userId: string,
-  ): Promise<UserSubscriptionResponseDto> {
+  @SerializeExpose(UserSubscriptionResponseDto)
+  async getMySubscription(@CurrentUserId() userId: string) {
     const subscription =
       await this.subscriptionsService.getActiveSubscription(userId);
 
@@ -175,11 +157,7 @@ export class SubscriptionsController extends BaseController {
       throw new ActiveSubscriptionNotFoundException();
     }
 
-    return plainToInstance(
-      UserSubscriptionResponseDto,
-      DecimalUtils.convertDecimals(subscription),
-      { excludeExtraneousValues: true },
-    );
+    return subscription;
   }
 
   /**
@@ -209,19 +187,15 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: [UserSubscriptionResponseDto],
   })
+  @SerializeExpose(UserSubscriptionResponseDto)
   async getMySubscriptionHistory(
     @CurrentUserId() userId: string,
     @Query() query: SubscriptionHistoryQueryDto,
-  ): Promise<UserSubscriptionResponseDto[]> {
-    const history = await this.subscriptionsService.getSubscriptionHistory(
+  ) {
+    return this.subscriptionsService.getSubscriptionHistory(
       userId,
       query.page,
       query.limit,
-    );
-    return plainToInstance(
-      UserSubscriptionResponseDto,
-      DecimalUtils.convertDecimals(history),
-      { excludeExtraneousValues: true },
     );
   }
 }

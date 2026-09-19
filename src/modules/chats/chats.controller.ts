@@ -16,7 +16,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
 
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
@@ -63,13 +62,9 @@ export class ChatsController extends BaseController {
     type: SupabaseTokenResponseDto,
   })
   @SerializeExpose(SupabaseTokenResponseDto)
-  getSupabaseToken(@CurrentUserId() userId: string): SupabaseTokenResponseDto {
+  getSupabaseToken(@CurrentUserId() userId: string) {
     const token = this.supabaseAuthService.generateToken(userId);
-    return plainToInstance(
-      SupabaseTokenResponseDto,
-      { token },
-      { excludeExtraneousValues: true },
-    );
+    return { token };
   }
 
   @Post('messages')
@@ -83,11 +78,8 @@ export class ChatsController extends BaseController {
   async sendMessage(
     @CurrentUserId() userId: string,
     @Body() dto: CreateMessageRequestDto,
-  ): Promise<MessageResponseDto> {
-    const message = await this.chatsService.sendMessage(userId, dto);
-    return plainToInstance(MessageResponseDto, message, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.chatsService.sendMessage(userId, dto);
   }
 
   @Post(':roomId/messages/read')
@@ -104,13 +96,9 @@ export class ChatsController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('roomId') roomId: string,
     @Body() dto: MarkMessageReadRequestDto,
-  ): Promise<MarkMessagesReadResponseDto> {
+  ) {
     await this.chatsService.markMessageRead(userId, roomId, dto);
-    return plainToInstance(
-      MarkMessagesReadResponseDto,
-      { success: true },
-      { excludeExtraneousValues: true },
-    );
+    return { success: true };
   }
 
   @Get('rooms')
@@ -124,11 +112,8 @@ export class ChatsController extends BaseController {
   async getRooms(
     @CurrentUserId() userId: string,
     @Query() query: GetRoomsRequestDto,
-  ): Promise<ChatRoomsResponseDto> {
-    const result = await this.chatsService.getRooms(userId, query);
-    return plainToInstance(ChatRoomsResponseDto, result, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.chatsService.getRooms(userId, query);
   }
 
   @Get(':roomId/messages')
@@ -144,10 +129,7 @@ export class ChatsController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('roomId') roomId: string,
     @Query() query: GetMessagesRequestDto,
-  ): Promise<ChatMessagesResponseDto> {
-    const result = await this.chatsService.getMessages(userId, roomId, query);
-    return plainToInstance(ChatMessagesResponseDto, result, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.chatsService.getMessages(userId, roomId, query);
   }
 }

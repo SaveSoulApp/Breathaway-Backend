@@ -18,7 +18,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { plainToInstance } from 'class-transformer';
 
 import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { ClientIdentity } from '@common/decorators/client-identity.decorator';
@@ -96,7 +95,7 @@ export class DevicesController extends BaseController {
     @ClientIdentity(ClientIdentityKey.USER_AGENT)
     userAgentData: interfaces.UserAgentData,
     @Body() createDeviceDto: CreateDeviceRequestDto,
-  ): Promise<DeviceResponseDto> {
+  ) {
     // Override/app device metadata from headers if provided
     if (deviceId) createDeviceDto.deviceId = deviceId;
     if (userAgentData.version)
@@ -104,13 +103,7 @@ export class DevicesController extends BaseController {
     if (userAgentData.platform)
       createDeviceDto.platform = userAgentData.platform;
 
-    const device = await this.devicesService.createDevice(
-      userId,
-      createDeviceDto,
-    );
-    return plainToInstance(DeviceResponseDto, device, {
-      excludeExtraneousValues: true,
-    });
+    return this.devicesService.createDevice(userId, createDeviceDto);
   }
 
   @Get()
@@ -127,13 +120,8 @@ export class DevicesController extends BaseController {
    * @param userId - UUID of the authenticated user, extracted from the JWT.
    * @returns An array of device records belonging to the user; empty array if none are registered.
    */
-  async getUserDevices(
-    @CurrentUserId() userId: string,
-  ): Promise<DeviceResponseDto[]> {
-    const devices = await this.devicesService.getUserDevices(userId);
-    return plainToInstance(DeviceResponseDto, devices, {
-      excludeExtraneousValues: true,
-    });
+  async getUserDevices(@CurrentUserId() userId: string) {
+    return this.devicesService.getUserDevices(userId);
   }
 
   @Get(':id')
@@ -160,11 +148,8 @@ export class DevicesController extends BaseController {
   async getDeviceById(
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
-  ): Promise<DeviceResponseDto> {
-    const device = await this.devicesService.getDeviceById(userId, deviceId);
-    return plainToInstance(DeviceResponseDto, device, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.devicesService.getDeviceById(userId, deviceId);
   }
 
   @Put(':id')
@@ -197,15 +182,8 @@ export class DevicesController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
     @Body() updateDeviceDto: UpdateDeviceRequestDto,
-  ): Promise<DeviceResponseDto> {
-    const device = await this.devicesService.updateDevice(
-      userId,
-      deviceId,
-      updateDeviceDto,
-    );
-    return plainToInstance(DeviceResponseDto, device, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.devicesService.updateDevice(userId, deviceId, updateDeviceDto);
   }
 
   @Patch(':id')
@@ -238,15 +216,8 @@ export class DevicesController extends BaseController {
     @CurrentUserId() userId: string,
     @Param('id') deviceId: string,
     @Body() patchDeviceDto: PatchDeviceRequestDto,
-  ): Promise<DeviceResponseDto> {
-    const device = await this.devicesService.patchDevice(
-      userId,
-      deviceId,
-      patchDeviceDto,
-    );
-    return plainToInstance(DeviceResponseDto, device, {
-      excludeExtraneousValues: true,
-    });
+  ) {
+    return this.devicesService.patchDevice(userId, deviceId, patchDeviceDto);
   }
 
   @Delete(':id')
