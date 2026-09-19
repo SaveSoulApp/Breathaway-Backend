@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { LoggerService } from '@core/logger';
@@ -50,13 +51,13 @@ describe('HealthController', () => {
       expect(result).toEqual({ status: 'ok', db: 'connected' });
     });
 
-    it('should throw when db query fails', async () => {
+    it('should throw ServiceUnavailableException when db query fails', async () => {
       prismaService.$queryRaw.mockRejectedValue(
         new Error('DB connection failed'),
       );
 
       await expect(controller.checkReady()).rejects.toThrow(
-        'DB connection failed',
+        new ServiceUnavailableException('Database is unreachable'),
       );
     });
   });

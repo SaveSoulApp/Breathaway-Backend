@@ -1,7 +1,14 @@
-import { Controller, Get, HttpStatus, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  ServiceUnavailableException,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -47,6 +54,7 @@ export class HealthController extends BaseController {
    * Mounted at app root /ready without API versioning prefix.
    *
    * @returns 200 { status: 'ok', db: 'connected' }
+   * @throws {ServiceUnavailableException} When database connectivity check fails.
    */
   @Get('ready')
   @ApiOperation({ summary: 'Readiness probe' })
@@ -55,8 +63,20 @@ export class HealthController extends BaseController {
     description: 'Service is ready to handle traffic',
     type: ReadyResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    description: 'Service is not ready (database unreachable)',
+  })
   async checkReady(): Promise<ReadyResponseDto> {
-    await this.prismaService.$queryRaw`SELECT 1`;
-    return { status: 'ok', db: 'connected' };
+    try {
+      await this.prismaService.$queryRaw`SELECT 1`;
+      return { status: 'ok', db: 'connected' };
+    } catch (error) {
+      this.logger.warn('Readiness probe failed: database unreachable', {
+        err: serializeError(error),
+        step: 'checkReady',
+      });
+      throw new ServiceUnavailableException('Database is unreachable');
+    }
   }
 }
