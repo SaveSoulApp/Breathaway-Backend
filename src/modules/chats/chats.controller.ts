@@ -1,7 +1,3 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -20,12 +16,24 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { ChatsService } from './chats.service';
 import {
+  ChatMessagesResponseDto,
+  ChatRoomsResponseDto,
   CreateMessageRequestDto,
   GetMessagesRequestDto,
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
+  MarkMessagesReadResponseDto,
+  MessageResponseDto,
+  SupabaseTokenResponseDto,
 } from './dto';
 import { SupabaseAuthService } from './services/supabase-auth.service';
 
@@ -51,7 +59,9 @@ export class ChatsController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'JWT retrieved successfully',
+    type: SupabaseTokenResponseDto,
   })
+  @SerializeExpose(SupabaseTokenResponseDto)
   getSupabaseToken(@CurrentUserId() userId: string) {
     const token = this.supabaseAuthService.generateToken(userId);
     return { token };
@@ -62,13 +72,14 @@ export class ChatsController extends BaseController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Message sent successfully',
+    type: MessageResponseDto,
   })
+  @SerializeExpose(MessageResponseDto)
   async sendMessage(
     @CurrentUserId() userId: string,
     @Body() dto: CreateMessageRequestDto,
   ) {
-    const message = await this.chatsService.sendMessage(userId, dto);
-    return message;
+    return this.chatsService.sendMessage(userId, dto);
   }
 
   @Post(':roomId/messages/read')
@@ -78,7 +89,9 @@ export class ChatsController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Messages marked as read',
+    type: MarkMessagesReadResponseDto,
   })
+  @SerializeExpose(MarkMessagesReadResponseDto)
   async markMessagesRead(
     @CurrentUserId() userId: string,
     @Param('roomId') roomId: string,
@@ -93,7 +106,9 @@ export class ChatsController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Chat rooms retrieved successfully',
+    type: ChatRoomsResponseDto,
   })
+  @SerializeExpose(ChatRoomsResponseDto)
   async getRooms(
     @CurrentUserId() userId: string,
     @Query() query: GetRoomsRequestDto,
@@ -107,7 +122,9 @@ export class ChatsController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Messages retrieved successfully',
+    type: ChatMessagesResponseDto,
   })
+  @SerializeExpose(ChatMessagesResponseDto)
   async getMessages(
     @CurrentUserId() userId: string,
     @Param('roomId') roomId: string,

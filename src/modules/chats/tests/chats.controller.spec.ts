@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { LoggerService } from '@core/logger';
+
 import { ChatsController } from '../chats.controller';
 import { ChatsService } from '../chats.service';
-import { SupabaseAuthService } from '../services/supabase-auth.service';
 import { CreateMessageRequestDto } from '../dto/request/create-message.request.dto';
-import { MarkMessageReadRequestDto } from '../dto/request/mark-message-read.request.dto';
 import { GetMessagesRequestDto } from '../dto/request/get-messages.request.dto';
+import { GetRoomsRequestDto } from '../dto/request/get-rooms.request.dto';
+import { MarkMessageReadRequestDto } from '../dto/request/mark-message-read.request.dto';
+import { SupabaseAuthService } from '../services/supabase-auth.service';
 
 describe('ChatsController', () => {
   let controller: ChatsController;
@@ -16,6 +19,7 @@ describe('ChatsController', () => {
     const mockChatsService = {
       sendMessage: jest.fn(),
       markMessageRead: jest.fn(),
+      getRooms: jest.fn(),
       getMessages: jest.fn(),
     };
 
@@ -92,6 +96,33 @@ describe('ChatsController', () => {
         mockDto,
       );
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('getRooms', () => {
+    it('should delegate to chatsService and return rooms', async () => {
+      const mockQuery: GetRoomsRequestDto = { limit: 20 };
+      const mockResponse = {
+        rooms: [
+          {
+            id: 'room-1',
+            userOneId: 'user-1',
+            userTwoId: 'user-2',
+            otherUser: {
+              id: 'user-2',
+              firstName: 'Jane',
+              lastName: 'Doe',
+            },
+          },
+        ],
+      };
+
+      chatsService.getRooms.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.getRooms('user-1', mockQuery);
+
+      expect(chatsService.getRooms).toHaveBeenCalledWith('user-1', mockQuery);
+      expect(result).toEqual(mockResponse);
     });
   });
 

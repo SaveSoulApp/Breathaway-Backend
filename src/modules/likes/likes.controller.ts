@@ -192,10 +192,16 @@ export class LikesController extends BaseController {
    * @throws {BadRequestException} When the like is not in PENDING status.
    */
   @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft delete a pending like' })
-  @ApiResponse({ status: HttpStatus.OK })
-  async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.likesService.delete(id, userId);
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Like soft-deleted successfully',
+  })
+  async remove(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.likesService.delete(id, userId);
   }
 }

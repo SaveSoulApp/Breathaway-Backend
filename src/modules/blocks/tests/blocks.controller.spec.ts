@@ -113,7 +113,7 @@ describe('BlocksController', () => {
 
       // Assert
       expect(service.delete).toHaveBeenCalledWith(blockId, userId);
-      expect(result).toEqual({ success: true });
+      expect(result).toBeUndefined();
     });
   });
 });

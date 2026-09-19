@@ -1,7 +1,3 @@
-import { CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -13,7 +9,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -21,13 +16,20 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
   SubscriptionHistoryQueryDto,
   SubscriptionPlanResponseDto,
   UserSubscriptionResponseDto,
   VerifyPurchaseRequestDto,
 } from './dto';
-
 import { SubscriptionPlansService } from './services/subscription-plans.service';
 import { SubscriptionsService } from './services/subscriptions.service';
 
@@ -73,12 +75,9 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: [SubscriptionPlanResponseDto],
   })
-  async listPlans(
-    @Query('countryCode') countryCode?: string,
-  ): Promise<SubscriptionPlanResponseDto[]> {
-    return (await this.subscriptionPlansService.listActivePlans(
-      countryCode,
-    )) as unknown as SubscriptionPlanResponseDto[];
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async listPlans(@Query('countryCode') countryCode?: string) {
+    return this.subscriptionPlansService.listActivePlans(countryCode);
   }
 
   /**
@@ -97,10 +96,9 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: SubscriptionPlanResponseDto,
   })
-  async getPlan(@Param('id') id: string): Promise<SubscriptionPlanResponseDto> {
-    return (await this.subscriptionPlansService.getPlanById(
-      id,
-    )) as unknown as SubscriptionPlanResponseDto;
+  @SerializeExpose(SubscriptionPlanResponseDto)
+  async getPlan(@Param('id') id: string) {
+    return this.subscriptionPlansService.getPlanById(id);
   }
 
   /**
@@ -129,14 +127,12 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: UserSubscriptionResponseDto,
   })
+  @SerializeExpose(UserSubscriptionResponseDto)
   async verifyPurchase(
     @CurrentUserId() userId: string,
     @Body() dto: VerifyPurchaseRequestDto,
-  ): Promise<UserSubscriptionResponseDto> {
-    return (await this.subscriptionsService.verifyAndCreateSubscription(
-      userId,
-      dto,
-    )) as unknown as UserSubscriptionResponseDto;
+  ) {
+    return this.subscriptionsService.verifyAndCreateSubscription(userId, dto);
   }
 
   /**
@@ -152,9 +148,8 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: UserSubscriptionResponseDto,
   })
-  async getMySubscription(
-    @CurrentUserId() userId: string,
-  ): Promise<UserSubscriptionResponseDto> {
+  @SerializeExpose(UserSubscriptionResponseDto)
+  async getMySubscription(@CurrentUserId() userId: string) {
     const subscription =
       await this.subscriptionsService.getActiveSubscription(userId);
 
@@ -162,7 +157,7 @@ export class SubscriptionsController extends BaseController {
       throw new ActiveSubscriptionNotFoundException();
     }
 
-    return subscription as unknown as UserSubscriptionResponseDto;
+    return subscription;
   }
 
   /**
@@ -192,14 +187,15 @@ export class SubscriptionsController extends BaseController {
     status: HttpStatus.OK,
     type: [UserSubscriptionResponseDto],
   })
+  @SerializeExpose(UserSubscriptionResponseDto)
   async getMySubscriptionHistory(
     @CurrentUserId() userId: string,
     @Query() query: SubscriptionHistoryQueryDto,
-  ): Promise<UserSubscriptionResponseDto[]> {
-    return (await this.subscriptionsService.getSubscriptionHistory(
+  ) {
+    return this.subscriptionsService.getSubscriptionHistory(
       userId,
       query.page,
       query.limit,
-    )) as unknown as UserSubscriptionResponseDto[];
+    );
   }
 }

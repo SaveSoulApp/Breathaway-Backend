@@ -1,10 +1,3 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { ClientIdentity } from '@common/decorators/client-identity.decorator';
-import { ClientIdentityKey } from '@common/enums';
-import { JwtAuthGuard } from '@common/guards';
-import * as interfaces from '@common/interfaces';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -25,6 +18,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
+import { ClientIdentity } from '@common/decorators/client-identity.decorator';
+import { ClientIdentityKey } from '@common/enums';
+import { JwtAuthGuard } from '@common/guards';
+import * as interfaces from '@common/interfaces';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { DevicesService } from './devices.service';
 import {
   CreateDeviceRequestDto,
@@ -71,6 +74,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Registers a new push notification device for the authenticated user.
    *
@@ -109,6 +113,7 @@ export class DevicesController extends BaseController {
     description: 'List of devices',
     type: [DeviceResponseDto],
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Returns all devices registered by the authenticated user, ordered by registration date descending.
    *
@@ -131,6 +136,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Retrieves a single device record, scoped to the authenticated user.
    *
@@ -158,6 +164,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Fully replaces a device record's fields with the provided payload.
    *
@@ -191,6 +198,7 @@ export class DevicesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Device not found',
   })
+  @SerializeExpose(DeviceResponseDto)
   /**
    * Partially updates a device record, applying only the provided fields.
    *

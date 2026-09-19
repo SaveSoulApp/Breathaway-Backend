@@ -18,10 +18,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
+
 import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
 import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
@@ -69,6 +72,7 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
+  @SerializeExpose(ProfileResponseDto)
   /**
    * Creates a profile for the authenticated user.
    *
@@ -83,11 +87,7 @@ export class ProfilesController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() createProfileDto: CreateProfileRequestDto,
   ) {
-    const profile = await this.profilesService.createProfile(
-      userId,
-      createProfileDto,
-    );
-    return profile;
+    return this.profilesService.createProfile(userId, createProfileDto);
   }
 
   @Get()
@@ -101,6 +101,7 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  @SerializeExpose(ProfileResponseDto)
   /**
    * Returns the profile belonging to the authenticated user.
    *
@@ -108,8 +109,7 @@ export class ProfilesController extends BaseController {
    * @throws {NotFoundException} When the authenticated user has no profile yet.
    */
   async getMyProfile(@CurrentUserId() userId: string) {
-    const profile = await this.profilesService.getProfileByUserId(userId);
-    return profile;
+    return this.profilesService.getProfileByUserId(userId);
   }
 
   @Get(':id')
@@ -124,6 +124,7 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  @SerializeExpose(ProfileResponseDto)
   /**
    * Returns a profile by its ULID, regardless of which user owns it.
    *
@@ -136,8 +137,7 @@ export class ProfilesController extends BaseController {
    * @throws {NotFoundException} When no profile exists with the given ID.
    */
   async getProfileById(@Param('id') id: string) {
-    const profile = await this.profilesService.getProfileById(id);
-    return profile;
+    return this.profilesService.getProfileById(id);
   }
 
   @Put()
@@ -151,6 +151,7 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  @SerializeExpose(ProfileResponseDto)
   /**
    * Fully replaces the authenticated user's profile (PUT semantics).
    *
@@ -164,11 +165,7 @@ export class ProfilesController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() updateProfileDto: UpdateProfileRequestDto,
   ) {
-    const profile = await this.profilesService.updateProfile(
-      userId,
-      updateProfileDto,
-    );
-    return profile;
+    return this.profilesService.updateProfile(userId, updateProfileDto);
   }
 
   @Patch()
@@ -182,6 +179,7 @@ export class ProfilesController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'Profile not found',
   })
+  @SerializeExpose(ProfileResponseDto)
   /**
    * Partially updates the authenticated user's profile (PATCH semantics).
    *
@@ -195,11 +193,7 @@ export class ProfilesController extends BaseController {
     @CurrentUserId() userId: string,
     @Body() patchProfileDto: PatchProfileRequestDto,
   ) {
-    const profile = await this.profilesService.patchProfile(
-      userId,
-      patchProfileDto,
-    );
-    return profile;
+    return this.profilesService.patchProfile(userId, patchProfileDto);
   }
 
   @Delete()

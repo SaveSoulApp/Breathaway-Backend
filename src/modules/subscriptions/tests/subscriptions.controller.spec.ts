@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ActiveSubscriptionNotFoundException } from '../application/exceptions';
 import { StorePlatform } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
 
+import { ActiveSubscriptionNotFoundException } from '../application/exceptions';
 import { SubscriptionPlansService } from '../services/subscription-plans.service';
 import { SubscriptionsService } from '../services/subscriptions.service';
 import { SubscriptionsController } from '../subscriptions.controller';

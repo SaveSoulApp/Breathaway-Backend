@@ -120,7 +120,7 @@ describe('MatchesController', () => {
 
       // Assert
       expect(service.unmatch).toHaveBeenCalledWith(matchId, userId);
-      expect(result).toEqual({ success: true });
+      expect(result).toBeUndefined();
     });
   });
 });

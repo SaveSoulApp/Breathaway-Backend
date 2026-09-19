@@ -3,8 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CurrencyCode, SubscriptionPlanStatus } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
-
 import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
+
 import { SubscriptionsAdminController } from '../subscriptions-admin.controller';
 
 describe('SubscriptionsAdminController', () => {
@@ -31,8 +31,8 @@ describe('SubscriptionsAdminController', () => {
 
   const mockPrice = {
     id: priceId,
-    planId,
-    currencyCode: 'USD',
+    countryCode: 'US',
+    currencyCode: CurrencyCode.USD,
     price: 9.99,
   };
 

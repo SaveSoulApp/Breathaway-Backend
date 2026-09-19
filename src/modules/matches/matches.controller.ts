@@ -96,10 +96,16 @@ export class MatchesController extends BaseController {
    *   for the authenticated user.
    */
   @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Unmatch from a user (Soft delete match)' })
-  @ApiResponse({ status: HttpStatus.OK })
-  async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.matchesService.unmatch(id, userId);
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Match removed successfully',
+  })
+  async remove(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.matchesService.unmatch(id, userId);
   }
 }

@@ -169,7 +169,7 @@ describe('LikesController', () => {
 
       // Assert
       expect(service.delete).toHaveBeenCalledWith(likeId, userId);
-      expect(result).toEqual({ success: true });
+      expect(result).toBeUndefined();
     });
   });
 });

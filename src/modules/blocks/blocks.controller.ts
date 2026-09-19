@@ -118,10 +118,16 @@ export class BlocksController extends BaseController {
    * @throws `NotFoundException` if no active block with the given `id` exists for the caller.
    */
   @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Unblock a user (Soft delete block)' })
-  @ApiResponse({ status: HttpStatus.OK })
-  async remove(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.blocksService.delete(id, userId);
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Block removed successfully',
+  })
+  async remove(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.blocksService.delete(id, userId);
   }
 }
