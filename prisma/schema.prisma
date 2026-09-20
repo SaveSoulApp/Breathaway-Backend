@@ -89,11 +89,16 @@ model User {
   subscriptions    UserSubscription[]
   transactions     Transaction[]
 
+  /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
+  /// Null for email-only users or social accounts that have no phone credential.
+  countryCode      String?          @db.Char(2)
+
   createdAt        DateTime         @default(now()) @db.Timestamptz
   deletedAt        DateTime?        @db.Timestamptz
 
   @@index([createdAt])
   @@index([deletedAt])
+  @@index([countryCode])
 }
 
 model UserProfile {

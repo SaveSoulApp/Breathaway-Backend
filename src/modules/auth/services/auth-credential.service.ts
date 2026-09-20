@@ -55,8 +55,9 @@ export class AuthCredentialService extends BaseService {
     value: string,
     authMethod: AuthMethod,
     isVerified = false,
+    countryCode?: string | null,
   ): Promise<CreateUserResult> {
-    const ctx: Record<string, unknown> = { authMethod, isVerified };
+    const ctx: Record<string, unknown> = { authMethod, isVerified, countryCode };
     this.logger.log('User provisioning started', { ...ctx, step: 'init' });
 
     const identityType = isPhoneAuthMethod(authMethod)
@@ -82,6 +83,7 @@ export class AuthCredentialService extends BaseService {
       user = await this.prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
           data: {
+            countryCode: countryCode ?? null,
             notificationPreference: {
               create: {},
             },
