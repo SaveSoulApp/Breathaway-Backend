@@ -57,7 +57,11 @@ export class AuthCredentialService extends BaseService {
     isVerified = false,
     countryCode?: string | null,
   ): Promise<CreateUserResult> {
-    const ctx: Record<string, unknown> = { authMethod, isVerified, countryCode };
+    const ctx: Record<string, unknown> = {
+      authMethod,
+      isVerified,
+      countryCode,
+    };
     this.logger.log('User provisioning started', { ...ctx, step: 'init' });
 
     const identityType = isPhoneAuthMethod(authMethod)

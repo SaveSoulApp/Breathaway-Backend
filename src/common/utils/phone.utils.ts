@@ -1,4 +1,7 @@
-import { isValidPhoneNumber, parsePhoneNumberWithError } from 'libphonenumber-js';
+import {
+  isValidPhoneNumber,
+  parsePhoneNumberWithError,
+} from 'libphonenumber-js';
 
 /**
  * Extracts the ISO 3166-1 alpha-2 country code from a phone number in E.164 format.

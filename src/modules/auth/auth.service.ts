@@ -42,7 +42,6 @@ import {
   sanitizeEmail,
 } from './utils/auth-method.utils';
 
-
 /**
  * Orchestrates the full authentication lifecycle — sign-up, sign-in, social auth,
  * and secondary credential linking — by coordinating Firebase token validation,
