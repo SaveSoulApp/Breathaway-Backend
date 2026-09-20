@@ -122,6 +122,7 @@ deploy_service() {
         "SWAGGER_USERNAME=swagger-username:latest"
         "SWAGGER_PASSWORD=swagger-password:latest"
         "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
+        "IPINFO_TOKEN=ipinfo-token:latest"
     )
 
     local gcloud_run_args=(
@@ -172,6 +173,7 @@ deploy_service() {
         "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
         "DB_POOL_STATEMENT_TIMEOUT_MS=${DB_POOL_STATEMENT_TIMEOUT_MS:-15000}"
         "DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE}"
+        "IPINFO_TIMEOUT_MS=${IPINFO_TIMEOUT_MS}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)

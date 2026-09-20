@@ -1,6 +1,7 @@
 export * from './allow-non-whitelisted.decorator';
 export * from './api-paginated-response.decorator';
 export * from './api-standard-errors.decorator';
+export * from './client-ip.decorator';
 export * from './current-user-id.decorator';
 export * from './is-valid-timezone.decorator';
 export * from './optional-current-user-id.decorator';

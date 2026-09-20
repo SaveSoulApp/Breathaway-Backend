@@ -60,6 +60,7 @@ describe('envValidationSchema', () => {
 
       // Subscriptions & Regional Pricing Defaults
       expect(value.DEFAULT_COUNTRY_CODE).toBe('IN');
+      expect(value.IPINFO_TIMEOUT_MS).toBe(1500);
 
       // Email defaults
       expect(value.EMAIL_PROVIDER).toBe('mailgun');

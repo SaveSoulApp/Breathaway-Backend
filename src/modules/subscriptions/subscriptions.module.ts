@@ -1,5 +1,8 @@
-import { CreditsModule } from '@modules/credits/credits.module';
 import { Module } from '@nestjs/common';
+
+import { IpGeolocationModule } from '@infrastructure/ip-geolocation';
+import { CreditsModule } from '@modules/credits/credits.module';
+
 import { AppleSubscriptionService } from './services/apple-subscription.service';
 import { GoogleSubscriptionService } from './services/google-subscription.service';
 import { SubscriptionPlansService } from './services/subscription-plans.service';
@@ -13,13 +16,14 @@ import { SubscriptionsController } from './subscriptions.controller';
  *
  * Imports:
  *   - CreditsModule: required for automatically granting credits upon purchase or renewal.
+ *   - IpGeolocationModule: provides client IP country detection for regional pricing.
  *
  * Exports:
  *   - SubscriptionsService: exposed so other modules can query user subscription status.
  *   - SubscriptionPlansService: exposed so AdminModule can manage plans.
  */
 @Module({
-  imports: [CreditsModule],
+  imports: [CreditsModule, IpGeolocationModule],
   controllers: [SubscriptionsController, SubscriptionsWebhookController],
   providers: [
     SubscriptionsService,

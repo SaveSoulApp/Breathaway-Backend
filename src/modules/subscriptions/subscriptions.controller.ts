@@ -17,7 +17,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { CurrentUserId, OptionalCurrentUserId } from '@common/decorators';
+import {
+  ClientIp,
+  CurrentUserId,
+  OptionalCurrentUserId,
+} from '@common/decorators';
 import { JwtAuthGuard, OptionalJwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
@@ -55,14 +59,17 @@ export class SubscriptionsController extends BaseController {
   }
 
   /**
-   * Lists all active subscription plans, optionally filtered by geography.
+   * Lists all active subscription plans, localized by geography.
    *
-   * Available to the public. If `countryCode` query parameter is provided, prices are filtered
-   * for that region. If omitted and an Authorization Bearer token is passed, the authenticated user's
-   * country code is fetched from the User profile. If still null or unauthenticated, prices default to 'IN'.
+   * Available publicly. Region is resolved authoritatively from:
+   * 1. Authenticated user profile country code (if logged in and country is set).
+   * 2. Public client IP address via IPinfo Lite (if unauthenticated or user country is null).
+   * 3. System default fallback ('IN').
+   * An explicit query param `countryCode` may also be supplied (e.g. from currency switcher).
    *
    * @param query - Optional query parameters containing ISO 3166-1 alpha-2 country code.
    * @param userId - Optional authenticated user ID resolved from Bearer token.
+   * @param clientIp - Client public IP address extracted from GCP proxy headers.
    * @returns An array of active plans and their regional prices for the resolved country.
    */
   @Get('plans')
@@ -71,8 +78,9 @@ export class SubscriptionsController extends BaseController {
   @ApiOperation({
     summary: 'List all active subscription plans with localized prices',
     description:
-      'Available publicly. Region is resolved from: 1) query param `countryCode`, ' +
-      '2) authenticated user profile (via optional Bearer token), or 3) server default ("IN").',
+      'Available publicly. Region is resolved authoritatively from: ' +
+      '1) authenticated user profile (via optional Bearer token), ' +
+      '2) client IP via IPinfo Lite, or 3) server default ("IN").',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -82,10 +90,12 @@ export class SubscriptionsController extends BaseController {
   async listPlans(
     @Query() query: ListPlansQueryDto,
     @OptionalCurrentUserId() userId: string | null,
+    @ClientIp() clientIp: string | undefined,
   ) {
     return this.subscriptionPlansService.listActivePlans(
-      query.countryCode,
       userId,
+      clientIp,
+      query.countryCode,
     );
   }
 

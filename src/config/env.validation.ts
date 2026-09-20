@@ -66,6 +66,8 @@ export const envValidationSchema = Joi.object({
 
   // Subscriptions & Regional Pricing Defaults
   DEFAULT_COUNTRY_CODE: Joi.string().length(2).uppercase().default('IN'),
+  IPINFO_TOKEN: Joi.string().optional(),
+  IPINFO_TIMEOUT_MS: Joi.number().integer().min(100).default(1500),
 
   // Email Notifications Provider & Credentials
   EMAIL_PROVIDER: Joi.string()
