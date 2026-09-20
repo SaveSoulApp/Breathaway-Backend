@@ -1,12 +1,13 @@
-import { plainToInstance } from 'class-transformer';
-import { map, Observable } from 'rxjs';
-
 import {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { map, Observable } from 'rxjs';
+
+import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
   new (...args: unknown[]): object;
@@ -44,10 +45,10 @@ export class SerializeExposerInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((data: unknown) => {
         // Convert Decimals to numbers BEFORE plainToInstance
-        // const converted = DecimalUtils.convertDecimals(data);
+        const converted = DecimalUtils.convertDecimals(data);
 
         // Then transform to DTO
-        return plainToInstance(this.dto, data, {
+        return plainToInstance(this.dto, converted, {
           excludeExtraneousValues: true,
         });
       }),

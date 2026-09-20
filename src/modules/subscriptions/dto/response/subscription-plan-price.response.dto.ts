@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CurrencyCode } from '@prisma/client';
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 
 export class SubscriptionPlanPriceResponseDto {
   @ApiProperty()
@@ -13,6 +13,7 @@ export class SubscriptionPlanPriceResponseDto {
 
   @ApiProperty()
   @Expose()
+  @Type(() => Number)
   price: number;
 
   @ApiProperty({ description: 'ISO 3166-1 alpha-2 country code' })

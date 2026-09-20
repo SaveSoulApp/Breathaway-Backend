@@ -83,6 +83,7 @@ export class UserSubscriptionResponseDto {
 
   @ApiPropertyOptional({ type: Number, nullable: true })
   @Expose()
+  @Type(() => Number)
   pricePaid: number | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
