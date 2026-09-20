@@ -1,4 +1,8 @@
-import { PaymentGateway, TransactionEnvironment } from '@prisma/client';
+import {
+  PaymentGateway,
+  TransactionChannel,
+  TransactionEnvironment,
+} from '@prisma/client';
 
 import { PurchaseEventType } from '../enums/purchase-event-type.enum';
 import { RevenueCatEventType } from '../enums/revenuecat-event-type.enum';
@@ -40,6 +44,37 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : [];
+}
+
+/**
+ * Maps a RevenueCat store identifier onto our internal `TransactionChannel`.
+ *
+ * RevenueCat verifies incoming receipts directly against the underlying platform:
+ * - Apple App Store / Mac App Store -> IOS
+ * - Google Play Store / Amazon Appstore -> ANDROID
+ * - Stripe / Web Billing (RC_BILLING) / External -> WEB
+ *
+ * Synthetic or sandbox stores (e.g. TEST_STORE, PROMOTIONAL) return null so they
+ * do not skew channel metrics, unless resolved otherwise.
+ */
+function mapRevenueCatStoreToChannel(
+  store: string | null,
+): TransactionChannel | null {
+  if (!store) return null;
+  switch (store.toUpperCase()) {
+    case 'APP_STORE':
+    case 'MAC_APP_STORE':
+      return TransactionChannel.IOS;
+    case 'PLAY_STORE':
+    case 'AMAZON':
+      return TransactionChannel.ANDROID;
+    case 'STRIPE':
+    case 'RC_BILLING':
+    case 'EXTERNAL':
+      return TransactionChannel.WEB;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -102,6 +137,7 @@ export function parseRevenueCatWebhook(payload: unknown): ParsedPurchaseEvent {
       asString(event.environment) === 'PRODUCTION'
         ? TransactionEnvironment.PRODUCTION
         : TransactionEnvironment.SANDBOX,
+    channel: mapRevenueCatStoreToChannel(asString(event.store)),
     amount: asNumber(event.price),
     currency: asString(event.currency),
     countryCode: asString(event.country_code),

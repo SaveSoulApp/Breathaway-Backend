@@ -1,4 +1,8 @@
-import { PaymentGateway, TransactionEnvironment } from '@prisma/client';
+import {
+  PaymentGateway,
+  TransactionChannel,
+  TransactionEnvironment,
+} from '@prisma/client';
 
 import { RevenueCatWebhookRequestDto } from '../dto';
 import { PurchaseEventType } from '../enums/purchase-event-type.enum';
@@ -50,6 +54,7 @@ describe('parseRevenueCatWebhook', () => {
     expect(result.gatewayEventId).toBe('A18A73FC-D21F-453B-9869-DBA6CA8A6E9C');
     expect(result.productId).toBe('likes_10');
     expect(result.environment).toBe(TransactionEnvironment.SANDBOX);
+    expect(result.channel).toBeNull();
     expect(result.amount).toBe(40.5);
     expect(result.currency).toBe('USD');
     expect(result.countryCode).toBe('IN');
@@ -188,5 +193,34 @@ describe('parseRevenueCatWebhook', () => {
     const result = parseRevenueCatWebhook(buildPayload({ environment: null }));
 
     expect(result.environment).toBe(TransactionEnvironment.SANDBOX);
+  });
+
+  describe('channel extraction from store', () => {
+    it.each([
+      ['APP_STORE', TransactionChannel.IOS],
+      ['MAC_APP_STORE', TransactionChannel.IOS],
+      ['app_store', TransactionChannel.IOS],
+      ['PLAY_STORE', TransactionChannel.ANDROID],
+      ['AMAZON', TransactionChannel.ANDROID],
+      ['play_store', TransactionChannel.ANDROID],
+      ['STRIPE', TransactionChannel.WEB],
+      ['RC_BILLING', TransactionChannel.WEB],
+      ['EXTERNAL', TransactionChannel.WEB],
+      ['rc_billing', TransactionChannel.WEB],
+    ])('maps store %s to channel %s', (store, expectedChannel) => {
+      const result = parseRevenueCatWebhook(buildPayload({ store }));
+      expect(result.channel).toBe(expectedChannel);
+    });
+
+    it.each([
+      ['TEST_STORE', null],
+      ['PROMOTIONAL', null],
+      ['UNKNOWN_STORE', null],
+      [null, null],
+      [undefined, null],
+    ])('maps unrecognised or sandbox store %s to null', (store, expected) => {
+      const result = parseRevenueCatWebhook(buildPayload({ store }));
+      expect(result.channel).toBe(expected);
+    });
   });
 });

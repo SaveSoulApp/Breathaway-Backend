@@ -10,6 +10,7 @@ import {
   PaymentGateway,
   Prisma,
   Transaction,
+  TransactionChannel,
   TransactionEnvironment,
   TransactionStatus,
   TransactionType,
@@ -32,6 +33,7 @@ const mockTransaction: Transaction = {
   type: TransactionType.PURCHASE,
   status: TransactionStatus.COMPLETED,
   environment: TransactionEnvironment.SANDBOX,
+  channel: TransactionChannel.IOS,
   productId: 'likes_10',
   creditsGranted: 10,
   amount: new Prisma.Decimal(40.5),
@@ -52,6 +54,7 @@ const buildDto = (
   gatewayEventId: 'A18A73FC-D21F-453B-9869-DBA6CA8A6E9C',
   gatewayUserId: USER_ID,
   environment: TransactionEnvironment.SANDBOX,
+  channel: TransactionChannel.IOS,
   productId: 'likes_10',
   creditsGranted: 10,
   amount: 40.5,
@@ -261,6 +264,22 @@ describe('TransactionsService', () => {
           where: expect.objectContaining({
             gateway: PaymentGateway.REVENUECAT,
             environment: TransactionEnvironment.SANDBOX,
+          }),
+        }),
+      );
+    });
+
+    it('filters by channel', async () => {
+      await service.findAll({
+        page: 1,
+        limit: 20,
+        channel: TransactionChannel.IOS,
+      });
+
+      expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            channel: TransactionChannel.IOS,
           }),
         }),
       );

@@ -1,3 +1,6 @@
+import { Injectable } from '@nestjs/common';
+import { PaymentGateway, Prisma, Transaction } from '@prisma/client';
+
 import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -5,8 +8,6 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { Injectable } from '@nestjs/common';
-import { PaymentGateway, Prisma, Transaction } from '@prisma/client';
 
 import { TransactionNotFoundException } from './application/exceptions';
 import {
@@ -94,6 +95,7 @@ export class TransactionsService extends BaseService {
           ...(dto.type && { type: dto.type }),
           ...(dto.status && { status: dto.status }),
           environment: dto.environment,
+          channel: dto.channel ?? null,
           productId: dto.productId,
           creditsGranted: dto.creditsGranted ?? null,
           amount: dto.amount ?? null,
@@ -135,6 +137,7 @@ export class TransactionsService extends BaseService {
         metadata: {
           gateway: transaction.gateway,
           gatewayTransactionId: transaction.gatewayTransactionId,
+          channel: transaction.channel,
           productId: transaction.productId,
           creditsGranted: transaction.creditsGranted,
           environment: transaction.environment,
@@ -198,6 +201,7 @@ export class TransactionsService extends BaseService {
       type,
       status,
       environment,
+      channel,
       productId,
       occurredFrom,
       occurredTo,
@@ -213,6 +217,7 @@ export class TransactionsService extends BaseService {
     if (type) where.type = type;
     if (status) where.status = status;
     if (environment) where.environment = environment;
+    if (channel) where.channel = channel;
     if (productId) where.productId = productId;
 
     if (occurredFrom || occurredTo) {
@@ -338,6 +343,7 @@ export class TransactionsService extends BaseService {
       type: transaction.type,
       status: transaction.status,
       environment: transaction.environment,
+      channel: transaction.channel,
       productId: transaction.productId,
       creditsGranted: transaction.creditsGranted,
       amount:

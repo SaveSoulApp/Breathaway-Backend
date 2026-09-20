@@ -1,4 +1,8 @@
-import { PaymentGateway, TransactionEnvironment } from '@prisma/client';
+import {
+  PaymentGateway,
+  TransactionChannel,
+  TransactionEnvironment,
+} from '@prisma/client';
 
 import { PurchaseEventType } from '../enums/purchase-event-type.enum';
 
@@ -42,6 +46,9 @@ export interface ParsedPurchaseEvent {
   productId: string | null;
 
   environment: TransactionEnvironment;
+
+  /** Originating client channel (IOS, ANDROID, WEB) where the purchase occurred. */
+  channel: TransactionChannel | null;
 
   amount: number | null;
   currency: string | null;

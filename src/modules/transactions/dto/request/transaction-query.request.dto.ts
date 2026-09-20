@@ -1,7 +1,7 @@
-import { SortOrder } from '@common/enums';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   PaymentGateway,
+  TransactionChannel,
   TransactionEnvironment,
   TransactionStatus,
   TransactionType,
@@ -16,6 +16,8 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+import { SortOrder } from '@common/enums';
 
 import { TransactionSortBy } from '../../enums';
 
@@ -108,6 +110,17 @@ export class TransactionQueryRequestDto {
   )
   @IsEnum(TransactionEnvironment)
   environment?: TransactionEnvironment;
+
+  @ApiPropertyOptional({
+    enum: TransactionChannel,
+    description: 'Filter by channel (IOS, ANDROID, WEB)',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
+  @IsEnum(TransactionChannel)
+  channel?: TransactionChannel;
 
   @ApiPropertyOptional({ description: 'Filter by store product identifier' })
   @IsOptional()
