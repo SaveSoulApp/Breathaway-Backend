@@ -1,8 +1,5 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  SubscriptionPlanNotFoundException,
-  SubscriptionPlanPriceNotFoundException,
-} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -17,6 +14,10 @@ import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
+  SubscriptionPlanNotFoundException,
+  SubscriptionPlanPriceNotFoundException,
+} from '../application/exceptions';
+import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
   UpdatePlanRequestDto,
@@ -27,6 +28,7 @@ describe('SubscriptionPlansService', () => {
   let service: SubscriptionPlansService;
   let prisma: MockPrismaService;
   let eventEmitter: jest.Mocked<EventEmitter2>;
+  let configService: jest.Mocked<ConfigService>;
 
   const mockLoggerService = {
     forContext: jest.fn().mockReturnValue({
@@ -72,6 +74,13 @@ describe('SubscriptionPlansService', () => {
       get: jest.fn().mockReturnValue('mock-ip'),
     };
 
+    const mockConfigService = {
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'DEFAULT_COUNTRY_CODE') return 'IN';
+        return undefined;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SubscriptionPlansService,
@@ -79,12 +88,14 @@ describe('SubscriptionPlansService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ClsService, useValue: mockClsService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<SubscriptionPlansService>(SubscriptionPlansService);
     prisma = module.get(PrismaService);
     eventEmitter = module.get(EventEmitter2);
+    configService = module.get(ConfigService);
   });
 
   afterEach(() => {
@@ -131,8 +142,179 @@ describe('SubscriptionPlansService', () => {
   });
 
   describe('listActivePlans', () => {
-    it('should list only active subscription plans and all prices when no countryCode is provided', async () => {
+    it('should filter price entries by countryCode (uppercased) when provided and bypass user lookup', async () => {
       // Arrange
+      prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
+
+      // Act
+      const result = await service.listActivePlans('us', 'user-123');
+
+      // Assert
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
+        where: { status: SubscriptionPlanStatus.ACTIVE },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            where: { countryCode: 'US' },
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should filter price entries by user profile countryCode when query param is omitted', async () => {
+      // Arrange
+      prisma.user.findUnique.mockResolvedValue({ countryCode: 'ca' } as any);
+      prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
+
+      // Act
+      const result = await service.listActivePlans(undefined, 'user-123');
+
+      // Assert
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        select: { countryCode: true },
+      });
+      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
+        where: { status: SubscriptionPlanStatus.ACTIVE },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            where: { countryCode: 'CA' },
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should fall back to default country code from config ("IN") when user countryCode in User table is null', async () => {
+      // Arrange
+      prisma.user.findUnique.mockResolvedValue({ countryCode: null } as any);
+      prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
+
+      // Act
+      const result = await service.listActivePlans(undefined, 'user-123');
+
+      // Assert
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        select: { countryCode: true },
+      });
+      expect(configService.get).toHaveBeenCalledWith('DEFAULT_COUNTRY_CODE');
+      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
+        where: { status: SubscriptionPlanStatus.ACTIVE },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            where: { countryCode: 'IN' },
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should fall back to default country code from config ("IN") when unauthenticated (no userId and no countryCode)', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
+
+      // Act
+      const result = await service.listActivePlans();
+
+      // Assert
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(configService.get).toHaveBeenCalledWith('DEFAULT_COUNTRY_CODE');
+      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
+        where: { status: SubscriptionPlanStatus.ACTIVE },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          trialDurationDays: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          prices: {
+            where: { countryCode: 'IN' },
+            select: {
+              id: true,
+              currencyCode: true,
+              price: true,
+              countryCode: true,
+            },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should respect custom DEFAULT_COUNTRY_CODE from config when falling back', async () => {
+      // Arrange
+      configService.get.mockReturnValue('GB');
       prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
 
       // Act
@@ -156,46 +338,7 @@ describe('SubscriptionPlansService', () => {
           createdAt: true,
           updatedAt: true,
           prices: {
-            where: undefined,
-            select: {
-              id: true,
-              currencyCode: true,
-              price: true,
-              countryCode: true,
-            },
-          },
-        },
-        orderBy: { sortOrder: 'asc' },
-      });
-      expect(result).toEqual([mockPlan]);
-    });
-
-    it('should filter price entries by countryCode (uppercased) when provided', async () => {
-      // Arrange
-      prisma.subscriptionPlan.findMany.mockResolvedValue([mockPlan]);
-
-      // Act
-      const result = await service.listActivePlans('us');
-
-      // Assert
-      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalledWith({
-        where: { status: SubscriptionPlanStatus.ACTIVE },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          description: true,
-          appleProductId: true,
-          googleProductId: true,
-          creditsGranted: true,
-          validityDays: true,
-          trialDurationDays: true,
-          sortOrder: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          prices: {
-            where: { countryCode: 'US' },
+            where: { countryCode: 'GB' },
             select: {
               id: true,
               currencyCode: true,

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
@@ -25,6 +26,7 @@ export class SubscriptionPlansService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
   ) {
     super(logger);
   }
@@ -67,12 +69,37 @@ export class SubscriptionPlansService extends BaseService {
   }
 
   /**
-   * Retrieves all subscription plans that are currently available for purchase.
+   * Retrieves all subscription plans that are currently available for purchase,
+   * with prices localized to the caller's country code.
    *
-   * @param countryCode - Optional ISO country code to filter the associated prices.
-   * @returns Active plans sorted by their defined sort order.
+   * Country code resolution hierarchy:
+   * 1. Query parameter `countryCode` if provided.
+   * 2. Authenticated user's `countryCode` from the User table if `userId` is available.
+   * 3. Config default `DEFAULT_COUNTRY_CODE` (defaults to 'IN').
+   *
+   * @param countryCode - Optional ISO 3166-1 alpha-2 country code explicitly requested.
+   * @param userId - Optional authenticated user ID to resolve localized pricing.
+   * @returns Active plans sorted by sortOrder with prices localized for the resolved country.
    */
-  async listActivePlans(countryCode?: string) {
+  async listActivePlans(countryCode?: string, userId?: string | null) {
+    let resolvedCountryCode = countryCode?.trim().toUpperCase();
+
+    if (!resolvedCountryCode && userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { countryCode: true },
+      });
+      if (user?.countryCode) {
+        resolvedCountryCode = user.countryCode.trim().toUpperCase();
+      }
+    }
+
+    if (!resolvedCountryCode) {
+      resolvedCountryCode = (
+        this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
+      ).toUpperCase();
+    }
+
     const plans = await this.prisma.subscriptionPlan.findMany({
       where: { status: SubscriptionPlanStatus.ACTIVE },
       select: {
@@ -90,9 +117,7 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          where: countryCode
-            ? { countryCode: countryCode.toUpperCase() }
-            : undefined,
+          where: { countryCode: resolvedCountryCode },
           select: {
             id: true,
             currencyCode: true,

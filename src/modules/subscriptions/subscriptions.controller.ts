@@ -17,14 +17,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
+import { CurrentUserId, OptionalCurrentUserId } from '@common/decorators';
+import { JwtAuthGuard, OptionalJwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import { ActiveSubscriptionNotFoundException } from './application/exceptions';
 import {
+  ListPlansQueryDto,
   SubscriptionHistoryQueryDto,
   SubscriptionPlanResponseDto,
   UserSubscriptionResponseDto,
@@ -40,8 +41,6 @@ import { SubscriptionsService } from './services/subscriptions.service';
  * and view their own subscription status and history.
  */
 @ApiTags('Subscriptions')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller({
   path: 'subscriptions',
   version: ['1'],
@@ -58,26 +57,36 @@ export class SubscriptionsController extends BaseController {
   /**
    * Lists all active subscription plans, optionally filtered by geography.
    *
-   * Only returns plans in an ACTIVE state. When a countryCode is provided,
-   * prices are filtered to only include pricing available for that region.
+   * Available to the public. If `countryCode` query parameter is provided, prices are filtered
+   * for that region. If omitted and an Authorization Bearer token is passed, the authenticated user's
+   * country code is fetched from the User profile. If still null or unauthenticated, prices default to 'IN'.
    *
-   * @param countryCode - Optional ISO 3166-1 alpha-2 country code to filter prices (e.g. 'US').
-   * @returns An array of active plans and their regional prices.
+   * @param query - Optional query parameters containing ISO 3166-1 alpha-2 country code.
+   * @param userId - Optional authenticated user ID resolved from Bearer token.
+   * @returns An array of active plans and their regional prices for the resolved country.
    */
   @Get('plans')
-  @ApiOperation({ summary: 'List all active subscription plans with prices' })
-  @ApiQuery({
-    name: 'countryCode',
-    required: false,
-    description: 'Filter prices by ISO 3166-1 alpha-2 country code',
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List all active subscription plans with localized prices',
+    description:
+      'Available publicly. Region is resolved from: 1) query param `countryCode`, ' +
+      '2) authenticated user profile (via optional Bearer token), or 3) server default ("IN").',
   })
   @ApiResponse({
     status: HttpStatus.OK,
     type: [SubscriptionPlanResponseDto],
   })
   @SerializeExpose(SubscriptionPlanResponseDto)
-  async listPlans(@Query('countryCode') countryCode?: string) {
-    return this.subscriptionPlansService.listActivePlans(countryCode);
+  async listPlans(
+    @Query() query: ListPlansQueryDto,
+    @OptionalCurrentUserId() userId: string | null,
+  ) {
+    return this.subscriptionPlansService.listActivePlans(
+      query.countryCode,
+      userId,
+    );
   }
 
   /**
@@ -115,6 +124,8 @@ export class SubscriptionsController extends BaseController {
    * @throws {SubscriptionPlanNotFoundException} When the corresponding plan is not found.
    */
   @Post('verify-purchase')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -143,6 +154,8 @@ export class SubscriptionsController extends BaseController {
    * @throws {ActiveSubscriptionNotFoundException} When the user does not have an active subscription.
    */
   @Get('me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Get current user's active subscription" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -170,6 +183,8 @@ export class SubscriptionsController extends BaseController {
    * @returns Paginated array of past and present subscriptions, ordered newest first.
    */
   @Get('me/history')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Get user's subscription history" })
   @ApiQuery({
     name: 'page',

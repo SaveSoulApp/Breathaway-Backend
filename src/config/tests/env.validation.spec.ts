@@ -58,6 +58,9 @@ describe('envValidationSchema', () => {
       expect(value.CREDIT_EXPIRY_DAYS).toBe(90);
       expect(value.LIKE_EXPIRY_DAYS).toBe(90);
 
+      // Subscriptions & Regional Pricing Defaults
+      expect(value.DEFAULT_COUNTRY_CODE).toBe('IN');
+
       // Email defaults
       expect(value.EMAIL_PROVIDER).toBe('mailgun');
       expect(value.EMAIL_FROM_ADDRESS).toBe('no-reply@breathaway.com');
@@ -210,6 +213,28 @@ describe('envValidationSchema', () => {
 
       expect(error).toBeDefined();
       expect(error?.message).toContain('"SWAGGER_ENABLED" must be one of');
+    });
+
+    it('should fail when DEFAULT_COUNTRY_CODE length is not 2 characters', () => {
+      const { error } = envValidationSchema.validate(
+        { ...baseValidEnv, DEFAULT_COUNTRY_CODE: 'IND' },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.message).toContain(
+        '"DEFAULT_COUNTRY_CODE" length must be 2 characters long',
+      );
+    });
+
+    it('should uppercase DEFAULT_COUNTRY_CODE when provided in lowercase', () => {
+      const { error, value } = envValidationSchema.validate(
+        { ...baseValidEnv, DEFAULT_COUNTRY_CODE: 'us' },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.DEFAULT_COUNTRY_CODE).toBe('US');
     });
 
     it('should accumulate multiple validation errors when abortEarly is false', () => {

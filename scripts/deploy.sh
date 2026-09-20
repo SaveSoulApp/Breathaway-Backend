@@ -171,6 +171,7 @@ deploy_service() {
         "DB_POOL_ACQUISITION_TIMEOUT_MS=${DB_POOL_ACQUISITION_TIMEOUT_MS:-5000}"
         "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
         "DB_POOL_STATEMENT_TIMEOUT_MS=${DB_POOL_STATEMENT_TIMEOUT_MS:-15000}"
+        "DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)

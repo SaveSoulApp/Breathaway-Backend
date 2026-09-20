@@ -64,6 +64,9 @@ export const envValidationSchema = Joi.object({
   CREDIT_EXPIRY_DAYS: Joi.number().integer().positive().default(90),
   LIKE_EXPIRY_DAYS: Joi.number().integer().positive().default(90),
 
+  // Subscriptions & Regional Pricing Defaults
+  DEFAULT_COUNTRY_CODE: Joi.string().length(2).uppercase().default('IN'),
+
   // Email Notifications Provider & Credentials
   EMAIL_PROVIDER: Joi.string()
     .valid('mailgun', 'sendgrid', 'brevo')
