@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   PaymentGateway,
+  TransactionChannel,
   TransactionEnvironment,
   TransactionStatus,
   TransactionType,
@@ -83,6 +84,14 @@ export class RecordTransactionRequestDto {
   })
   @IsEnum(TransactionEnvironment)
   environment: TransactionEnvironment;
+
+  @ApiPropertyOptional({
+    enum: TransactionChannel,
+    description: 'Originating client channel (IOS, ANDROID, WEB)',
+  })
+  @IsEnum(TransactionChannel)
+  @IsOptional()
+  channel?: TransactionChannel;
 
   @ApiProperty({ description: 'Store product identifier (e.g. "likes_10")' })
   @IsString()

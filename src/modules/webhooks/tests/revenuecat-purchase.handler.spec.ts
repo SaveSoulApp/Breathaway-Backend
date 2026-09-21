@@ -13,6 +13,7 @@ import {
   CreditSource,
   PaymentGateway,
   Prisma,
+  TransactionChannel,
   TransactionEnvironment,
   TransactionStatus,
 } from '@prisma/client';
@@ -38,6 +39,7 @@ const buildEvent = (
   candidateUserIds: [USER_ID, ANON_ID],
   productId: 'likes_10',
   environment: TransactionEnvironment.SANDBOX,
+  channel: TransactionChannel.IOS,
   amount: 40.5,
   currency: 'USD',
   countryCode: 'IN',
@@ -147,6 +149,7 @@ describe('RevenueCatPurchaseHandler', () => {
           creditsGranted: 10,
           status: TransactionStatus.COMPLETED,
           environment: TransactionEnvironment.SANDBOX,
+          channel: TransactionChannel.IOS,
         }),
         prisma,
       );

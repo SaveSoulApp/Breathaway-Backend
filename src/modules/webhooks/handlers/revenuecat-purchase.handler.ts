@@ -1,3 +1,7 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { CreditSource, Prisma, TransactionStatus } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseHandler } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -5,9 +9,6 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreditsService } from '@modules/credits/credits.service';
 import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
 import { TransactionsService } from '@modules/transactions/transactions.service';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { CreditSource, Prisma, TransactionStatus } from '@prisma/client';
 
 import { PurchaseEventType } from '../enums/purchase-event-type.enum';
 import { ParsedPurchaseEvent } from '../interfaces/purchase-event.interface';
@@ -137,6 +138,7 @@ export class RevenueCatPurchaseHandler
             gatewayUserId: event.gatewayUserId ?? undefined,
             status: TransactionStatus.COMPLETED,
             environment: event.environment,
+            channel: event.channel ?? undefined,
             productId: event.productId as string,
             creditsGranted: userId ? plan.creditsGranted : undefined,
             amount: event.amount ?? undefined,
@@ -249,6 +251,7 @@ export class RevenueCatPurchaseHandler
         gatewayUserId: event.gatewayUserId ?? undefined,
         status,
         environment: event.environment,
+        channel: event.channel ?? undefined,
         productId: event.productId as string,
         amount: event.amount ?? undefined,
         currency: event.currency ?? undefined,

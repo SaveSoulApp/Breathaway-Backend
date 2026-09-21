@@ -57,7 +57,8 @@ src/
 │
 ├── infrastructure/        # Third-party adapters and connections
 │   ├── cache/             # Redis caching service layer
-│   └── database/          # Prisma database client setup and filters
+│   ├── database/          # Prisma database client setup and filters
+│   └── ip-geolocation/    # IPinfo Lite country lookup service
 │
 ├── modules/               # Feature-based domain modules (business logic)
 │   ├── auth/              # JWT, login, session management

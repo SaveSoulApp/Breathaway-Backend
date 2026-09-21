@@ -68,69 +68,74 @@ enum GenderType {
 }
 
 model User {
-  id               String           @id @default(ulid())
+  id String @id @default(ulid())
 
   profile                UserProfile?
   notificationPreference NotificationPreference?
 
-  identities       Identity[]
-  authCredentials  AuthCredential[]
+  identities      Identity[]
+  authCredentials AuthCredential[]
 
-  sentLikes        Like[]           @relation("SentLikes")
+  sentLikes Like[] @relation("SentLikes")
 
-  matchesAsUserOne Match[]          @relation("MatchUserOne")
-  matchesAsUserTwo Match[]          @relation("MatchUserTwo")
+  matchesAsUserOne Match[] @relation("MatchUserOne")
+  matchesAsUserTwo Match[] @relation("MatchUserTwo")
 
-  blocking         Block[]          @relation("Blocker")
-  blockedBy        Block[]          @relation("Blocked")
+  blocking  Block[] @relation("Blocker")
+  blockedBy Block[] @relation("Blocked")
 
-  devices          Device[]
-  creditLedger     CreditLedger[]
-  subscriptions    UserSubscription[]
-  transactions     Transaction[]
+  devices       Device[]
+  creditLedger  CreditLedger[]
+  subscriptions UserSubscription[]
+  transactions  Transaction[]
 
-  createdAt        DateTime         @default(now()) @db.Timestamptz
-  deletedAt        DateTime?        @db.Timestamptz
+  /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
+  /// Null for email-only users or social accounts that have no phone credential.
+  countryCode String? @db.Char(2)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   @@index([createdAt])
   @@index([deletedAt])
+  @@index([countryCode])
 }
 
 model UserProfile {
-  id           String     @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId       String     @unique
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  firstName    String
-  lastName     String?
+  firstName String
+  lastName  String?
 
-  dateOfBirth  DateTime?  @db.Timestamptz
-  gender       GenderType?
+  dateOfBirth DateTime?   @db.Timestamptz
+  gender      GenderType?
 
-  createdAt    DateTime   @default(now()) @db.Timestamptz
-  updatedAt    DateTime   @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 }
 
 model AuthCredential {
-  id          String             @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type        AuthCredentialType
+  type AuthCredentialType
 
   // @unique removed: replaced by composite below for soft-delete safety
-  valueHash   String             @db.Char(64)
+  valueHash   String  @db.Char(64)
   valueMasked String?
 
-  isPrimary   Boolean            @default(false)
+  isPrimary Boolean @default(false)
 
-  identityId  String             @unique
-  identity    Identity           @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  identityId String   @unique
+  identity   Identity @relation(fields: [identityId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime           @default(now()) @db.Timestamptz
-  deletedAt   DateTime?          @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   // Composite unique: allows a soft-deleted credential to share the same valueHash
   // with a later active credential from the same user.
@@ -142,37 +147,37 @@ model AuthCredential {
 }
 
 model Identity {
-  id                    String          @id @default(ulid())
+  id String @id @default(ulid())
 
-  type                  IdentityType
+  type IdentityType
 
-  publicValueHash       String          @db.Char(64)
+  publicValueHash       String  @db.Char(64)
   publicValueCiphertext String
-  publicValueIv         String          @db.Char(24)
-  publicValueTag        String          @db.Char(24)
+  publicValueIv         String  @db.Char(24)
+  publicValueTag        String  @db.Char(24)
   publicValueWrappedKey String
   publicValueKeyId      String
   publicValueMasked     String?
 
-  platformIdHash        String?         @db.Char(64)
-  platformIdCiphertext  String?
-  platformIdIv          String?         @db.Char(24)
-  platformIdTag         String?         @db.Char(24)
-  platformIdWrappedKey  String?
-  platformIdKeyId       String?
+  platformIdHash       String? @db.Char(64)
+  platformIdCiphertext String?
+  platformIdIv         String? @db.Char(24)
+  platformIdTag        String? @db.Char(24)
+  platformIdWrappedKey String?
+  platformIdKeyId      String?
 
-  userId                String?
-  user                  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  isVerified            Boolean         @default(false)
-  verifiedAt            DateTime?       @db.Timestamptz
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime? @db.Timestamptz
 
-  authCredential        AuthCredential?
+  authCredential AuthCredential?
 
-  likes                 Like[]
+  likes Like[]
 
-  createdAt             DateTime        @default(now()) @db.Timestamptz
-  deletedAt             DateTime?       @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   @@unique([type, publicValueHash])
   @@unique([type, platformIdHash])
@@ -182,24 +187,24 @@ model Identity {
 }
 
 model Like {
-  id               String      @id @default(ulid())
+  id String @id @default(ulid())
 
-  senderUserId     String
-  senderUser       User        @relation("SentLikes", fields: [senderUserId], references: [id], onDelete: Cascade)
+  senderUserId String
+  senderUser   User   @relation("SentLikes", fields: [senderUserId], references: [id], onDelete: Cascade)
 
   targetIdentityId String
-  targetIdentity   Identity    @relation(fields: [targetIdentityId], references: [id], onDelete: Cascade)
+  targetIdentity   Identity @relation(fields: [targetIdentityId], references: [id], onDelete: Cascade)
 
-  intent           IntentType
-  status           LikeStatus  @default(PENDING)
-  label            String?
+  intent IntentType
+  status LikeStatus @default(PENDING)
+  label  String?
 
-  matchAsLikeOne   Match?      @relation("MatchLikeOne")
-  matchAsLikeTwo   Match?      @relation("MatchLikeTwo")
+  matchAsLikeOne Match? @relation("MatchLikeOne")
+  matchAsLikeTwo Match? @relation("MatchLikeTwo")
 
-  createdAt        DateTime    @default(now()) @db.Timestamptz
-  expiresAt        DateTime?   @db.Timestamptz
-  deletedAt        DateTime?   @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  expiresAt DateTime? @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   @@unique([senderUserId, targetIdentityId])
   // Composite index: list-likes queries filter on senderUserId + deletedAt + status
@@ -210,28 +215,28 @@ model Like {
 }
 
 model Match {
-  id        String      @id @default(ulid())
+  id String @id @default(ulid())
 
   userOneId String
-  userOne   User        @relation("MatchUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userOne   User   @relation("MatchUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
 
   userTwoId String
-  userTwo   User        @relation("MatchUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+  userTwo   User   @relation("MatchUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
 
-  likeOneId String      @unique
-  likeOne   Like        @relation("MatchLikeOne", fields: [likeOneId], references: [id])
+  likeOneId String @unique
+  likeOne   Like   @relation("MatchLikeOne", fields: [likeOneId], references: [id])
 
-  likeTwoId String      @unique
-  likeTwo   Like        @relation("MatchLikeTwo", fields: [likeTwoId], references: [id])
+  likeTwoId String @unique
+  likeTwo   Like   @relation("MatchLikeTwo", fields: [likeTwoId], references: [id])
 
   intentOne IntentType
   intentTwo IntentType
 
-  status    MatchStatus @default(ACTIVE)
+  status MatchStatus @default(ACTIVE)
 
-  matchedAt DateTime    @default(now()) @db.Timestamptz
-  updatedAt DateTime    @updatedAt     @db.Timestamptz
-  deletedAt DateTime?   @db.Timestamptz
+  matchedAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   @@unique([userOneId, userTwoId])
   // Composite indexes: match-list queries filter on OR[userOneId|userTwoId] + deletedAt + status
@@ -240,16 +245,16 @@ model Match {
 }
 
 model Block {
-  id            String   @id @default(ulid())
+  id String @id @default(ulid())
 
   blockerUserId String
-  blocker       User     @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocker       User   @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
 
   blockedUserId String
-  blocked       User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  blocked       User   @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now()) @db.Timestamptz
-  deletedAt     DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
 
   @@unique([blockerUserId, blockedUserId])
   // Composite index: findAllForUser queries blockerUserId + deletedAt IS NULL, orders by createdAt
@@ -257,39 +262,39 @@ model Block {
 }
 
 model Device {
-  id         String         @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId     String
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   token      String         @unique
   platform   DevicePlatform
   deviceId   String?
   appVersion String?
 
-  isActive   Boolean        @default(true)
+  isActive Boolean @default(true)
 
-  createdAt  DateTime       @default(now()) @db.Timestamptz
-  updatedAt  DateTime       @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@index([userId])
 }
 
 model CreditLedger {
-  id          String       @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   transactionType CreditTransactionType
 
-  amount          Int
-  source          CreditSource
+  amount      Int
+  source      CreditSource
   referenceId String?
 
-  expiresAt   DateTime?    @db.Timestamptz
+  expiresAt DateTime? @db.Timestamptz
 
-  createdAt   DateTime     @default(now()) @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -297,18 +302,18 @@ model CreditLedger {
 }
 
 model NotificationPreference {
-  id              String   @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  pushEnabled     Boolean  @default(true)
-  whatsappEnabled Boolean  @default(true)
-  smsEnabled      Boolean  @default(true)
-  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean @default(true)
+  whatsappEnabled Boolean @default(true)
+  smsEnabled      Boolean @default(true)
+  emailEnabled    Boolean @default(true)
 
-  createdAt       DateTime @default(now()) @db.Timestamptz
-  updatedAt       DateTime @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 }
 
 // ──────────────────────────────────────────────
@@ -324,6 +329,14 @@ model NotificationPreference {
 enum PaymentGateway {
   REVENUECAT
   RAZORPAY
+  CASHFREE
+  EASEBUZZ
+}
+
+enum TransactionChannel {
+  IOS
+  ANDROID
+  WEB
 }
 
 enum TransactionType {
@@ -344,13 +357,13 @@ enum TransactionEnvironment {
 }
 
 model Transaction {
-  id                   String                 @id @default(ulid())
+  id String @id @default(ulid())
 
   /// Nullable by design: a purchase whose gateway user ID cannot be resolved to
   /// a local account is still recorded, so it can be reconciled later rather
   /// than silently dropped.
-  userId               String?
-  user                 User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   gateway              PaymentGateway
   /// The gateway's own transaction identifier (RevenueCat `transaction_id`).
@@ -363,36 +376,41 @@ model Transaction {
   /// Retained so unresolved rows can be matched up by hand.
   gatewayUserId        String?
 
-  type                 TransactionType        @default(PURCHASE)
-  status               TransactionStatus      @default(COMPLETED)
-  environment          TransactionEnvironment
+  type        TransactionType        @default(PURCHASE)
+  status      TransactionStatus      @default(COMPLETED)
+  environment TransactionEnvironment
+  /// Originating client channel (IOS, ANDROID, WEB) so revenue reporting can split
+  /// by channel directly without inferring it from the gateway.
+  channel     TransactionChannel?
 
   /// Store product identifier (e.g. "likes_10"), mapped to a SubscriptionPlan.
-  productId            String
+  productId      String
   /// Credits actually granted, frozen at grant time so a later change to the
   /// plan mapping never rewrites history.
-  creditsGranted       Int?
+  creditsGranted Int?
 
   /// Plain ISO-4217 code rather than the CurrencyCode enum: stores auto-generate
   /// prices in ~150 currencies, and a transaction must record whatever the
   /// gateway reported rather than a curated subset.
-  amount               Decimal?               @db.Decimal(12, 2)
-  currency             String?                @db.Char(3)
-  countryCode          String?                @db.Char(2)
+  amount      Decimal? @db.Decimal(12, 2)
+  currency    String?  @db.Char(3)
+  countryCode String?  @db.Char(2)
 
   /// When the purchase happened at the gateway, not when we recorded it.
-  occurredAt           DateTime               @db.Timestamptz
+  occurredAt DateTime @db.Timestamptz
   /// Gateway payload with PII stripped (see TransactionsService.sanitizePayload).
-  rawPayload           Json?
+  rawPayload Json?
 
-  createdAt            DateTime               @default(now()) @db.Timestamptz
-  updatedAt            DateTime               @updatedAt      @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@unique([gateway, gatewayTransactionId])
   @@index([userId])
   @@index([gateway, gatewayEventId])
   @@index([status])
   @@index([occurredAt])
+  @@index([channel])
+  @@index([channel, occurredAt])
 }
 
 // ──────────────────────────────────────────────
@@ -441,79 +459,79 @@ enum SubscriptionEventType {
 }
 
 model SubscriptionPlan {
-  id                String                 @id @default(ulid())
+  id String @id @default(ulid())
 
-  name              String
-  description       String?
-  slug              String                 @unique
+  name        String
+  description String?
+  slug        String  @unique
 
-  appleProductId    String?                @unique
-  googleProductId   String?                @unique
+  appleProductId  String? @unique
+  googleProductId String? @unique
 
   creditsGranted    Int
   validityDays      Int
-  trialDurationDays Int                    @default(0)
+  trialDurationDays Int @default(0)
 
-  sortOrder         Int                    @default(0)
-  status            SubscriptionPlanStatus @default(ACTIVE)
+  sortOrder Int                    @default(0)
+  status    SubscriptionPlanStatus @default(ACTIVE)
 
-  prices            SubscriptionPlanPrice[]
-  subscriptions     UserSubscription[]
+  prices        SubscriptionPlanPrice[]
+  subscriptions UserSubscription[]
 
-  createdAt         DateTime               @default(now()) @db.Timestamptz
-  updatedAt         DateTime               @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@index([status])
 }
 
 model SubscriptionPlanPrice {
-  id             String           @id @default(ulid())
+  id String @id @default(ulid())
 
-  planId         String
-  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
-  currencyCode   CurrencyCode
-  price          Decimal          @db.Decimal(10, 2)
-  countryCode    String           @db.Char(2)
+  currencyCode CurrencyCode
+  price        Decimal      @db.Decimal(10, 2)
+  countryCode  String       @db.Char(2)
 
-  createdAt      DateTime         @default(now()) @db.Timestamptz
-  updatedAt      DateTime         @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@unique([planId, currencyCode, countryCode])
   @@index([countryCode])
 }
 
 model UserSubscription {
-  id                    String             @id @default(ulid())
+  id String @id @default(ulid())
 
-  userId                String
-  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  planId                String
-  plan                  SubscriptionPlan   @relation(fields: [planId], references: [id])
+  planId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id])
 
-  status                SubscriptionStatus @default(ACTIVE)
-  storePlatform         StorePlatform
+  status        SubscriptionStatus @default(ACTIVE)
+  storePlatform StorePlatform
 
-  storeTransactionId    String?
-  storeProductId        String?
+  storeTransactionId String?
+  storeProductId     String?
 
-  currentPeriodStart    DateTime           @db.Timestamptz
-  currentPeriodEnd      DateTime           @db.Timestamptz
-  trialEnd              DateTime?          @db.Timestamptz
+  currentPeriodStart DateTime  @db.Timestamptz
+  currentPeriodEnd   DateTime  @db.Timestamptz
+  trialEnd           DateTime? @db.Timestamptz
 
-  autoRenewing          Boolean            @default(false)
-  cancelledAt           DateTime?          @db.Timestamptz
-  expiresAt             DateTime           @db.Timestamptz
+  autoRenewing Boolean   @default(false)
+  cancelledAt  DateTime? @db.Timestamptz
+  expiresAt    DateTime  @db.Timestamptz
 
-  currencyCode          CurrencyCode?
-  pricePaid             Decimal?           @db.Decimal(10, 2)
-  countryCode           String?            @db.Char(2)
+  currencyCode CurrencyCode?
+  pricePaid    Decimal?      @db.Decimal(10, 2)
+  countryCode  String?       @db.Char(2)
 
-  events                SubscriptionEvent[]
+  events SubscriptionEvent[]
 
-  createdAt             DateTime           @default(now()) @db.Timestamptz
-  updatedAt             DateTime           @updatedAt     @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@index([userId])
   @@index([status])
@@ -522,18 +540,18 @@ model UserSubscription {
 }
 
 model SubscriptionEvent {
-  id               String                @id @default(ulid())
+  id String @id @default(ulid())
 
-  subscriptionId   String
-  subscription     UserSubscription      @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
-  eventType        SubscriptionEventType
-  storePlatform    StorePlatform
+  eventType     SubscriptionEventType
+  storePlatform StorePlatform
 
-  storeEventId     String?
-  rawPayload       Json?
+  storeEventId String?
+  rawPayload   Json?
 
-  createdAt        DateTime              @default(now()) @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([subscriptionId])
   @@index([eventType])
@@ -552,16 +570,16 @@ model SubscriptionEvent {
 // ──────────────────────────────────────────────────────────────────
 
 model ChatRoom {
-  id        String    @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
 
   /// Canonical ordering: userOneId < userTwoId (sorted deterministically at write time).
   userOneId String
   userTwoId String
 
-  messages  Message[]
+  messages Message[]
 
-  createdAt DateTime  @default(now()) @db.Timestamptz
-  updatedAt DateTime  @default(now()) @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @default(now()) @db.Timestamptz
 
   @@unique([userOneId, userTwoId])
   @@index([userOneId])
@@ -569,15 +587,15 @@ model ChatRoom {
 }
 
 model Message {
-  id        String    @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
 
-  roomId    String    @db.Uuid
-  room      ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId String   @db.Uuid
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   /// Stores the sender's ULID from the primary database as plain text.
   /// No FK — cross-database reference enforced at the application layer.
-  senderId  String
-  content   String
+  senderId String
+  content  String
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   readAt    DateTime? @db.Timestamptz

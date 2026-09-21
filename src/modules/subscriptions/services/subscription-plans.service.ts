@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { AuditActionType } from '@modules/audit/dto';
 
 import { SubscriptionPlanNotFoundException } from '../application/exceptions';
@@ -25,6 +27,8 @@ export class SubscriptionPlansService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly ipGeolocationService: IpGeolocationService,
   ) {
     super(logger);
   }
@@ -67,12 +71,69 @@ export class SubscriptionPlansService extends BaseService {
   }
 
   /**
-   * Retrieves all subscription plans that are currently available for purchase.
+   * Retrieves all subscription plans that are currently available for purchase,
+   * with prices localized to the caller's geographic region.
    *
-   * @param countryCode - Optional ISO country code to filter the associated prices.
-   * @returns Active plans sorted by their defined sort order.
+   * Country code resolution hierarchy:
+   * 1. Authenticated user's profile countryCode from User table (if userId provided and countryCode is not null).
+   * 2. Explicit query parameter `countryCode` if provided (e.g. from currency switcher).
+   * 3. Country resolved from client public IP address via IPinfo Lite (if unauthenticated or user country is null).
+   * 4. Config default `DEFAULT_COUNTRY_CODE` (defaults to 'IN').
+   *
+   * If an active plan lacks a price row for the resolved country, falls back to the default
+   * country price row so plans never render without pricing.
+   *
+   * @param userId - Optional authenticated user ID.
+   * @param clientIp - Optional public IP address of the calling client.
+   * @param countryCode - Optional ISO 3166-1 alpha-2 country code explicitly requested.
+   * @returns Active plans sorted by sortOrder with prices localized for the resolved region.
    */
-  async listActivePlans(countryCode?: string) {
+  async listActivePlans(
+    userId?: string | null,
+    clientIp?: string,
+    countryCode?: string,
+  ) {
+    let resolvedCountryCode: string | undefined;
+
+    // 1. First source of truth: authenticated user's country code in User table
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { countryCode: true },
+      });
+      if (user?.countryCode) {
+        resolvedCountryCode = user.countryCode.trim().toUpperCase();
+      }
+    }
+
+    // Explicit query parameter override (if user has no set profile country)
+    if (!resolvedCountryCode && countryCode) {
+      resolvedCountryCode = countryCode.trim().toUpperCase();
+    }
+
+    // 2. Second source of truth: client public IP lookup via IPinfo Lite
+    if (!resolvedCountryCode && clientIp) {
+      const detectedCountry =
+        await this.ipGeolocationService.getCountryCodeByIp(clientIp);
+      if (detectedCountry) {
+        resolvedCountryCode = detectedCountry.trim().toUpperCase();
+      }
+    }
+
+    // 3. Fallback: server default country code ('IN')
+    const defaultCountryCode = (
+      this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
+    ).toUpperCase();
+
+    if (!resolvedCountryCode) {
+      resolvedCountryCode = defaultCountryCode;
+    }
+
+    const targetCountries =
+      resolvedCountryCode === defaultCountryCode
+        ? [defaultCountryCode]
+        : [resolvedCountryCode, defaultCountryCode];
+
     const plans = await this.prisma.subscriptionPlan.findMany({
       where: { status: SubscriptionPlanStatus.ACTIVE },
       select: {
@@ -90,9 +151,7 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          where: countryCode
-            ? { countryCode: countryCode.toUpperCase() }
-            : undefined,
+          where: { countryCode: { in: targetCountries } },
           select: {
             id: true,
             currencyCode: true,
@@ -104,7 +163,23 @@ export class SubscriptionPlansService extends BaseService {
       orderBy: { sortOrder: 'asc' },
     });
 
-    return plans;
+    return plans.map((plan) => {
+      const resolvedPrices = plan.prices.filter(
+        (price) => price.countryCode === resolvedCountryCode,
+      );
+
+      const activePrices =
+        resolvedPrices.length > 0
+          ? resolvedPrices
+          : plan.prices.filter(
+              (price) => price.countryCode === defaultCountryCode,
+            );
+
+      return {
+        ...plan,
+        prices: activePrices,
+      };
+    });
   }
 
   /**

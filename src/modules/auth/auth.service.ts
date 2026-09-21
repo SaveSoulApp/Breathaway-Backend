@@ -3,6 +3,7 @@ import { IdentityType, User } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { extractCountryCodeFromPhone } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
@@ -146,6 +147,9 @@ export class AuthService extends BaseService {
       value,
       authMethod.method,
       authMethod.isVerified,
+      isPhoneAuthMethod(authMethod.method)
+        ? extractCountryCodeFromPhone(value)
+        : null,
     );
     this.logger.debug('User provisioned', {
       ...ctx,
@@ -349,6 +353,9 @@ export class AuthService extends BaseService {
           value,
           authMethod.method,
           true,
+          isPhoneAuthMethod(authMethod.method)
+            ? extractCountryCodeFromPhone(value)
+            : null,
         );
 
       this.logger.debug('New user provisioned', {

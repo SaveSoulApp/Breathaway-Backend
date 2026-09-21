@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   PaymentGateway,
+  TransactionChannel,
   TransactionEnvironment,
   TransactionStatus,
   TransactionType,
 } from '@prisma/client';
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 
 /**
  * A single gateway transaction as returned by the admin listing endpoints.
@@ -59,6 +60,14 @@ export class TransactionResponseDto {
   @Expose()
   environment: TransactionEnvironment;
 
+  @ApiPropertyOptional({
+    enum: TransactionChannel,
+    description: 'Originating client channel (IOS, ANDROID, WEB)',
+    nullable: true,
+  })
+  @Expose()
+  channel: TransactionChannel | null;
+
   @ApiProperty({ description: 'Store product identifier' })
   @Expose()
   productId: string;
@@ -69,6 +78,7 @@ export class TransactionResponseDto {
 
   @ApiPropertyOptional({ description: 'Amount paid', nullable: true })
   @Expose()
+  @Type(() => Number)
   amount: number | null;
 
   @ApiPropertyOptional({

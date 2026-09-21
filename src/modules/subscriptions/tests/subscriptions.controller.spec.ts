@@ -72,18 +72,42 @@ describe('SubscriptionsController', () => {
   });
 
   describe('listPlans', () => {
-    it('should retrieve a list of active plans', async () => {
+    it('should pass userId, clientIp and query countryCode to subscriptionPlansService', async () => {
       // Arrange
       subscriptionPlansService.listActivePlans.mockResolvedValue([
         mockPlan,
       ] as any);
 
       // Act
-      const result = await controller.listPlans('US');
+      const result = await controller.listPlans(
+        { countryCode: 'US' },
+        'user-123',
+        '103.21.244.2',
+      );
 
       // Assert
       expect(subscriptionPlansService.listActivePlans).toHaveBeenCalledWith(
+        'user-123',
+        '103.21.244.2',
         'US',
+      );
+      expect(result).toEqual([mockPlan]);
+    });
+
+    it('should support unauthenticated call with no query param and undefined clientIp', async () => {
+      // Arrange
+      subscriptionPlansService.listActivePlans.mockResolvedValue([
+        mockPlan,
+      ] as any);
+
+      // Act
+      const result = await controller.listPlans({}, null, undefined);
+
+      // Assert
+      expect(subscriptionPlansService.listActivePlans).toHaveBeenCalledWith(
+        null,
+        undefined,
+        undefined,
       );
       expect(result).toEqual([mockPlan]);
     });

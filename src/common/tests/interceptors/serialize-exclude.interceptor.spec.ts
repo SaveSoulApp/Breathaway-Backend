@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { Exclude, Expose } from 'class-transformer';
 import { lastValueFrom, Observable } from 'rxjs';
+
 import {
   SerializeExclude,
   SerializeExcluderInterceptor,
@@ -17,6 +19,11 @@ class TestDto {
   hiddenProp: string;
 
   unmarkedProp: string;
+}
+
+class DecimalExcludeDto {
+  id: string;
+  amount: number;
 }
 
 describe(SerializeExcluderInterceptor.name, () => {
@@ -44,6 +51,28 @@ describe(SerializeExcluderInterceptor.name, () => {
     expect(result.publicProp).toBe('public');
     expect(result.unmarkedProp).toBe('unmarked');
     expect(result.hiddenProp).toBeUndefined();
+  });
+
+  it('should convert Prisma.Decimal values into numbers without throwing DecimalError', async () => {
+    const decimalInterceptor = new SerializeExcluderInterceptor(
+      DecimalExcludeDto,
+    );
+    const context = createMockExecutionContext();
+    const callHandler = createMockCallHandler({
+      id: 'item_1',
+      amount: new Prisma.Decimal('99.95'),
+    });
+
+    const resultObservable = decimalInterceptor.intercept(
+      context,
+      callHandler,
+    ) as Observable<DecimalExcludeDto>;
+    const result = await lastValueFrom(resultObservable);
+
+    expect(result).toBeInstanceOf(DecimalExcludeDto);
+    expect(result.id).toBe('item_1');
+    expect(result.amount).toBe(99.95);
+    expect(typeof result.amount).toBe('number');
   });
 });
 

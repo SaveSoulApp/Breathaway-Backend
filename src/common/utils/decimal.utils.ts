@@ -18,8 +18,18 @@ export class DecimalUtils {
       return data;
     }
 
-    if (data instanceof Prisma.Decimal) {
-      return data.toNumber() as unknown as T;
+    if (
+      data instanceof Prisma.Decimal ||
+      Prisma.Decimal.isDecimal(data) ||
+      (typeof data === 'object' &&
+        typeof (data as { toNumber?: unknown }).toNumber === 'function' &&
+        ((data as { constructor?: { name?: string } }).constructor?.name ===
+          'Decimal' ||
+          (data as { constructor?: { name?: string } }).constructor?.name ===
+            'Decimal2' ||
+          (data as { d?: unknown; e?: unknown; s?: unknown }).d !== undefined))
+    ) {
+      return (data as unknown as Prisma.Decimal).toNumber() as unknown as T;
     }
 
     if (Array.isArray(data)) {
@@ -29,6 +39,10 @@ export class DecimalUtils {
     }
 
     if (data instanceof Date) {
+      return data;
+    }
+
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) {
       return data;
     }
 

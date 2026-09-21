@@ -1,12 +1,13 @@
-import { plainToInstance } from 'class-transformer';
-import { map, Observable } from 'rxjs';
-
 import {
   CallHandler,
   ExecutionContext,
   NestInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { map, Observable } from 'rxjs';
+
+import { DecimalUtils } from '@common/utils/decimal.utils';
 
 interface ClassConstructor {
   new (...args: unknown[]): object;
@@ -47,9 +48,9 @@ export class SerializeExcluderInterceptor implements NestInterceptor {
         //Runs before response is sent out
 
         // Convert Decimals to numbers BEFORE plainToInstance
-        // const converted = DecimalUtils.convertDecimals(data);
+        const converted = DecimalUtils.convertDecimals(data);
 
-        const transformed = plainToInstance(this.dto, data, {
+        const transformed = plainToInstance(this.dto, converted, {
           excludeExtraneousValues: false,
           enableImplicitConversion: true,
         });

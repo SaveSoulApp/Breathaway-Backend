@@ -1,5 +1,7 @@
 import { ClassConstructor, plainToInstance } from 'class-transformer';
 
+import { DecimalUtils } from '@common/utils/decimal.utils';
+
 /**
  * Instantiates a DTO class from a plain object and strips out any unmapped properties.
  *
@@ -12,7 +14,8 @@ import { ClassConstructor, plainToInstance } from 'class-transformer';
  * @returns A new instance of the DTO class containing only the explicitly exposed properties.
  */
 export function transformToDto<T, V>(cls: ClassConstructor<T>, plain: V): T {
-  return plainToInstance(cls, plain, {
+  const converted = DecimalUtils.convertDecimals(plain);
+  return plainToInstance(cls, converted, {
     excludeExtraneousValues: true,
   });
 }

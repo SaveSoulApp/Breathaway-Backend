@@ -167,6 +167,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       id: 'user-uuid-1',
       createdAt: new Date(),
       deletedAt: null,
+      countryCode: null,
     };
 
     const mockPublicValueData = {
@@ -509,6 +510,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       id: 'user-uuid-1',
       createdAt: new Date(),
       deletedAt: null,
+      countryCode: null,
     };
 
     const mockPublicValueData = {
@@ -677,6 +679,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       id: 'user-uuid-1',
       createdAt: new Date(),
       deletedAt: null,
+      countryCode: null,
     };
 
     const mockPublicValueData = {
@@ -862,6 +865,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       id: 'user-uuid-1',
       createdAt: new Date(),
       deletedAt: null,
+      countryCode: null,
     };
 
     const mockPublicValueData = {
