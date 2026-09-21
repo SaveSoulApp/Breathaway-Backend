@@ -570,7 +570,7 @@ model SubscriptionEvent {
 // ──────────────────────────────────────────────────────────────────
 
 model ChatRoom {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   /// Canonical ordering: userOneId < userTwoId (sorted deterministically at write time).
   userOneId String
@@ -587,7 +587,7 @@ model ChatRoom {
 }
 
 model Message {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   roomId String   @db.Uuid
   room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
