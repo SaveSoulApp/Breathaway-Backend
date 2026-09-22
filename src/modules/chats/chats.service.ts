@@ -1,15 +1,24 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
+import { MatchStatus } from '@prisma/client';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { BlocksService } from '@modules/blocks/blocks.service';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
-import { MessageNotFoundException } from './application/exceptions';
+import {
+  ActiveMatchRequiredException,
+  ChatRoomAccessForbiddenException,
+  ChatRoomNotFoundException,
+  MessageNotFoundException,
+  SelfMessageException,
+  UserBlockedException,
+} from './application/exceptions';
 import {
   CreateMessageRequestDto,
   GetMessagesRequestDto,
@@ -27,6 +36,7 @@ export class ChatsService extends BaseService {
     logger: LoggerService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly blocksService: BlocksService,
   ) {
     super(logger);
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -46,6 +56,67 @@ export class ChatsService extends BaseService {
     this.supabase = createClient(supabaseUrl || '', supabaseKey || '', {
       auth: { persistSession: false },
     });
+  }
+
+  /**
+   * Asserts that a room exists and that the calling user is an authorized participant.
+   * Prevents IDOR (Insecure Direct Object Reference) access to arbitrary chat rooms.
+   *
+   * @param userId - ID of the calling user.
+   * @param roomId - ID of the chat room.
+   * @returns The room record if valid.
+   * @throws {ChatRoomNotFoundException} If the room does not exist.
+   * @throws {ChatRoomAccessForbiddenException} If the user is not a participant in the room.
+   */
+  private async assertRoomParticipant(
+    userId: string,
+    roomId: string,
+  ): Promise<{ id: string; userOneId: string; userTwoId: string }> {
+    let data;
+    let error;
+    try {
+      const response = await this.supabase
+        .from('ChatRoom')
+        .select('id, userOneId, userTwoId')
+        .eq('id', roomId)
+        .single();
+      data = response.data;
+      error = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to verify chat room participant', {
+        roomId,
+        userId,
+        step: 'assert_participant',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException(
+        'Failed to verify chat room access',
+      );
+    }
+
+    if (error || !data) {
+      this.logger.warn('Chat room not found', {
+        roomId,
+        userId,
+        step: 'assert_participant',
+      });
+      throw new ChatRoomNotFoundException(roomId);
+    }
+
+    const room = data as { id: string; userOneId: string; userTwoId: string };
+
+    if (room.userOneId !== userId && room.userTwoId !== userId) {
+      this.logger.warn('Unauthorized chat room access attempt', {
+        roomId,
+        userId,
+        userOneId: room.userOneId,
+        userTwoId: room.userTwoId,
+        step: 'assert_participant',
+      });
+      throw new ChatRoomAccessForbiddenException(roomId);
+    }
+
+    return room;
   }
 
   async getRooms(userId: string, dto: GetRoomsRequestDto) {
@@ -91,7 +162,37 @@ export class ChatsService extends BaseService {
       [key: string]: unknown;
     };
 
-    const rooms = (data as ChatRoomRecord[]) || [];
+    const rawRooms = (data as ChatRoomRecord[]) || [];
+
+    // Filter out rooms involving users with whom an active block exists
+    let blockedUserIds = new Set<string>();
+    try {
+      const activeBlocks = await this.prisma.block.findMany({
+        where: {
+          OR: [{ blockerUserId: userId }, { blockedUserId: userId }],
+          deletedAt: null,
+        },
+        select: { blockerUserId: true, blockedUserId: true },
+      });
+
+      blockedUserIds = new Set(
+        activeBlocks.map((b) =>
+          b.blockerUserId === userId ? b.blockedUserId : b.blockerUserId,
+        ),
+      );
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch active blocks for user rooms', {
+        userId,
+        step: 'fetch_blocks',
+        err: serializeError(err),
+      });
+    }
+
+    const rooms = rawRooms.filter((room) => {
+      const otherUserId =
+        room.userOneId === userId ? room.userTwoId : room.userOneId;
+      return !blockedUserIds.has(otherUserId);
+    });
 
     // Extract all unique other user IDs
     const otherUserIds = Array.from(
@@ -152,6 +253,9 @@ export class ChatsService extends BaseService {
     roomId: string,
     dto: GetMessagesRequestDto,
   ) {
+    // Enforce participant authorization before fetching messages
+    await this.assertRoomParticipant(userId, roomId);
+
     const { cursor, limit = 20 } = dto;
 
     let query = this.supabase
@@ -206,12 +310,62 @@ export class ChatsService extends BaseService {
 
   async sendMessage(senderId: string, dto: CreateMessageRequestDto) {
     const { targetUserId, content } = dto;
+
+    // 1. Prevent self-messaging
+    if (senderId === targetUserId) {
+      this.logger.warn('Message send failed: cannot message self', {
+        senderId,
+        targetUserId,
+        step: 'validate_message',
+      });
+      throw new SelfMessageException();
+    }
+
+    // 2. Concurrently verify block status and active match requirements
+    const [isBlocked, activeMatch] = await Promise.all([
+      this.blocksService.isBlocked(senderId, targetUserId),
+      this.prisma.match.findFirst({
+        where: {
+          OR: [
+            { userOneId: senderId, userTwoId: targetUserId },
+            { userOneId: targetUserId, userTwoId: senderId },
+          ],
+          status: MatchStatus.ACTIVE,
+          deletedAt: null,
+          userOne: { deletedAt: null },
+          userTwo: { deletedAt: null },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    if (isBlocked) {
+      this.logger.warn(
+        'Message send failed: active block exists between users',
+        {
+          senderId,
+          targetUserId,
+          step: 'validate_message',
+        },
+      );
+      throw new UserBlockedException();
+    }
+
+    if (!activeMatch) {
+      this.logger.warn('Message send failed: active match required', {
+        senderId,
+        targetUserId,
+        step: 'validate_message',
+      });
+      throw new ActiveMatchRequiredException();
+    }
+
     const { userOneId, userTwoId } = generateRoomParticipants(
       senderId,
       targetUserId,
     );
 
-    // 1. Ensure the room exists idempotently
+    // 4. Ensure the room exists idempotently
     let roomData;
     let roomError;
     try {
@@ -247,7 +401,7 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
-    // 2. Insert the message
+    // 5. Insert the message
     let data: unknown;
     let msgError;
     try {
@@ -286,7 +440,7 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to send message');
     }
 
-    // 3. Fire-and-forget push notification
+    // 6. Fire-and-forget push notification
     this.triggerPushNotification(targetUserId, senderId, content).catch(
       (err: Error) => {
         this.logger.error('Failed to send push notification', {
@@ -306,6 +460,9 @@ export class ChatsService extends BaseService {
     roomId: string,
     dto: MarkMessageReadRequestDto,
   ) {
+    // Enforce participant authorization before marking messages read
+    await this.assertRoomParticipant(userId, roomId);
+
     // Fetch the reference message to get its createdAt timestamp
     let refMessage;
     let fetchError;

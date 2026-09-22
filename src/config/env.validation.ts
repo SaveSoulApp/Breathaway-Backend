@@ -59,6 +59,7 @@ export const envValidationSchema = Joi.object({
   JWT_ISSUER: Joi.string().default('https://breathaway.app'),
   OTP_TTL: Joi.number().integer().positive().default(300),
   OTP_RATE_LIMIT_TTL: Joi.number().integer().positive().default(120),
+  SUPABASE_JWT_KEY_ID: Joi.string().optional(),
 
   // Business Domain Numeric Expirations
   CREDIT_EXPIRY_DAYS: Joi.number().integer().positive().default(90),

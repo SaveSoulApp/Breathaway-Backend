@@ -78,3 +78,6 @@ export DB_POOL_STATEMENT_TIMEOUT_MS='15000'
 export DEFAULT_COUNTRY_CODE='IN'
 
 export IPINFO_TIMEOUT_MS='1500'
+
+# Supabase Realtime JWT Key ID (matching the public key registered in Supabase JWT Signing Keys)
+export SUPABASE_JWT_KEY_ID='709ac6ba-a048-4f39-a6ce-c1f9c993b98b'
