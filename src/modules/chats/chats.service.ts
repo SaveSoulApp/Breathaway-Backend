@@ -321,11 +321,24 @@ export class ChatsService extends BaseService {
       throw new SelfMessageException();
     }
 
-    // 2. Prevent messaging if an active block exists between users
-    const isBlocked = await this.blocksService.isBlocked(
-      senderId,
-      targetUserId,
-    );
+    // 2. Concurrently verify block status and active match requirements
+    const [isBlocked, activeMatch] = await Promise.all([
+      this.blocksService.isBlocked(senderId, targetUserId),
+      this.prisma.match.findFirst({
+        where: {
+          OR: [
+            { userOneId: senderId, userTwoId: targetUserId },
+            { userOneId: targetUserId, userTwoId: senderId },
+          ],
+          status: MatchStatus.ACTIVE,
+          deletedAt: null,
+          userOne: { deletedAt: null },
+          userTwo: { deletedAt: null },
+        },
+        select: { id: true },
+      }),
+    ]);
+
     if (isBlocked) {
       this.logger.warn(
         'Message send failed: active block exists between users',
@@ -337,21 +350,6 @@ export class ChatsService extends BaseService {
       );
       throw new UserBlockedException();
     }
-
-    // 3. Ensure an active match exists between sender and target
-    const activeMatch = await this.prisma.match.findFirst({
-      where: {
-        OR: [
-          { userOneId: senderId, userTwoId: targetUserId },
-          { userOneId: targetUserId, userTwoId: senderId },
-        ],
-        status: MatchStatus.ACTIVE,
-        deletedAt: null,
-        userOne: { deletedAt: null },
-        userTwo: { deletedAt: null },
-      },
-      select: { id: true },
-    });
 
     if (!activeMatch) {
       this.logger.warn('Message send failed: active match required', {
