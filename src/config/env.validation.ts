@@ -79,7 +79,6 @@ export const envValidationSchema = Joi.object({
   MAILGUN_API_KEY: Joi.string().optional(),
   MAILGUN_DOMAIN: Joi.string().optional(),
   SENDGRID_API_KEY: Joi.string().optional(),
-  BREVO_API_KEY: Joi.string().optional(),
 
   // Swagger Documentation Access Control
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('true'),

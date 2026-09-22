@@ -52,7 +52,6 @@ export EMAIL_PROVIDER='brevo'
 export MAILGUN_API_KEY='some-api-key'
 export MAILGUN_DOMAIN='domain@domaincom'
 export SENDGRID_API_KEY='SG.some-api-key'
-export BREVO_API_KEY='your_brevo_api_key_here'
 
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment

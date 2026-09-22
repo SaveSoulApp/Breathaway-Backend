@@ -123,6 +123,7 @@ deploy_service() {
         "SWAGGER_PASSWORD=swagger-password:latest"
         "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
         "IPINFO_TOKEN=ipinfo-token:latest"
+        "BREVO_API_KEY=brevo-api-key:latest"
     )
 
     local gcloud_run_args=(
@@ -161,7 +162,6 @@ deploy_service() {
         "MAILGUN_API_KEY=${MAILGUN_API_KEY}"
         "MAILGUN_DOMAIN=${MAILGUN_DOMAIN}"
         "SENDGRID_API_KEY=${SENDGRID_API_KEY}"
-        "BREVO_API_KEY=${BREVO_API_KEY}"
         "SWAGGER_ENABLED=${SWAGGER_ENABLED}"
         "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
