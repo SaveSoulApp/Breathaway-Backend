@@ -13,6 +13,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlocksService } from '@modules/blocks/blocks.service';
+import { UserDeletedEvent } from '@modules/profiles/events';
 
 import {
   ActiveMatchRequiredException,
@@ -468,10 +469,9 @@ describe('ChatsService', () => {
     it('should trigger deletion of user chat rooms', async () => {
       mockChatRoomQuery.or.mockResolvedValueOnce({ error: null });
 
-      await service.handleUserDeletedEvent({
-        userId: 'user-deleted',
-        email: 'test@example.com',
-      });
+      await service.handleUserDeletedEvent(
+        new UserDeletedEvent('user-deleted'),
+      );
 
       expect(mockChatRoomQuery.delete).toHaveBeenCalled();
     });
