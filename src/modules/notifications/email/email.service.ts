@@ -1,15 +1,17 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { AuthCredentialType } from '@prisma/client';
-import * as fs from 'fs';
 import * as Handlebars from 'handlebars';
-import * as path from 'path';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { EmailType } from '@modules/notifications/enums/email-type.enum';
 
-import { EmailType } from '../enums/email-type.enum';
 import {
   EMAIL_ADAPTER_TOKEN,
   EmailPayload,
@@ -45,6 +47,7 @@ export class EmailService extends BaseService implements OnModuleInit {
   constructor(
     loggerService: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
     @Inject(EMAIL_ADAPTER_TOKEN)
     private readonly emailAdapter: IEmailAdapter,
   ) {
@@ -96,23 +99,54 @@ export class EmailService extends BaseService implements OnModuleInit {
     }
 
     // Resolve email addresses via AuthCredential (type=EMAIL).
-    // The User model has no email field — emails are stored as AuthCredentials
-    // linked to an Identity of type EMAIL. valueMasked holds the readable address.
+    // The User model has no email field — emails are envelope-encrypted in the
+    // linked Identity record. We query the ciphertext fields and decrypt via IdentityCryptoService.
     const credentials = await this.prisma.authCredential.findMany({
       where: {
         userId: { in: userIds },
         type: AuthCredentialType.EMAIL,
         deletedAt: null,
       },
-      select: { userId: true, valueMasked: true },
+      include: {
+        identity: {
+          select: {
+            publicValueCiphertext: true,
+            publicValueIv: true,
+            publicValueTag: true,
+            publicValueWrappedKey: true,
+            publicValueKeyId: true,
+          },
+        },
+      },
     });
 
-    const resolvedEmails = credentials
-      .map((c): string | null => c.valueMasked)
-      .filter((email): email is string => Boolean(email));
+    const resolvedEmails: string[] = [];
+    for (const cred of credentials) {
+      if (!cred.identity) {
+        continue;
+      }
 
-    if (resolvedEmails.length === 0) {
-      this.logger.warn('No valid email addresses found for userIds', {
+      try {
+        const email = await this.identityCryptoService.decryptPublicValue(
+          cred.identity,
+        );
+        if (email && email.trim() !== '') {
+          resolvedEmails.push(email.trim().toLowerCase());
+        }
+      } catch (err) {
+        this.logger.error('Failed to decrypt user email address', {
+          ...ctx,
+          userId: cred.userId,
+          step: 'decrypt_email',
+          err: serializeError(err),
+        });
+      }
+    }
+
+    const uniqueEmails = [...new Set(resolvedEmails)];
+
+    if (uniqueEmails.length === 0) {
+      this.logger.warn('No valid email addresses resolved for userIds', {
         ...ctx,
         step: 'resolve_credentials',
       });
@@ -122,13 +156,13 @@ export class EmailService extends BaseService implements OnModuleInit {
     this.logger.debug('Dispatching emails to recipients', {
       ...ctx,
       step: 'send_emails',
-      recipientCount: resolvedEmails.length,
+      recipientCount: uniqueEmails.length,
     });
 
     const contentTemplate = this.getOrCompileTemplate(emailType);
 
     const results = await Promise.allSettled(
-      resolvedEmails.map((to) =>
+      uniqueEmails.map((to) =>
         this.renderAndSend(
           to,
           templateConfig.subject,

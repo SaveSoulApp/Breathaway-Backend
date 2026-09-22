@@ -1,6 +1,10 @@
-import { FirebaseModule } from '@modules/firebase/firebase.module';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
+import { FirebaseModule } from '@modules/firebase/firebase.module';
+import { PreferencesModule } from '@modules/preferences/preferences.module';
+
 import { BrevoEmailAdapter } from './email/adapters/brevo.email.adapter';
 import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
 import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
@@ -11,10 +15,8 @@ import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
 
-import { PreferencesModule } from '@modules/preferences/preferences.module';
-
 @Module({
-  imports: [FirebaseModule, PreferencesModule],
+  imports: [FirebaseModule, PreferencesModule, IdentityCryptoModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
@@ -39,7 +41,7 @@ import { PreferencesModule } from '@modules/preferences/preferences.module';
         mailgun: MailgunEmailAdapter,
         brevo: BrevoEmailAdapter,
       ) => {
-        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'mailgun';
+        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'brevo';
         if (provider === 'brevo') return brevo;
         if (provider === 'sendgrid') return sendGrid;
         return mailgun;

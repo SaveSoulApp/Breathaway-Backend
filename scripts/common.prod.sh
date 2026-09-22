@@ -48,7 +48,7 @@ export EMAIL_FROM_NAME='BreathAway'
 export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app'
 
 # Mail provider
-export EMAIL_PROVIDER='mailgun'
+export EMAIL_PROVIDER='brevo'
 
 export MAILGUN_API_KEY='some-api-key'
 export MAILGUN_DOMAIN='domain@domaincom'
