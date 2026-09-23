@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
+
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthModule } from './jwt.module';
@@ -25,6 +28,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     FirebaseModule,
     JwtAuthModule,
     IdentityCryptoModule,
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers: [

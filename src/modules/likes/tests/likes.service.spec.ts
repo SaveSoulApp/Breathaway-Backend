@@ -22,6 +22,7 @@ import {
 import { CreditsService } from '@modules/credits/credits.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import {
   AlreadyLikedException,
@@ -47,6 +48,7 @@ describe('LikesService', () => {
   >;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
   let creditsServiceMock: jest.Mocked<CreditsService>;
+  let notificationsServiceMock: { dispatch: jest.Mock };
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
@@ -161,6 +163,10 @@ describe('LikesService', () => {
             hasSufficientCredits: jest.fn().mockResolvedValue(true),
           },
         },
+        {
+          provide: NotificationsService,
+          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
@@ -169,6 +175,7 @@ describe('LikesService', () => {
     service = module.get<LikesService>(LikesService);
     prisma = module.get(PrismaService);
     creditsServiceMock = module.get(CreditsService);
+    notificationsServiceMock = module.get(NotificationsService);
     (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
       return cb(prisma);
     });
@@ -284,6 +291,31 @@ describe('LikesService', () => {
         },
       });
       expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should dispatch LIKE_SENT notification to sender when like is created', async () => {
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.match.findUnique.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'SenderBob',
+      } as never);
+
+      await service.create(userId, dtoWithId);
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsServiceMock.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'LIKE_SENT',
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'SenderBob',
+            intent: IntentType.RELATIONSHIP,
+          }),
+        }),
+      );
     });
 
     it('should throw IdentityNotFoundException if target identity not found', async () => {

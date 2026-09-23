@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Device } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
@@ -27,11 +28,16 @@ import { PUSH_TEMPLATE_MAP } from './push-template.registry';
 const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   Record<NotificationType, EmailType>
 > = {
+  [NotificationType.WELCOME]: EmailType.WELCOME,
+  [NotificationType.LIKE_SENT]: EmailType.LIKE_SENT,
   [NotificationType.NEW_MATCH]: EmailType.NEW_MATCH,
   [NotificationType.NEW_MESSAGE]: EmailType.NEW_MESSAGE,
   [NotificationType.CREDIT_UPDATE]: EmailType.CREDIT_UPDATE,
+  [NotificationType.CREDITS_PURCHASED]: EmailType.CREDITS_PURCHASED,
   [NotificationType.SYSTEM_ALERT]: EmailType.SYSTEM_ALERT,
   [NotificationType.BUNDLE_EXPIRY_WARNING]: EmailType.BUNDLE_EXPIRY_WARNING,
+  [NotificationType.LIKES_EXPIRED]: EmailType.LIKES_EXPIRED,
+  [NotificationType.IDENTITY_ADDED]: EmailType.IDENTITY_ADDED,
 };
 
 @Injectable()
@@ -168,7 +174,7 @@ export class NotificationsService extends BaseService {
               templateData: {
                 ...(dto.payload ?? {}),
                 appUrl: this.configService.get<string>('APP_URL') ?? '',
-                currentYear: new Date().getFullYear(),
+                currentYear: DateUtil.now().getFullYear(),
               },
             }),
           );

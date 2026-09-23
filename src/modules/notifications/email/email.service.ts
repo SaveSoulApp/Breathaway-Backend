@@ -60,6 +60,7 @@ export class EmailService extends BaseService implements OnModuleInit {
    * to catch any template errors at startup rather than at send time.
    */
   onModuleInit(): void {
+    this.registerHelpers();
     this.registerPartials();
     this.compileLayout();
     this.logger.log('EmailService template system initialized', {
@@ -225,6 +226,26 @@ export class EmailService extends BaseService implements OnModuleInit {
     const layoutPath = path.join(this.templatesDir, 'layout.hbs');
     const source = fs.readFileSync(layoutPath, 'utf-8');
     this.layoutTemplate = Handlebars.compile(source);
+  }
+
+  private registerHelpers(): void {
+    Handlebars.registerHelper(
+      'gt',
+      (a: unknown, b: unknown) => Number(a) > Number(b),
+    );
+    Handlebars.registerHelper(
+      'gte',
+      (a: unknown, b: unknown) => Number(a) >= Number(b),
+    );
+    Handlebars.registerHelper(
+      'lt',
+      (a: unknown, b: unknown) => Number(a) < Number(b),
+    );
+    Handlebars.registerHelper(
+      'lte',
+      (a: unknown, b: unknown) => Number(a) <= Number(b),
+    );
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
   }
 
   private registerPartials(): void {

@@ -33,6 +33,7 @@ import { NotificationsService } from '@modules/notifications/notifications.servi
 describe('CreditsService', () => {
   let service: CreditsService;
   let prisma: MockPrismaService;
+  let notificationsService: { dispatch: jest.Mock };
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
@@ -64,7 +65,10 @@ describe('CreditsService', () => {
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: NotificationsService, useValue: { dispatch: jest.fn() } },
+        {
+          provide: NotificationsService,
+          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+        },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -73,6 +77,7 @@ describe('CreditsService', () => {
 
     service = module.get<CreditsService>(CreditsService);
     prisma = module.get(PrismaService);
+    notificationsService = module.get(NotificationsService);
   });
 
   afterEach(() => {
@@ -481,6 +486,30 @@ describe('CreditsService', () => {
           : null,
       });
     });
+
+    it('should dispatch CREDITS_PURCHASED notification when source is PURCHASE', async () => {
+      prisma.creditLedger.create.mockResolvedValue(mockLedgerEntry);
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+      jest.spyOn(service, 'getBalance').mockResolvedValue(20);
+
+      await service.grantCredits(dto);
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CREDITS_PURCHASED',
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            creditsAdded: 10,
+            creditBalance: 20,
+          }),
+        }),
+      );
+    });
   });
 
   describe('consumeCredits', () => {
@@ -836,6 +865,50 @@ describe('CreditsService', () => {
 
       // Assert — one ledger fetch per user
       expect(prisma.creditLedger.findMany).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('handleExpiryWarningBatch', () => {
+    it('should dispatch BUNDLE_EXPIRY_WARNING with count, expiryDate, daysRemaining, and urgency', async () => {
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const expiringDate = new Date('2026-09-03T00:00:00Z'); // 2 days -> isUrgent = true
+
+      prisma.creditLedger.aggregate.mockResolvedValueOnce({
+        _sum: { amount: 0 },
+      } as never);
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'credit-1',
+          userId,
+          amount: 5,
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: expiringDate,
+        },
+      ] as never);
+
+      prisma.userProfile.findUnique.mockResolvedValueOnce({
+        firstName: 'Alice',
+      } as never);
+
+      await service.handleExpiryWarningBatch({
+        userIds: [userId],
+        asOf: asOf.toISOString(),
+      });
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'BUNDLE_EXPIRY_WARNING',
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            count: 5,
+            daysRemaining: 2,
+            isUrgent: true,
+            urgency: 'warning',
+          }),
+        }),
+      );
     });
   });
 });

@@ -263,5 +263,122 @@ describe('EmailService', () => {
         expect(EMAIL_TEMPLATE_MAP[emailType].subject).toBeTruthy();
       });
     });
+
+    it('should compile and render all template files on disk without syntax errors', () => {
+      const realFs = jest.requireActual('fs') as typeof import('fs');
+      const realPath = jest.requireActual('path') as typeof import('path');
+      const HandlebarsActual = jest.requireActual(
+        'handlebars',
+      ) as typeof import('handlebars');
+
+      // Register helpers
+      HandlebarsActual.registerHelper(
+        'gt',
+        (a: unknown, b: unknown) => Number(a) > Number(b),
+      );
+      HandlebarsActual.registerHelper(
+        'gte',
+        (a: unknown, b: unknown) => Number(a) >= Number(b),
+      );
+      HandlebarsActual.registerHelper(
+        'lt',
+        (a: unknown, b: unknown) => Number(a) < Number(b),
+      );
+      HandlebarsActual.registerHelper(
+        'lte',
+        (a: unknown, b: unknown) => Number(a) <= Number(b),
+      );
+      HandlebarsActual.registerHelper(
+        'eq',
+        (a: unknown, b: unknown) => a === b,
+      );
+
+      const templatesDir = realPath.resolve(__dirname, '../templates');
+      const partialsDir = realPath.join(templatesDir, 'partials');
+      if (realFs.existsSync(partialsDir)) {
+        for (const file of realFs.readdirSync(partialsDir)) {
+          if (file.endsWith('.hbs')) {
+            const name = realPath.basename(file, '.hbs');
+            HandlebarsActual.registerPartial(
+              name,
+              realFs.readFileSync(realPath.join(partialsDir, file), 'utf-8'),
+            );
+          }
+        }
+      }
+
+      const layoutSource = realFs.readFileSync(
+        realPath.join(templatesDir, 'layout.hbs'),
+        'utf-8',
+      );
+      const layoutDelegate = HandlebarsActual.compile(layoutSource);
+
+      const samplePayloads: Record<string, Record<string, unknown>> = {
+        [EmailType.WELCOME]: { name: 'Alice', ctaUrl: 'https://example.com' },
+        [EmailType.LIKE_SENT]: {
+          name: 'Alice',
+          targetMaskedValue: '+1 555 ••• ••89',
+          targetLabel: 'Bob',
+          intent: 'CRUSH',
+          expiresAt: '2026-12-31',
+        },
+        [EmailType.NEW_MATCH]: {
+          name: 'Alice',
+          matchName: 'Bob',
+          matchAvatarUrl: 'https://example.com/avatar.jpg',
+          chatUrl: 'https://example.com/chat',
+        },
+        [EmailType.NEW_MESSAGE]: { senderName: 'Bob', messagePreview: 'Hey!' },
+        [EmailType.CREDIT_UPDATE]: {
+          name: 'Alice',
+          creditChange: 10,
+          creditBalance: 20,
+        },
+        [EmailType.CREDITS_PURCHASED]: {
+          name: 'Alice',
+          creditsAdded: 50,
+          creditBalance: 100,
+          transactionId: 'tx-123',
+          expiresAt: '2027-01-01',
+        },
+        [EmailType.SYSTEM_ALERT]: { alertTitle: 'Alert', alertBody: 'Notice' },
+        [EmailType.BUNDLE_EXPIRY_WARNING]: {
+          name: 'Alice',
+          count: 5,
+          expiryDate: '2026-10-01',
+          daysRemaining: 7,
+          isUrgent: false,
+        },
+        [EmailType.LIKES_EXPIRED]: {
+          name: 'Alice',
+          count: 3,
+          expiryDate: '2026-09-01',
+        },
+        [EmailType.IDENTITY_ADDED]: {
+          name: 'Alice',
+          identityType: 'Email',
+          maskedValue: 'a••••e@gmail.com',
+          addedAt: '2026-09-23 12:00 UTC',
+          isVerified: true,
+        },
+      };
+
+      for (const emailType of Object.values(EmailType)) {
+        const config = EMAIL_TEMPLATE_MAP[emailType];
+        const templatePath = realPath.join(
+          templatesDir,
+          `${config.templateFile}.hbs`,
+        );
+        expect(realFs.existsSync(templatePath)).toBe(true);
+
+        const templateSource = realFs.readFileSync(templatePath, 'utf-8');
+        expect(() => {
+          const compiled = HandlebarsActual.compile(templateSource);
+          const payload = samplePayloads[emailType] ?? { name: 'Test' };
+          const content = compiled(payload);
+          layoutDelegate({ ...payload, body: content });
+        }).not.toThrow();
+      }
+    });
   });
 });

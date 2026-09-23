@@ -292,7 +292,12 @@ describe('MatchResolverService', () => {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: 'someone', matchId: 'match-1' },
+        payload: {
+          name: 'someone',
+          matchName: 'someone',
+          matchId: 'match-1',
+          chatUrl: '/matches/match-1',
+        },
       });
       expect(notificationsService.dispatch).toHaveBeenCalledWith({
         channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
@@ -300,7 +305,12 @@ describe('MatchResolverService', () => {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: 'someone', matchId: 'match-1' },
+        payload: {
+          name: 'someone',
+          matchName: 'someone',
+          matchId: 'match-1',
+          chatUrl: '/matches/match-1',
+        },
       });
     });
 

@@ -64,7 +64,7 @@ describe('envValidationSchema', () => {
 
       // Email defaults
       expect(value.EMAIL_PROVIDER).toBe('brevo');
-      expect(value.EMAIL_FROM_ADDRESS).toBe('no-reply@breathaway.com');
+      expect(value.EMAIL_FROM_ADDRESS).toBe('no-reply@breathaway.app');
       expect(value.EMAIL_FROM_NAME).toBe('BreathAway');
 
       // Swagger defaults

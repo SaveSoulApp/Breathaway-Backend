@@ -487,6 +487,16 @@ export class CreditsService extends BaseService {
       expiresAt: ledger.expiresAt?.toISOString() ?? null,
     });
 
+    if (dto.source === CreditSource.PURCHASE) {
+      this.dispatchCreditsPurchasedNotification(
+        dto.userId,
+        dto.amount,
+        dto.referenceId,
+        ledger.expiresAt,
+        client,
+      );
+    }
+
     return ledger;
   }
 
@@ -765,6 +775,9 @@ export class CreditsService extends BaseService {
       });
 
       let needsWarning = false;
+      let expiringCount = 0;
+      let expiringDate = '';
+      let daysRemaining = 7;
 
       for (const credit of credits) {
         let usedFromThisCredit = 0;
@@ -787,17 +800,42 @@ export class CreditsService extends BaseService {
           unusedAmount > 0
         ) {
           needsWarning = true;
+          expiringCount = unusedAmount;
+          expiringDate = credit.expiresAt.toISOString().slice(0, 10);
+          daysRemaining = Math.max(
+            1,
+            Math.round(
+              (credit.expiresAt.getTime() - asOf.getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          );
           break; // One warning per user is sufficient even if they have multiple bundles expiring
         }
       }
 
       if (needsWarning) {
+        const isUrgent = daysRemaining <= 2;
+        const urgency = isUrgent ? 'warning' : 'info';
+
+        const profile = await this.prisma.userProfile.findUnique({
+          where: { userId },
+          select: { firstName: true },
+        });
+
         await this.notificationsService
           .dispatch({
             type: NotificationType.BUNDLE_EXPIRY_WARNING,
             category: NotificationCategory.SYSTEM,
             channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
             userIds: [userId],
+            payload: {
+              name: profile?.firstName ?? '',
+              count: expiringCount,
+              expiryDate: expiringDate,
+              daysRemaining,
+              urgency,
+              isUrgent,
+            },
           })
           .catch((err) => {
             this.logger.error(
@@ -818,5 +856,51 @@ export class CreditsService extends BaseService {
       warnedUsers,
       step: 'complete',
     });
+  }
+
+  /**
+   * Dispatches an asynchronous notification (email and push) when credits are purchased.
+   *
+   * Fire-and-forget: does not block the caller or transaction completion.
+   * Catches and logs errors internally.
+   *
+   * @param userId - ID of the user who purchased credits.
+   * @param amount - Amount of credits granted.
+   * @param referenceId - External transaction or order reference ID.
+   * @param expiresAt - Expiration date of the credit bundle, if applicable.
+   * @param client - Transaction client or PrismaService instance.
+   */
+  private async dispatchCreditsPurchasedNotification(
+    userId: string,
+    amount: number,
+    referenceId: string | null | undefined,
+    expiresAt: Date | null,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    try {
+      const profile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+      const balance = await this.getBalance(userId, client);
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.CREDITS_PURCHASED,
+        category: NotificationCategory.SYSTEM,
+        payload: {
+          name: profile?.firstName ?? '',
+          creditsAdded: Math.abs(amount),
+          creditBalance: balance,
+          transactionId: referenceId ?? '',
+          expiresAt: expiresAt ? expiresAt.toISOString().slice(0, 10) : '',
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch credits purchased notification', {
+        userId,
+        err: serializeError(err),
+      });
+    }
   }
 }

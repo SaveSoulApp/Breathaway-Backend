@@ -6,6 +6,8 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   IdentityAlreadyExistsException,
@@ -39,6 +41,7 @@ describe('IdentitiesService', () => {
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
   let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
+  let notificationsService: { dispatch: jest.Mock };
   let contextualLogger: {
     info: jest.Mock;
     error: jest.Mock;
@@ -49,6 +52,10 @@ describe('IdentitiesService', () => {
   };
 
   beforeEach(async () => {
+    notificationsService = {
+      dispatch: jest.fn().mockResolvedValue(undefined),
+    };
+
     contextualLogger = {
       info: jest.fn(),
       error: jest.fn(),
@@ -84,6 +91,10 @@ describe('IdentitiesService', () => {
         {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsService,
         },
       ],
     }).compile();
@@ -145,6 +156,33 @@ describe('IdentitiesService', () => {
         },
       });
       expect(result).toEqual(mockIdentityResponse);
+    });
+
+    it('should dispatch IDENTITY_ADDED notification when identity is created', async () => {
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.identity.create.mockResolvedValue(mockIdentityData as Identity);
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+
+      await service.create(
+        mockUserId,
+        mockCreateIdentityRequestDto as CreateIdentityRequestDto,
+      );
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.IDENTITY_ADDED,
+          userIds: [mockUserId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            identityType: mockCreateIdentityRequestDto.type,
+          }),
+        }),
+      );
     });
 
     it('should successfully create an identity with platformId', async () => {

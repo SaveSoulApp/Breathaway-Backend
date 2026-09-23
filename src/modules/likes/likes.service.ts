@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
+import {
+  Identity,
+  IdentityType,
+  LikeStatus,
+  MatchStatus,
+  Prisma,
+} from '@prisma/client';
 
 import { SortOrder } from '@common/enums';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
@@ -14,6 +20,10 @@ import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import {
   AlreadyLikedException,
@@ -53,6 +63,7 @@ export class LikesService extends BaseService {
     private readonly identitiesService: IdentitiesService,
     private readonly matchResolverService: MatchResolverService,
     private readonly creditsService: CreditsService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -535,6 +546,14 @@ export class LikesService extends BaseService {
       targetIdentityId: targetIdentity.id,
     });
 
+    this.dispatchLikeSentNotification(
+      userId,
+      targetIdentity,
+      dto,
+      like.id,
+      like.expiresAt,
+    );
+
     return this.attachPublicValue(like);
   }
 
@@ -856,5 +875,53 @@ export class LikesService extends BaseService {
         publicValue,
       },
     };
+  }
+
+  /**
+   * Dispatches an asynchronous notification (email and push) when a like is sent.
+   *
+   * Executed fire-and-forget so that notification dispatch does not increase response latency
+   * for the user sending the like. Catches and logs any errors internally.
+   *
+   * @param userId - ID of the sender user.
+   * @param targetIdentity - Target identity that was liked.
+   * @param dto - Create like request payload containing label and intent.
+   * @param likeId - ID of the created like.
+   * @param expiresAt - Expiry timestamp of the like, if applicable.
+   */
+  private async dispatchLikeSentNotification(
+    userId: string,
+    targetIdentity: Identity,
+    dto: CreateLikeRequestDto,
+    likeId: string,
+    expiresAt: Date | null,
+  ): Promise<void> {
+    try {
+      const senderProfile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.LIKE_SENT,
+        category: NotificationCategory.SOCIAL,
+        payload: {
+          name: senderProfile?.firstName ?? '',
+          targetMaskedValue: targetIdentity.publicValueMasked,
+          targetLabel: dto.label ?? null,
+          intent: dto.intent,
+          expiresAt: expiresAt ? expiresAt.toISOString().slice(0, 10) : '',
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch LIKE_SENT notification', {
+        userId,
+        likeId,
+        targetIdentityId: targetIdentity.id,
+        err: serializeError(err),
+      });
+    }
   }
 }

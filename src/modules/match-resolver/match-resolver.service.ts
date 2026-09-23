@@ -226,7 +226,12 @@ export class MatchResolverService extends BaseService {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: userOneDisplayName, matchId },
+        payload: {
+          name: userOneName,
+          matchName: userOneDisplayName,
+          matchId,
+          chatUrl: `/matches/${matchId}`,
+        },
       });
       this.logger.debug('Notification dispatched to userOne', {
         ...ctx,
@@ -240,7 +245,12 @@ export class MatchResolverService extends BaseService {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
-        payload: { name: userTwoDisplayName, matchId },
+        payload: {
+          name: userTwoName,
+          matchName: userTwoDisplayName,
+          matchId,
+          chatUrl: `/matches/${matchId}`,
+        },
       });
       this.logger.debug('Notification dispatched to userTwo', {
         ...ctx,

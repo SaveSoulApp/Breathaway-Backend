@@ -9,6 +9,11 @@ import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.ser
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -43,6 +48,7 @@ export class IdentitiesService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -183,6 +189,9 @@ export class IdentitiesService extends BaseService {
       ...ctx,
       identityId: identity.id,
     });
+
+    this.dispatchIdentityAddedNotification(userId, identity);
+
     return this.toMaskedResponse(identity);
   }
 
@@ -895,5 +904,48 @@ export class IdentitiesService extends BaseService {
       deletedAt: identity.deletedAt,
       userId: identity.userId,
     };
+  }
+
+  /**
+   * Dispatches an asynchronous notification (email and push) when a new identity is registered.
+   *
+   * Executed fire-and-forget to avoid blocking the primary identity creation flow.
+   * Catches and logs any errors without re-throwing.
+   *
+   * @param userId - ID of the user owning the identity.
+   * @param identity - The newly created identity record.
+   */
+  private async dispatchIdentityAddedNotification(
+    userId: string,
+    identity: Identity,
+  ): Promise<void> {
+    try {
+      const userProfile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.IDENTITY_ADDED,
+        category: NotificationCategory.SYSTEM,
+        priority: NotificationPriority.HIGH,
+        payload: {
+          name: userProfile?.firstName ?? '',
+          identityType: identity.type,
+          maskedValue: identity.publicValueMasked ?? '',
+          addedAt: DateUtil.now().toUTCString(),
+          isVerified: identity.isVerified,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch IDENTITY_ADDED notification', {
+        userId,
+        identityId: identity.id,
+        identityType: identity.type,
+        err: serializeError(err),
+      });
+    }
   }
 }

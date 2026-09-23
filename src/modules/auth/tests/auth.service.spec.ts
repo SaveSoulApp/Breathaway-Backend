@@ -15,6 +15,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { FirebaseService } from '@modules/firebase/firebase.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -162,6 +163,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
     let encryptionService: jest.Mocked<IdentityCryptoService>;
     let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
     let authTokenService: jest.Mocked<AuthTokenService>;
+    let notificationsService: { dispatch: jest.Mock };
 
     const mockUser: User = {
       id: 'user-uuid-1',
@@ -229,6 +231,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
           { provide: AuthTokenService, useValue: authTokenService },
+          {
+            provide: NotificationsService,
+            useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
           { provide: ClsService, useValue: { get: jest.fn() } },
@@ -236,6 +242,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       }).compile();
 
       service = module.get<AuthService>(AuthService);
+      notificationsService = module.get(NotificationsService);
     });
 
     it('should link email successfully via Google Sign-In with isVerified = true', async () => {
@@ -297,6 +304,21 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         access_token: 'signed-access-token',
         user_id: mockUser.id,
       });
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'IDENTITY_ADDED',
+          userIds: [mockUser.id],
+        }),
+      );
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'WELCOME',
+          userIds: [mockUser.id],
+        }),
+      );
     });
 
     it('should link email successfully via Firebase Email Link (magic link)', async () => {
@@ -572,6 +594,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
           { provide: AuthTokenService, useValue: authTokenService },
+          {
+            provide: NotificationsService,
+            useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
           { provide: ClsService, useValue: { get: jest.fn() } },
@@ -739,6 +765,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
           { provide: AuthTokenService, useValue: authTokenService },
+          {
+            provide: NotificationsService,
+            useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
           { provide: ClsService, useValue: { get: jest.fn() } },
@@ -925,6 +955,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
           { provide: AuthTokenService, useValue: authTokenService },
+          {
+            provide: NotificationsService,
+            useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
           { provide: ClsService, useValue: { get: jest.fn() } },
