@@ -511,6 +511,37 @@ describe('CreditsService', () => {
         }),
       );
     });
+
+    it('should dispatch CREDITS_PURCHASED notification without passing transaction client when called with tx', async () => {
+      const mockTx = {
+        creditLedger: {
+          create: jest.fn().mockResolvedValue(mockLedgerEntry),
+        },
+      } as unknown as Prisma.TransactionClient;
+
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+      const getBalanceSpy = jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue(20);
+
+      await service.grantCredits(dto, mockTx);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CREDITS_PURCHASED',
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            creditsAdded: 10,
+            creditBalance: 20,
+          }),
+        }),
+      );
+    });
   });
 
   describe('consumeCredits', () => {
@@ -577,6 +608,41 @@ describe('CreditsService', () => {
           payload: expect.objectContaining({
             name: 'Alice',
             creditsUsed: 10,
+          }),
+        }),
+      );
+    });
+
+    it('should dispatch CREDITS_USED notification without passing transaction client when called with tx', async () => {
+      const mockTx = {
+        creditLedger: {
+          create: jest.fn().mockResolvedValue({
+            ...mockLedgerEntry,
+            source: CreditSource.LIKE_USAGE,
+          }),
+        },
+      } as unknown as Prisma.TransactionClient;
+
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+      const getBalanceSpy = jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue(15);
+
+      await service.consumeCredits(dto, mockTx);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Notification must call getBalance without tx (using default this.prisma)
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.CREDITS_USED,
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            creditsUsed: 10,
+            creditBalance: 15,
           }),
         }),
       );

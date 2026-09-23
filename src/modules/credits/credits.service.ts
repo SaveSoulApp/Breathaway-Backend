@@ -493,7 +493,6 @@ export class CreditsService extends BaseService {
         dto.amount,
         dto.referenceId,
         ledger.expiresAt,
-        client,
       );
     }
 
@@ -575,11 +574,7 @@ export class CreditsService extends BaseService {
     });
 
     if (ledger.source === CreditSource.LIKE_USAGE) {
-      this.dispatchCreditsUsedNotification(
-        dto.userId,
-        Math.abs(dto.amount),
-        client,
-      );
+      this.dispatchCreditsUsedNotification(dto.userId, Math.abs(dto.amount));
     }
 
     return ledger;
@@ -877,21 +872,19 @@ export class CreditsService extends BaseService {
    * @param amount - Amount of credits granted.
    * @param referenceId - External transaction or order reference ID.
    * @param expiresAt - Expiration date of the credit bundle, if applicable.
-   * @param client - Transaction client or PrismaService instance.
    */
   private async dispatchCreditsPurchasedNotification(
     userId: string,
     amount: number,
     referenceId: string | null | undefined,
     expiresAt: Date | null,
-    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {
     try {
       const profile = await this.prisma.userProfile.findUnique({
         where: { userId },
         select: { firstName: true },
       });
-      const balance = await this.getBalance(userId, client);
+      const balance = await this.getBalance(userId);
       await this.notificationsService.dispatch({
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [userId],
@@ -921,19 +914,17 @@ export class CreditsService extends BaseService {
    *
    * @param userId - ID of the user who used credits.
    * @param amount - Amount of credits deducted.
-   * @param client - Optional transaction client or PrismaService.
    */
   private async dispatchCreditsUsedNotification(
     userId: string,
     amount: number,
-    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {
     try {
       const profile = await this.prisma.userProfile.findUnique({
         where: { userId },
         select: { firstName: true },
       });
-      const balance = await this.getBalance(userId, client);
+      const balance = await this.getBalance(userId);
       await this.notificationsService.dispatch({
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [userId],
