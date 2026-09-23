@@ -38,6 +38,10 @@ const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   [NotificationType.BUNDLE_EXPIRY_WARNING]: EmailType.BUNDLE_EXPIRY_WARNING,
   [NotificationType.LIKES_EXPIRED]: EmailType.LIKES_EXPIRED,
   [NotificationType.IDENTITY_ADDED]: EmailType.IDENTITY_ADDED,
+  [NotificationType.IDENTITY_REMOVED]: EmailType.IDENTITY_REMOVED,
+  [NotificationType.CREDITS_USED]: EmailType.CREDITS_USED,
+  [NotificationType.DEVICE_ADDED]: EmailType.DEVICE_ADDED,
+  [NotificationType.LIKE_WITHDRAWN]: EmailType.LIKE_WITHDRAWN,
 };
 
 @Injectable()

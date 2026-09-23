@@ -70,4 +70,28 @@ export const PUSH_TEMPLATE_MAP: Partial<
       'A new {{identityType}} ({{maskedValue}}) was linked to your account.',
     ),
   },
+  [NotificationType.IDENTITY_REMOVED]: {
+    title: Handlebars.compile('Identity Removed 🔒'),
+    body: Handlebars.compile(
+      'A {{identityType}} ({{maskedValue}}) was removed from your account.',
+    ),
+  },
+  [NotificationType.CREDITS_USED]: {
+    title: Handlebars.compile('Credits Used ✨'),
+    body: Handlebars.compile(
+      'You used {{creditsUsed}} credits. Remaining balance: {{creditBalance}}.',
+    ),
+  },
+  [NotificationType.DEVICE_ADDED]: {
+    title: Handlebars.compile('New Device Added 📱'),
+    body: Handlebars.compile(
+      'A new {{platform}} device was added to your BreathAway account.',
+    ),
+  },
+  [NotificationType.LIKE_WITHDRAWN]: {
+    title: Handlebars.compile('Like Withdrawn'),
+    body: Handlebars.compile(
+      'Your like to {{#if targetLabel}}{{targetLabel}}{{else}}{{targetMaskedValue}}{{/if}} has been withdrawn.',
+    ),
+  },
 };

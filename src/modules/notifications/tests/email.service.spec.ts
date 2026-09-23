@@ -361,6 +361,31 @@ describe('EmailService', () => {
           addedAt: '2026-09-23 12:00 UTC',
           isVerified: true,
         },
+        [EmailType.IDENTITY_REMOVED]: {
+          name: 'Alice',
+          identityType: 'Email',
+          maskedValue: 'a••••e@gmail.com',
+          removedAt: '2026-09-23 12:00 UTC',
+        },
+        [EmailType.CREDITS_USED]: {
+          name: 'Alice',
+          creditsUsed: 1,
+          creditBalance: 19,
+          usedAt: '2026-09-23 12:00 UTC',
+        },
+        [EmailType.DEVICE_ADDED]: {
+          name: 'Alice',
+          platform: 'IOS',
+          deviceId: 'iPhone15,2',
+          appVersion: '1.2.0',
+          addedAt: '2026-09-23 12:00 UTC',
+        },
+        [EmailType.LIKE_WITHDRAWN]: {
+          name: 'Alice',
+          targetMaskedValue: '+1 555 ••• ••89',
+          targetLabel: 'Bob',
+          withdrawnAt: '2026-09-23 12:00 UTC',
+        },
       };
 
       for (const emailType of Object.values(EmailType)) {

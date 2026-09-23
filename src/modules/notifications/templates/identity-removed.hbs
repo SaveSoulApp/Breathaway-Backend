@@ -1,0 +1,60 @@
+{{!
+  Template: identity-removed
+  Data keys:
+    - name           {string}  Recipient's first name
+    - identityType   {string}  Type of identity removed (e.g. Phone, Email, Instagram)
+    - maskedValue    {string}  Masked representation of the identity value
+    - removedAt      {string}  Timestamp when removed
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+}}
+<p class='email-greeting'>Security Alert: {{identityType}} Removed 🔒</p>
+
+<p>
+  Hello{{#if name}} {{name}}{{/if}},
+</p>
+
+<p>
+  A <strong>{{identityType}}</strong> was recently removed and unlinked from your BreathAway account:
+</p>
+
+<div style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'>
+  <table style='width: 100%; border-collapse: collapse;'>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Type:</td>
+      <td style='padding: 6px 0; text-align: right; font-weight: 600; color: #1A1A2E; font-size: 14px;'>{{identityType}}</td>
+    </tr>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Identifier:</td>
+      <td style='padding: 6px 0; text-align: right; font-family: monospace; font-size: 14px; color: #1A1A2E;'>{{maskedValue}}</td>
+    </tr>
+    {{#if removedAt}}
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Date &amp; Time:</td>
+      <td style='padding: 6px 0; text-align: right; color: #6B7280; font-size: 13px;'>{{removedAt}}</td>
+    </tr>
+    {{/if}}
+  </table>
+</div>
+
+<p>
+  <strong>Did you make this change?</strong><br />
+  If you intended to remove this contact method, you can safely disregard this email.
+</p>
+
+<div class='email-alert email-alert--danger'>
+  <strong>Don't recognize this change?</strong><br />
+  If you did not delete this {{identityType}}, someone else may have accessed your account.
+  Please change your security settings or contact our support team immediately.
+</div>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}/settings/security' class='email-btn'>Review Security Settings →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  BreathAway Security Team
+</p>

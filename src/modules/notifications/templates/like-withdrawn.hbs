@@ -1,0 +1,56 @@
+{{!
+  Template: like-withdrawn
+  Data keys:
+    - name              {string} Recipient's first name
+    - targetMaskedValue {string} Masked value of the target identity
+    - targetLabel       {string} Custom label given to target by sender
+    - withdrawnAt       {string} Timestamp when like was withdrawn
+    - appUrl            {string} Base URL of the app
+    - unsubscribeToken  {string}
+    - currentYear       {number}
+}}
+<p class='email-greeting'>Like Withdrawn</p>
+
+<p>
+  Hello{{#if name}} {{name}}{{/if}},
+</p>
+
+<p>
+  This email confirms that your pending secret like has been withdrawn and cancelled:
+</p>
+
+<div style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'>
+  <table style='width: 100%; border-collapse: collapse;'>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Target:</td>
+      <td style='padding: 6px 0; text-align: right; font-weight: 600; color: #1A1A2E; font-size: 14px;'>
+        {{#if targetLabel}}{{targetLabel}} ({{targetMaskedValue}}){{else}}{{targetMaskedValue}}{{/if}}
+      </td>
+    </tr>
+    {{#if withdrawnAt}}
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Withdrawn On:</td>
+      <td style='padding: 6px 0; text-align: right; color: #6B7280; font-size: 13px;'>{{withdrawnAt}}</td>
+    </tr>
+    {{/if}}
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Status:</td>
+      <td style='padding: 6px 0; text-align: right; color: #6B7280; font-size: 14px;'>Cancelled</td>
+    </tr>
+  </table>
+</div>
+
+<p>
+  <strong>🔒 Total Privacy Guaranteed</strong><br />
+  The other person was never notified of your original like, and they will never know that it existed or was cancelled. Your privacy is always safeguarded on BreathAway.
+</p>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}' class='email-btn'>Back to BreathAway →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  BreathAway — Discreet, mutual connections.
+</p>

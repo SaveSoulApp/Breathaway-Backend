@@ -482,7 +482,7 @@ export class IdentitiesService extends BaseService {
    * @throws {NotFoundException} When no non-deleted identity with the given ID exists for this user.
    */
   async delete(id: string, userId: string) {
-    await this.findOwnedOrFail(id, userId);
+    const identity = await this.findOwnedOrFail(id, userId);
     try {
       await this.prisma.identity.update({
         where: { id },
@@ -504,6 +504,8 @@ export class IdentitiesService extends BaseService {
       identityId: id,
       userId,
     });
+
+    this.dispatchIdentityRemovedNotification(userId, identity);
   }
 
   /**
@@ -941,6 +943,48 @@ export class IdentitiesService extends BaseService {
       });
     } catch (err) {
       this.logger.error('Failed to dispatch IDENTITY_ADDED notification', {
+        userId,
+        identityId: identity.id,
+        identityType: identity.type,
+        err: serializeError(err),
+      });
+    }
+  }
+
+  /**
+   * Dispatches an asynchronous security notification (email and push) when an identity is deleted/unlinked.
+   *
+   * Executed fire-and-forget so that notification dispatch does not block the deletion response.
+   * Catches and logs any errors internally.
+   *
+   * @param userId - ID of the user who owned the identity.
+   * @param identity - The deleted identity record.
+   */
+  private async dispatchIdentityRemovedNotification(
+    userId: string,
+    identity: Identity,
+  ): Promise<void> {
+    try {
+      const userProfile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.IDENTITY_REMOVED,
+        category: NotificationCategory.SYSTEM,
+        priority: NotificationPriority.HIGH,
+        payload: {
+          name: userProfile?.firstName ?? '',
+          identityType: identity.type,
+          maskedValue: identity.publicValueMasked ?? '',
+          removedAt: DateUtil.now().toUTCString(),
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch IDENTITY_REMOVED notification', {
         userId,
         identityId: identity.id,
         identityType: identity.type,

@@ -573,6 +573,15 @@ export class CreditsService extends BaseService {
       ledgerId: ledger.id,
       referenceId: dto.referenceId ?? null,
     });
+
+    if (ledger.source === CreditSource.LIKE_USAGE) {
+      this.dispatchCreditsUsedNotification(
+        dto.userId,
+        Math.abs(dto.amount),
+        client,
+      );
+    }
+
     return ledger;
   }
 
@@ -898,6 +907,47 @@ export class CreditsService extends BaseService {
       });
     } catch (err) {
       this.logger.error('Failed to dispatch credits purchased notification', {
+        userId,
+        err: serializeError(err),
+      });
+    }
+  }
+
+  /**
+   * Dispatches an asynchronous notification (email and push) when credits are used (e.g., sending a like).
+   *
+   * Fire-and-forget: does not block the caller or transaction completion.
+   * Catches and logs errors internally.
+   *
+   * @param userId - ID of the user who used credits.
+   * @param amount - Amount of credits deducted.
+   * @param client - Optional transaction client or PrismaService.
+   */
+  private async dispatchCreditsUsedNotification(
+    userId: string,
+    amount: number,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    try {
+      const profile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+      const balance = await this.getBalance(userId, client);
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.CREDITS_USED,
+        category: NotificationCategory.SYSTEM,
+        payload: {
+          name: profile?.firstName ?? '',
+          creditsUsed: amount,
+          creditBalance: balance,
+          usedAt: DateUtil.now().toUTCString(),
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch credits used notification', {
         userId,
         err: serializeError(err),
       });

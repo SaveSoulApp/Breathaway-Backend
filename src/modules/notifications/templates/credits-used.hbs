@@ -1,0 +1,55 @@
+{{!
+  Template: credits-used
+  Data keys:
+    - name           {string}  Recipient's first name
+    - creditsUsed    {number}  Amount of credits used
+    - creditBalance  {number}  New remaining credit balance
+    - usedAt         {string}  Timestamp when credits were used
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+}}
+<p class='email-greeting'>Credits Used ✨</p>
+
+<p>
+  Hello{{#if name}} {{name}}{{/if}},
+</p>
+
+<p>
+  You just used <strong>{{creditsUsed}} {{#if (gt creditsUsed 1)}}credits{{else}}credit{{/if}}</strong> to express interest in someone on BreathAway.
+</p>
+
+<div class='email-stat-card'>
+  <p class='email-stat-card__value'>{{creditsUsed}}</p>
+  <p class='email-stat-card__label'>{{#if (gt creditsUsed 1)}}Credits{{else}}Credit{{/if}} Used</p>
+</div>
+
+<div style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'>
+  <table style='width: 100%; border-collapse: collapse;'>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Remaining Balance:</td>
+      <td style='padding: 6px 0; text-align: right; font-weight: 600; color: #1A1A2E; font-size: 15px;'>{{creditBalance}} credits</td>
+    </tr>
+    {{#if usedAt}}
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Date &amp; Time:</td>
+      <td style='padding: 6px 0; text-align: right; color: #6B7280; font-size: 13px;'>{{usedAt}}</td>
+    </tr>
+    {{/if}}
+  </table>
+</div>
+
+<p>
+  <strong>🔒 100% Confidential</strong><br />
+  Remember, your like is strictly private. The other person is never told who liked them — your identities are only revealed when the feeling is mutual and a match is formed!
+</p>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}/credits' class='email-btn'>View My Credits →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  Thank you for being part of BreathAway.
+</p>

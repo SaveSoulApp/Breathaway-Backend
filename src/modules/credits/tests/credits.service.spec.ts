@@ -28,6 +28,7 @@ import {
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
 import { ClsService } from 'nestjs-cls';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 
 describe('CreditsService', () => {
@@ -554,6 +555,31 @@ describe('CreditsService', () => {
           ? mockLedgerEntry.expiresAt.toISOString()
           : null,
       });
+    });
+
+    it('should dispatch CREDITS_USED notification when credits are consumed for like usage', async () => {
+      jest.spyOn(service, 'getBalance').mockResolvedValue(15);
+      prisma.creditLedger.create.mockResolvedValue({
+        ...mockLedgerEntry,
+        source: CreditSource.LIKE_USAGE,
+      });
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+
+      await service.consumeCredits(dto);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.CREDITS_USED,
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            creditsUsed: 10,
+          }),
+        }),
+      );
     });
   });
 

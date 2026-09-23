@@ -684,6 +684,15 @@ export class LikesService extends BaseService {
 
     const like = await this.prisma.like.findFirst({
       where: { id, senderUserId: userId, deletedAt: null },
+      include: {
+        targetIdentity: {
+          select: {
+            id: true,
+            type: true,
+            publicValueMasked: true,
+          },
+        },
+      },
     });
 
     if (!like) {
@@ -740,6 +749,13 @@ export class LikesService extends BaseService {
     this.logger.event(LOG_EVENT.LIKE_DELETED, {
       ...ctx,
     });
+
+    this.dispatchLikeWithdrawnNotification(
+      userId,
+      like.targetIdentity?.publicValueMasked ?? '',
+      like.label ?? null,
+    );
+
     return { success: true };
   }
 
@@ -920,6 +936,48 @@ export class LikesService extends BaseService {
         userId,
         likeId,
         targetIdentityId: targetIdentity.id,
+        err: serializeError(err),
+      });
+    }
+  }
+
+  /**
+   * Dispatches an asynchronous notification (email and push) when a like is withdrawn/deleted.
+   *
+   * Fire-and-forget: does not block the like deletion response.
+   * Catches and logs errors internally.
+   *
+   * @param userId - ID of the sender user withdrawing the like.
+   * @param targetMaskedValue - Masked identifier of the target identity.
+   * @param targetLabel - Custom label assigned to the like by the sender.
+   */
+  private async dispatchLikeWithdrawnNotification(
+    userId: string,
+    targetMaskedValue: string,
+    targetLabel: string | null,
+  ): Promise<void> {
+    try {
+      const senderProfile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.LIKE_WITHDRAWN,
+        category: NotificationCategory.SOCIAL,
+        payload: {
+          name: senderProfile?.firstName ?? '',
+          targetMaskedValue,
+          targetLabel,
+          withdrawnAt: DateUtil.now().toUTCString(),
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch LIKE_WITHDRAWN notification', {
+        userId,
+        targetMaskedValue,
         err: serializeError(err),
       });
     }

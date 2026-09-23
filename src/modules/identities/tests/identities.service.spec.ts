@@ -636,6 +636,28 @@ describe('IdentitiesService', () => {
       });
     });
 
+    it('should dispatch IDENTITY_REMOVED notification on successful deletion', async () => {
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
+      prisma.identity.update.mockResolvedValue(mockIdentityData as Identity);
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+
+      await service.delete(mockIdentityId, mockUserId);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.IDENTITY_REMOVED,
+          userIds: [mockUserId],
+          payload: expect.objectContaining({
+            name: 'Alice',
+            identityType: mockIdentityData.type,
+          }),
+        }),
+      );
+    });
+
     it('should throw NotFoundException if identity not owned by user', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);

@@ -719,6 +719,35 @@ describe('LikesService', () => {
       });
       expect(result).toEqual({ success: true });
     });
+
+    it('should dispatch LIKE_WITHDRAWN notification on successful deletion', async () => {
+      prisma.like.findFirst.mockResolvedValue({
+        ...mockLikeData,
+        targetIdentity: mockTargetIdentity,
+      } as never);
+      prisma.like.update.mockResolvedValue({
+        ...mockLikeData,
+        deletedAt: DateUtil.now(),
+        status: LikeStatus.DELETED,
+      });
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'SenderBob',
+      } as never);
+
+      await service.delete(likeId, userId);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(notificationsServiceMock.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'LIKE_WITHDRAWN',
+          userIds: [userId],
+          payload: expect.objectContaining({
+            name: 'SenderBob',
+            targetMaskedValue: mockTargetIdentity.publicValueMasked,
+          }),
+        }),
+      );
+    });
   });
 
   describe('canCreate', () => {

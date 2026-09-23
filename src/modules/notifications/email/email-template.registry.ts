@@ -60,4 +60,21 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
     templateFile: 'identity-added',
     subject: 'Security Alert: New {{identityType}} added to your account 🔒',
   },
+  [EmailType.IDENTITY_REMOVED]: {
+    templateFile: 'identity-removed',
+    subject: 'Security Alert: {{identityType}} removed from your account 🔒',
+  },
+  [EmailType.CREDITS_USED]: {
+    templateFile: 'credits-used',
+    subject:
+      'You used {{creditsUsed}} {{#if (gt creditsUsed 1)}}credits{{else}}credit{{/if}} on BreathAway ✨',
+  },
+  [EmailType.DEVICE_ADDED]: {
+    templateFile: 'device-added',
+    subject: 'Security Alert: New device added to your BreathAway account 📱',
+  },
+  [EmailType.LIKE_WITHDRAWN]: {
+    templateFile: 'like-withdrawn',
+    subject: 'Like Withdrawn — BreathAway',
+  },
 };

@@ -2,11 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { Device, DevicePlatform } from '@prisma/client';
 
 import { Platform } from '@common/interfaces';
+import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
+import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
+import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
+import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import {
   DeviceNotFoundException,
@@ -31,6 +37,7 @@ export class DevicesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -60,6 +67,7 @@ export class DevicesService extends BaseService {
 
     try {
       let device: Device;
+      let isNewDevice = false;
 
       try {
         device = await this.prisma.$transaction(async (tx) => {
@@ -84,6 +92,9 @@ export class DevicesService extends BaseService {
           });
 
           if (existingDevice) {
+            if (existingDevice.userId !== userId) {
+              isNewDevice = true;
+            }
             // Token already exists — transfer/update ownership and activate
             return tx.device.update({
               where: { id: existingDevice.id },
@@ -99,6 +110,7 @@ export class DevicesService extends BaseService {
           }
 
           // 3. New token — insert record
+          isNewDevice = true;
           return tx.device.create({
             data: {
               userId,
@@ -151,6 +163,11 @@ export class DevicesService extends BaseService {
         ...ctx,
         deviceId: device.id,
       });
+
+      if (isNewDevice) {
+        this.dispatchDeviceAddedNotification(userId, device);
+      }
+
       return device;
     } catch (error) {
       this.logger.error('Failed to register device', {
@@ -443,6 +460,49 @@ export class DevicesService extends BaseService {
           step: 'map_platform',
         });
         return DevicePlatform.ANDROID;
+    }
+  }
+
+  /**
+   * Dispatches an asynchronous security notification (email and push) when a new device is registered.
+   *
+   * Fire-and-forget: does not block the device registration response.
+   * Catches and logs errors internally.
+   *
+   * @param userId - ID of the user owning the account.
+   * @param device - Newly registered device record.
+   */
+  private async dispatchDeviceAddedNotification(
+    userId: string,
+    device: Device,
+  ): Promise<void> {
+    try {
+      const userProfile = await this.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { firstName: true },
+      });
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [userId],
+        type: NotificationType.DEVICE_ADDED,
+        category: NotificationCategory.SYSTEM,
+        priority: NotificationPriority.HIGH,
+        payload: {
+          name: userProfile?.firstName ?? '',
+          platform: device.platform,
+          deviceId: device.deviceId ?? '',
+          appVersion: device.appVersion ?? '',
+          addedAt: DateUtil.now().toUTCString(),
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch DEVICE_ADDED notification', {
+        userId,
+        deviceId: device.id,
+        platform: device.platform,
+        err: serializeError(err),
+      });
     }
   }
 }
