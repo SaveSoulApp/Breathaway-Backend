@@ -7,10 +7,6 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 
@@ -28,6 +24,14 @@ import {
   ExpiringCreditItemDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
+import {
+  CREDIT_BUNDLE_EXPIRING_EVENT,
+  CREDITS_PURCHASED_EVENT,
+  CREDITS_USED_EVENT,
+  CreditBundleExpiringEvent,
+  CreditsPurchasedEvent,
+  CreditsUsedEvent,
+} from './events';
 
 /**
  * Owns the credit economy domain — granting, consuming, querying, and expiring
@@ -44,7 +48,6 @@ export class CreditsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -487,6 +490,21 @@ export class CreditsService extends BaseService {
       expiresAt: ledger.expiresAt?.toISOString() ?? null,
     });
 
+    if (dto.source === CreditSource.PURCHASE) {
+      void this.getBalance(dto.userId).then((balance) => {
+        this.eventEmitter.emit(
+          CREDITS_PURCHASED_EVENT,
+          new CreditsPurchasedEvent(
+            dto.userId,
+            dto.amount,
+            balance,
+            dto.referenceId,
+            ledger.expiresAt,
+          ),
+        );
+      });
+    }
+
     return ledger;
   }
 
@@ -563,6 +581,16 @@ export class CreditsService extends BaseService {
       ledgerId: ledger.id,
       referenceId: dto.referenceId ?? null,
     });
+
+    if (ledger.source === CreditSource.LIKE_USAGE) {
+      void this.getBalance(dto.userId).then((balance) => {
+        this.eventEmitter.emit(
+          CREDITS_USED_EVENT,
+          new CreditsUsedEvent(dto.userId, Math.abs(dto.amount), balance),
+        );
+      });
+    }
+
     return ledger;
   }
 
@@ -765,6 +793,9 @@ export class CreditsService extends BaseService {
       });
 
       let needsWarning = false;
+      let expiringCount = 0;
+      let expiringDate = '';
+      let daysRemaining = 7;
 
       for (const credit of credits) {
         let usedFromThisCredit = 0;
@@ -787,28 +818,34 @@ export class CreditsService extends BaseService {
           unusedAmount > 0
         ) {
           needsWarning = true;
+          expiringCount = unusedAmount;
+          expiringDate = credit.expiresAt.toISOString().slice(0, 10);
+          daysRemaining = Math.max(
+            1,
+            Math.round(
+              (credit.expiresAt.getTime() - asOf.getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          );
           break; // One warning per user is sufficient even if they have multiple bundles expiring
         }
       }
 
       if (needsWarning) {
-        await this.notificationsService
-          .dispatch({
-            type: NotificationType.BUNDLE_EXPIRY_WARNING,
-            category: NotificationCategory.SYSTEM,
-            channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-            userIds: [userId],
-          })
-          .catch((err) => {
-            this.logger.error(
-              'Failed to dispatch credit expiry warning notification',
-              {
-                userId,
-                step: 'notify',
-                err: serializeError(err),
-              },
-            );
-          });
+        const isUrgent = daysRemaining <= 2;
+        const urgency = isUrgent ? 'warning' : 'info';
+
+        this.eventEmitter.emit(
+          CREDIT_BUNDLE_EXPIRING_EVENT,
+          new CreditBundleExpiringEvent(
+            userId,
+            expiringCount,
+            expiringDate,
+            daysRemaining,
+            urgency,
+            isUrgent,
+          ),
+        );
         warnedUsers++;
       }
     }

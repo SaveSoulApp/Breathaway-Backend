@@ -35,6 +35,7 @@ import {
 } from '../application/exceptions';
 import { LikesConfig } from '../config/likes.config';
 import { CreateLikeRequestDto } from '../dto/request/create-like.request.dto';
+import { LIKE_SENT_EVENT, LIKE_WITHDRAWN_EVENT } from '../events';
 import { LikesService } from '../likes.service';
 
 describe('LikesService', () => {
@@ -47,6 +48,7 @@ describe('LikesService', () => {
   >;
   let matchResolverServiceMock: jest.Mocked<MatchResolverService>;
   let creditsServiceMock: jest.Mocked<CreditsService>;
+  let eventEmitterMock: { emit: jest.Mock };
   let loggerServiceMock: jest.Mocked<LoggerService>;
 
   const userId = 'user-id-123';
@@ -169,6 +171,7 @@ describe('LikesService', () => {
     service = module.get<LikesService>(LikesService);
     prisma = module.get(PrismaService);
     creditsServiceMock = module.get(CreditsService);
+    eventEmitterMock = module.get(EventEmitter2);
     (prisma.$transaction as jest.Mock).mockImplementation(async (cb) => {
       return cb(prisma);
     });
@@ -284,6 +287,24 @@ describe('LikesService', () => {
         },
       });
       expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should emit LIKE_SENT event when like is created', async () => {
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.match.findUnique.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+
+      await service.create(userId, dtoWithId);
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        LIKE_SENT_EVENT,
+        expect.objectContaining({
+          userId,
+          targetMaskedValue: mockTargetIdentity.publicValueMasked,
+          intent: IntentType.RELATIONSHIP,
+        }),
+      );
     });
 
     it('should throw IdentityNotFoundException if target identity not found', async () => {
@@ -686,6 +707,28 @@ describe('LikesService', () => {
         },
       });
       expect(result).toEqual({ success: true });
+    });
+
+    it('should dispatch LIKE_WITHDRAWN notification on successful deletion', async () => {
+      prisma.like.findFirst.mockResolvedValue({
+        ...mockLikeData,
+        targetIdentity: mockTargetIdentity,
+      } as never);
+      prisma.like.update.mockResolvedValue({
+        ...mockLikeData,
+        deletedAt: DateUtil.now(),
+        status: LikeStatus.DELETED,
+      });
+
+      await service.delete(likeId, userId);
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        LIKE_WITHDRAWN_EVENT,
+        expect.objectContaining({
+          userId,
+          targetMaskedValue: mockTargetIdentity.publicValueMasked,
+        }),
+      );
     });
   });
 

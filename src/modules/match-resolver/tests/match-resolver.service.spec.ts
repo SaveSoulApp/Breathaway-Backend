@@ -18,12 +18,8 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 
+import { MATCH_CREATED_EVENT } from '../events';
 import { LikeSummary, MatchResolverService } from '../match-resolver.service';
 
 describe('MatchResolverService', () => {
@@ -31,7 +27,7 @@ describe('MatchResolverService', () => {
   let prisma: MockPrismaService;
   let matchesService: jest.Mocked<MatchesService>;
   let blocksService: jest.Mocked<BlocksService>;
-  let notificationsService: jest.Mocked<NotificationsService>;
+  let eventEmitter: { emit: jest.Mock };
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
     log: jest.Mock;
@@ -93,14 +89,12 @@ describe('MatchResolverService', () => {
       isBlocked: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<BlocksService>;
 
-    notificationsService = {
-      dispatch: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<NotificationsService>;
+    eventEmitter = { emit: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitter },
         MatchResolverService,
         {
           provide: LoggerService,
@@ -117,10 +111,6 @@ describe('MatchResolverService', () => {
         {
           provide: BlocksService,
           useValue: blocksService,
-        },
-        {
-          provide: NotificationsService,
-          useValue: notificationsService,
         },
       ],
     }).compile();
@@ -286,22 +276,14 @@ describe('MatchResolverService', () => {
         LOG_EVENT.MATCH_CREATED,
         expect.objectContaining({ userOneId: 'user-1', userTwoId: 'user-2' }),
       );
-      expect(notificationsService.dispatch).toHaveBeenCalledWith({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
-        userIds: ['user-1'],
-        type: NotificationType.NEW_MATCH,
-        category: NotificationCategory.SOCIAL,
-        priority: NotificationPriority.HIGH,
-        payload: { name: 'someone', matchId: 'match-1' },
-      });
-      expect(notificationsService.dispatch).toHaveBeenCalledWith({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
-        userIds: ['user-2'],
-        type: NotificationType.NEW_MATCH,
-        category: NotificationCategory.SOCIAL,
-        priority: NotificationPriority.HIGH,
-        payload: { name: 'someone', matchId: 'match-1' },
-      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        MATCH_CREATED_EVENT,
+        expect.objectContaining({
+          matchId: 'match-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+        }),
+      );
     });
 
     it('should correctly assign canonical likes based on user IDs sorting', async () => {

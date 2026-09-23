@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Device } from '@prisma/client';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
@@ -27,11 +28,20 @@ import { PUSH_TEMPLATE_MAP } from './push-template.registry';
 const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   Record<NotificationType, EmailType>
 > = {
+  [NotificationType.WELCOME]: EmailType.WELCOME,
+  [NotificationType.LIKE_SENT]: EmailType.LIKE_SENT,
   [NotificationType.NEW_MATCH]: EmailType.NEW_MATCH,
   [NotificationType.NEW_MESSAGE]: EmailType.NEW_MESSAGE,
   [NotificationType.CREDIT_UPDATE]: EmailType.CREDIT_UPDATE,
+  [NotificationType.CREDITS_PURCHASED]: EmailType.CREDITS_PURCHASED,
   [NotificationType.SYSTEM_ALERT]: EmailType.SYSTEM_ALERT,
   [NotificationType.BUNDLE_EXPIRY_WARNING]: EmailType.BUNDLE_EXPIRY_WARNING,
+  [NotificationType.LIKES_EXPIRED]: EmailType.LIKES_EXPIRED,
+  [NotificationType.IDENTITY_ADDED]: EmailType.IDENTITY_ADDED,
+  [NotificationType.IDENTITY_REMOVED]: EmailType.IDENTITY_REMOVED,
+  [NotificationType.CREDITS_USED]: EmailType.CREDITS_USED,
+  [NotificationType.DEVICE_ADDED]: EmailType.DEVICE_ADDED,
+  [NotificationType.LIKE_WITHDRAWN]: EmailType.LIKE_WITHDRAWN,
 };
 
 @Injectable()
@@ -118,6 +128,31 @@ export class NotificationsService extends BaseService {
     const channels = dto.channels as NotificationChannel[];
     const promises: Promise<void>[] = [];
 
+    // Fallback: auto-resolve recipient firstName if not explicitly provided in payload
+    if (!dto.payload?.name && dto.userIds?.length === 1) {
+      try {
+        const profile = await this.prisma.userProfile.findUnique({
+          where: { userId: dto.userIds[0] },
+          select: { firstName: true },
+        });
+        if (profile?.firstName) {
+          dto.payload = {
+            ...(dto.payload ?? {}),
+            name: profile.firstName,
+          };
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Failed to auto-resolve user profile for notification',
+          {
+            ...ctx,
+            step: 'resolve_profile',
+            err: serializeError(err),
+          },
+        );
+      }
+    }
+
     // Interpolate title and body from push templates if missing
     const pushTemplateConfig = PUSH_TEMPLATE_MAP[dto.type];
     if (pushTemplateConfig) {
@@ -168,8 +203,9 @@ export class NotificationsService extends BaseService {
               templateData: {
                 ...(dto.payload ?? {}),
                 appUrl: this.configService.get<string>('APP_URL') ?? '',
-                currentYear: new Date().getFullYear(),
+                currentYear: DateUtil.now().getFullYear(),
               },
+              recipientData: dto.recipientData,
             }),
           );
         } else {

@@ -13,6 +13,8 @@ import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
 
+import { LIKES_EXPIRED_EVENT, LikesExpiredEvent } from './events';
+
 /** Number of users processed per Pub/Sub batch message. Tunable via env. */
 const DEFAULT_EXPIRY_BATCH_SIZE = 100;
 
@@ -61,6 +63,17 @@ export class MaintenanceService extends BaseService {
     });
 
     try {
+      const expiringLikes = await this.prisma.like.groupBy({
+        by: ['senderUserId'],
+        where: {
+          status: LikeStatus.PENDING,
+          createdAt: { lte: ninetyDaysAgo },
+        },
+        _count: {
+          id: true,
+        },
+      });
+
       const result = await this.prisma.like.updateMany({
         where: {
           status: LikeStatus.PENDING,
@@ -70,6 +83,20 @@ export class MaintenanceService extends BaseService {
           status: LikeStatus.VOIDED,
         },
       });
+
+      if (expiringLikes.length > 0) {
+        const expiryDate = ninetyDaysAgo.toISOString().slice(0, 10);
+        for (const item of expiringLikes) {
+          this.eventEmitter.emit(
+            LIKES_EXPIRED_EVENT,
+            new LikesExpiredEvent(
+              item.senderUserId,
+              item._count.id,
+              expiryDate,
+            ),
+          );
+        }
+      }
 
       this.logger.log('Expiration job for pending likes completed', {
         ...ctx,

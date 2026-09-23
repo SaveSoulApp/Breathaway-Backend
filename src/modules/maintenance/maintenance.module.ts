@@ -1,7 +1,9 @@
-import { CreditsModule } from '@modules/credits/credits.module';
-import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+
+import { CreditsModule } from '@modules/credits/credits.module';
+import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
+
 import { MaintenanceController } from './maintenance.controller';
 import { MaintenanceService } from './maintenance.service';
 

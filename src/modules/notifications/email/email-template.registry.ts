@@ -21,11 +21,15 @@ export interface EmailTemplateConfig {
 export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   [EmailType.WELCOME]: {
     templateFile: 'welcome',
-    subject: 'Welcome to BreathAway, {{name}}! 🌬️',
+    subject: 'Welcome to BreathAway{{#if name}}, {{name}}{{/if}}! 🌬️',
+  },
+  [EmailType.LIKE_SENT]: {
+    templateFile: 'like-sent',
+    subject: 'Your like has been sent! 💌',
   },
   [EmailType.NEW_MATCH]: {
     templateFile: 'new-match',
-    subject: "It's a Match, {{name}}! 💫",
+    subject: "It's a Match{{#if name}}, {{name}}{{/if}}! 💫",
   },
   [EmailType.NEW_MESSAGE]: {
     templateFile: 'new-message',
@@ -35,12 +39,42 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
     templateFile: 'credit-update',
     subject: 'Your BreathAway credits have been updated',
   },
+  [EmailType.CREDITS_PURCHASED]: {
+    templateFile: 'credits-purchased',
+    subject: 'Credits Purchase Confirmed! 💳',
+  },
   [EmailType.SYSTEM_ALERT]: {
     templateFile: 'system-alert',
     subject: '{{alertTitle}} — BreathAway',
   },
   [EmailType.BUNDLE_EXPIRY_WARNING]: {
     templateFile: 'bundle-expiry-warning',
-    subject: 'Your unused likes are expiring in 7 days! ⏳',
+    subject:
+      '{{#if isUrgent}}Urgent: {{count}} credits expiring soon! ⏳{{else}}Reminder: {{count}} credits expiring on {{expiryDate}} ⏳{{/if}}',
+  },
+  [EmailType.LIKES_EXPIRED]: {
+    templateFile: 'likes-expired',
+    subject: 'Update on your pending likes ⏳',
+  },
+  [EmailType.IDENTITY_ADDED]: {
+    templateFile: 'identity-added',
+    subject: 'Security Alert: New {{identityType}} added to your account 🔒',
+  },
+  [EmailType.IDENTITY_REMOVED]: {
+    templateFile: 'identity-removed',
+    subject: 'Security Alert: {{identityType}} removed from your account 🔒',
+  },
+  [EmailType.CREDITS_USED]: {
+    templateFile: 'credits-used',
+    subject:
+      'You used {{creditsUsed}} {{#if (gt creditsUsed 1)}}credits{{else}}credit{{/if}} on BreathAway ✨',
+  },
+  [EmailType.DEVICE_ADDED]: {
+    templateFile: 'device-added',
+    subject: 'Security Alert: New device added to your BreathAway account 📱',
+  },
+  [EmailType.LIKE_WITHDRAWN]: {
+    templateFile: 'like-withdrawn',
+    subject: 'Like Withdrawn — BreathAway',
   },
 };

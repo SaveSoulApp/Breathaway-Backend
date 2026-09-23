@@ -9,7 +9,8 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>You've got a match, {{name}}! 💫</p>
+<p class='email-greeting'>{{#if name}}You've got a match,
+    {{name}}! 💫{{else}}You've got a match! 💫{{/if}}</p>
 
 <p>
   The stars aligned — you and

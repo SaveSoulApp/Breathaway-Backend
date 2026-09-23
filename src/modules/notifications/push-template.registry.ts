@@ -18,9 +18,19 @@ export interface PushTemplateConfig {
 export const PUSH_TEMPLATE_MAP: Partial<
   Record<NotificationType, PushTemplateConfig>
 > = {
+  [NotificationType.WELCOME]: {
+    title: Handlebars.compile('Welcome to BreathAway! 🎉'),
+    body: Handlebars.compile('Explore matches and start connecting.'),
+  },
+  [NotificationType.LIKE_SENT]: {
+    title: Handlebars.compile('Like Sent! 💌'),
+    body: Handlebars.compile(
+      "We've sent your like{{#if targetLabel}} to {{targetLabel}}{{/if}}! If they like you back, it's a match.",
+    ),
+  },
   [NotificationType.NEW_MATCH]: {
     title: Handlebars.compile("It's a Match! 💫"),
-    body: Handlebars.compile('You and {{name}} liked each other.'),
+    body: Handlebars.compile('You and {{matchName}} liked each other.'),
   },
   [NotificationType.NEW_MESSAGE]: {
     title: Handlebars.compile('New Message 💬'),
@@ -30,14 +40,58 @@ export const PUSH_TEMPLATE_MAP: Partial<
     title: Handlebars.compile('Credits Updated'),
     body: Handlebars.compile('Your balance is now {{balance}}.'),
   },
+  [NotificationType.CREDITS_PURCHASED]: {
+    title: Handlebars.compile('Credits Purchased! 💳'),
+    body: Handlebars.compile(
+      '{{creditsAdded}} credits added. Your new balance is {{creditBalance}}.',
+    ),
+  },
   [NotificationType.SYSTEM_ALERT]: {
     title: Handlebars.compile('{{alertTitle}}'),
     body: Handlebars.compile('{{alertBody}}'),
   },
   [NotificationType.BUNDLE_EXPIRY_WARNING]: {
-    title: Handlebars.compile('Your likes are expiring soon ⏳'),
+    title: Handlebars.compile(
+      '{{#if isUrgent}}Urgent: Credits Expiring! ⏳{{else}}Credits Expiring Soon ⏳{{/if}}',
+    ),
     body: Handlebars.compile(
-      "You have unused likes that will expire in 7 days. Use them before they're gone!",
+      '{{count}} credits will expire on {{expiryDate}}. Use them before they are gone!',
+    ),
+  },
+  [NotificationType.LIKES_EXPIRED]: {
+    title: Handlebars.compile('Likes Expired ⏳'),
+    body: Handlebars.compile(
+      '{{count}} of your pending likes have expired without a mutual match.',
+    ),
+  },
+  [NotificationType.IDENTITY_ADDED]: {
+    title: Handlebars.compile('New Identity Added 🔒'),
+    body: Handlebars.compile(
+      'A new {{identityType}} ({{maskedValue}}) was linked to your account.',
+    ),
+  },
+  [NotificationType.IDENTITY_REMOVED]: {
+    title: Handlebars.compile('Identity Removed 🔒'),
+    body: Handlebars.compile(
+      'A {{identityType}} ({{maskedValue}}) was removed from your account.',
+    ),
+  },
+  [NotificationType.CREDITS_USED]: {
+    title: Handlebars.compile('Credits Used ✨'),
+    body: Handlebars.compile(
+      'You used {{creditsUsed}} credits. Remaining balance: {{creditBalance}}.',
+    ),
+  },
+  [NotificationType.DEVICE_ADDED]: {
+    title: Handlebars.compile('New Device Added 📱'),
+    body: Handlebars.compile(
+      'A new {{platform}} device was added to your BreathAway account.',
+    ),
+  },
+  [NotificationType.LIKE_WITHDRAWN]: {
+    title: Handlebars.compile('Like Withdrawn'),
+    body: Handlebars.compile(
+      'Your like to {{#if targetLabel}}{{targetLabel}}{{else}}{{targetMaskedValue}}{{/if}} has been withdrawn.',
     ),
   },
 };

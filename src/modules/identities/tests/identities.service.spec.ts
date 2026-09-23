@@ -21,6 +21,7 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityRequestDto,
 } from '../dto';
+import { IDENTITY_ADDED_EVENT, IDENTITY_REMOVED_EVENT } from '../events';
 import { IdentitiesService } from '../identities.service';
 import {
   mockCreateIdentityRequestDto,
@@ -39,6 +40,7 @@ describe('IdentitiesService', () => {
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
   let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
+  let eventEmitter: { emit: jest.Mock };
   let contextualLogger: {
     info: jest.Mock;
     error: jest.Mock;
@@ -49,6 +51,8 @@ describe('IdentitiesService', () => {
   };
 
   beforeEach(async () => {
+    eventEmitter = { emit: jest.fn() };
+
     contextualLogger = {
       info: jest.fn(),
       error: jest.fn(),
@@ -80,7 +84,7 @@ describe('IdentitiesService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitter },
         {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,
@@ -145,6 +149,25 @@ describe('IdentitiesService', () => {
         },
       });
       expect(result).toEqual(mockIdentityResponse);
+    });
+
+    it('should emit IDENTITY_ADDED event when identity is created', async () => {
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.identity.create.mockResolvedValue(mockIdentityData as Identity);
+
+      await service.create(
+        mockUserId,
+        mockCreateIdentityRequestDto as CreateIdentityRequestDto,
+      );
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        IDENTITY_ADDED_EVENT,
+        expect.objectContaining({
+          userId: mockUserId,
+          identityType: mockCreateIdentityRequestDto.type,
+        }),
+      );
     });
 
     it('should successfully create an identity with platformId', async () => {
@@ -596,6 +619,21 @@ describe('IdentitiesService', () => {
           userId: null,
         },
       });
+    });
+
+    it('should emit IDENTITY_REMOVED event on successful deletion', async () => {
+      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
+      prisma.identity.update.mockResolvedValue(mockIdentityData as Identity);
+
+      await service.delete(mockIdentityId, mockUserId);
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        IDENTITY_REMOVED_EVENT,
+        expect.objectContaining({
+          userId: mockUserId,
+          identityType: mockIdentityData.type,
+        }),
+      );
     });
 
     it('should throw NotFoundException if identity not owned by user', async () => {

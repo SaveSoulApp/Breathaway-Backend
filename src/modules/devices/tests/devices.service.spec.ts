@@ -22,10 +22,12 @@ import {
   PatchDeviceRequestDto,
   UpdateDeviceRequestDto,
 } from '../dto';
+import { DEVICE_ADDED_EVENT } from '../events';
 
 describe('DevicesService', () => {
   let service: DevicesService;
   let prisma: MockPrismaService;
+  let eventEmitter: { emit: jest.Mock };
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
     log: jest.Mock;
@@ -64,6 +66,7 @@ describe('DevicesService', () => {
 
     service = module.get<DevicesService>(DevicesService);
     prisma = module.get(PrismaService);
+    eventEmitter = module.get(EventEmitter2);
 
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
       if (typeof cb === 'function') {
@@ -185,6 +188,22 @@ describe('DevicesService', () => {
         },
       });
       expect(result).toEqual(androidMockDevice);
+    });
+
+    it('should emit DEVICE_ADDED event when a new device is registered', async () => {
+      prisma.device.findUnique.mockResolvedValue(null);
+      prisma.device.create.mockResolvedValue(mockDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.createDevice('user-1', createDto);
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        DEVICE_ADDED_EVENT,
+        expect.objectContaining({
+          userId: 'user-1',
+          platform: mockDevice.platform,
+        }),
+      );
     });
 
     it('should fallback to ANDROID if platform is unknown', async () => {

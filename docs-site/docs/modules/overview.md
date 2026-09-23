@@ -68,16 +68,18 @@ graph TB
 ## 📦 Domain Module Catalog
 
 ### 1. Core & Infrastructure Modules
+
 Foundational services providing cloud platform integrations, observability, asynchronous messaging, and system health.
 
 - **[Firebase Module](./firebase.md)**: Manages Firebase Admin SDK credentials, token verification, and FCM push messaging initialization.
-- **[Notifications Module](./notifications.md)**: Dispatches multi-channel user alerts (Push notifications via FCM, SMS, in-app alerts) with template hydration.
+- **[Notifications Module](./notifications.md)**: Dispatches multi-channel alerts (Transactional Email via Brevo, Push notifications via FCM, and WhatsApp) with Handlebars template hydration and envelope-encrypted PII resolution.
 - **[Health Module](./health.md)**: Cloud Run liveness and readiness probes (`/health/live`, `/health/ready`), validating PostgreSQL, Redis, and KMS connectivity.
 - **[PubSub Module](./pubsub.md)**: Asynchronous event ingestion and publishing using GCP Cloud Pub/Sub topics and subscription worker handlers.
 - **[Maintenance Module](./maintenance.md)**: Provides scheduled tasks, cleanup cron jobs, soft-deleted record pruning, and system maintenance guards.
 - **[Audit Module](./audit.md)**: Structured compliance audit logging recording critical state changes, authorization failures, and administrative actions.
 
 ### 2. Authentication & Identities
+
 Secure onboarding, multi-factor verification, OAuth social graph linking, and encrypted credential storage.
 
 - **[Auth Module](./auth.md)**: Core authentication gateway handling session generation, JWT issuance/refresh, and Firebase ID token exchange.
@@ -89,6 +91,7 @@ Secure onboarding, multi-factor verification, OAuth social graph linking, and en
 - **[Devices Module](./devices.md)**: Device session management, fingerprinting, active token revocation, and FCM device registration.
 
 ### 3. Users & Relationships
+
 User profile management, discovery, mutual matching logic, and realtime messaging.
 
 - **[Profiles Module](./profiles.md)**: Comprehensive user profile CRUD, photos, prompts, bio, height, and location indexing.
@@ -101,6 +104,7 @@ User profile management, discovery, mutual matching logic, and realtime messagin
 - **[Reports Module](./reports.md)**: User reporting workflows, abuse categorization, moderation queue routing, and automated safety flags.
 
 ### 4. Credits & Monetization
+
 In-app economy, double-entry financial ledger, subscription tiers, and payment webhooks.
 
 - **[Credits Module](./credits.md)**: Double-entry ledger managing credit accounts, balance transactions, and credit spending.

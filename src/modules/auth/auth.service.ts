@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { IdentityType, User } from '@prisma/client';
+import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -10,6 +10,10 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { FirebaseService } from '@modules/firebase/firebase.service';
+import {
+  IDENTITY_ADDED_EVENT,
+  IdentityAddedEvent,
+} from '@modules/identities/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -33,6 +37,7 @@ import {
   DevLoginRequestDto,
   SocialAuthRequestDto,
 } from './dto';
+import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import {
@@ -169,6 +174,11 @@ export class AuthService extends BaseService {
       ...ctx,
       userId: user.id,
     });
+
+    if (authMethod.isVerified && isEmailAuthMethod(authMethod.method)) {
+      this.eventEmitter.emit(USER_WELCOME_EVENT, new UserWelcomeEvent(user.id));
+    }
+
     return {
       userId: user.id,
       status: authMethod.isVerified ? 'verified' : 'pending_verification',
@@ -376,6 +386,14 @@ export class AuthService extends BaseService {
         userId: user.id,
         isNewUser: true,
       });
+
+      if (isEmailAuthMethod(authMethod.method)) {
+        this.eventEmitter.emit(
+          USER_WELCOME_EVENT,
+          new UserWelcomeEvent(user.id),
+        );
+      }
+
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
         publicValueHash: normalizedHash,
@@ -939,6 +957,33 @@ export class AuthService extends BaseService {
     this.logger.event(LOG_EVENT.SECONDARY_AUTH_ADDED, {
       ...ctx,
     });
+
+    this.eventEmitter.emit(
+      IDENTITY_ADDED_EVENT,
+      new IdentityAddedEvent(
+        user.id,
+        authType === AuthMethod.EMAIL ? 'Email' : 'Phone',
+        publicValueData.publicValueMasked ?? '',
+        true,
+      ),
+    );
+
+    if (authType === AuthMethod.EMAIL) {
+      const emailCount = await this.prisma.authCredential.count({
+        where: {
+          userId: user.id,
+          type: AuthCredentialType.EMAIL,
+          deletedAt: null,
+        },
+      });
+      if (emailCount <= 1) {
+        this.eventEmitter.emit(
+          USER_WELCOME_EVENT,
+          new UserWelcomeEvent(user.id),
+        );
+      }
+    }
+
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
       publicValueHash: publicValueData.publicValueHash,

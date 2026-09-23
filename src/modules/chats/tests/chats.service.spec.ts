@@ -34,11 +34,11 @@ describe('ChatsService', () => {
   let service: ChatsService;
   let prisma: MockPrismaService;
   let blocksService: { isBlocked: jest.Mock };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let mockSupabaseClient: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let mockChatRoomQuery: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let mockMessageQuery: any;
 
   const contextualLogger = {

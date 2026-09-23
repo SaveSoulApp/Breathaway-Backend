@@ -31,6 +31,12 @@ import {
   LikeListQueryDto,
   UpdateLikeLabelRequestDto,
 } from './dto';
+import {
+  LIKE_SENT_EVENT,
+  LIKE_WITHDRAWN_EVENT,
+  LikeSentEvent,
+  LikeWithdrawnEvent,
+} from './events';
 import { CreateLikeResult, LIKE_SELECT, RawLike } from './likes.types';
 
 /**
@@ -535,6 +541,17 @@ export class LikesService extends BaseService {
       targetIdentityId: targetIdentity.id,
     });
 
+    this.eventEmitter.emit(
+      LIKE_SENT_EVENT,
+      new LikeSentEvent(
+        userId,
+        targetIdentity.publicValueMasked ?? '',
+        dto.label ?? null,
+        dto.intent,
+        like.expiresAt,
+      ),
+    );
+
     return this.attachPublicValue(like);
   }
 
@@ -665,6 +682,15 @@ export class LikesService extends BaseService {
 
     const like = await this.prisma.like.findFirst({
       where: { id, senderUserId: userId, deletedAt: null },
+      include: {
+        targetIdentity: {
+          select: {
+            id: true,
+            type: true,
+            publicValueMasked: true,
+          },
+        },
+      },
     });
 
     if (!like) {
@@ -721,6 +747,16 @@ export class LikesService extends BaseService {
     this.logger.event(LOG_EVENT.LIKE_DELETED, {
       ...ctx,
     });
+
+    this.eventEmitter.emit(
+      LIKE_WITHDRAWN_EVENT,
+      new LikeWithdrawnEvent(
+        userId,
+        like.targetIdentity?.publicValueMasked ?? '',
+        like.label ?? null,
+      ),
+    );
+
     return { success: true };
   }
 

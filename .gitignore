@@ -59,3 +59,4 @@ pids
 
 # AI Configs
 .agents/mcp.json
+.antigravityignore

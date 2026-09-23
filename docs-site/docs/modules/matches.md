@@ -19,6 +19,7 @@ The `MatchesModule` stores and tracks established, mutual connections between us
 ## 🔄 Core Workflows & Sequence Diagrams
 
 The matching subsystem is orchestrated across two primary services:
+
 1. **`MatchResolverService` (`src/modules/match-resolver`)**: The asynchronous engine triggered after a like is persisted, responsible for evaluating reciprocity, compatibility, and forging the `Match` record.
 2. **`MatchesService` (`src/modules/matches`)**: Manages the lifecycle of active matches, queries, perspective normalisation, and connection dissolution (`unmatch`).
 
@@ -34,6 +35,8 @@ sequenceDiagram
     participant Matches as MatchesService
     participant Blocks as BlocksService
     participant DB as PrismaService / Cloud SQL
+    participant Events as EventEmitter2
+    participant Listener as NotificationEventsListener
     participant Notifications as NotificationsService
     participant Audit as AuditModule
 
@@ -89,13 +92,15 @@ sequenceDiagram
     end
 
     rect rgb(255, 245, 255)
-    Note over Resolver, Notifications: Step 6: Audit Logging & Multi-Channel Notifications
+    Note over Resolver, Events: Step 6: Audit Logging & Decoupled Domain Event
     Resolver->>Audit: emitAuditLog(MATCH_RESOLVED, userId, matchId, targetUserId)
-    Resolver->>DB: userProfile.findMany({ userOneId, userTwoId })
-    DB-->>Resolver: profiles (firstNames)
-    Note over Resolver: Hydrates personalized display names using custom like labels if set
-    Resolver->>Notifications: dispatch(userOneId, type: NEW_MATCH, channels: [PUSH, EMAIL])
-    Resolver->>Notifications: dispatch(userTwoId, type: NEW_MATCH, channels: [PUSH, EMAIL])
+    Resolver->>Events: emit(MATCH_CREATED_EVENT, new MatchCreatedEvent(matchId, userOneId, userTwoId))
+    Note over Events, Listener: Asynchronous Listener Execution (@OnEvent)
+    Events->>Listener: handleMatchCreated(event)
+    Listener->>DB: userProfile.findMany({ userOneId, userTwoId })
+    DB-->>Listener: profiles (firstNames)
+    Listener->>Notifications: dispatch(userOneId, type: NEW_MATCH, channels: [PUSH, EMAIL])
+    Listener->>Notifications: dispatch(userTwoId, type: NEW_MATCH, channels: [PUSH, EMAIL])
     end
 ```
 

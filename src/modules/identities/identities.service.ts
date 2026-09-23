@@ -22,6 +22,12 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityRequestDto,
 } from './dto';
+import {
+  IDENTITY_ADDED_EVENT,
+  IDENTITY_REMOVED_EVENT,
+  IdentityAddedEvent,
+  IdentityRemovedEvent,
+} from './events';
 
 /**
  * Owns the business logic for creating, reading, updating, verifying, and deleting
@@ -183,6 +189,17 @@ export class IdentitiesService extends BaseService {
       ...ctx,
       identityId: identity.id,
     });
+
+    this.eventEmitter.emit(
+      IDENTITY_ADDED_EVENT,
+      new IdentityAddedEvent(
+        userId,
+        identity.type,
+        identity.publicValueMasked ?? '',
+        identity.isVerified,
+      ),
+    );
+
     return this.toMaskedResponse(identity);
   }
 
@@ -473,7 +490,7 @@ export class IdentitiesService extends BaseService {
    * @throws {NotFoundException} When no non-deleted identity with the given ID exists for this user.
    */
   async delete(id: string, userId: string) {
-    await this.findOwnedOrFail(id, userId);
+    const identity = await this.findOwnedOrFail(id, userId);
     try {
       await this.prisma.identity.update({
         where: { id },
@@ -495,6 +512,15 @@ export class IdentitiesService extends BaseService {
       identityId: id,
       userId,
     });
+
+    this.eventEmitter.emit(
+      IDENTITY_REMOVED_EVENT,
+      new IdentityRemovedEvent(
+        userId,
+        identity.type,
+        identity.publicValueMasked ?? '',
+      ),
+    );
   }
 
   /**

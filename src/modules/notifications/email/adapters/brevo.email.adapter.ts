@@ -1,9 +1,11 @@
-import { serializeError } from '@common/utils/error.utils';
-import { BaseService } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+
+import { serializeError } from '@common/utils/error.utils';
+import { BaseService } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
 
 @Injectable()
@@ -38,14 +40,27 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
   }
 
   async send(payload: EmailPayload): Promise<void> {
+    if (!this.apiKey) {
+      throw new Error(
+        '[Brevo] Cannot send email: BREVO_API_KEY is not configured',
+      );
+    }
+
     if (!payload.to) {
       throw new Error(
         '[Brevo] Cannot send email: recipient address is missing',
       );
     }
 
+    const senderEmail = payload.from ?? this.fromAddress;
+    if (!senderEmail) {
+      throw new Error(
+        '[Brevo] Cannot send email: sender address is missing. Configure EMAIL_FROM_ADDRESS.',
+      );
+    }
+
     const sender = {
-      email: payload.from ?? this.fromAddress,
+      email: senderEmail,
       name: payload.fromName ?? this.fromName,
     };
 
@@ -57,13 +72,13 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
           to: [{ email: payload.to }],
           subject: payload.subject,
           htmlContent: payload.html,
-          ...(payload.html ? { textContent: payload.html } : {}),
         },
         {
           headers: {
             'api-key': this.apiKey,
             'Content-Type': 'application/json',
           },
+          timeout: 10000,
         },
       );
 

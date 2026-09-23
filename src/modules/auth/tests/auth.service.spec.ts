@@ -15,6 +15,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { FirebaseService } from '@modules/firebase/firebase.service';
+import { IDENTITY_ADDED_EVENT } from '@modules/identities/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -26,6 +27,7 @@ import {
   UnverifiedAccountException,
 } from '../application/exceptions';
 import { AuthService } from '../auth.service';
+import { USER_WELCOME_EVENT } from '../events';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
@@ -162,6 +164,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
     let encryptionService: jest.Mocked<IdentityCryptoService>;
     let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
     let authTokenService: jest.Mocked<AuthTokenService>;
+    let eventEmitter: { emit: jest.Mock };
 
     const mockUser: User = {
       id: 'user-uuid-1',
@@ -236,6 +239,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       }).compile();
 
       service = module.get<AuthService>(AuthService);
+      eventEmitter = module.get(EventEmitter2);
     });
 
     it('should link email successfully via Google Sign-In with isVerified = true', async () => {
@@ -297,6 +301,20 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         access_token: 'signed-access-token',
         user_id: mockUser.id,
       });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        IDENTITY_ADDED_EVENT,
+        expect.objectContaining({
+          userId: mockUser.id,
+          identityType: 'Email',
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        USER_WELCOME_EVENT,
+        expect.objectContaining({
+          userId: mockUser.id,
+        }),
+      );
     });
 
     it('should link email successfully via Firebase Email Link (magic link)', async () => {

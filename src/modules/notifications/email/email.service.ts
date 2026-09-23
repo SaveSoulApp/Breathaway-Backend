@@ -1,15 +1,17 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { AuthCredentialType } from '@prisma/client';
-import * as fs from 'fs';
 import * as Handlebars from 'handlebars';
-import * as path from 'path';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { EmailType } from '@modules/notifications/enums/email-type.enum';
 
-import { EmailType } from '../enums/email-type.enum';
 import {
   EMAIL_ADAPTER_TOKEN,
   EmailPayload,
@@ -27,6 +29,11 @@ export interface SendEmailOptions {
    * Common keys: name, etc. Template-specific keys documented on each template.
    */
   templateData: Record<string, unknown>;
+  /**
+   * Optional map of userId -> custom template data overrides for per-recipient personalization
+   * in batch dispatches.
+   */
+  recipientData?: Record<string, Record<string, unknown>>;
 }
 
 @Injectable()
@@ -45,6 +52,7 @@ export class EmailService extends BaseService implements OnModuleInit {
   constructor(
     loggerService: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
     @Inject(EMAIL_ADAPTER_TOKEN)
     private readonly emailAdapter: IEmailAdapter,
   ) {
@@ -57,6 +65,7 @@ export class EmailService extends BaseService implements OnModuleInit {
    * to catch any template errors at startup rather than at send time.
    */
   onModuleInit(): void {
+    this.registerHelpers();
     this.registerPartials();
     this.compileLayout();
     this.logger.log('EmailService template system initialized', {
@@ -96,23 +105,83 @@ export class EmailService extends BaseService implements OnModuleInit {
     }
 
     // Resolve email addresses via AuthCredential (type=EMAIL).
-    // The User model has no email field — emails are stored as AuthCredentials
-    // linked to an Identity of type EMAIL. valueMasked holds the readable address.
+    // The User model has no email field — emails are envelope-encrypted in the
+    // linked Identity record. We query the ciphertext fields and decrypt via IdentityCryptoService.
     const credentials = await this.prisma.authCredential.findMany({
       where: {
         userId: { in: userIds },
         type: AuthCredentialType.EMAIL,
         deletedAt: null,
       },
-      select: { userId: true, valueMasked: true },
+      include: {
+        identity: {
+          select: {
+            publicValueCiphertext: true,
+            publicValueIv: true,
+            publicValueTag: true,
+            publicValueWrappedKey: true,
+            publicValueKeyId: true,
+          },
+        },
+        user: {
+          select: {
+            profile: {
+              select: {
+                firstName: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    const resolvedEmails = credentials
-      .map((c): string | null => c.valueMasked)
-      .filter((email): email is string => Boolean(email));
+    const decryptedResults = await Promise.allSettled(
+      credentials.map(async (cred) => {
+        if (!cred.identity) {
+          return null;
+        }
 
-    if (resolvedEmails.length === 0) {
-      this.logger.warn('No valid email addresses found for userIds', {
+        try {
+          const email = await this.identityCryptoService.decryptPublicValue(
+            cred.identity,
+          );
+          if (email && email.trim() !== '') {
+            return {
+              userId: cred.userId,
+              email: email.trim().toLowerCase(),
+              firstName: cred.user?.profile?.firstName,
+            };
+          }
+          return null;
+        } catch (err) {
+          this.logger.error('Failed to decrypt user email address', {
+            ...ctx,
+            userId: cred.userId,
+            step: 'decrypt_email',
+            err: serializeError(err),
+          });
+          return null;
+        }
+      }),
+    );
+
+    // Deduplicate by recipient email to avoid sending multiple messages to the same address
+    const recipientByEmail = new Map<
+      string,
+      { userId: string; firstName?: string }
+    >();
+
+    for (const res of decryptedResults) {
+      if (res.status === 'fulfilled' && res.value) {
+        const { email, userId, firstName } = res.value;
+        if (!recipientByEmail.has(email)) {
+          recipientByEmail.set(email, { userId, firstName });
+        }
+      }
+    }
+
+    if (recipientByEmail.size === 0) {
+      this.logger.warn('No valid email addresses resolved for userIds', {
         ...ctx,
         step: 'resolve_credentials',
       });
@@ -122,20 +191,47 @@ export class EmailService extends BaseService implements OnModuleInit {
     this.logger.debug('Dispatching emails to recipients', {
       ...ctx,
       step: 'send_emails',
-      recipientCount: resolvedEmails.length,
+      recipientCount: recipientByEmail.size,
     });
 
     const contentTemplate = this.getOrCompileTemplate(emailType);
+    const isBatch = userIds.length > 1;
 
     const results = await Promise.allSettled(
-      resolvedEmails.map((to) =>
-        this.renderAndSend(
+      Array.from(recipientByEmail.entries()).map(([to, recipient]) => {
+        const recipientTemplateData: Record<string, unknown> = {
+          ...templateData,
+        };
+
+        // Merge per-recipient data override if provided for this user
+        if (options.recipientData?.[recipient.userId]) {
+          Object.assign(
+            recipientTemplateData,
+            options.recipientData[recipient.userId],
+          );
+        }
+
+        // Isolate recipient name personalization:
+        // - When sending to multiple users (batch), each recipient's name is resolved from their
+        //   own DB profile (or recipientData override), avoiding leaking one user's name to all.
+        // - When sending to a single user, use the caller-provided templateData.name if present,
+        //   falling back to DB profile firstName.
+        if (isBatch) {
+          recipientTemplateData.name =
+            (options.recipientData?.[recipient.userId]?.name as string) ??
+            recipient.firstName ??
+            '';
+        } else if (!recipientTemplateData.name && recipient.firstName) {
+          recipientTemplateData.name = recipient.firstName;
+        }
+
+        return this.renderAndSend(
           to,
           templateConfig.subject,
           contentTemplate,
-          templateData,
-        ),
-      ),
+          recipientTemplateData,
+        );
+      }),
     );
 
     results.forEach((result: PromiseSettledResult<void>, index: number) => {
@@ -191,6 +287,26 @@ export class EmailService extends BaseService implements OnModuleInit {
     const layoutPath = path.join(this.templatesDir, 'layout.hbs');
     const source = fs.readFileSync(layoutPath, 'utf-8');
     this.layoutTemplate = Handlebars.compile(source);
+  }
+
+  private registerHelpers(): void {
+    Handlebars.registerHelper(
+      'gt',
+      (a: unknown, b: unknown) => Number(a) > Number(b),
+    );
+    Handlebars.registerHelper(
+      'gte',
+      (a: unknown, b: unknown) => Number(a) >= Number(b),
+    );
+    Handlebars.registerHelper(
+      'lt',
+      (a: unknown, b: unknown) => Number(a) < Number(b),
+    );
+    Handlebars.registerHelper(
+      'lte',
+      (a: unknown, b: unknown) => Number(a) <= Number(b),
+    );
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
   }
 
   private registerPartials(): void {

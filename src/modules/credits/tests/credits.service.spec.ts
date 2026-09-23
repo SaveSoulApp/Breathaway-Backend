@@ -1,16 +1,12 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { HttpStatus } from '@nestjs/common';
-import {
-  LedgerEntryNotFoundException,
-  InvalidCreditSourceException,
-  InsufficientCreditsException,
-} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditLedger,
   CreditSource,
   CreditTransactionType,
+  Prisma,
 } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
@@ -19,7 +15,16 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-
+import {
+  CREDIT_BUNDLE_EXPIRING_EVENT,
+  CREDITS_PURCHASED_EVENT,
+  CREDITS_USED_EVENT,
+} from '../events';
+import {
+  LedgerEntryNotFoundException,
+  InvalidCreditSourceException,
+  InsufficientCreditsException,
+} from '../application/exceptions';
 import { CreditsService } from '../credits.service';
 import {
   ConsumeCreditsRequestDto,
@@ -27,12 +32,11 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
-import { ClsService } from 'nestjs-cls';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 
 describe('CreditsService', () => {
   let service: CreditsService;
   let prisma: MockPrismaService;
+  let eventEmitter: { emit: jest.Mock };
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
@@ -64,7 +68,6 @@ describe('CreditsService', () => {
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: NotificationsService, useValue: { dispatch: jest.fn() } },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -73,6 +76,8 @@ describe('CreditsService', () => {
 
     service = module.get<CreditsService>(CreditsService);
     prisma = module.get(PrismaService);
+    eventEmitter = module.get(EventEmitter2);
+    prisma.creditLedger.findMany.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -481,6 +486,49 @@ describe('CreditsService', () => {
           : null,
       });
     });
+
+    it('should emit CREDITS_PURCHASED event when source is PURCHASE', async () => {
+      prisma.creditLedger.create.mockResolvedValue(mockLedgerEntry);
+      jest.spyOn(service, 'getBalance').mockResolvedValue(20);
+
+      await service.grantCredits(dto);
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_PURCHASED_EVENT,
+        expect.objectContaining({
+          userId,
+          amount: 10,
+          balance: 20,
+        }),
+      );
+    });
+
+    it('should emit CREDITS_PURCHASED event without passing transaction client when called with tx', async () => {
+      const mockTx = {
+        creditLedger: {
+          create: jest.fn().mockResolvedValue(mockLedgerEntry),
+        },
+      } as unknown as Prisma.TransactionClient;
+
+      const getBalanceSpy = jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue(20);
+
+      await service.grantCredits(dto, mockTx);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_PURCHASED_EVENT,
+        expect.objectContaining({
+          userId,
+          amount: 10,
+          balance: 20,
+        }),
+      );
+    });
   });
 
   describe('consumeCredits', () => {
@@ -525,6 +573,54 @@ describe('CreditsService', () => {
           ? mockLedgerEntry.expiresAt.toISOString()
           : null,
       });
+    });
+
+    it('should emit CREDITS_USED event when credits are consumed for like usage', async () => {
+      jest.spyOn(service, 'getBalance').mockResolvedValue(15);
+      prisma.creditLedger.create.mockResolvedValue({
+        ...mockLedgerEntry,
+        source: CreditSource.LIKE_USAGE,
+      });
+
+      await service.consumeCredits(dto);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_USED_EVENT,
+        expect.objectContaining({
+          userId,
+          amount: 10,
+          balance: 15,
+        }),
+      );
+    });
+
+    it('should emit CREDITS_USED event without passing transaction client when called with tx', async () => {
+      const mockTx = {
+        creditLedger: {
+          create: jest.fn().mockResolvedValue({
+            ...mockLedgerEntry,
+            source: CreditSource.LIKE_USAGE,
+          }),
+        },
+      } as unknown as Prisma.TransactionClient;
+
+      const getBalanceSpy = jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue(15);
+
+      await service.consumeCredits(dto, mockTx);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_USED_EVENT,
+        expect.objectContaining({
+          userId,
+          amount: 10,
+          balance: 15,
+        }),
+      );
     });
   });
 
@@ -836,6 +932,43 @@ describe('CreditsService', () => {
 
       // Assert — one ledger fetch per user
       expect(prisma.creditLedger.findMany).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('handleExpiryWarningBatch', () => {
+    it('should dispatch BUNDLE_EXPIRY_WARNING with count, expiryDate, daysRemaining, and urgency', async () => {
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const expiringDate = new Date('2026-09-03T00:00:00Z'); // 2 days -> isUrgent = true
+
+      prisma.creditLedger.aggregate.mockResolvedValueOnce({
+        _sum: { amount: 0 },
+      } as never);
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'credit-1',
+          userId,
+          amount: 5,
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: expiringDate,
+        },
+      ] as never);
+
+      await service.handleExpiryWarningBatch({
+        userIds: [userId],
+        asOf: asOf.toISOString(),
+      });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDIT_BUNDLE_EXPIRING_EVENT,
+        expect.objectContaining({
+          userId,
+          count: 5,
+          daysRemaining: 2,
+          isUrgent: true,
+          urgency: 'warning',
+        }),
+      );
     });
   });
 });

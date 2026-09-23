@@ -73,13 +73,12 @@ export const envValidationSchema = Joi.object({
   // Email Notifications Provider & Credentials
   EMAIL_PROVIDER: Joi.string()
     .valid('mailgun', 'sendgrid', 'brevo')
-    .default('mailgun'),
-  EMAIL_FROM_ADDRESS: Joi.string().email().default('no-reply@breathaway.com'),
+    .default('brevo'),
+  EMAIL_FROM_ADDRESS: Joi.string().email().default('no-reply@breathaway.app'),
   EMAIL_FROM_NAME: Joi.string().default('BreathAway'),
   MAILGUN_API_KEY: Joi.string().optional(),
   MAILGUN_DOMAIN: Joi.string().optional(),
   SENDGRID_API_KEY: Joi.string().optional(),
-  BREVO_API_KEY: Joi.string().optional(),
 
   // Swagger Documentation Access Control
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('true'),

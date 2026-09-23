@@ -17,6 +17,7 @@ import {
   PatchDeviceRequestDto,
   UpdateDeviceRequestDto,
 } from './dto';
+import { DEVICE_ADDED_EVENT, DeviceAddedEvent } from './events';
 
 /**
  * Owns the business logic for device registration, retrieval, modification, and removal.
@@ -60,6 +61,7 @@ export class DevicesService extends BaseService {
 
     try {
       let device: Device;
+      let isNewDevice = false;
 
       try {
         device = await this.prisma.$transaction(async (tx) => {
@@ -84,6 +86,9 @@ export class DevicesService extends BaseService {
           });
 
           if (existingDevice) {
+            if (existingDevice.userId !== userId) {
+              isNewDevice = true;
+            }
             // Token already exists — transfer/update ownership and activate
             return tx.device.update({
               where: { id: existingDevice.id },
@@ -99,6 +104,7 @@ export class DevicesService extends BaseService {
           }
 
           // 3. New token — insert record
+          isNewDevice = true;
           return tx.device.create({
             data: {
               userId,
@@ -151,6 +157,19 @@ export class DevicesService extends BaseService {
         ...ctx,
         deviceId: device.id,
       });
+
+      if (isNewDevice) {
+        this.eventEmitter.emit(
+          DEVICE_ADDED_EVENT,
+          new DeviceAddedEvent(
+            userId,
+            device.platform,
+            device.deviceId,
+            device.appVersion,
+          ),
+        );
+      }
+
       return device;
     } catch (error) {
       this.logger.error('Failed to register device', {

@@ -1,36 +1,59 @@
-<html>
-  <head>
-    <meta charset='utf-8' />
-    <title>Your likes are expiring soon ⏳</title>
-  </head>
-  <body
-    style='font-family: sans-serif; background-color: #f9f9f9; margin: 0; padding: 20px;'
-  >
-    <div
-      style='max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 8px;'
-    >
-      <h2 style='color: #333333;'>Hello,</h2>
-      <p style='color: #555555; line-height: 1.5;'>
-        You have unused likes that will expire in exactly 7 days. Don't let them
-        go to waste!
-      </p>
-      <p style='color: #555555; line-height: 1.5;'>
-        Use your likes to connect with people you already know. If the feeling
-        is mutual, you'll both be notified.
-      </p>
-      <div style='margin-top: 30px; text-align: center;'>
-        <a
-          href='{{appUrl}}'
-          style='background-color: #7B1FA2; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;'
-        >Open BreathAway</a>
-      </div>
-      <p
-        style='color: #999999; font-size: 12px; margin-top: 40px; text-align: center;'
-      >
-        &copy;
-        {{currentYear}}
-        BreathAway. All rights reserved.
-      </p>
-    </div>
-  </body>
-</html>
+{{!
+  Template: bundle-expiry-warning
+  Data keys:
+    - name           {string}  Recipient's first name
+    - count          {number}  Count of expiring credits / likes
+    - expiryDate     {string}  Formatted date of expiration
+    - daysRemaining  {number}  Days until expiration
+    - urgency        {string}  'warning' | 'info'
+    - isUrgent       {boolean} True if expiring very soon (<= 2 days)
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+}}
+<p class='email-greeting'>{{#if name}}Hello, {{name}} ⏳{{else}}Hello ⏳{{/if}}</p>
+
+{{#if isUrgent}}
+  <div class='email-alert email-alert--warning'>
+    <strong>⚠️ Urgent Notice:</strong>
+    You have
+    <strong>{{count}}</strong>
+    unused credits that will expire on
+    <strong>{{expiryDate}}</strong>
+    (in
+    {{daysRemaining}}
+    days).
+  </div>
+{{else}}
+  <div class='email-alert email-alert--info'>
+    <strong>ℹ️ Heads up:</strong>
+    You have
+    <strong>{{count}}</strong>
+    unused credits that will expire on
+    <strong>{{expiryDate}}</strong>
+    (in
+    {{daysRemaining}}
+    days).
+  </div>
+{{/if}}
+
+<div class='email-stat-card'>
+  <p class='email-stat-card__value'>{{count}}</p>
+  <p class='email-stat-card__label'>Expiring Credits</p>
+</div>
+
+<p>
+  Don't let them go to waste! Use your credits to send secret likes to people
+  you know. BreathAway protects your privacy — likes are 100% confidential and
+  only reveal if the feeling is mutual.
+</p>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}' class='email-btn'>Use Your Credits Now →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  Credits expire periodically based on bundle purchase or grant terms.
+</p>

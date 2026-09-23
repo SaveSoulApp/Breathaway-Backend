@@ -1,0 +1,71 @@
+{{!
+  Template: credits-purchased
+  Data keys:
+    - name           {string}  Recipient's first name
+    - creditsAdded   {number}  Amount of credits purchased
+    - creditBalance  {number}  New total balance
+    - transactionId  {string}  Reference ID / receipt code
+    - expiresAt      {string}  Expiration date if applicable
+    - appUrl         {string}  Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear    {number}
+}}
+<p class='email-greeting'>{{#if name}}Thank you for your purchase,
+    {{name}}! 💳{{else}}Thank you for your purchase! 💳{{/if}}</p>
+
+<p>
+  Your credit purchase has been successfully processed and added to your
+  BreathAway account.
+</p>
+
+<div class='email-stat-card'>
+  <p class='email-stat-card__value'>+{{creditsAdded}}</p>
+  <p class='email-stat-card__label'>Credits Added</p>
+</div>
+
+<div
+  style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'
+>
+  <table style='width: 100%; border-collapse: collapse;'>
+    <tr>
+      <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>New Total
+        Balance:</td>
+      <td
+        style='padding: 8px 0; text-align: right; font-weight: 700; color: #1A1A2E; font-size: 15px;'
+      >{{creditBalance}} credits</td>
+    </tr>
+    {{#if transactionId}}
+      <tr>
+        <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Transaction
+          Ref:</td>
+        <td
+          style='padding: 8px 0; text-align: right; font-family: monospace; font-size: 13px; color: #374151;'
+        >{{transactionId}}</td>
+      </tr>
+    {{/if}}
+    {{#if expiresAt}}
+      <tr>
+        <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Valid
+          Until:</td>
+        <td
+          style='padding: 8px 0; text-align: right; color: #374151; font-size: 14px;'
+        >{{expiresAt}}</td>
+      </tr>
+    {{/if}}
+  </table>
+</div>
+
+<p>
+  You're all set! Use your credits to send secret likes to people you know.
+</p>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}' class='email-btn'>Start Connecting →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  Need help or have questions regarding billing? Contact
+  <a href='{{appUrl}}/support'>BreathAway Support</a>.
+</p>
