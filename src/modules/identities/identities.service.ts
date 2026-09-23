@@ -190,7 +190,7 @@ export class IdentitiesService extends BaseService {
       identityId: identity.id,
     });
 
-    this.dispatchIdentityAddedNotification(userId, identity);
+    void this.dispatchIdentityAddedNotification(userId, identity);
 
     return this.toMaskedResponse(identity);
   }
@@ -505,7 +505,7 @@ export class IdentitiesService extends BaseService {
       userId,
     });
 
-    this.dispatchIdentityRemovedNotification(userId, identity);
+    void this.dispatchIdentityRemovedNotification(userId, identity);
   }
 
   /**
@@ -946,6 +946,7 @@ export class IdentitiesService extends BaseService {
         userId,
         identityId: identity.id,
         identityType: identity.type,
+        step: 'dispatch_identity_added_notification',
         err: serializeError(err),
       });
     }
@@ -988,6 +989,7 @@ export class IdentitiesService extends BaseService {
         userId,
         identityId: identity.id,
         identityType: identity.type,
+        step: 'dispatch_identity_removed_notification',
         err: serializeError(err),
       });
     }

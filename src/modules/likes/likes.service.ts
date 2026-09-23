@@ -546,7 +546,7 @@ export class LikesService extends BaseService {
       targetIdentityId: targetIdentity.id,
     });
 
-    this.dispatchLikeSentNotification(
+    void this.dispatchLikeSentNotification(
       userId,
       targetIdentity,
       dto,
@@ -750,7 +750,7 @@ export class LikesService extends BaseService {
       ...ctx,
     });
 
-    this.dispatchLikeWithdrawnNotification(
+    void this.dispatchLikeWithdrawnNotification(
       userId,
       like.targetIdentity?.publicValueMasked ?? '',
       like.label ?? null,
@@ -936,6 +936,7 @@ export class LikesService extends BaseService {
         userId,
         likeId,
         targetIdentityId: targetIdentity.id,
+        step: 'dispatch_like_sent_notification',
         err: serializeError(err),
       });
     }
@@ -978,6 +979,7 @@ export class LikesService extends BaseService {
       this.logger.error('Failed to dispatch LIKE_WITHDRAWN notification', {
         userId,
         targetMaskedValue,
+        step: 'dispatch_like_withdrawn_notification',
         err: serializeError(err),
       });
     }

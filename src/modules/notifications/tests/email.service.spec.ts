@@ -265,11 +265,9 @@ describe('EmailService', () => {
     });
 
     it('should compile and render all template files on disk without syntax errors', () => {
-      const realFs = jest.requireActual('fs') as typeof import('fs');
-      const realPath = jest.requireActual('path') as typeof import('path');
-      const HandlebarsActual = jest.requireActual(
-        'handlebars',
-      ) as typeof import('handlebars');
+      const realFs = jest.requireActual('fs');
+      const realPath = jest.requireActual('path');
+      const HandlebarsActual = jest.requireActual('handlebars');
 
       // Register helpers
       HandlebarsActual.registerHelper(

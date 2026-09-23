@@ -90,7 +90,7 @@ export class MaintenanceService extends BaseService {
       if (expiringLikes.length > 0) {
         const expiryDate = ninetyDaysAgo.toISOString().slice(0, 10);
         for (const item of expiringLikes) {
-          this.dispatchLikesExpiredNotification(
+          void this.dispatchLikesExpiredNotification(
             item.senderUserId,
             item._count.id,
             expiryDate,
@@ -378,6 +378,7 @@ export class MaintenanceService extends BaseService {
     } catch (err) {
       this.logger.error('Failed to dispatch LIKES_EXPIRED notification', {
         userId: senderUserId,
+        step: 'dispatch_likes_expired_notification',
         err: serializeError(err),
       });
     }

@@ -1,16 +1,12 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { HttpStatus } from '@nestjs/common';
-import {
-  LedgerEntryNotFoundException,
-  InvalidCreditSourceException,
-  InsufficientCreditsException,
-} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditLedger,
   CreditSource,
   CreditTransactionType,
+  Prisma,
 } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
@@ -19,7 +15,14 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 
+import {
+  LedgerEntryNotFoundException,
+  InvalidCreditSourceException,
+  InsufficientCreditsException,
+} from '../application/exceptions';
 import { CreditsService } from '../credits.service';
 import {
   ConsumeCreditsRequestDto,
@@ -27,9 +30,6 @@ import {
   GrantCreditsRequestDto,
 } from '../dto';
 import { CreditStatusFilter } from '../enums';
-import { ClsService } from 'nestjs-cls';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 
 describe('CreditsService', () => {
   let service: CreditsService;

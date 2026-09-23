@@ -165,7 +165,7 @@ export class DevicesService extends BaseService {
       });
 
       if (isNewDevice) {
-        this.dispatchDeviceAddedNotification(userId, device);
+        void this.dispatchDeviceAddedNotification(userId, device);
       }
 
       return device;
@@ -501,6 +501,7 @@ export class DevicesService extends BaseService {
         userId,
         deviceId: device.id,
         platform: device.platform,
+        step: 'dispatch_device_added_notification',
         err: serializeError(err),
       });
     }

@@ -177,7 +177,7 @@ export class AuthService extends BaseService {
     });
 
     if (authMethod.isVerified && isEmailAuthMethod(authMethod.method)) {
-      this.dispatchWelcomeNotification(user.id);
+      void this.dispatchWelcomeNotification(user.id);
     }
 
     return {
@@ -389,7 +389,7 @@ export class AuthService extends BaseService {
       });
 
       if (isEmailAuthMethod(authMethod.method)) {
-        this.dispatchWelcomeNotification(user.id);
+        void this.dispatchWelcomeNotification(user.id);
       }
 
       return this.authTokenService.generateAuthResponse(user, {
@@ -956,7 +956,7 @@ export class AuthService extends BaseService {
       ...ctx,
     });
 
-    this.dispatchSecondaryAuthNotifications(
+    void this.dispatchSecondaryAuthNotifications(
       user.id,
       authType,
       publicValueData.publicValueMasked ?? '',
@@ -1072,6 +1072,7 @@ export class AuthService extends BaseService {
     } catch (err) {
       this.logger.error('Failed to dispatch WELCOME notification', {
         userId,
+        step: 'dispatch_welcome_notification',
         err: serializeError(err),
       });
     }
@@ -1138,6 +1139,7 @@ export class AuthService extends BaseService {
       this.logger.error('Failed to dispatch secondary auth notifications', {
         userId,
         authType,
+        step: 'dispatch_secondary_auth_notifications',
         err: serializeError(err),
       });
     }

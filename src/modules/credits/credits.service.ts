@@ -488,7 +488,7 @@ export class CreditsService extends BaseService {
     });
 
     if (dto.source === CreditSource.PURCHASE) {
-      this.dispatchCreditsPurchasedNotification(
+      void this.dispatchCreditsPurchasedNotification(
         dto.userId,
         dto.amount,
         dto.referenceId,
@@ -574,7 +574,10 @@ export class CreditsService extends BaseService {
     });
 
     if (ledger.source === CreditSource.LIKE_USAGE) {
-      this.dispatchCreditsUsedNotification(dto.userId, Math.abs(dto.amount));
+      void this.dispatchCreditsUsedNotification(
+        dto.userId,
+        Math.abs(dto.amount),
+      );
     }
 
     return ledger;
@@ -901,6 +904,7 @@ export class CreditsService extends BaseService {
     } catch (err) {
       this.logger.error('Failed to dispatch credits purchased notification', {
         userId,
+        step: 'dispatch_credits_purchased_notification',
         err: serializeError(err),
       });
     }
@@ -940,6 +944,7 @@ export class CreditsService extends BaseService {
     } catch (err) {
       this.logger.error('Failed to dispatch credits used notification', {
         userId,
+        step: 'dispatch_credits_used_notification',
         err: serializeError(err),
       });
     }
