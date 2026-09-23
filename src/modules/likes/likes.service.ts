@@ -1,12 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  Identity,
-  IdentityType,
-  LikeStatus,
-  MatchStatus,
-  Prisma,
-} from '@prisma/client';
+import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
 
 import { SortOrder } from '@common/enums';
 import { DateUtil, dayjs } from '@common/utils/date.utils';
