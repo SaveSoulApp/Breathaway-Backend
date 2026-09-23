@@ -4,7 +4,6 @@ import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.modu
 import { CreditsModule } from '@modules/credits/credits.module';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
-import { NotificationsModule } from '@modules/notifications/notifications.module';
 
 import { LikesController } from './likes.controller';
 import { LikesService } from './likes.service';
@@ -27,7 +26,6 @@ import { LikesService } from './likes.service';
     IdentitiesModule,
     MatchResolverModule,
     CreditsModule,
-    NotificationsModule,
   ],
   controllers: [LikesController],
   providers: [LikesService],

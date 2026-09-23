@@ -10,12 +10,14 @@
     - unsubscribeToken  {string}
     - currentYear       {number}
 }}
-<p class='email-greeting'>Your like has been sent, {{name}}! 💌</p>
+<p class='email-greeting'>{{#if name}}Your like has been sent,
+    {{name}}! 💌{{else}}Your like has been sent! 💌{{/if}}</p>
 
 <p>
   We've securely recorded your like for
   {{#if targetLabel}}
-    <strong>{{targetLabel}}</strong> ({{targetMaskedValue}}).
+    <strong>{{targetLabel}}</strong>
+    ({{targetMaskedValue}}).
   {{else}}
     <strong>{{targetMaskedValue}}</strong>.
   {{/if}}
@@ -23,25 +25,33 @@
 
 <div class='email-highlight-box'>
   <p>
-    🔒 <strong>Double-Blind Confidentiality:</strong> They will never be told you liked them
-    unless they like you back! Your intent is completely secret.
+    🔒
+    <strong>Double-Blind Confidentiality:</strong>
+    They will never be told you liked them unless they like you back! Your
+    intent is completely secret.
   </p>
 </div>
 
 {{#if intent}}
-  <div style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 18px 24px; margin: 24px 0;'>
+  <div
+    style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 18px 24px; margin: 24px 0;'
+  >
     <p style='margin: 0; font-size: 14px; color: #6B7280;'>Intent</p>
-    <p style='margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #1A1A2E;'>{{intent}}</p>
+    <p
+      style='margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #1A1A2E;'
+    >{{intent}}</p>
   </div>
 {{/if}}
 
 <p>
   {{#if expiresAt}}
-    Your like will remain active until <strong>{{expiresAt}}</strong>.
+    Your like will remain active until
+    <strong>{{expiresAt}}</strong>.
   {{else}}
     Your like will remain active for 90 days.
   {{/if}}
-  If they join BreathAway and like you back before then, you'll instantly get matched!
+  If they join BreathAway and like you back before then, you'll instantly get
+  matched!
 </p>
 
 <div style='text-align: center; margin: 32px 0;'>

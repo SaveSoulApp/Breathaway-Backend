@@ -25,7 +25,7 @@ The following diagram illustrates how user actions trigger notifications, how ev
 
 ```mermaid
 flowchart TD
-    subgraph Triggering_Domains["Triggering Domain Services"]
+    subgraph Triggering_Domains["Triggering Domain Services (Decoupled)"]
         AUTH["AuthService<br/>(Signup, Signin, Add Auth)"]
         LIKES["LikesService<br/>(Create Like, Delete Like)"]
         MATCH["MatchResolverService<br/>(Mutual Match Detection)"]
@@ -35,8 +35,13 @@ flowchart TD
         DEV["DevicesService<br/>(Register Device)"]
     end
 
-    subgraph FireAndForget["Fire-and-Forget Dispatch"]
-        HELPER["Private Async Method<br/>(No await, try-catch, DateUtil)"]
+    subgraph Event_Bus["In-Memory Event Bus"]
+        BUS(("NestJS EventEmitter2<br/>(BaseService.eventEmitter)"))
+    end
+
+    subgraph Notification_Listener["Notifications Module Listener"]
+        LISTENER["NotificationEventsListener<br/>(@OnEvent(..., { async: true }))"]
+        RESOLVE["resolveUserFirstName(userId)"]
         DISPATCH["NotificationsService.dispatch()"]
     end
 
@@ -45,7 +50,8 @@ flowchart TD
     end
 
     subgraph Consumer["Pub/Sub Consumer Pipeline"]
-        LISTENER["NotificationsService.processSendRequest()"]
+        PROCESSOR["NotificationsService.processSendRequest()"]
+        FALLBACK["Fallback Profile Auto-Resolution<br/>(userProfile.firstName)"]
         PREFS["PreferencesService.getPreferencesMany()<br/>(emailEnabled, pushEnabled, whatsappEnabled)"]
     end
 
@@ -61,18 +67,21 @@ flowchart TD
         HBS["Handlebars Engine<br/>(layout.hbs + templates/*.hbs)"]
     end
 
-    AUTH --> HELPER
-    LIKES --> HELPER
-    MATCH --> HELPER
-    CREDITS --> HELPER
-    MAINT --> HELPER
-    IDENT --> HELPER
-    DEV --> HELPER
+    AUTH -->|USER_WELCOME_EVENT| BUS
+    LIKES -->|LIKE_SENT / WITHDRAWN| BUS
+    MATCH -->|MATCH_CREATED_EVENT| BUS
+    CREDITS -->|CREDITS_PURCHASED / USED / EXPIRING| BUS
+    MAINT -->|LIKES_EXPIRED_EVENT| BUS
+    IDENT -->|IDENTITY_ADDED / REMOVED| BUS
+    DEV -->|DEVICE_ADDED_EVENT| BUS
 
-    HELPER --> DISPATCH
+    BUS --> LISTENER
+    LISTENER --> RESOLVE
+    RESOLVE --> DISPATCH
     DISPATCH --> PUBSUB
-    PUBSUB --> LISTENER
-    LISTENER --> PREFS
+    PUBSUB --> PROCESSOR
+    PROCESSOR --> FALLBACK
+    FALLBACK --> PREFS
 
     PREFS -->|pushEnabled: true| FCM
     PREFS -->|emailEnabled: true| BREVO
@@ -367,53 +376,75 @@ Sent when a new physical or web device registers an active push notification tok
 
 ---
 
-## ⚡ Reliability & Async Dispatch Pattern
+## ⚡ Reliability & Decoupled Event Pattern
 
-### Fire-and-Forget Helper Pattern
+### Decoupled Domain Events via `@nestjs/event-emitter`
 
-To maintain sub-100ms API response times and protect transactional integrity, domain services **never await** notification dispatch inside business workflows. Each service encapsulates notification dispatch inside a dedicated private async helper:
+To maintain sub-100ms API response times, decouple feature domains, and prevent transactional bloat, domain services **never directly call `NotificationsService.dispatch`** or import `NotificationsModule`.
+
+Instead, domain services extend `BaseService` and emit strongly typed domain events synchronously. All notification orchestration, channel selection, priority mapping, and recipient profile resolution are isolated within `NotificationEventsListener`.
 
 ```typescript
-// Example from LikesService
-async create(userOneId: string, dto: CreateLikeRequestDto): Promise<LikeResponseDto> {
-  // 1. Core database operations inside Prisma transaction
-  const like = await this.prisma.$transaction(async (tx) => {
-    // ...
-  });
+// 1. Domain Service (e.g. LikesService) — Only emits domain events
+async create(userId: string, dto: CreateLikeRequestDto): Promise<LikeResponseDto> {
+  const targetIdentity = await this.identitiesService.findOne(...);
+  const like = await this.prisma.like.create(...);
 
-  // 2. Fire-and-forget notification helper (NOT awaited)
-  this.sendLikeNotification(userOneId, like, dto).catch((err) => {
-    this.logger.error('Failed to dispatch like notification', {
-      userOneId,
-      likeId: like.id,
-      err: serializeError(err),
-    });
-  });
+  // Synchronous domain event emission (runs listeners asynchronously)
+  this.eventEmitter.emit(
+    LIKE_SENT_EVENT,
+    new LikeSentEvent(
+      userId,
+      targetIdentity.publicValueMasked ?? '',
+      dto.targetLabel ?? null,
+      like.intent,
+      like.expiresAt,
+    ),
+  );
 
-  // 3. Immediate return to client
   return this.mapToResponse(like);
 }
+```
 
-private async sendLikeNotification(userOneId: string, like: Like, dto: CreateLikeRequestDto): Promise<void> {
-  await this.notificationsService.dispatch({
-    type: NotificationType.LIKE_SENT,
-    userIds: [userOneId],
-    channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-    payload: {
-      recipientName: dto.targetLabel ?? 'Someone',
-      intention: dto.intention,
-      date: DateUtil.now().toISOString(),
-    },
-  });
+```typescript
+// 2. NotificationEventsListener (src/modules/notifications/listeners/)
+@OnEvent(LIKE_SENT_EVENT, { async: true })
+async handleLikeSent(event: LikeSentEvent): Promise<void> {
+  try {
+    const firstName = await this.resolveUserFirstName(event.userId);
+
+    await this.notificationsService.dispatch({
+      type: NotificationType.LIKE_SENT,
+      category: NotificationCategory.SOCIAL,
+      priority: NotificationPriority.NORMAL,
+      channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      userIds: [event.userId],
+      payload: {
+        name: firstName ?? 'there',
+        targetMaskedValue: event.targetMaskedValue,
+        targetLabel: event.targetLabel,
+        intent: event.intent,
+        expiresAt: event.expiresAt ? DateUtil.formatDate(event.expiresAt) : '',
+        date: DateUtil.now().toISOString(),
+      },
+    });
+  } catch (error) {
+    this.logger.error('Failed to dispatch like sent notification', {
+      userId: event.userId,
+      err: serializeError(error),
+    });
+  }
 }
 ```
 
 ### Key Engineering Rules
 
-1. **No Inline IIFE**: Avoid `(async () => { ... })()` within endpoint methods. Extract to named private methods for readability and test isolation.
-2. **Standardized Timestamps**: Always use `DateUtil.now()` for consistent UTC date generation.
-3. **Structured Pino Logging**: Catch blocks must serialize errors using `serializeError(err)` and log with contextual metadata (`step`, `userId`, `notificationType`).
-4. **Resilient Provider Failure**: In `NotificationsService.processSendRequest()`, downstream provider dispatches run in `Promise.allSettled()`. A failure in Brevo email delivery never prevents FCM push or WhatsApp delivery.
+1. **Zero Direct Coupling**: Domain services (`Auth`, `Likes`, `Matches`, `Credits`, etc.) must **never** import `NotificationsModule` or inject `NotificationsService`.
+2. **Zero Profile Pre-fetching**: Domain services do not query `userProfile` solely to extract `firstName` for notifications. `NotificationEventsListener` resolves profile data as needed.
+3. **Fallback Name Auto-Resolution**: If a notification request omits `payload.name` for a single recipient, `NotificationsService.processSendRequest` automatically fetches `userProfile.firstName` before dispatching to provider networks.
+4. **Asynchronous Execution**: Handlers in `NotificationEventsListener` configure `@OnEvent(EVENT_NAME, { async: true })`, ensuring notification formatting runs completely outside the client's HTTP request lifecycle.
+5. **Resilient Provider Failure**: In `NotificationsService.processSendRequest()`, downstream provider dispatches run in `Promise.allSettled()`. A failure in Brevo email delivery never prevents FCM push or WhatsApp delivery.
+6. **Detailed Architecture Guide**: See [Decoupled Domain Events Architecture](../architecture/domain-events.md) for full event catalog and scaffolding blueprints.
 
 ---
 

@@ -61,6 +61,15 @@ To comply with global privacy standards, personal identifiable information (PII)
 - Hashing: Fields like email addresses and phone numbers are hashed using SHA-256 for lookup/indexing purposes (`valueHash`).
 - Encryption: The original values are encrypted using AES-256-GCM (`publicValueCiphertext`, `publicValueIv`, `publicValueTag`). The encryption key is protected using Google Cloud KMS.
 
+### 4. Decoupled Domain Events
+
+To prevent cross-cutting leakage and tight coupling, domain feature services **never** call notification delivery mechanics directly.
+
+- **Domain Events**: Domain services (`Auth`, `Likes`, `MatchResolver`, `Credits`, etc.) emit strongly typed domain events via NestJS `EventEmitter2` (e.g. `LIKE_SENT_EVENT`, `MATCH_CREATED_EVENT`).
+- **Centralized Listener**: The `NotificationEventsListener` in `NotificationsModule` subscribes to domain events via `@OnEvent(EVENT, { async: true })`, resolves recipient profile data, and orchestrates channel dispatch (`PUSH`, `EMAIL`, `WHATSAPP`).
+- **Zero Coupling**: Feature modules never import `NotificationsModule` or inject `NotificationsService`.
+- **Deep Dive**: See the dedicated [Decoupled Domain Events Architecture](./architecture/domain-events.md) guide.
+
 ---
 
 ## 🔄 Request Lifecycle & Global Enhancers

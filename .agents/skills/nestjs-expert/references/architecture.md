@@ -209,6 +209,21 @@ async transferCredits(fromId: string, toId: string, amount: number): Promise<voi
 
 Never split interdependent writes across multiple non-transactional calls.
 
+## Notifications & Domain Events (Decoupled Architecture)
+
+Domain feature services must **never** import `NotificationsModule` or inject `NotificationsService`.
+
+When a business action requires sending a notification (e.g. user registered, like sent, match created, credits purchased, identity added):
+
+1. Define a strongly-typed domain event class in `src/modules/<feature>/events/<name>.event.ts` and barrel-export it in `events/index.ts`.
+2. Feature services extending `BaseService` emit the event:
+   ```typescript
+   this.eventEmitter.emit(EVENT_CONSTANT, new DomainEvent(...));
+   ```
+3. `NotificationEventsListener` (`src/modules/notifications/listeners/notification-events.listener.ts`) handles the event via `@OnEvent(EVENT_CONSTANT, { async: true })`, resolves user profile names, and orchestrates channel dispatch.
+4. Feature services must never query `userProfile` solely to extract `firstName` for notifications.
+5. Refer to the `notification-events-expert` skill for complete templates and checklists.
+
 ## Unit Tests
 
 Test services, not controllers. Mock `PrismaService` with `jest.fn()` stubs:

@@ -11,8 +11,6 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import {
   DeviceNotFoundException,
@@ -24,11 +22,12 @@ import {
   PatchDeviceRequestDto,
   UpdateDeviceRequestDto,
 } from '../dto';
+import { DEVICE_ADDED_EVENT } from '../events';
 
 describe('DevicesService', () => {
   let service: DevicesService;
   let prisma: MockPrismaService;
-  let notificationsService: jest.Mocked<NotificationsService>;
+  let eventEmitter: { emit: jest.Mock };
   let logger: jest.Mocked<LoggerService>;
   let contextualLogger: {
     log: jest.Mock;
@@ -62,16 +61,12 @@ describe('DevicesService', () => {
         DevicesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: logger },
-        {
-          provide: NotificationsService,
-          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
-        },
       ],
     }).compile();
 
     service = module.get<DevicesService>(DevicesService);
     prisma = module.get(PrismaService);
-    notificationsService = module.get(NotificationsService);
+    eventEmitter = module.get(EventEmitter2);
 
     prisma.$transaction.mockImplementation(async (cb: unknown) => {
       if (typeof cb === 'function') {
@@ -195,25 +190,18 @@ describe('DevicesService', () => {
       expect(result).toEqual(androidMockDevice);
     });
 
-    it('should dispatch DEVICE_ADDED notification when a new device is registered', async () => {
+    it('should emit DEVICE_ADDED event when a new device is registered', async () => {
       prisma.device.findUnique.mockResolvedValue(null);
       prisma.device.create.mockResolvedValue(mockDevice);
       prisma.device.updateMany.mockResolvedValue({ count: 0 });
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
 
       await service.createDevice('user-1', createDto);
-      await new Promise((resolve) => setImmediate(resolve));
 
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        DEVICE_ADDED_EVENT,
         expect.objectContaining({
-          type: NotificationType.DEVICE_ADDED,
-          userIds: ['user-1'],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            platform: mockDevice.platform,
-          }),
+          userId: 'user-1',
+          platform: mockDevice.platform,
         }),
       );
     });

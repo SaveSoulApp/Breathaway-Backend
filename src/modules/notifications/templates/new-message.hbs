@@ -11,7 +11,8 @@
 }}
 <p class='email-greeting'>{{senderName}} sent you a message 💬</p>
 
-<p>Hey {{name}}, you have a new message waiting for you in BreathAway.</p>
+<p>{{#if name}}Hey {{name}}, you{{else}}You{{/if}}
+  have a new message waiting for you in BreathAway.</p>
 
 {{#if messagePreview}}
   <div class='email-highlight-box'>

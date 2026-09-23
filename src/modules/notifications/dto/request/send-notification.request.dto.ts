@@ -96,6 +96,16 @@ export class SendNotificationRequestDto {
   payload?: Record<string, unknown>;
 
   @ApiPropertyOptional({
+    description:
+      'Per-recipient template data overrides keyed by userId (for batch personalization)',
+    type: 'object',
+    additionalProperties: true,
+  })
+  @IsObject()
+  @IsOptional()
+  recipientData?: Record<string, Record<string, unknown>>;
+
+  @ApiPropertyOptional({
     description: 'Badge count to display on the app icon',
     type: Number,
   })

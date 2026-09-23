@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'architecture',
+        'architecture/domain-events',
         'architecture/database',
         'architecture/supabase-realtime',
         'architecture/logging',

@@ -51,7 +51,8 @@ sequenceDiagram
     participant App as Like Service
     participant Resolver as MatchResolverService
     participant DB as Database (Prisma)
-    participant FCM as Notifications Service
+    participant Events as EventEmitter2
+    participant Listener as NotificationEventsListener
 
     App ->> Resolver: resolveFromLike(newLike)
     activate Resolver
@@ -66,7 +67,8 @@ sequenceDiagram
     activate DB
     alt Success (First thread)
         DB -->> Resolver: Match created successfully
-        Resolver ->> FCM: Trigger push notifications
+        Resolver ->> Events: emit(MATCH_CREATED_EVENT, MatchCreatedEvent)
+        Events ->> Listener: @OnEvent: Multi-channel dispatch (Push/Email)
     else P2002 Unique Constraint Violation (Second concurrent thread)
         DB -->> Resolver: P2002 Error (Match already exists)
         Note over Resolver: Catches & swallows P2002 error

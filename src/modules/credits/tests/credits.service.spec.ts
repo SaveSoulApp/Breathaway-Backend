@@ -15,9 +15,11 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
-
+import {
+  CREDIT_BUNDLE_EXPIRING_EVENT,
+  CREDITS_PURCHASED_EVENT,
+  CREDITS_USED_EVENT,
+} from '../events';
 import {
   LedgerEntryNotFoundException,
   InvalidCreditSourceException,
@@ -34,7 +36,7 @@ import { CreditStatusFilter } from '../enums';
 describe('CreditsService', () => {
   let service: CreditsService;
   let prisma: MockPrismaService;
-  let notificationsService: { dispatch: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
 
   const userId = 'user-id-123';
   const entryId = 'entry-id-123';
@@ -66,10 +68,6 @@ describe('CreditsService', () => {
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        {
-          provide: NotificationsService,
-          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
-        },
         CreditsService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -78,7 +76,8 @@ describe('CreditsService', () => {
 
     service = module.get<CreditsService>(CreditsService);
     prisma = module.get(PrismaService);
-    notificationsService = module.get(NotificationsService);
+    eventEmitter = module.get(EventEmitter2);
+    prisma.creditLedger.findMany.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -488,40 +487,31 @@ describe('CreditsService', () => {
       });
     });
 
-    it('should dispatch CREDITS_PURCHASED notification when source is PURCHASE', async () => {
+    it('should emit CREDITS_PURCHASED event when source is PURCHASE', async () => {
       prisma.creditLedger.create.mockResolvedValue(mockLedgerEntry);
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
       jest.spyOn(service, 'getBalance').mockResolvedValue(20);
 
       await service.grantCredits(dto);
 
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_PURCHASED_EVENT,
         expect.objectContaining({
-          type: 'CREDITS_PURCHASED',
-          userIds: [userId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            creditsAdded: 10,
-            creditBalance: 20,
-          }),
+          userId,
+          amount: 10,
+          balance: 20,
         }),
       );
     });
 
-    it('should dispatch CREDITS_PURCHASED notification without passing transaction client when called with tx', async () => {
+    it('should emit CREDITS_PURCHASED event without passing transaction client when called with tx', async () => {
       const mockTx = {
         creditLedger: {
           create: jest.fn().mockResolvedValue(mockLedgerEntry),
         },
       } as unknown as Prisma.TransactionClient;
 
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
       const getBalanceSpy = jest
         .spyOn(service, 'getBalance')
         .mockResolvedValue(20);
@@ -530,15 +520,12 @@ describe('CreditsService', () => {
       await new Promise((resolve) => setImmediate(resolve));
 
       expect(getBalanceSpy).toHaveBeenCalledWith(userId);
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_PURCHASED_EVENT,
         expect.objectContaining({
-          type: 'CREDITS_PURCHASED',
-          userIds: [userId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            creditsAdded: 10,
-            creditBalance: 20,
-          }),
+          userId,
+          amount: 10,
+          balance: 20,
         }),
       );
     });
@@ -588,32 +575,27 @@ describe('CreditsService', () => {
       });
     });
 
-    it('should dispatch CREDITS_USED notification when credits are consumed for like usage', async () => {
+    it('should emit CREDITS_USED event when credits are consumed for like usage', async () => {
       jest.spyOn(service, 'getBalance').mockResolvedValue(15);
       prisma.creditLedger.create.mockResolvedValue({
         ...mockLedgerEntry,
         source: CreditSource.LIKE_USAGE,
       });
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
 
       await service.consumeCredits(dto);
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_USED_EVENT,
         expect.objectContaining({
-          type: NotificationType.CREDITS_USED,
-          userIds: [userId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            creditsUsed: 10,
-          }),
+          userId,
+          amount: 10,
+          balance: 15,
         }),
       );
     });
 
-    it('should dispatch CREDITS_USED notification without passing transaction client when called with tx', async () => {
+    it('should emit CREDITS_USED event without passing transaction client when called with tx', async () => {
       const mockTx = {
         creditLedger: {
           create: jest.fn().mockResolvedValue({
@@ -623,9 +605,6 @@ describe('CreditsService', () => {
         },
       } as unknown as Prisma.TransactionClient;
 
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
       const getBalanceSpy = jest
         .spyOn(service, 'getBalance')
         .mockResolvedValue(15);
@@ -633,17 +612,13 @@ describe('CreditsService', () => {
       await service.consumeCredits(dto, mockTx);
       await new Promise((resolve) => setImmediate(resolve));
 
-      // Notification must call getBalance without tx (using default this.prisma)
       expect(getBalanceSpy).toHaveBeenCalledWith(userId);
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDITS_USED_EVENT,
         expect.objectContaining({
-          type: NotificationType.CREDITS_USED,
-          userIds: [userId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            creditsUsed: 10,
-            creditBalance: 15,
-          }),
+          userId,
+          amount: 10,
+          balance: 15,
         }),
       );
     });
@@ -979,26 +954,19 @@ describe('CreditsService', () => {
         },
       ] as never);
 
-      prisma.userProfile.findUnique.mockResolvedValueOnce({
-        firstName: 'Alice',
-      } as never);
-
       await service.handleExpiryWarningBatch({
         userIds: [userId],
         asOf: asOf.toISOString(),
       });
 
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDIT_BUNDLE_EXPIRING_EVENT,
         expect.objectContaining({
-          type: 'BUNDLE_EXPIRY_WARNING',
-          userIds: [userId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            count: 5,
-            daysRemaining: 2,
-            isUrgent: true,
-            urgency: 'warning',
-          }),
+          userId,
+          count: 5,
+          daysRemaining: 2,
+          isUrgent: true,
+          urgency: 'warning',
         }),
       );
     });

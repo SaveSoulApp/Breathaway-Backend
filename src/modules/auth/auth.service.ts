@@ -10,11 +10,10 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { FirebaseService } from '@modules/firebase/firebase.service';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
+import {
+  IDENTITY_ADDED_EVENT,
+  IdentityAddedEvent,
+} from '@modules/identities/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -38,6 +37,7 @@ import {
   DevLoginRequestDto,
   SocialAuthRequestDto,
 } from './dto';
+import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
 import {
@@ -66,7 +66,6 @@ export class AuthService extends BaseService {
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
     private readonly pubSubPublisher: PubSubPublisherService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -177,7 +176,7 @@ export class AuthService extends BaseService {
     });
 
     if (authMethod.isVerified && isEmailAuthMethod(authMethod.method)) {
-      void this.dispatchWelcomeNotification(user.id);
+      this.eventEmitter.emit(USER_WELCOME_EVENT, new UserWelcomeEvent(user.id));
     }
 
     return {
@@ -389,7 +388,10 @@ export class AuthService extends BaseService {
       });
 
       if (isEmailAuthMethod(authMethod.method)) {
-        void this.dispatchWelcomeNotification(user.id);
+        this.eventEmitter.emit(
+          USER_WELCOME_EVENT,
+          new UserWelcomeEvent(user.id),
+        );
       }
 
       return this.authTokenService.generateAuthResponse(user, {
@@ -956,11 +958,31 @@ export class AuthService extends BaseService {
       ...ctx,
     });
 
-    void this.dispatchSecondaryAuthNotifications(
-      user.id,
-      authType,
-      publicValueData.publicValueMasked ?? '',
+    this.eventEmitter.emit(
+      IDENTITY_ADDED_EVENT,
+      new IdentityAddedEvent(
+        user.id,
+        authType === AuthMethod.EMAIL ? 'Email' : 'Phone',
+        publicValueData.publicValueMasked ?? '',
+        true,
+      ),
     );
+
+    if (authType === AuthMethod.EMAIL) {
+      const emailCount = await this.prisma.authCredential.count({
+        where: {
+          userId: user.id,
+          type: AuthCredentialType.EMAIL,
+          deletedAt: null,
+        },
+      });
+      if (emailCount <= 1) {
+        this.eventEmitter.emit(
+          USER_WELCOME_EVENT,
+          new UserWelcomeEvent(user.id),
+        );
+      }
+    }
 
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
@@ -1051,97 +1073,5 @@ export class AuthService extends BaseService {
       userId: userId,
     });
     return { message: 'Signout successful' };
-  }
-
-  private async dispatchWelcomeNotification(userId: string): Promise<void> {
-    try {
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL],
-        userIds: [userId],
-        type: NotificationType.WELCOME,
-        category: NotificationCategory.SYSTEM,
-        payload: {
-          name: profile?.firstName ?? '',
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch WELCOME notification', {
-        userId,
-        step: 'dispatch_welcome_notification',
-        err: serializeError(err),
-      });
-    }
-  }
-
-  /**
-   * Dispatches asynchronous notifications when a secondary auth credential is added.
-   *
-   * Dispatches an IDENTITY_ADDED notification (push + email). If the credential is an email
-   * and this is the user's first email credential, also dispatches a WELCOME email.
-   * Fire-and-forget: executed without blocking the secondary auth response.
-   *
-   * @param userId - ID of the authenticated user.
-   * @param authType - Auth method added (EMAIL or PHONE).
-   * @param maskedValue - Masked value of the new credential.
-   */
-  private async dispatchSecondaryAuthNotifications(
-    userId: string,
-    authType: AuthMethod,
-    maskedValue: string,
-  ): Promise<void> {
-    try {
-      const userProfile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.IDENTITY_ADDED,
-        category: NotificationCategory.SYSTEM,
-        priority: NotificationPriority.HIGH,
-        payload: {
-          name: userProfile?.firstName ?? '',
-          identityType: authType === AuthMethod.EMAIL ? 'Email' : 'Phone',
-          maskedValue,
-          addedAt: DateUtil.now().toUTCString(),
-          isVerified: true,
-        },
-      });
-
-      if (authType === AuthMethod.EMAIL) {
-        const emailCount = await this.prisma.authCredential.count({
-          where: {
-            userId,
-            type: AuthCredentialType.EMAIL,
-            deletedAt: null,
-          },
-        });
-        if (emailCount <= 1) {
-          await this.notificationsService.dispatch({
-            channels: [NotificationChannel.EMAIL],
-            userIds: [userId],
-            type: NotificationType.WELCOME,
-            category: NotificationCategory.SYSTEM,
-            payload: {
-              name: userProfile?.firstName ?? '',
-            },
-          });
-        }
-      }
-    } catch (err) {
-      this.logger.error('Failed to dispatch secondary auth notifications', {
-        userId,
-        authType,
-        step: 'dispatch_secondary_auth_notifications',
-        err: serializeError(err),
-      });
-    }
   }
 }

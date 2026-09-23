@@ -9,7 +9,8 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>Your credits have been updated, {{name}}</p>
+<p class='email-greeting'>{{#if name}}Your credits have been updated,
+    {{name}}{{else}}Your credits have been updated{{/if}}</p>
 
 <p>
   We wanted to let you know that your BreathAway credit balance has changed.

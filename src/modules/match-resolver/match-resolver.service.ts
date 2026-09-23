@@ -9,11 +9,8 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
+
+import { MATCH_CREATED_EVENT, MatchCreatedEvent } from './events';
 
 /**
  * Minimal like shape consumed by the match resolver.
@@ -44,7 +41,6 @@ export class MatchResolverService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly matchesService: MatchesService,
     private readonly blocksService: BlocksService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -151,13 +147,15 @@ export class MatchResolverService extends BaseService {
         },
       });
 
-      // Dispatch notifications fire-and-forget; errors are caught and logged inside
-      await this.dispatchMatchNotifications(
-        userOneId,
-        userTwoId,
-        match.id,
-        canonicalLikeOne.label,
-        canonicalLikeTwo.label,
+      this.eventEmitter.emit(
+        MATCH_CREATED_EVENT,
+        new MatchCreatedEvent(
+          match.id,
+          userOneId,
+          userTwoId,
+          canonicalLikeOne.label,
+          canonicalLikeTwo.label,
+        ),
       );
     } catch (err) {
       const serialized = serializeError(err);
@@ -181,88 +179,6 @@ export class MatchResolverService extends BaseService {
         ...ctx,
         step: 'complete',
         err: serialized,
-      });
-    }
-  }
-
-  /**
-   * Fetches user profiles and dispatches localized NEW_MATCH notifications to both users.
-   */
-  private async dispatchMatchNotifications(
-    userOneId: string,
-    userTwoId: string,
-    matchId: string,
-    likeOneLabel: string | null,
-    likeTwoLabel: string | null,
-  ): Promise<void> {
-    const ctx = { matchId, userOneId, userTwoId };
-    this.logger.debug('Dispatching match notifications', {
-      ...ctx,
-      step: 'notify_init',
-    });
-
-    try {
-      const profiles = await this.prisma.userProfile.findMany({
-        where: { userId: { in: [userOneId, userTwoId] } },
-        select: { userId: true, firstName: true },
-      });
-
-      // First names are used only for notification payload copy — not logged (PII).
-      const userOneName =
-        profiles.find((p) => p.userId === userOneId)?.firstName ?? 'someone';
-      const userTwoName =
-        profiles.find((p) => p.userId === userTwoId)?.firstName ?? 'someone';
-
-      // Use the label if it's set; otherwise fallback to the user's first name
-      const userOneDisplayName =
-        likeOneLabel && likeOneLabel.trim() !== '' ? likeOneLabel : userTwoName;
-      const userTwoDisplayName =
-        likeTwoLabel && likeTwoLabel.trim() !== '' ? likeTwoLabel : userOneName;
-
-      // Notify User One (tell them about User Two, using the label User One assigned to User Two)
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
-        userIds: [userOneId],
-        type: NotificationType.NEW_MATCH,
-        category: NotificationCategory.SOCIAL,
-        priority: NotificationPriority.HIGH,
-        payload: {
-          name: userOneName,
-          matchName: userOneDisplayName,
-          matchId,
-          chatUrl: `/matches/${matchId}`,
-        },
-      });
-      this.logger.debug('Notification dispatched to userOne', {
-        ...ctx,
-        step: 'notify_dispatch',
-      });
-
-      // Notify User Two (tell them about User One, using the label User Two assigned to User One)
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
-        userIds: [userTwoId],
-        type: NotificationType.NEW_MATCH,
-        category: NotificationCategory.SOCIAL,
-        priority: NotificationPriority.HIGH,
-        payload: {
-          name: userTwoName,
-          matchName: userTwoDisplayName,
-          matchId,
-          chatUrl: `/matches/${matchId}`,
-        },
-      });
-      this.logger.debug('Notification dispatched to userTwo', {
-        ...ctx,
-        step: 'notify_dispatch',
-      });
-    } catch (err) {
-      // Notification failure must not surface to the caller — the match is
-      // already persisted. Log and continue.
-      this.logger.error('Failed to dispatch match notifications', {
-        ...ctx,
-        step: 'notify_dispatch',
-        err: serializeError(err),
       });
     }
   }

@@ -11,15 +11,29 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>Hello{{#if name}}, {{name}}{{/if}} ⏳</p>
+<p class='email-greeting'>{{#if name}}Hello, {{name}} ⏳{{else}}Hello ⏳{{/if}}</p>
 
 {{#if isUrgent}}
   <div class='email-alert email-alert--warning'>
-    <strong>⚠️ Urgent Notice:</strong> You have <strong>{{count}}</strong> unused credits that will expire on <strong>{{expiryDate}}</strong> (in {{daysRemaining}} days).
+    <strong>⚠️ Urgent Notice:</strong>
+    You have
+    <strong>{{count}}</strong>
+    unused credits that will expire on
+    <strong>{{expiryDate}}</strong>
+    (in
+    {{daysRemaining}}
+    days).
   </div>
 {{else}}
   <div class='email-alert email-alert--info'>
-    <strong>ℹ️ Heads up:</strong> You have <strong>{{count}}</strong> unused credits that will expire on <strong>{{expiryDate}}</strong> (in {{daysRemaining}} days).
+    <strong>ℹ️ Heads up:</strong>
+    You have
+    <strong>{{count}}</strong>
+    unused credits that will expire on
+    <strong>{{expiryDate}}</strong>
+    (in
+    {{daysRemaining}}
+    days).
   </div>
 {{/if}}
 
@@ -29,8 +43,9 @@
 </div>
 
 <p>
-  Don't let them go to waste! Use your credits to send secret likes to people you know.
-  BreathAway protects your privacy — likes are 100% confidential and only reveal if the feeling is mutual.
+  Don't let them go to waste! Use your credits to send secret likes to people
+  you know. BreathAway protects your privacy — likes are 100% confidential and
+  only reveal if the feeling is mutual.
 </p>
 
 <div style='text-align: center; margin: 32px 0;'>

@@ -10,6 +10,7 @@ import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
 import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
 import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
 import { EmailService } from './email/email.service';
+import { NotificationEventsListener } from './listeners/notification-events.listener';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
@@ -20,6 +21,7 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
+    NotificationEventsListener,
     FcmProviderService,
     WhatsAppProviderService,
     // Email adapter concrete implementations

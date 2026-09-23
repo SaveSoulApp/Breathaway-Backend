@@ -9,11 +9,6 @@ import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.ser
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationPriority } from '@modules/notifications/enums/notification-priority.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -27,6 +22,12 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityRequestDto,
 } from './dto';
+import {
+  IDENTITY_ADDED_EVENT,
+  IDENTITY_REMOVED_EVENT,
+  IdentityAddedEvent,
+  IdentityRemovedEvent,
+} from './events';
 
 /**
  * Owns the business logic for creating, reading, updating, verifying, and deleting
@@ -48,7 +49,6 @@ export class IdentitiesService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
     private readonly pubSubPublisher: PubSubPublisherService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -190,7 +190,15 @@ export class IdentitiesService extends BaseService {
       identityId: identity.id,
     });
 
-    void this.dispatchIdentityAddedNotification(userId, identity);
+    this.eventEmitter.emit(
+      IDENTITY_ADDED_EVENT,
+      new IdentityAddedEvent(
+        userId,
+        identity.type,
+        identity.publicValueMasked ?? '',
+        identity.isVerified,
+      ),
+    );
 
     return this.toMaskedResponse(identity);
   }
@@ -505,7 +513,14 @@ export class IdentitiesService extends BaseService {
       userId,
     });
 
-    void this.dispatchIdentityRemovedNotification(userId, identity);
+    this.eventEmitter.emit(
+      IDENTITY_REMOVED_EVENT,
+      new IdentityRemovedEvent(
+        userId,
+        identity.type,
+        identity.publicValueMasked ?? '',
+      ),
+    );
   }
 
   /**
@@ -906,92 +921,5 @@ export class IdentitiesService extends BaseService {
       deletedAt: identity.deletedAt,
       userId: identity.userId,
     };
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) when a new identity is registered.
-   *
-   * Executed fire-and-forget to avoid blocking the primary identity creation flow.
-   * Catches and logs any errors without re-throwing.
-   *
-   * @param userId - ID of the user owning the identity.
-   * @param identity - The newly created identity record.
-   */
-  private async dispatchIdentityAddedNotification(
-    userId: string,
-    identity: Identity,
-  ): Promise<void> {
-    try {
-      const userProfile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.IDENTITY_ADDED,
-        category: NotificationCategory.SYSTEM,
-        priority: NotificationPriority.HIGH,
-        payload: {
-          name: userProfile?.firstName ?? '',
-          identityType: identity.type,
-          maskedValue: identity.publicValueMasked ?? '',
-          addedAt: DateUtil.now().toUTCString(),
-          isVerified: identity.isVerified,
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch IDENTITY_ADDED notification', {
-        userId,
-        identityId: identity.id,
-        identityType: identity.type,
-        step: 'dispatch_identity_added_notification',
-        err: serializeError(err),
-      });
-    }
-  }
-
-  /**
-   * Dispatches an asynchronous security notification (email and push) when an identity is deleted/unlinked.
-   *
-   * Executed fire-and-forget so that notification dispatch does not block the deletion response.
-   * Catches and logs any errors internally.
-   *
-   * @param userId - ID of the user who owned the identity.
-   * @param identity - The deleted identity record.
-   */
-  private async dispatchIdentityRemovedNotification(
-    userId: string,
-    identity: Identity,
-  ): Promise<void> {
-    try {
-      const userProfile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.IDENTITY_REMOVED,
-        category: NotificationCategory.SYSTEM,
-        priority: NotificationPriority.HIGH,
-        payload: {
-          name: userProfile?.firstName ?? '',
-          identityType: identity.type,
-          maskedValue: identity.publicValueMasked ?? '',
-          removedAt: DateUtil.now().toUTCString(),
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch IDENTITY_REMOVED notification', {
-        userId,
-        identityId: identity.id,
-        identityType: identity.type,
-        step: 'dispatch_identity_removed_notification',
-        err: serializeError(err),
-      });
-    }
   }
 }

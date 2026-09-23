@@ -8,22 +8,30 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>Update on your sent likes{{#if name}}, {{name}}{{/if}} ⏳</p>
+<p class='email-greeting'>{{#if name}}Update on your sent likes,
+    {{name}}
+    ⏳{{else}}Update on your sent likes ⏳{{/if}}</p>
 
 <p>
   We wanted to let you know that
-  <strong>{{count}}</strong> of your pending likes expired on <strong>{{expiryDate}}</strong>.
+  <strong>{{count}}</strong>
+  of your pending likes expired on
+  <strong>{{expiryDate}}</strong>.
 </p>
 
 <div class='email-highlight-box'>
   <p>
-    💡 <strong>Why do likes expire?</strong> To keep everyone's experience fresh and relevant,
-    unreciprocated likes quietly expire after 90 days. The other person was never told you liked them.
+    💡
+    <strong>Why do likes expire?</strong>
+    To keep everyone's experience fresh and relevant, unreciprocated likes
+    quietly expire after 90 days. The other person was never told you liked
+    them.
   </p>
 </div>
 
 <p>
-  Your slate is clean! You can explore new connections or re-send likes at any time.
+  Your slate is clean! You can explore new connections or re-send likes at any
+  time.
 </p>
 
 <div style='text-align: center; margin: 32px 0;'>
@@ -33,5 +41,7 @@
 <hr class='email-divider' />
 
 <p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
-  Have questions? Visit our <a href='{{appUrl}}/faq'>FAQ</a> or contact support.
+  Have questions? Visit our
+  <a href='{{appUrl}}/faq'>FAQ</a>
+  or contact support.
 </p>

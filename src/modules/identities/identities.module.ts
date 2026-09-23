@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
-import { NotificationsModule } from '@modules/notifications/notifications.module';
 
 import { IdentitiesController } from './identities.controller';
 import { IdentitiesService } from './identities.service';
@@ -23,7 +22,7 @@ import { IdentitiesService } from './identities.service';
  *     resolve and decrypt identities without creating a circular dependency.
  */
 @Module({
-  imports: [IdentityCryptoModule, NotificationsModule],
+  imports: [IdentityCryptoModule],
   controllers: [IdentitiesController],
   providers: [IdentitiesService],
   exports: [IdentitiesService],

@@ -29,6 +29,11 @@ export interface SendEmailOptions {
    * Common keys: name, etc. Template-specific keys documented on each template.
    */
   templateData: Record<string, unknown>;
+  /**
+   * Optional map of userId -> custom template data overrides for per-recipient personalization
+   * in batch dispatches.
+   */
+  recipientData?: Record<string, Record<string, unknown>>;
 }
 
 @Injectable()
@@ -118,35 +123,64 @@ export class EmailService extends BaseService implements OnModuleInit {
             publicValueKeyId: true,
           },
         },
+        user: {
+          select: {
+            profile: {
+              select: {
+                firstName: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    const resolvedEmails: string[] = [];
-    for (const cred of credentials) {
-      if (!cred.identity) {
-        continue;
-      }
-
-      try {
-        const email = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
-        if (email && email.trim() !== '') {
-          resolvedEmails.push(email.trim().toLowerCase());
+    const decryptedResults = await Promise.allSettled(
+      credentials.map(async (cred) => {
+        if (!cred.identity) {
+          return null;
         }
-      } catch (err) {
-        this.logger.error('Failed to decrypt user email address', {
-          ...ctx,
-          userId: cred.userId,
-          step: 'decrypt_email',
-          err: serializeError(err),
-        });
+
+        try {
+          const email = await this.identityCryptoService.decryptPublicValue(
+            cred.identity,
+          );
+          if (email && email.trim() !== '') {
+            return {
+              userId: cred.userId,
+              email: email.trim().toLowerCase(),
+              firstName: cred.user?.profile?.firstName,
+            };
+          }
+          return null;
+        } catch (err) {
+          this.logger.error('Failed to decrypt user email address', {
+            ...ctx,
+            userId: cred.userId,
+            step: 'decrypt_email',
+            err: serializeError(err),
+          });
+          return null;
+        }
+      }),
+    );
+
+    // Deduplicate by recipient email to avoid sending multiple messages to the same address
+    const recipientByEmail = new Map<
+      string,
+      { userId: string; firstName?: string }
+    >();
+
+    for (const res of decryptedResults) {
+      if (res.status === 'fulfilled' && res.value) {
+        const { email, userId, firstName } = res.value;
+        if (!recipientByEmail.has(email)) {
+          recipientByEmail.set(email, { userId, firstName });
+        }
       }
     }
 
-    const uniqueEmails = [...new Set(resolvedEmails)];
-
-    if (uniqueEmails.length === 0) {
+    if (recipientByEmail.size === 0) {
       this.logger.warn('No valid email addresses resolved for userIds', {
         ...ctx,
         step: 'resolve_credentials',
@@ -157,20 +191,47 @@ export class EmailService extends BaseService implements OnModuleInit {
     this.logger.debug('Dispatching emails to recipients', {
       ...ctx,
       step: 'send_emails',
-      recipientCount: uniqueEmails.length,
+      recipientCount: recipientByEmail.size,
     });
 
     const contentTemplate = this.getOrCompileTemplate(emailType);
+    const isBatch = userIds.length > 1;
 
     const results = await Promise.allSettled(
-      uniqueEmails.map((to) =>
-        this.renderAndSend(
+      Array.from(recipientByEmail.entries()).map(([to, recipient]) => {
+        const recipientTemplateData: Record<string, unknown> = {
+          ...templateData,
+        };
+
+        // Merge per-recipient data override if provided for this user
+        if (options.recipientData?.[recipient.userId]) {
+          Object.assign(
+            recipientTemplateData,
+            options.recipientData[recipient.userId],
+          );
+        }
+
+        // Isolate recipient name personalization:
+        // - When sending to multiple users (batch), each recipient's name is resolved from their
+        //   own DB profile (or recipientData override), avoiding leaking one user's name to all.
+        // - When sending to a single user, use the caller-provided templateData.name if present,
+        //   falling back to DB profile firstName.
+        if (isBatch) {
+          recipientTemplateData.name =
+            (options.recipientData?.[recipient.userId]?.name as string) ??
+            recipient.firstName ??
+            '';
+        } else if (!recipientTemplateData.name && recipient.firstName) {
+          recipientTemplateData.name = recipient.firstName;
+        }
+
+        return this.renderAndSend(
           to,
           templateConfig.subject,
           contentTemplate,
-          templateData,
-        ),
-      ),
+          recipientTemplateData,
+        );
+      }),
     );
 
     results.forEach((result: PromiseSettledResult<void>, index: number) => {

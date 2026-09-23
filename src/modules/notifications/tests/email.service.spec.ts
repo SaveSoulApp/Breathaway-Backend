@@ -252,6 +252,99 @@ describe('EmailService', () => {
       expect(callArgs.subject).toContain('Mohit');
       expect(callArgs.to).toBe('test@example.com');
     });
+
+    it('should personalize template data individually for each recipient in batch sends', async () => {
+      mockPrisma.authCredential.findMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          identity: fakeIdentity1,
+          user: { profile: { firstName: 'Alice' } },
+        },
+        {
+          userId: 'user-2',
+          identity: fakeIdentity2,
+          user: { profile: { firstName: 'Bob' } },
+        },
+      ] as never);
+
+      mockIdentityCrypto.decryptPublicValue
+        .mockResolvedValueOnce('alice@example.com')
+        .mockResolvedValueOnce('bob@example.com');
+      mockAdapter.send.mockResolvedValue(undefined);
+
+      await service.send({
+        emailType: EmailType.WELCOME,
+        userIds: ['user-1', 'user-2'],
+        // Base template data includes shared variables, but caller passed a single name
+        templateData: { name: 'SharedName', appUrl: '', currentYear: 2026 },
+      });
+
+      expect(mockAdapter.send).toHaveBeenCalledTimes(2);
+
+      const aliceCall = mockAdapter.send.mock.calls.find(
+        (call: any[]) => call[0].to === 'alice@example.com',
+      )?.[0];
+      const bobCall = mockAdapter.send.mock.calls.find(
+        (call: any[]) => call[0].to === 'bob@example.com',
+      )?.[0];
+
+      expect(aliceCall).toBeDefined();
+      expect(bobCall).toBeDefined();
+
+      // Each recipient should have their own name rendered from their DB profile
+      expect(aliceCall?.subject).toContain('Alice');
+      expect(aliceCall?.subject).not.toContain('SharedName');
+      expect(aliceCall?.html).toContain('Alice');
+
+      expect(bobCall?.subject).toContain('Bob');
+      expect(bobCall?.subject).not.toContain('SharedName');
+      expect(bobCall?.html).toContain('Bob');
+    });
+
+    it('should support per-recipient custom template overrides via recipientData', async () => {
+      mockPrisma.authCredential.findMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          identity: fakeIdentity1,
+          user: { profile: { firstName: 'Alice' } },
+        },
+        {
+          userId: 'user-2',
+          identity: fakeIdentity2,
+          user: { profile: { firstName: 'Bob' } },
+        },
+      ] as never);
+
+      mockIdentityCrypto.decryptPublicValue
+        .mockResolvedValueOnce('alice@example.com')
+        .mockResolvedValueOnce('bob@example.com');
+      mockAdapter.send.mockResolvedValue(undefined);
+
+      await service.send({
+        emailType: EmailType.WELCOME,
+        userIds: ['user-1', 'user-2'],
+        templateData: { appUrl: '', currentYear: 2026 },
+        recipientData: {
+          'user-1': { name: 'AliceCustom' },
+          'user-2': { name: 'BobCustom' },
+        },
+      });
+
+      expect(mockAdapter.send).toHaveBeenCalledTimes(2);
+
+      const aliceCall = mockAdapter.send.mock.calls.find(
+        (call: any[]) => call[0].to === 'alice@example.com',
+      )?.[0];
+      const bobCall = mockAdapter.send.mock.calls.find(
+        (call: any[]) => call[0].to === 'bob@example.com',
+      )?.[0];
+
+      expect(aliceCall).toBeDefined();
+      expect(bobCall).toBeDefined();
+
+      expect(aliceCall?.html).toContain('AliceCustom');
+      expect(bobCall?.html).toContain('BobCustom');
+    });
   });
 
   describe('EMAIL_TEMPLATE_MAP', () => {
@@ -400,6 +493,25 @@ describe('EmailService', () => {
           const payload = samplePayloads[emailType] ?? { name: 'Test' };
           const content = compiled(payload);
           layoutDelegate({ ...payload, body: content });
+        }).not.toThrow();
+
+        // Verify fallback when recipient name is empty/missing
+        expect(() => {
+          const compiled = HandlebarsActual.compile(templateSource);
+          const payloadWithoutName = {
+            ...(samplePayloads[emailType] ?? {}),
+            name: '',
+          };
+          const contentWithoutName = compiled(payloadWithoutName);
+          layoutDelegate({ ...payloadWithoutName, body: contentWithoutName });
+
+          // Ensure no dangling commas from missing names
+          expect(contentWithoutName).not.toMatch(/Hi ,/);
+          expect(contentWithoutName).not.toMatch(/aboard, !/);
+          expect(contentWithoutName).not.toMatch(/purchase, !/);
+          expect(contentWithoutName).not.toMatch(/updated, </);
+          expect(contentWithoutName).not.toMatch(/sent, !/);
+          expect(contentWithoutName).not.toMatch(/match, !/);
         }).not.toThrow();
       }
     });

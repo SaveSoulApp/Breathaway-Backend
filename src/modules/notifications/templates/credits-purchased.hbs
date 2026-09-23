@@ -10,10 +10,12 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>Thank you for your purchase, {{name}}! 💳</p>
+<p class='email-greeting'>{{#if name}}Thank you for your purchase,
+    {{name}}! 💳{{else}}Thank you for your purchase! 💳{{/if}}</p>
 
 <p>
-  Your credit purchase has been successfully processed and added to your BreathAway account.
+  Your credit purchase has been successfully processed and added to your
+  BreathAway account.
 </p>
 
 <div class='email-stat-card'>
@@ -21,23 +23,34 @@
   <p class='email-stat-card__label'>Credits Added</p>
 </div>
 
-<div style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'>
+<div
+  style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'
+>
   <table style='width: 100%; border-collapse: collapse;'>
     <tr>
-      <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>New Total Balance:</td>
-      <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1A1A2E; font-size: 15px;'>{{creditBalance}} credits</td>
+      <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>New Total
+        Balance:</td>
+      <td
+        style='padding: 8px 0; text-align: right; font-weight: 700; color: #1A1A2E; font-size: 15px;'
+      >{{creditBalance}} credits</td>
     </tr>
     {{#if transactionId}}
-    <tr>
-      <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Transaction Ref:</td>
-      <td style='padding: 8px 0; text-align: right; font-family: monospace; font-size: 13px; color: #374151;'>{{transactionId}}</td>
-    </tr>
+      <tr>
+        <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Transaction
+          Ref:</td>
+        <td
+          style='padding: 8px 0; text-align: right; font-family: monospace; font-size: 13px; color: #374151;'
+        >{{transactionId}}</td>
+      </tr>
     {{/if}}
     {{#if expiresAt}}
-    <tr>
-      <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Valid Until:</td>
-      <td style='padding: 8px 0; text-align: right; color: #374151; font-size: 14px;'>{{expiresAt}}</td>
-    </tr>
+      <tr>
+        <td style='padding: 8px 0; color: #6B7280; font-size: 14px;'>Valid
+          Until:</td>
+        <td
+          style='padding: 8px 0; text-align: right; color: #374151; font-size: 14px;'
+        >{{expiresAt}}</td>
+      </tr>
     {{/if}}
   </table>
 </div>
@@ -53,5 +66,6 @@
 <hr class='email-divider' />
 
 <p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
-  Need help or have questions regarding billing? Contact <a href='{{appUrl}}/support'>BreathAway Support</a>.
+  Need help or have questions regarding billing? Contact
+  <a href='{{appUrl}}/support'>BreathAway Support</a>.
 </p>

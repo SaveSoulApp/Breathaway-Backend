@@ -20,10 +20,6 @@ import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 
 import {
   AlreadyLikedException,
@@ -41,6 +37,12 @@ import {
   LikeListQueryDto,
   UpdateLikeLabelRequestDto,
 } from './dto';
+import {
+  LIKE_SENT_EVENT,
+  LIKE_WITHDRAWN_EVENT,
+  LikeSentEvent,
+  LikeWithdrawnEvent,
+} from './events';
 import { CreateLikeResult, LIKE_SELECT, RawLike } from './likes.types';
 
 /**
@@ -63,7 +65,6 @@ export class LikesService extends BaseService {
     private readonly identitiesService: IdentitiesService,
     private readonly matchResolverService: MatchResolverService,
     private readonly creditsService: CreditsService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
     this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
@@ -546,12 +547,15 @@ export class LikesService extends BaseService {
       targetIdentityId: targetIdentity.id,
     });
 
-    void this.dispatchLikeSentNotification(
-      userId,
-      targetIdentity,
-      dto,
-      like.id,
-      like.expiresAt,
+    this.eventEmitter.emit(
+      LIKE_SENT_EVENT,
+      new LikeSentEvent(
+        userId,
+        targetIdentity.publicValueMasked ?? '',
+        dto.label ?? null,
+        dto.intent,
+        like.expiresAt,
+      ),
     );
 
     return this.attachPublicValue(like);
@@ -750,10 +754,13 @@ export class LikesService extends BaseService {
       ...ctx,
     });
 
-    void this.dispatchLikeWithdrawnNotification(
-      userId,
-      like.targetIdentity?.publicValueMasked ?? '',
-      like.label ?? null,
+    this.eventEmitter.emit(
+      LIKE_WITHDRAWN_EVENT,
+      new LikeWithdrawnEvent(
+        userId,
+        like.targetIdentity?.publicValueMasked ?? '',
+        like.label ?? null,
+      ),
     );
 
     return { success: true };
@@ -891,97 +898,5 @@ export class LikesService extends BaseService {
         publicValue,
       },
     };
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) when a like is sent.
-   *
-   * Executed fire-and-forget so that notification dispatch does not increase response latency
-   * for the user sending the like. Catches and logs any errors internally.
-   *
-   * @param userId - ID of the sender user.
-   * @param targetIdentity - Target identity that was liked.
-   * @param dto - Create like request payload containing label and intent.
-   * @param likeId - ID of the created like.
-   * @param expiresAt - Expiry timestamp of the like, if applicable.
-   */
-  private async dispatchLikeSentNotification(
-    userId: string,
-    targetIdentity: Identity,
-    dto: CreateLikeRequestDto,
-    likeId: string,
-    expiresAt: Date | null,
-  ): Promise<void> {
-    try {
-      const senderProfile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.LIKE_SENT,
-        category: NotificationCategory.SOCIAL,
-        payload: {
-          name: senderProfile?.firstName ?? '',
-          targetMaskedValue: targetIdentity.publicValueMasked,
-          targetLabel: dto.label ?? null,
-          intent: dto.intent,
-          expiresAt: expiresAt ? expiresAt.toISOString().slice(0, 10) : '',
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch LIKE_SENT notification', {
-        userId,
-        likeId,
-        targetIdentityId: targetIdentity.id,
-        step: 'dispatch_like_sent_notification',
-        err: serializeError(err),
-      });
-    }
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) when a like is withdrawn/deleted.
-   *
-   * Fire-and-forget: does not block the like deletion response.
-   * Catches and logs errors internally.
-   *
-   * @param userId - ID of the sender user withdrawing the like.
-   * @param targetMaskedValue - Masked identifier of the target identity.
-   * @param targetLabel - Custom label assigned to the like by the sender.
-   */
-  private async dispatchLikeWithdrawnNotification(
-    userId: string,
-    targetMaskedValue: string,
-    targetLabel: string | null,
-  ): Promise<void> {
-    try {
-      const senderProfile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.LIKE_WITHDRAWN,
-        category: NotificationCategory.SOCIAL,
-        payload: {
-          name: senderProfile?.firstName ?? '',
-          targetMaskedValue,
-          targetLabel,
-          withdrawnAt: DateUtil.now().toUTCString(),
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch LIKE_WITHDRAWN notification', {
-        userId,
-        targetMaskedValue,
-        step: 'dispatch_like_withdrawn_notification',
-        err: serializeError(err),
-      });
-    }
   }
 }

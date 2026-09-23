@@ -8,14 +8,12 @@ import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreditsService } from '@modules/credits/credits.service';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
+
+import { LIKES_EXPIRED_EVENT, LikesExpiredEvent } from './events';
 
 /** Number of users processed per Pub/Sub batch message. Tunable via env. */
 const DEFAULT_EXPIRY_BATCH_SIZE = 100;
@@ -38,7 +36,6 @@ export class MaintenanceService extends BaseService {
     private readonly subscriptionsService: SubscriptionsService,
     private readonly pubSubPublisher: PubSubPublisherService,
     private readonly configService: ConfigService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
     this.expiryBatchSize =
@@ -90,10 +87,13 @@ export class MaintenanceService extends BaseService {
       if (expiringLikes.length > 0) {
         const expiryDate = ninetyDaysAgo.toISOString().slice(0, 10);
         for (const item of expiringLikes) {
-          void this.dispatchLikesExpiredNotification(
-            item.senderUserId,
-            item._count.id,
-            expiryDate,
+          this.eventEmitter.emit(
+            LIKES_EXPIRED_EVENT,
+            new LikesExpiredEvent(
+              item.senderUserId,
+              item._count.id,
+              expiryDate,
+            ),
           );
         }
       }
@@ -340,47 +340,6 @@ export class MaintenanceService extends BaseService {
         err: serializeError(error),
       });
       throw error;
-    }
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) informing a user of expired likes.
-   *
-   * Fire-and-forget: executed per user without blocking the maintenance batch sweep.
-   * Catches and logs errors internally.
-   *
-   * @param senderUserId - ID of the user whose sent likes expired.
-   * @param count - Number of likes that expired.
-   * @param expiryDate - Formatted date string (YYYY-MM-DD) indicating the expiration threshold.
-   */
-  private async dispatchLikesExpiredNotification(
-    senderUserId: string,
-    count: number,
-    expiryDate: string,
-  ): Promise<void> {
-    try {
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { userId: senderUserId },
-        select: { firstName: true },
-      });
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [senderUserId],
-        type: NotificationType.LIKES_EXPIRED,
-        category: NotificationCategory.SYSTEM,
-        payload: {
-          name: profile?.firstName ?? '',
-          count,
-          expiryDate,
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch LIKES_EXPIRED notification', {
-        userId: senderUserId,
-        step: 'dispatch_likes_expired_notification',
-        err: serializeError(err),
-      });
     }
   }
 }

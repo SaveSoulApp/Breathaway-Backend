@@ -7,7 +7,8 @@
     - unsubscribeToken {string}
     - currentYear    {number}
 }}
-<p class='email-greeting'>Welcome aboard, {{name}}! 🎉</p>
+<p class='email-greeting'>{{#if name}}Welcome aboard,
+    {{name}}! 🎉{{else}}Welcome aboard! 🎉{{/if}}</p>
 
 <p>
   We're thrilled to have you join the BreathAway community. You've just taken

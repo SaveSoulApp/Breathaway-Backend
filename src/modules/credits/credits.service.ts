@@ -7,10 +7,6 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { NotificationCategory } from '@modules/notifications/enums/notification-category.enum';
-import { NotificationChannel } from '@modules/notifications/enums/notification-channel.enum';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 
@@ -28,6 +24,14 @@ import {
   ExpiringCreditItemDto,
 } from './dto';
 import { CreditStatusFilter } from './enums';
+import {
+  CREDIT_BUNDLE_EXPIRING_EVENT,
+  CREDITS_PURCHASED_EVENT,
+  CREDITS_USED_EVENT,
+  CreditBundleExpiringEvent,
+  CreditsPurchasedEvent,
+  CreditsUsedEvent,
+} from './events';
 
 /**
  * Owns the credit economy domain — granting, consuming, querying, and expiring
@@ -44,7 +48,6 @@ export class CreditsService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService,
   ) {
     super(logger);
   }
@@ -488,12 +491,18 @@ export class CreditsService extends BaseService {
     });
 
     if (dto.source === CreditSource.PURCHASE) {
-      void this.dispatchCreditsPurchasedNotification(
-        dto.userId,
-        dto.amount,
-        dto.referenceId,
-        ledger.expiresAt,
-      );
+      void this.getBalance(dto.userId).then((balance) => {
+        this.eventEmitter.emit(
+          CREDITS_PURCHASED_EVENT,
+          new CreditsPurchasedEvent(
+            dto.userId,
+            dto.amount,
+            balance,
+            dto.referenceId,
+            ledger.expiresAt,
+          ),
+        );
+      });
     }
 
     return ledger;
@@ -574,10 +583,12 @@ export class CreditsService extends BaseService {
     });
 
     if (ledger.source === CreditSource.LIKE_USAGE) {
-      void this.dispatchCreditsUsedNotification(
-        dto.userId,
-        Math.abs(dto.amount),
-      );
+      void this.getBalance(dto.userId).then((balance) => {
+        this.eventEmitter.emit(
+          CREDITS_USED_EVENT,
+          new CreditsUsedEvent(dto.userId, Math.abs(dto.amount), balance),
+        );
+      });
     }
 
     return ledger;
@@ -824,36 +835,17 @@ export class CreditsService extends BaseService {
         const isUrgent = daysRemaining <= 2;
         const urgency = isUrgent ? 'warning' : 'info';
 
-        const profile = await this.prisma.userProfile.findUnique({
-          where: { userId },
-          select: { firstName: true },
-        });
-
-        await this.notificationsService
-          .dispatch({
-            type: NotificationType.BUNDLE_EXPIRY_WARNING,
-            category: NotificationCategory.SYSTEM,
-            channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-            userIds: [userId],
-            payload: {
-              name: profile?.firstName ?? '',
-              count: expiringCount,
-              expiryDate: expiringDate,
-              daysRemaining,
-              urgency,
-              isUrgent,
-            },
-          })
-          .catch((err) => {
-            this.logger.error(
-              'Failed to dispatch credit expiry warning notification',
-              {
-                userId,
-                step: 'notify',
-                err: serializeError(err),
-              },
-            );
-          });
+        this.eventEmitter.emit(
+          CREDIT_BUNDLE_EXPIRING_EVENT,
+          new CreditBundleExpiringEvent(
+            userId,
+            expiringCount,
+            expiringDate,
+            daysRemaining,
+            urgency,
+            isUrgent,
+          ),
+        );
         warnedUsers++;
       }
     }
@@ -863,90 +855,5 @@ export class CreditsService extends BaseService {
       warnedUsers,
       step: 'complete',
     });
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) when credits are purchased.
-   *
-   * Fire-and-forget: does not block the caller or transaction completion.
-   * Catches and logs errors internally.
-   *
-   * @param userId - ID of the user who purchased credits.
-   * @param amount - Amount of credits granted.
-   * @param referenceId - External transaction or order reference ID.
-   * @param expiresAt - Expiration date of the credit bundle, if applicable.
-   */
-  private async dispatchCreditsPurchasedNotification(
-    userId: string,
-    amount: number,
-    referenceId: string | null | undefined,
-    expiresAt: Date | null,
-  ): Promise<void> {
-    try {
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-      const balance = await this.getBalance(userId);
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.CREDITS_PURCHASED,
-        category: NotificationCategory.SYSTEM,
-        payload: {
-          name: profile?.firstName ?? '',
-          creditsAdded: Math.abs(amount),
-          creditBalance: balance,
-          transactionId: referenceId ?? '',
-          expiresAt: expiresAt ? expiresAt.toISOString().slice(0, 10) : '',
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch credits purchased notification', {
-        userId,
-        step: 'dispatch_credits_purchased_notification',
-        err: serializeError(err),
-      });
-    }
-  }
-
-  /**
-   * Dispatches an asynchronous notification (email and push) when credits are used (e.g., sending a like).
-   *
-   * Fire-and-forget: does not block the caller or transaction completion.
-   * Catches and logs errors internally.
-   *
-   * @param userId - ID of the user who used credits.
-   * @param amount - Amount of credits deducted.
-   */
-  private async dispatchCreditsUsedNotification(
-    userId: string,
-    amount: number,
-  ): Promise<void> {
-    try {
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
-      const balance = await this.getBalance(userId);
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [userId],
-        type: NotificationType.CREDITS_USED,
-        category: NotificationCategory.SYSTEM,
-        payload: {
-          name: profile?.firstName ?? '',
-          creditsUsed: amount,
-          creditBalance: balance,
-          usedAt: DateUtil.now().toUTCString(),
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch credits used notification', {
-        userId,
-        step: 'dispatch_credits_used_notification',
-        err: serializeError(err),
-      });
-    }
   }
 }

@@ -6,8 +6,6 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import {
   IdentityAlreadyExistsException,
@@ -23,6 +21,7 @@ import {
   LookupIdentityRequestDto,
   UpdateIdentityRequestDto,
 } from '../dto';
+import { IDENTITY_ADDED_EVENT, IDENTITY_REMOVED_EVENT } from '../events';
 import { IdentitiesService } from '../identities.service';
 import {
   mockCreateIdentityRequestDto,
@@ -41,7 +40,7 @@ describe('IdentitiesService', () => {
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
   let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
-  let notificationsService: { dispatch: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
   let contextualLogger: {
     info: jest.Mock;
     error: jest.Mock;
@@ -52,9 +51,7 @@ describe('IdentitiesService', () => {
   };
 
   beforeEach(async () => {
-    notificationsService = {
-      dispatch: jest.fn().mockResolvedValue(undefined),
-    };
+    eventEmitter = { emit: jest.fn() };
 
     contextualLogger = {
       info: jest.fn(),
@@ -87,14 +84,10 @@ describe('IdentitiesService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: IdentityCryptoService, useValue: mockEncryptionService },
         { provide: LoggerService, useValue: mockLoggerService },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitter },
         {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,
-        },
-        {
-          provide: NotificationsService,
-          useValue: notificationsService,
         },
       ],
     }).compile();
@@ -158,29 +151,21 @@ describe('IdentitiesService', () => {
       expect(result).toEqual(mockIdentityResponse);
     });
 
-    it('should dispatch IDENTITY_ADDED notification when identity is created', async () => {
+    it('should emit IDENTITY_ADDED event when identity is created', async () => {
       encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
       prisma.identity.findFirst.mockResolvedValue(null);
       prisma.identity.create.mockResolvedValue(mockIdentityData as Identity);
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
 
       await service.create(
         mockUserId,
         mockCreateIdentityRequestDto as CreateIdentityRequestDto,
       );
 
-      await new Promise((resolve) => setImmediate(resolve));
-
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        IDENTITY_ADDED_EVENT,
         expect.objectContaining({
-          type: NotificationType.IDENTITY_ADDED,
-          userIds: [mockUserId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            identityType: mockCreateIdentityRequestDto.type,
-          }),
+          userId: mockUserId,
+          identityType: mockCreateIdentityRequestDto.type,
         }),
       );
     });
@@ -636,24 +621,17 @@ describe('IdentitiesService', () => {
       });
     });
 
-    it('should dispatch IDENTITY_REMOVED notification on successful deletion', async () => {
+    it('should emit IDENTITY_REMOVED event on successful deletion', async () => {
       prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
       prisma.identity.update.mockResolvedValue(mockIdentityData as Identity);
-      prisma.userProfile.findUnique.mockResolvedValue({
-        firstName: 'Alice',
-      } as never);
 
       await service.delete(mockIdentityId, mockUserId);
-      await new Promise((resolve) => setImmediate(resolve));
 
-      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        IDENTITY_REMOVED_EVENT,
         expect.objectContaining({
-          type: NotificationType.IDENTITY_REMOVED,
-          userIds: [mockUserId],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            identityType: mockIdentityData.type,
-          }),
+          userId: mockUserId,
+          identityType: mockIdentityData.type,
         }),
       );
     });

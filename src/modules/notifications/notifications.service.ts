@@ -128,6 +128,31 @@ export class NotificationsService extends BaseService {
     const channels = dto.channels as NotificationChannel[];
     const promises: Promise<void>[] = [];
 
+    // Fallback: auto-resolve recipient firstName if not explicitly provided in payload
+    if (!dto.payload?.name && dto.userIds?.length === 1) {
+      try {
+        const profile = await this.prisma.userProfile.findUnique({
+          where: { userId: dto.userIds[0] },
+          select: { firstName: true },
+        });
+        if (profile?.firstName) {
+          dto.payload = {
+            ...(dto.payload ?? {}),
+            name: profile.firstName,
+          };
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Failed to auto-resolve user profile for notification',
+          {
+            ...ctx,
+            step: 'resolve_profile',
+            err: serializeError(err),
+          },
+        );
+      }
+    }
+
     // Interpolate title and body from push templates if missing
     const pushTemplateConfig = PUSH_TEMPLATE_MAP[dto.type];
     if (pushTemplateConfig) {
@@ -180,6 +205,7 @@ export class NotificationsService extends BaseService {
                 appUrl: this.configService.get<string>('APP_URL') ?? '',
                 currentYear: DateUtil.now().getFullYear(),
               },
+              recipientData: dto.recipientData,
             }),
           );
         } else {

@@ -21,7 +21,7 @@ export interface EmailTemplateConfig {
 export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   [EmailType.WELCOME]: {
     templateFile: 'welcome',
-    subject: 'Welcome to BreathAway, {{name}}! 🌬️',
+    subject: 'Welcome to BreathAway{{#if name}}, {{name}}{{/if}}! 🌬️',
   },
   [EmailType.LIKE_SENT]: {
     templateFile: 'like-sent',
@@ -29,7 +29,7 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   },
   [EmailType.NEW_MATCH]: {
     templateFile: 'new-match',
-    subject: "It's a Match, {{name}}! 💫",
+    subject: "It's a Match{{#if name}}, {{name}}{{/if}}! 💫",
   },
   [EmailType.NEW_MESSAGE]: {
     templateFile: 'new-message',

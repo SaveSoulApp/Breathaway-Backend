@@ -11,22 +11,19 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { CreditsService } from '@modules/credits/credits.service';
-import { NotificationType } from '@modules/notifications/enums/notification-type.enum';
-import { NotificationsService } from '@modules/notifications/notifications.service';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
 
+import { LIKES_EXPIRED_EVENT } from '../events';
 import { MaintenanceService } from '../maintenance.service';
 
 describe('MaintenanceService', () => {
   let service: MaintenanceService;
   let prisma: MockPrismaService;
-  let notificationsServiceMock: { dispatch: jest.Mock };
+  let eventEmitterMock: { emit: jest.Mock };
 
   beforeEach(async () => {
-    notificationsServiceMock = {
-      dispatch: jest.fn().mockResolvedValue(undefined),
-    };
+    eventEmitterMock = { emit: jest.fn() };
 
     const mockLogger = {
       log: jest.fn(),
@@ -45,7 +42,7 @@ describe('MaintenanceService', () => {
       providers: [
         MaintenanceService,
         { provide: ClsService, useValue: { get: jest.fn() } },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: PrismaService, useValue: createPrismaMock() },
         {
           provide: CreditsService,
@@ -60,7 +57,6 @@ describe('MaintenanceService', () => {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue(100) },
         },
-        { provide: NotificationsService, useValue: notificationsServiceMock },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
@@ -70,7 +66,7 @@ describe('MaintenanceService', () => {
   });
 
   describe('voidPendingLikes', () => {
-    it('should void likes older than 90 days and dispatch LIKES_EXPIRED notifications', async () => {
+    it('should void likes older than 90 days and emit LIKES_EXPIRED event', async () => {
       (prisma.like.groupBy as jest.Mock).mockResolvedValueOnce([
         {
           senderUserId: 'user-1',
@@ -78,9 +74,6 @@ describe('MaintenanceService', () => {
         },
       ]);
       (prisma.like.updateMany as jest.Mock).mockResolvedValueOnce({ count: 3 });
-      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValueOnce({
-        firstName: 'Alice',
-      });
 
       const result = await service.voidPendingLikes();
 
@@ -94,16 +87,11 @@ describe('MaintenanceService', () => {
         }),
       );
 
-      await new Promise((resolve) => setImmediate(resolve));
-
-      expect(notificationsServiceMock.dispatch).toHaveBeenCalledWith(
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        LIKES_EXPIRED_EVENT,
         expect.objectContaining({
-          type: NotificationType.LIKES_EXPIRED,
-          userIds: ['user-1'],
-          payload: expect.objectContaining({
-            name: 'Alice',
-            count: 3,
-          }),
+          userId: 'user-1',
+          count: 3,
         }),
       );
     });
@@ -115,7 +103,7 @@ describe('MaintenanceService', () => {
       const result = await service.voidPendingLikes();
 
       expect(result).toEqual({ voidedCount: 0 });
-      expect(notificationsServiceMock.dispatch).not.toHaveBeenCalled();
+      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
     });
   });
 });
