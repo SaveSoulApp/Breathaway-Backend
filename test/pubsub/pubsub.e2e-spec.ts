@@ -1,11 +1,10 @@
-import {
-  Controller,
-  INestApplication,
-  Injectable,
-  Module,
-} from '@nestjs/common';
+import { INestApplication, Injectable, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OAuth2Client } from 'google-auth-library';
+import {
+  LoginTicket,
+  OAuth2Client,
+  VerifyIdTokenOptions,
+} from 'google-auth-library';
 import request from 'supertest';
 
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
@@ -50,22 +49,27 @@ describe('PubSubIngestionController (e2e)', () => {
 
     validToken = 'valid-oidc-bearer-token';
 
-    jest
-      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-      .mockImplementation(async (opts) => {
-        if (opts.idToken === 'valid-oidc-bearer-token') {
-          return {
-            getPayload: () => ({
-              iss: 'https://accounts.google.com',
-              aud:
-                configService.get<string>('GCP_OIDC_AUDIENCE') ||
-                'test-audience',
-              email: 'pubsub-invoker@test.iam.gserviceaccount.com',
-            }),
-          } as any;
-        }
-        throw new Error('Invalid token');
-      });
+    (
+      jest.spyOn(
+        OAuth2Client.prototype,
+        'verifyIdToken',
+      ) as unknown as jest.SpyInstance<
+        Promise<LoginTicket>,
+        [VerifyIdTokenOptions]
+      >
+    ).mockImplementation(async (opts) => {
+      if (opts.idToken === 'valid-oidc-bearer-token') {
+        return {
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            aud:
+              configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+            email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+          }),
+        } as unknown as LoginTicket;
+      }
+      throw new Error('Invalid token');
+    });
   });
 
   afterAll(async () => {
