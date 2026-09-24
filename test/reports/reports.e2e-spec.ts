@@ -1,13 +1,19 @@
+import * as crypto from 'crypto';
+
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ReportsModule } from '@modules/reports/reports.module';
-import { createAuthTestApp } from '../helpers/app-test.helper';
-import request from 'supertest';
-import * as crypto from 'crypto';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { DevicePlatform, GenderType, IdentityType } from '@prisma/client';
+import request from 'supertest';
+
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AdminModule } from '@modules/admin/admin.module';
+import { ReportsModule } from '@modules/reports/reports.module';
+
+import {
+  buildBasicAuthHeader,
+  createAuthTestApp,
+} from '../helpers/app-test.helper';
+import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 
 describe('ReportsModule (e2e)', () => {
   let app: INestApplication;
@@ -18,8 +24,8 @@ describe('ReportsModule (e2e)', () => {
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    process.env.ADMIN_USERNAME = 'admin';
-    process.env.ADMIN_PASSWORD = 'admin';
+    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
 
     // We also include AdminModule just in case AdminBasicAuthGuard needs any global setup from it,
     // but the endpoints are on ReportsModule.
@@ -28,10 +34,10 @@ describe('ReportsModule (e2e)', () => {
     configService = app.get(ConfigService);
     prisma = context.prisma;
 
-    const username = configService.get<string>('ADMIN_USERNAME') || 'admin';
-    const password = configService.get<string>('ADMIN_PASSWORD') || 'admin';
-    const base64 = Buffer.from(`${username}:${password}`).toString('base64');
-    authHeader = `Basic ${base64}`;
+    authHeader = buildBasicAuthHeader(
+      configService.getOrThrow<string>('ADMIN_USERNAME'),
+      configService.getOrThrow<string>('ADMIN_PASSWORD'),
+    );
   });
 
   afterAll(async () => {

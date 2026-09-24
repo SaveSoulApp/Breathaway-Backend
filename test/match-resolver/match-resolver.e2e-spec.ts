@@ -1,15 +1,19 @@
+import { randomBytes } from 'crypto';
+
 import { INestApplication } from '@nestjs/common';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
-import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
-import { createAuthTestApp } from '../helpers/app-test.helper';
-import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import {
+  IdentityType,
   IntentType,
   LikeStatus,
   MatchStatus,
-  IdentityType,
 } from '@prisma/client';
+
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { MatchResolverModule } from '@modules/match-resolver/match-resolver.module';
+import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
+
+import { createAuthTestApp } from '../helpers/app-test.helper';
+import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 
 describe('MatchResolverService (e2e)', () => {
   let app: INestApplication;
@@ -33,11 +37,10 @@ describe('MatchResolverService (e2e)', () => {
   const createUserWithIdentity = async (identitySuffix: string) => {
     const user = await prisma.user.create({ data: {} });
     allCreatedUserIds.push(user.id);
-    const requireCrypto = require('crypto');
     const identity = await prisma.identity.create({
       data: {
         type: IdentityType.PHONE,
-        publicValueHash: requireCrypto.randomBytes(32).toString('hex'),
+        publicValueHash: randomBytes(32).toString('hex'),
         publicValueCiphertext: 'x',
         publicValueIv: 'x',
         publicValueTag: 'x',
@@ -53,11 +56,10 @@ describe('MatchResolverService (e2e)', () => {
     it('should skip if targetIdentity.userId is null (unresolved ghost identity)', async () => {
       const { user: sender } = await createUserWithIdentity('sender-no-target');
       // Create a ghost identity with no owner
-      const requireCrypto = require('crypto');
       const ghostIdentity = await prisma.identity.create({
         data: {
           type: IdentityType.PHONE,
-          publicValueHash: requireCrypto.randomBytes(32).toString('hex'),
+          publicValueHash: randomBytes(32).toString('hex'),
           publicValueCiphertext: 'x',
           publicValueIv: 'x',
           publicValueTag: 'x',

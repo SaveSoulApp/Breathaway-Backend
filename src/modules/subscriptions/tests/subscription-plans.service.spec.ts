@@ -859,5 +859,118 @@ describe('SubscriptionPlansService', () => {
       );
       expect(prisma.subscriptionPlanPrice.delete).not.toHaveBeenCalled();
     });
+
+    it('should log error and rethrow when delete operation fails in removePlanPrice', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(mockPrice);
+      const dbError = new Error('Database delete error');
+      prisma.subscriptionPlanPrice.delete.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(
+        service.removePlanPrice('plan-uuid-111', 'price-uuid-222'),
+      ).rejects.toThrow(dbError);
+    });
+  });
+
+  describe('getPlanByProductId', () => {
+    it('should return matching plan when found by product ID', async () => {
+      // Arrange
+      const expectedPlan = {
+        id: 'plan-uuid-111',
+        name: 'Premium Plan',
+        slug: 'premium',
+        appleProductId: 'apple-prod-premium',
+        googleProductId: 'google-prod-premium',
+        creditsGranted: 100,
+        validityDays: 30,
+        status: SubscriptionPlanStatus.ACTIVE,
+      };
+      prisma.subscriptionPlan.findFirst.mockResolvedValue(expectedPlan as any);
+
+      // Act
+      const result = await service.getPlanByProductId('apple-prod-premium');
+
+      // Assert
+      expect(prisma.subscriptionPlan.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { appleProductId: 'apple-prod-premium' },
+            { googleProductId: 'apple-prod-premium' },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          appleProductId: true,
+          googleProductId: true,
+          creditsGranted: true,
+          validityDays: true,
+          status: true,
+        },
+      });
+      expect(result).toEqual(expectedPlan);
+    });
+
+    it('should throw SubscriptionPlanNotFoundException when no plan matches product ID', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(service.getPlanByProductId('unknown-prod')).rejects.toThrow(
+        new SubscriptionPlanNotFoundException(
+          'Subscription plan not found for product ID "unknown-prod"',
+        ),
+      );
+    });
+  });
+
+  describe('database error logging and rethrow (mutating methods)', () => {
+    it('should log error and rethrow when createPlan fails', async () => {
+      // Arrange
+      const dto: CreatePlanRequestDto = {
+        name: 'New Plan',
+        slug: 'new-plan',
+        creditsGranted: 50,
+        validityDays: 30,
+      };
+      const dbError = new Error('Prisma plan create error');
+      prisma.subscriptionPlan.create.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(service.createPlan(dto)).rejects.toThrow(dbError);
+    });
+
+    it('should log error and rethrow when updatePlan fails', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      const dto: UpdatePlanRequestDto = { name: 'Updated Plan' };
+      const dbError = new Error('Prisma plan update error');
+      prisma.subscriptionPlan.update.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(service.updatePlan(mockPlan.id, dto)).rejects.toThrow(
+        dbError,
+      );
+    });
+
+    it('should log error and rethrow when addPlanPrice fails', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      const dto: CreatePlanPriceRequestDto = {
+        currencyCode: 'USD' as any,
+        price: 9.99,
+        countryCode: 'US',
+      };
+      const dbError = new Error('Prisma price create error');
+      prisma.subscriptionPlanPrice.create.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(service.addPlanPrice(mockPlan.id, dto)).rejects.toThrow(
+        dbError,
+      );
+    });
   });
 });

@@ -439,3 +439,88 @@ describe('Pub/Sub CLS correlation seeding', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: Message shapes & direct LoggerService methods
+// ---------------------------------------------------------------------------
+
+describe('LoggerService — message shapes & lifecycle', () => {
+  it('correctly handles Error instances as messages', () => {
+    const { service, lines } = makeGcpLogger();
+    const logger = service.forContext('ErrorShapeTest');
+    const testError = new Error('Database connection failed');
+
+    logger.error(testError);
+
+    const logEntry = lines[0];
+    expect(logEntry.severity).toBe('ERROR');
+    expect(logEntry.error).toMatchObject({
+      message: 'Database connection failed',
+      name: 'Error',
+    });
+  });
+
+  it('correctly handles plain objects as messages', () => {
+    const { service, lines } = makeGcpLogger();
+    const logger = service.forContext('ObjectShapeTest');
+
+    logger.info({ customPayload: true, count: 42 });
+
+    const logEntry = lines[0];
+    expect(logEntry.customPayload).toBe(true);
+    expect(logEntry.count).toBe(42);
+  });
+
+  it('correctly handles primitive numbers and booleans as messages', () => {
+    const { service, lines } = makeGcpLogger();
+    const logger = service.forContext('PrimitiveTest');
+
+    logger.info(12345 as unknown as string);
+    logger.info(true as unknown as string, { metaField: 'active' });
+
+    expect(lines[0].msg ?? lines[0].message).toBe('12345');
+    expect(lines[1].msg ?? lines[1].message).toBe('true');
+    expect(lines[1].metaField).toBe('active');
+  });
+
+  it('correctly logs string messages without metadata', () => {
+    const { service, lines } = makeGcpLogger();
+    const logger = service.forContext('NoMetaTest');
+
+    logger.info('simple string without meta');
+
+    expect(lines[0].msg ?? lines[0].message).toBe('simple string without meta');
+  });
+
+  it('delegates direct NestJS logger methods (debug, info, warn, error, log) with string and object context', () => {
+    const { service, lines } = makeGcpLogger();
+
+    service.debug('debug message', 'DebugContext');
+    service.info('info message', 'InfoContext');
+    service.warn('warn message', { warnMeta: 'warning' });
+    service.error('error message', 'ErrorContext');
+    service.log('log message', 'LogContext');
+
+    expect(lines).toHaveLength(5);
+    expect(lines[0].severity).toBe('DEBUG');
+    expect(lines[0].context).toBe('DebugContext');
+    expect(lines[1].severity).toBe('INFO');
+    expect(lines[1].context).toBe('InfoContext');
+    expect(lines[2].severity).toBe('WARNING');
+    expect(lines[2].warnMeta).toBe('warning');
+    expect(lines[3].severity).toBe('ERROR');
+    expect(lines[3].context).toBe('ErrorContext');
+    expect(lines[4].severity).toBe('INFO');
+    expect(lines[4].context).toBe('LogContext');
+  });
+
+  it('calls flush on application shutdown', () => {
+    const { service } = makeGcpLogger();
+    const baseLogger = (service as any).baseLogger;
+    baseLogger.flush = jest.fn();
+
+    service.onApplicationShutdown();
+
+    expect(baseLogger.flush).toHaveBeenCalled();
+  });
+});

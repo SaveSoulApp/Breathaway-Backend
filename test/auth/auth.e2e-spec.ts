@@ -1,10 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '@infrastructure/database/prisma.service';
+import { IdentityType } from '@prisma/client';
+
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
+import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
+
 import {
   buildBasicAuthHeader,
   createAuthTestApp,
@@ -14,7 +17,6 @@ import {
 } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
-import { IdentityType } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Auth E2E Test Suite
@@ -42,6 +44,48 @@ describe('AuthController (e2e)', () => {
     crypto = app.get(IdentityCryptoService);
     jwtService = app.get(JwtService);
     configService = app.get(ConfigService);
+
+    const stalePhones = [
+      '+19995550101',
+      '+19995550200',
+      '+19995550201',
+      '+19995550300',
+      '+19995550400',
+      '+19995550401',
+      '+19995550402',
+      '+19995550500',
+    ];
+    for (const p of stalePhones) {
+      const { publicValueHash } = await crypto.processPublicValue(
+        p,
+        IdentityType.PHONE,
+      );
+      const staleCreds = await prisma.authCredential.findMany({
+        where: { valueHash: publicValueHash },
+      });
+      if (staleCreds.length > 0) {
+        await cleanupTestUsers(
+          prisma,
+          staleCreds.map((c) => c.userId),
+        );
+      }
+    }
+    const staleEmails = ['newuser@e2e.test', 'devlogin@e2e.test'];
+    for (const e of staleEmails) {
+      const { publicValueHash } = await crypto.processPublicValue(
+        e,
+        IdentityType.EMAIL,
+      );
+      const staleCreds = await prisma.authCredential.findMany({
+        where: { valueHash: publicValueHash },
+      });
+      if (staleCreds.length > 0) {
+        await cleanupTestUsers(
+          prisma,
+          staleCreds.map((c) => c.userId),
+        );
+      }
+    }
   });
 
   afterAll(async () => {
@@ -58,9 +102,9 @@ describe('AuthController (e2e)', () => {
     });
 
     it('201 – creates a new user via phone and returns pending_verification', async () => {
-      const phone = '+19995550101';
+      const phone = `+1999555${Date.now().toString().slice(-4)}01`;
       mockFirebaseValidation.mockResolvedValueOnce(
-        mockPhoneFirebaseToken(phone),
+        mockPhoneFirebaseToken(phone, false),
       );
 
       const res = await authedRequest(app)
@@ -77,9 +121,9 @@ describe('AuthController (e2e)', () => {
     });
 
     it('201 – creates a new user via email and returns pending_verification', async () => {
-      const email = 'newuser@e2e.test';
+      const email = `newuser_${Date.now()}@e2e.test`;
       mockFirebaseValidation.mockResolvedValueOnce(
-        mockEmailFirebaseToken(email),
+        mockEmailFirebaseToken(email, false),
       );
 
       const res = await authedRequest(app)
@@ -260,7 +304,7 @@ describe('AuthController (e2e)', () => {
     });
 
     it('401 – rejects signin for unverified user', async () => {
-      const unverifiedPhone = '+19995550201';
+      const unverifiedPhone = `+1999555${Date.now().toString().slice(-4)}21`;
       const { publicValueHash: hash } = await crypto.processPublicValue(
         unverifiedPhone,
         IdentityType.PHONE,
@@ -293,7 +337,7 @@ describe('AuthController (e2e)', () => {
       allCreatedUserIds.push(user.id);
 
       mockFirebaseValidation.mockResolvedValueOnce(
-        mockPhoneFirebaseToken(unverifiedPhone),
+        mockPhoneFirebaseToken(unverifiedPhone, false),
       );
 
       const res = await authedRequest(app)
@@ -429,7 +473,7 @@ describe('AuthController (e2e)', () => {
       allCreatedUserIds.push(user.id);
 
       mockFirebaseValidation.mockResolvedValueOnce(
-        mockPhoneFirebaseToken(phone),
+        mockPhoneFirebaseToken(phone, false),
       );
 
       const res = await authedRequest(app)
@@ -446,115 +490,14 @@ describe('AuthController (e2e)', () => {
   describe('POST /api/v1/auth/social', () => {
     afterEach(() => mockFirebaseValidation.mockReset());
 
-    it('200 – creates a new Instagram identity and returns access_token', async () => {
+    it('410 – rejects social auth as endpoint is permanently disabled', async () => {
       const res = await authedRequest(app).post('/api/v1/auth/social').send({
         type: 'INSTAGRAM',
         platformUserId: 'ig-user-id-001',
         handle: 'testuser_ig_001',
       });
 
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: expect.any(String),
-      });
-
-      allCreatedUserIds.push(res.body.user_id as string);
-    });
-
-    it('200 – signs in existing social identity', async () => {
-      // Seed: create identity with a known platformIdHash
-      const platformUserId = 'ig-user-id-002';
-      const handle = 'testuser_ig_002';
-      const platformIdHash = await crypto.computeHash(platformUserId);
-      const publicValueHash = await crypto.computeHash(handle);
-
-      const user = await prisma.user.create({ data: {} });
-      await prisma.identity.create({
-        data: {
-          type: 'INSTAGRAM',
-          publicValueHash,
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
-          publicValueKeyId: 'key-v1',
-          publicValueMasked: 'te••••r_002',
-          platformIdHash,
-          platformIdCiphertext: 'x',
-          platformIdIv: 'x',
-          platformIdTag: 'x',
-          platformIdWrappedKey: 'x',
-          platformIdKeyId: 'key-v1',
-          userId: user.id,
-          isVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
-      allCreatedUserIds.push(user.id);
-
-      const res = await authedRequest(app).post('/api/v1/auth/social').send({
-        type: 'INSTAGRAM',
-        platformUserId,
-        handle,
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: user.id,
-      });
-    });
-
-    it('409 – conflicts when social identity has null userId (deleted account)', async () => {
-      // Seed: identity with userId = null (soft-deleted)
-      const platformUserId = 'ig-user-id-deleted';
-      const handle = 'deleted_user_ig';
-      const platformIdHash = await crypto.computeHash(platformUserId);
-      const publicValueHash = await crypto.computeHash(handle);
-
-      await prisma.identity.create({
-        data: {
-          type: 'INSTAGRAM',
-          publicValueHash,
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
-          publicValueKeyId: 'key-v1',
-          publicValueMasked: 'd••••r_ig',
-          platformIdHash,
-          platformIdCiphertext: 'x',
-          platformIdIv: 'x',
-          platformIdTag: 'x',
-          platformIdWrappedKey: 'x',
-          platformIdKeyId: 'key-v1',
-          userId: null, // deleted account
-          isVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
-
-      const res = await authedRequest(app).post('/api/v1/auth/social').send({
-        type: 'INSTAGRAM',
-        platformUserId,
-        handle,
-      });
-
-      expect(res.status).toBe(409);
-
-      // Cleanup this identity since it has no userId
-      await prisma.identity.deleteMany({ where: { platformIdHash } });
-    });
-
-    it('400 – rejects invalid social type', async () => {
-      const res = await authedRequest(app).post('/api/v1/auth/social').send({
-        type: 'INVALID_PLATFORM',
-        platformUserId: 'some-id',
-        handle: 'some-handle',
-      });
-
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(410);
     });
   });
 

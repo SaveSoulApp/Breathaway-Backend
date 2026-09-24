@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { IsNumber, IsString } from 'class-validator';
 
 import { AllowNonWhitelisted } from '@common/decorators/allow-non-whitelisted.decorator';
+import { RevenueCatWebhookRequestDto } from '@modules/webhooks/dto/request/revenuecat-webhook.request.dto';
 
 import { AppValidationPipe } from '../app-validation.pipe';
 
@@ -116,6 +117,42 @@ describe('AppValidationPipe', () => {
           metatype: RelaxedTestDto,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should accept RevenueCatWebhookRequestDto carrying undeclared properties without failing validation', async () => {
+      // Arrange
+      const payload = {
+        api_version: '1.0',
+        event: {
+          type: 'NON_RENEWING_PURCHASE',
+          id: 'evt_1',
+          transaction_id: 'txn_1',
+          product_id: 'likes_10',
+          discount_percentage: null,
+          discount_amount: null,
+          discount_identifier: null,
+          some_future_field: { nested: true },
+        },
+      };
+
+      // Act
+      const result = await pipe.transform(payload, {
+        type: 'body',
+        metatype: RevenueCatWebhookRequestDto,
+      });
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result).toMatchObject({
+        api_version: '1.0',
+        event: expect.objectContaining({
+          type: 'NON_RENEWING_PURCHASE',
+          id: 'evt_1',
+          transaction_id: 'txn_1',
+          product_id: 'likes_10',
+          some_future_field: { nested: true },
+        }),
+      });
     });
   });
 });

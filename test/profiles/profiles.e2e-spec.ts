@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -192,6 +194,23 @@ describe('ProfilesController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(200);
+    });
+
+    it('GET /api/v1/profiles - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/profiles');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/v1/profiles - rejects invalid payload (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/profiles')
+        .set('authorization', `Bearer ${secondUserJwt}`)
+        .send({
+          firstName: '',
+          dateOfBirth: 'not-a-date',
+        });
+
+      expect(res.status).toBe(400);
     });
   });
 });

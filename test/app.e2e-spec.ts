@@ -7,16 +7,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
-import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
-import { LoggerModule, LoggerService } from '@core/logger';
-import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
-import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { ClsModule, ClsService } from 'nestjs-cls';
+import request from 'supertest';
+import { App } from 'supertest/types';
+
+import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
+import { LoggerModule, LoggerService } from '@core/logger';
+import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { AppController } from 'src/app.controller';
 import { AppService } from 'src/app.service';
-import request from 'supertest';
-import { App } from 'supertest/types';
 
 function getClientIdentityHeaders(
   app: INestApplication,

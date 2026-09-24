@@ -26,7 +26,7 @@ export class AppValidationPipe extends ValidationPipe {
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: {
-        enableImplicitConversion: true,
+        enableImplicitConversion: false,
       },
       ...options,
     };

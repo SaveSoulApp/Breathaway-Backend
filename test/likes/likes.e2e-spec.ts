@@ -1,14 +1,16 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '@infrastructure/database/prisma.service';
+import { IdentityType, IntentType } from '@prisma/client';
+
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import { LikesModule } from '@modules/likes/likes.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
-import { IdentityType, IntentType } from '@prisma/client';
 
 describe('LikesController (e2e)', () => {
   let app: INestApplication;
@@ -62,11 +64,6 @@ describe('LikesController (e2e)', () => {
       });
 
       // Seed another user and their identity to like.
-      // Use a unique email per run (keyed to user2.id) to prevent unique
-      // constraint collisions if a prior run's DB cleanup was skipped.
-      // Use processPublicValue for ALL encryption fields so that the KMS can
-      // successfully decrypt the publicValue when LikesService.attachPublicValue
-      // is called in the response path.
       const user2 = await prisma.user.create({ data: {} });
       allCreatedUserIds.push(user2.id);
 
@@ -85,6 +82,19 @@ describe('LikesController (e2e)', () => {
         },
       });
       targetIdentityId = identity.id;
+    });
+
+    it('POST /api/v1/likes/can-create - checks if like can be created', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/likes/can-create')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          targetIdentityId: targetIdentityId,
+          intent: IntentType.RELATIONSHIP,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ canCreate: true });
     });
 
     it('POST /api/v1/likes - creates a like using existing targetIdentityId', async () => {
@@ -115,6 +125,18 @@ describe('LikesController (e2e)', () => {
       expect(res.status).toBe(409); // Conflict
     });
 
+    it('POST /api/v1/likes/can-create - returns 409 when like already exists', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/likes/can-create')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          targetIdentityId: targetIdentityId,
+          intent: IntentType.RELATIONSHIP,
+        });
+
+      expect(res.status).toBe(409);
+    });
+
     it('POST /api/v1/likes - creates a like by resolving a raw identity input', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/likes')
@@ -140,7 +162,6 @@ describe('LikesController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(200);
-      // We expect 2 likes (one relationship, one casual)
       expect(res.body.data.length).toBe(2);
     });
 
@@ -159,7 +180,39 @@ describe('LikesController (e2e)', () => {
       expect(res.body.id).toBe(likeId);
     });
 
-    it('DELETE /api/v1/likes/:id - soft deletes a like', async () => {
+    it('PATCH /api/v1/likes/:id/label - updates personal label on a like', async () => {
+      const allRes = await authedRequest(app)
+        .get('/api/v1/likes')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      const likeId = allRes.body.data[0].id;
+
+      const res = await authedRequest(app)
+        .patch(`/api/v1/likes/${likeId}/label`)
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({ label: 'Met at coffee shop' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.label).toBe('Met at coffee shop');
+    });
+
+    it('PATCH /api/v1/likes/:id/label - clears label when null provided', async () => {
+      const allRes = await authedRequest(app)
+        .get('/api/v1/likes')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      const likeId = allRes.body.data[0].id;
+
+      const res = await authedRequest(app)
+        .patch(`/api/v1/likes/${likeId}/label`)
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({ label: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.label).toBeNull();
+    });
+
+    it('DELETE /api/v1/likes/:id - soft deletes a like (204 No Content)', async () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/likes')
         .set('authorization', `Bearer ${validJwt}`);
@@ -170,7 +223,7 @@ describe('LikesController (e2e)', () => {
         .delete(`/api/v1/likes/${likeId}`)
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(204);
 
       // Verify it is no longer returned in pending likes
       const checkRes = await authedRequest(app)
@@ -178,6 +231,80 @@ describe('LikesController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(404);
+    });
+
+    it('GET /api/v1/likes - rejects request without valid JWT (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/likes');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/v1/likes - rejects request without identity payload (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/likes')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/v1/likes - rejects self-like when targeting own identity (400 SelfLikeException)', async () => {
+      const ownEmail = `self-like-${seededUserId}@e2e.test`;
+      const publicValueData = await crypto.processPublicValue(
+        ownEmail,
+        IdentityType.EMAIL,
+      );
+      const ownIdentity = await prisma.identity.create({
+        data: {
+          userId: seededUserId,
+          type: IdentityType.EMAIL,
+          isVerified: true,
+          ...publicValueData,
+        },
+      });
+
+      const res = await authedRequest(app)
+        .post('/api/v1/likes')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          targetIdentityId: ownIdentity.id,
+          intent: IntentType.RELATIONSHIP,
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/v1/likes - rejects when user has 0 credits (402 InsufficientCreditsException)', async () => {
+      const zeroCreditUser = await prisma.user.create({ data: {} });
+      allCreatedUserIds.push(zeroCreditUser.id);
+
+      const zeroCreditJwt = jwtService.sign({
+        sub: zeroCreditUser.id,
+        iss: configService.get<string>('JWT_ISSUER'),
+        aud: configService.get<string>('JWT_AUDIENCE'),
+      });
+
+      const res = await authedRequest(app)
+        .post('/api/v1/likes')
+        .set('authorization', `Bearer ${zeroCreditJwt}`)
+        .send({
+          targetIdentityId,
+          intent: IntentType.RELATIONSHIP,
+        });
+
+      expect(res.status).toBe(402);
+    });
+
+    it('POST /api/v1/likes - rejects when x-timezone header is missing (400 RequireTimezoneGuard)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/likes')
+        .set('authorization', `Bearer ${validJwt}`)
+        .set('x-timezone', '')
+        .send({
+          targetIdentityId,
+          intent: IntentType.RELATIONSHIP,
+        });
+
+      expect(res.status).toBe(400);
     });
   });
 });

@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PreferencesModule } from '@modules/preferences/preferences.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -87,6 +89,22 @@ describe('PreferencesController (e2e)', () => {
       expect(prefInDb?.pushEnabled).toBe(false);
       expect(prefInDb?.smsEnabled).toBe(false);
       expect(prefInDb?.whatsappEnabled).toBe(true);
+    });
+
+    it('GET /api/v1/preferences - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/preferences');
+      expect(res.status).toBe(401);
+    });
+
+    it('PATCH /api/v1/preferences - rejects invalid boolean payload (400)', async () => {
+      const res = await authedRequest(app)
+        .patch('/api/v1/preferences')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          pushEnabled: 'invalid-boolean-value',
+        });
+
+      expect(res.status).toBe(400);
     });
   });
 });

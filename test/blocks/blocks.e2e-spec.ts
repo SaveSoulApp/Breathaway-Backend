@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BlocksModule } from '@modules/blocks/blocks.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -76,15 +78,42 @@ describe('BlocksController (e2e)', () => {
       expect(res.status).toBe(409);
     });
 
+    it('POST /api/v1/blocks - rejects self-block (400 SelfBlockException)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/blocks')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          blockedUserId: seededUserId,
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/v1/blocks - returns 404 when target user does not exist (BlockTargetNotFoundException)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/blocks')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          blockedUserId: '00000000-0000-0000-0000-000000000000',
+        });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/v1/blocks - rejects missing payload with 400 Bad Request', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/blocks')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
     it('GET /api/v1/blocks - returns all active blocks for user', async () => {
       const res = await authedRequest(app)
         .get('/api/v1/blocks')
         .set('authorization', `Bearer ${validJwt}`);
 
-      if (res.status !== 200) {
-        console.log('GET blocks response status:', res.status);
-        console.log('GET blocks response body:', res.body);
-      }
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThan(0);
@@ -108,7 +137,7 @@ describe('BlocksController (e2e)', () => {
       expect(res.body.id).toBe(blockId);
     });
 
-    it('DELETE /api/v1/blocks/:id - removes (unblocks)', async () => {
+    it('DELETE /api/v1/blocks/:id - removes (unblocks) with 204 No Content', async () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/blocks')
         .set('authorization', `Bearer ${validJwt}`);
@@ -119,7 +148,7 @@ describe('BlocksController (e2e)', () => {
         .delete(`/api/v1/blocks/${blockId}`)
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(res.status).toBe(200); // Controller returns HttpCode(OK) which is 200
+      expect(res.status).toBe(204);
 
       // Verify it is removed
       const checkRes = await authedRequest(app)
@@ -127,6 +156,11 @@ describe('BlocksController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(404);
+    });
+
+    it('GET /api/v1/blocks - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/blocks');
+      expect(res.status).toBe(401);
     });
   });
 });

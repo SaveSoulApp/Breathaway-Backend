@@ -1,9 +1,11 @@
+import { randomUUID } from 'crypto';
+
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ClsModule, ClsService } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
@@ -21,6 +23,56 @@ import type { FirebaseValidationResult } from '@modules/firebase/firebase.servic
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
+class InMemoryRedisClient {
+  private store = new Map<string, { val: string; expiresAt?: number }>();
+
+  async set(
+    key: string,
+    value: string,
+    mode?: string,
+    duration?: number,
+  ): Promise<'OK'> {
+    let expiresAt: number | undefined;
+    if (mode === 'EX' && typeof duration === 'number') {
+      expiresAt = Date.now() + duration * 1000;
+    }
+    this.store.set(key, { val: String(value), expiresAt });
+    return 'OK';
+  }
+
+  async get(key: string): Promise<string | null> {
+    const item = this.store.get(key);
+    if (!item) return null;
+    if (item.expiresAt && Date.now() > item.expiresAt) {
+      this.store.delete(key);
+      return null;
+    }
+    return item.val;
+  }
+
+  async del(key: string): Promise<number> {
+    return this.store.delete(key) ? 1 : 0;
+  }
+
+  async ttl(key: string): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return -2;
+    if (!item.expiresAt) return -1;
+    const rem = Math.ceil((item.expiresAt - Date.now()) / 1000);
+    return rem > 0 ? rem : -2;
+  }
+
+  async ping(): Promise<'PONG'> {
+    return 'PONG';
+  }
+
+  async quit(): Promise<'OK'> {
+    return 'OK';
+  }
+
+  disconnect(): void {}
+}
+
 export interface AppTestContext {
   app: INestApplication;
   prisma: PrismaService;
@@ -37,6 +89,13 @@ export interface AppTestContext {
 export async function createAuthTestApp(
   extraModules: any[] = [],
 ): Promise<AppTestContext> {
+  // Ensure required test environment variables are populated
+  process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+  process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
+  process.env.GCP_OIDC_AUDIENCE =
+    process.env.GCP_OIDC_AUDIENCE ||
+    'https://backend-service-at7g3x4m6q-el.a.run.app';
+
   // Prevent actual GCP PubSub calls
   jest
     .spyOn(PubSubPublisherService.prototype, 'publish')
@@ -67,7 +126,25 @@ export async function createAuthTestApp(
       FirebaseModule,
       AuthModule,
       PubSubModule,
-      ClsModule.forRoot({ global: true }),
+      ClsModule.forRoot({
+        global: true,
+        middleware: {
+          mount: true,
+          setup: (cls, req: any) => {
+            cls.set('requestStart', Date.now());
+            cls.set('ipAddress', req.ip);
+            cls.set('userAgent', req.headers?.['x-user-agent']);
+
+            const requestId = req.headers?.['x-request-id'] || randomUUID();
+            cls.set('requestId', requestId);
+
+            const traceContext = req.headers?.['x-cloud-trace-context'];
+            if (traceContext) {
+              cls.set('traceContext', traceContext);
+            }
+          },
+        },
+      }),
       EventEmitterModule.forRoot(),
       ...extraModules,
     ],
@@ -84,6 +161,13 @@ export async function createAuthTestApp(
       onModuleInit: jest.fn(),
       getMessaging: jest.fn(),
     })
+    .overrideProvider(PubSubPublisherService)
+    .useValue({
+      publish: jest.fn().mockResolvedValue('mock-message-id'),
+      onModuleDestroy: jest.fn().mockResolvedValue(undefined),
+    })
+    .overrideProvider('REDIS_CLIENT')
+    .useValue(new InMemoryRedisClient())
     .compile();
 
   const app = moduleFixture.createNestApplication({ rawBody: true });
@@ -146,6 +230,7 @@ export async function createAuthTestApp(
  */
 export function mockPhoneFirebaseToken(
   phoneNumber: string,
+  isVerified = true,
 ): FirebaseValidationResult {
   return {
     decodedToken: {
@@ -156,7 +241,7 @@ export function mockPhoneFirebaseToken(
     authMethod: {
       method: AuthMethod.PHONE,
       identifier: phoneNumber,
-      isVerified: true,
+      isVerified,
     },
   };
 }
@@ -166,18 +251,19 @@ export function mockPhoneFirebaseToken(
  */
 export function mockEmailFirebaseToken(
   email: string,
+  isVerified = true,
 ): FirebaseValidationResult {
   return {
     decodedToken: {
       uid: 'test-firebase-uid',
       email,
-      email_verified: true,
+      email_verified: isVerified,
       firebase: { sign_in_provider: 'password' },
     } as never,
     authMethod: {
       method: AuthMethod.EMAIL,
       identifier: email,
-      isVerified: true,
+      isVerified,
     },
   };
 }

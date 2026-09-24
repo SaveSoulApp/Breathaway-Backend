@@ -961,4 +961,109 @@ describe('IdentitiesService', () => {
       );
     });
   });
+
+  describe('getDecryptedPublicValue', () => {
+    it('should throw IdentityNotFoundException if identity does not exist', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        service.getDecryptedPublicValue('non-existent-id'),
+      ).rejects.toThrow(IdentityNotFoundException);
+    });
+
+    it('should decrypt and return plaintext public value when identity is found', async () => {
+      // Arrange
+      const identityRecord = {
+        publicValueCiphertext: 'cipher-text',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'wrapped-key',
+        publicValueKeyId: 'key-id',
+      };
+      prisma.identity.findUnique.mockResolvedValue(identityRecord as any);
+      encryption.decryptPublicValue.mockResolvedValue('decrypted-value');
+
+      // Act
+      const result = await service.getDecryptedPublicValue('identity-id-1');
+
+      // Assert
+      expect(prisma.identity.findUnique).toHaveBeenCalledWith({
+        where: { id: 'identity-id-1' },
+        select: {
+          publicValueCiphertext: true,
+          publicValueIv: true,
+          publicValueTag: true,
+          publicValueWrappedKey: true,
+          publicValueKeyId: true,
+        },
+      });
+      expect(encryption.decryptPublicValue).toHaveBeenCalledWith(
+        identityRecord,
+      );
+      expect(result).toBe('decrypted-value');
+    });
+  });
+
+  describe('getSenderCountryCode', () => {
+    it('should return null when sender has no verified PHONE identity', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act
+      const result = await service.getSenderCountryCode(mockUserId);
+
+      // Assert
+      expect(result).toBeNull();
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: mockUserId,
+          type: IdentityType.PHONE,
+          isVerified: true,
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: expect.any(Object),
+      });
+    });
+
+    it('should decrypt and return country code when verified PHONE identity exists', async () => {
+      // Arrange — 919876543210 is India (+91)
+      const phoneIdentity = {
+        publicValueCiphertext: 'phone-cipher',
+        publicValueIv: 'phone-iv',
+        publicValueTag: 'phone-tag',
+        publicValueWrappedKey: 'phone-wrapped-key',
+        publicValueKeyId: 'phone-key-id',
+      };
+      prisma.identity.findFirst.mockResolvedValue(phoneIdentity as any);
+      encryption.decryptPublicValue.mockResolvedValue('919876543210');
+
+      // Act
+      const result = await service.getSenderCountryCode(mockUserId);
+
+      // Assert
+      expect(result).toBe('+91');
+    });
+
+    it('should return null when decrypted phone cannot be parsed as valid E.164', async () => {
+      // Arrange
+      const phoneIdentity = {
+        publicValueCiphertext: 'bad-cipher',
+        publicValueIv: 'bad-iv',
+        publicValueTag: 'bad-tag',
+        publicValueWrappedKey: 'bad-wrapped-key',
+        publicValueKeyId: 'bad-key-id',
+      };
+      prisma.identity.findFirst.mockResolvedValue(phoneIdentity as any);
+      encryption.decryptPublicValue.mockResolvedValue('invalid-phone-digits');
+
+      // Act
+      const result = await service.getSenderCountryCode(mockUserId);
+
+      // Assert
+      expect(result).toBeNull();
+    });
+  });
 });

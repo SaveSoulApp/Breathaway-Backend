@@ -13,6 +13,12 @@ export async function cleanupTestUsers(
   if (userIds.length === 0) return;
 
   // Delete in FK dependency order: child tables first
+  await prisma.transaction.deleteMany({
+    where: { userId: { in: userIds } },
+  });
+  await prisma.userSubscription.deleteMany({
+    where: { userId: { in: userIds } },
+  });
   await prisma.match.deleteMany({
     where: {
       OR: [{ userOneId: { in: userIds } }, { userTwoId: { in: userIds } }],
@@ -31,6 +37,18 @@ export async function cleanupTestUsers(
       senderUserId: { in: userIds },
     },
   });
+  await prisma.creditLedger.deleteMany({
+    where: { userId: { in: userIds } },
+  });
+  await prisma.device.deleteMany({
+    where: { userId: { in: userIds } },
+  });
+  await prisma.notificationPreference.deleteMany({
+    where: { userId: { in: userIds } },
+  });
+  await prisma.userProfile.deleteMany({
+    where: { userId: { in: userIds } },
+  });
   await prisma.authCredential.deleteMany({
     where: { userId: { in: userIds } },
   });
@@ -48,4 +66,37 @@ export async function cleanupOrphanedIdentities(
 ): Promise<void> {
   if (identityIds.length === 0) return;
   await prisma.identity.deleteMany({ where: { id: { in: identityIds } } });
+}
+
+/**
+ * Cleans up test-created subscription plans and their price entries.
+ * Deletes any userSubscriptions referencing the plan first to avoid FK violations.
+ */
+export async function cleanupTestSubscriptionPlans(
+  prisma: PrismaService,
+  planIds: string[],
+): Promise<void> {
+  if (planIds.length === 0) return;
+  await prisma.userSubscription.deleteMany({
+    where: { planId: { in: planIds } },
+  });
+  await prisma.subscriptionPlanPrice.deleteMany({
+    where: { planId: { in: planIds } },
+  });
+  await prisma.subscriptionPlan.deleteMany({
+    where: { id: { in: planIds } },
+  });
+}
+
+/**
+ * Cleans up test-created transactions.
+ */
+export async function cleanupTestTransactions(
+  prisma: PrismaService,
+  transactionIds: string[],
+): Promise<void> {
+  if (transactionIds.length === 0) return;
+  await prisma.transaction.deleteMany({
+    where: { id: { in: transactionIds } },
+  });
 }

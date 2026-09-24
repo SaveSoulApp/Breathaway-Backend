@@ -8,7 +8,11 @@ import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
-import { AuthSigninRequestDto, AuthSignupRequestDto } from '../dto';
+import {
+  AuthSigninRequestDto,
+  AuthSignupRequestDto,
+  DevLoginRequestDto,
+} from '../dto';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -136,11 +140,56 @@ describe('AuthController', () => {
     });
   });
 
+  describe('signinOrSignup', () => {
+    it('should sign in or sign up a user and return credentials', async () => {
+      const dto: AuthSigninRequestDto = {
+        uid: 'uid-123',
+        uidToken: 'token-123',
+      };
+      service.signInOrSignUp.mockResolvedValue(mockSigninResponse as any);
+
+      const result = await controller.signinOrSignup(dto);
+
+      expect(service.signInOrSignUp).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockSigninResponse);
+    });
+  });
+
   describe('socialAuth', () => {
     it('should throw GoneException and not invoke authService.socialAuth', () => {
       // Arrange & Act & Assert
       expect(() => controller.socialAuth({})).toThrow(GoneException);
       expect(service.socialAuth).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('devLogin', () => {
+    it('should authenticate a dev user and return user credentials', async () => {
+      const dto: DevLoginRequestDto = {
+        identifier: 'dev@example.com',
+      };
+      const mockDevResponse = {
+        access_token: 'mock-dev-token',
+        user_id: 'user-dev-123',
+      };
+      service.devLogin.mockResolvedValue(mockDevResponse as any);
+
+      const result = await controller.devLogin(dto);
+
+      expect(service.devLogin).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockDevResponse);
+    });
+  });
+
+  describe('signout', () => {
+    it('should sign out the user and return confirmation message', () => {
+      const mockSignoutResponse = { message: 'Signout successful' };
+      service.signout.mockReturnValue(mockSignoutResponse);
+
+      const result = controller.signout('user-id-123');
+
+      expect(service.signout).toHaveBeenCalledWith('user-id-123');
+      expect(result).toEqual(mockSignoutResponse);
     });
   });
 });

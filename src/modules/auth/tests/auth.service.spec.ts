@@ -17,6 +17,8 @@ import {
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { IDENTITY_ADDED_EVENT } from '@modules/identities/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditActionType } from '@modules/audit/dto';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
 import {
@@ -24,7 +26,11 @@ import {
   AccountNotFoundException,
   AuthTypeMismatchException,
   CredentialAlreadyLinkedException,
+  DeletedAccountReverificationException,
+  SocialAccountAlreadyLinkedException,
+  UnsupportedAuthMethodException,
   UnverifiedAccountException,
+  UserNotFoundException,
 } from '../application/exceptions';
 import { AuthService } from '../auth.service';
 import { USER_WELCOME_EVENT } from '../events';
@@ -32,6 +38,9 @@ import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
+  DevLoginRequestDto,
+  SocialAuthRequestDto,
+  SocialAuthType,
 } from '../dto';
 import { AuthCredentialService } from '../services/auth-credential.service';
 import { AuthTokenService } from '../services/auth-token.service';
@@ -513,6 +522,129 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         PubSubEvent.IDENTITY_CLAIMED,
         { userId: mockUser.id },
       );
+    });
+
+    const defaultDto: AddSecondaryAuthRequestDto = {
+      uid: 'uid-test',
+      uidToken: 'token-test',
+    };
+
+    it('should throw UserNotFoundException when target user is not found', async () => {
+      firebaseService.validateFirebaseToken.mockResolvedValue({
+        decodedToken: {
+          email: 'secondary@example.com',
+          email_verified: true,
+        } as any,
+        authMethod: {
+          method: AuthMethod.EMAIL,
+          identifier: 'secondary@example.com',
+          isVerified: true,
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.addSecondaryAuth(
+          'non-existent-user',
+          defaultDto,
+          AuthMethod.EMAIL,
+        ),
+      ).rejects.toThrow(UserNotFoundException);
+    });
+
+    it('should throw SocialAccountAlreadyLinkedException when identity is already linked to another user', async () => {
+      firebaseService.validateFirebaseToken.mockResolvedValue({
+        decodedToken: {
+          email: 'secondary@example.com',
+          email_verified: true,
+        } as any,
+        authMethod: {
+          method: AuthMethod.EMAIL,
+          identifier: 'secondary@example.com',
+          isVerified: true,
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'existing-ident',
+        userId: 'other-user-uuid',
+      } as any);
+
+      await expect(
+        service.addSecondaryAuth(mockUser.id, defaultDto, AuthMethod.EMAIL),
+      ).rejects.toThrow(SocialAccountAlreadyLinkedException);
+    });
+
+    it('should log error and rethrow when transaction encounters unexpected error', async () => {
+      firebaseService.validateFirebaseToken.mockResolvedValue({
+        decodedToken: {
+          email: 'secondary@example.com',
+          email_verified: true,
+        } as any,
+        authMethod: {
+          method: AuthMethod.EMAIL,
+          identifier: 'secondary@example.com',
+          isVerified: true,
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      prisma.identity.findUnique.mockRejectedValue(new Error('DB failure'));
+
+      await expect(
+        service.addSecondaryAuth(mockUser.id, defaultDto, AuthMethod.EMAIL),
+      ).rejects.toThrow('DB failure');
+    });
+
+    it('should swallow and log error when pubsub publish fails for claimed ghost identity', async () => {
+      firebaseService.validateFirebaseToken.mockResolvedValue({
+        decodedToken: {
+          email: 'secondary@example.com',
+          email_verified: true,
+        } as any,
+        authMethod: {
+          method: AuthMethod.EMAIL,
+          identifier: 'secondary@example.com',
+          isVerified: true,
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      const ghostIdentity = {
+        id: 'ghost-ident-uuid',
+        userId: null,
+      };
+      prisma.identity.findUnique.mockResolvedValue(ghostIdentity as any);
+      prisma.identity.update.mockResolvedValue({
+        ...ghostIdentity,
+        userId: mockUser.id,
+        isVerified: true,
+      } as any);
+      prisma.authCredential.count.mockResolvedValue(1);
+      prisma.authCredential.create.mockResolvedValue({} as any);
+      pubSubPublisher.publish.mockRejectedValue(
+        new Error('PubSub network down'),
+      );
+
+      const result = await service.addSecondaryAuth(
+        mockUser.id,
+        defaultDto,
+        AuthMethod.EMAIL,
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('should throw UnsupportedAuthMethodException when auth method is unsupported', async () => {
+      firebaseService.validateFirebaseToken.mockResolvedValue({
+        decodedToken: {} as any,
+        authMethod: {
+          method: 'UNKNOWN_METHOD' as any,
+          identifier: 'test',
+          isVerified: true,
+        },
+      });
+
+      await expect(
+        service.addSecondaryAuth(mockUser.id, defaultDto, AuthMethod.EMAIL),
+      ).rejects.toThrow(UnsupportedAuthMethodException);
     });
   });
 
@@ -1019,6 +1151,400 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         UnverifiedAccountException,
       );
       expect(prisma.identity.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('socialAuth', () => {
+    let service: AuthService;
+    let prisma: MockPrismaService;
+    let encryptionService: jest.Mocked<IdentityCryptoService>;
+    let authTokenService: jest.Mocked<AuthTokenService>;
+
+    const mockUser: User = {
+      id: 'user-social-1',
+      createdAt: new Date(),
+      deletedAt: null,
+      countryCode: null,
+    };
+
+    let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
+
+    beforeEach(async () => {
+      prisma = createPrismaMock();
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        if (typeof cb === 'function') {
+          return cb(prisma);
+        }
+        return cb;
+      });
+      encryptionService = {
+        processPlatformId: jest.fn().mockResolvedValue({
+          platformIdHash: 'hashed-platform-id',
+        }),
+        processPublicValue: jest.fn().mockResolvedValue({
+          publicValueHash: 'hashed-public-value',
+          publicValueMasked: 'instahandle',
+          publicValueCiphertext: 'cipher',
+          publicValueIv: 'iv',
+          publicValueTag: 'tag',
+          publicValueWrappedKey: 'wrappedKey',
+          publicValueKeyId: 'keyId',
+        }),
+      } as unknown as jest.Mocked<IdentityCryptoService>;
+      pubSubPublisher = {
+        publish: jest.fn().mockResolvedValue('msg-id-123'),
+      } as unknown as jest.Mocked<PubSubPublisherService>;
+      authTokenService = {
+        generateAuthResponse: jest.fn().mockReturnValue({
+          access_token: 'social-jwt-token',
+          user_id: mockUser.id,
+        }),
+      } as unknown as jest.Mocked<AuthTokenService>;
+
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: IdentityCryptoService, useValue: encryptionService },
+          { provide: AuthTokenService, useValue: authTokenService },
+          { provide: FirebaseService, useValue: {} },
+          { provide: PubSubPublisherService, useValue: pubSubPublisher },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should log in an existing verified social user', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-123',
+        handle: 'instahandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue({
+        id: 'ident-social-1',
+        userId: mockUser.id,
+        isVerified: true,
+      } as any);
+      prisma.user.findUniqueOrThrow.mockResolvedValue(mockUser);
+
+      const result = await service.socialAuth(dto);
+
+      expect(encryptionService.processPlatformId).toHaveBeenCalledWith(
+        'insta-123',
+      );
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: IdentityType.INSTAGRAM,
+          platformIdHash: 'hashed-platform-id',
+        },
+        select: { id: true, userId: true, isVerified: true },
+      });
+      expect(prisma.user.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+      });
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: IdentityType.INSTAGRAM,
+          platformIdHash: 'hashed-platform-id',
+          isNewUser: false,
+        },
+      );
+      expect(result).toEqual({
+        access_token: 'social-jwt-token',
+        user_id: mockUser.id,
+      });
+    });
+
+    it('should throw DeletedAccountReverificationException when identity belongs to deleted account', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-deleted',
+        handle: 'deletedhandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue({
+        id: 'ident-deleted-1',
+        userId: null,
+        isVerified: true,
+      } as any);
+
+      await expect(service.socialAuth(dto)).rejects.toThrow(
+        DeletedAccountReverificationException,
+      );
+    });
+
+    it('should register a new social user when identity does not exist', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-new',
+        handle: 'newhandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
+      prisma.identity.findUnique.mockResolvedValue(null);
+      prisma.identity.create.mockResolvedValue({ id: 'new-ident' } as any);
+
+      const result = await service.socialAuth(dto);
+
+      expect(prisma.user.create).toHaveBeenCalled();
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: IdentityType.INSTAGRAM,
+          platformIdHash: 'hashed-platform-id',
+          isNewUser: true,
+        },
+      );
+      expect(result).toEqual({
+        access_token: 'social-jwt-token',
+        user_id: mockUser.id,
+      });
+    });
+
+    it('should claim ghost identity when registering new social user and handle matches ghost', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-claim',
+        handle: 'ghosthandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
+      const ghost = { id: 'ghost-1', userId: null };
+      prisma.identity.findUnique.mockResolvedValue(ghost as any);
+      prisma.identity.update.mockResolvedValue({
+        ...ghost,
+        userId: mockUser.id,
+      } as any);
+
+      const result = await service.socialAuth(dto);
+
+      expect(prisma.identity.update).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should throw SocialAccountAlreadyLinkedException if ghost identity is already owned by active user', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-claim',
+        handle: 'ghosthandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
+      const ownedGhost = { id: 'ghost-1', userId: 'another-user' };
+      prisma.identity.findUnique.mockResolvedValue(ownedGhost as any);
+
+      await expect(service.socialAuth(dto)).rejects.toThrow(
+        SocialAccountAlreadyLinkedException,
+      );
+    });
+
+    it('should log error and rethrow when social auth transaction fails with unexpected error', async () => {
+      const dto: SocialAuthRequestDto = {
+        type: SocialAuthType.INSTAGRAM,
+        platformUserId: 'insta-fail',
+        handle: 'failhandle',
+      };
+
+      prisma.identity.findFirst.mockResolvedValue(null);
+      prisma.user.create.mockRejectedValue(new Error('DB transaction error'));
+
+      await expect(service.socialAuth(dto)).rejects.toThrow(
+        'DB transaction error',
+      );
+    });
+  });
+
+  describe('devLogin', () => {
+    let service: AuthService;
+    let prisma: MockPrismaService;
+    let encryptionService: jest.Mocked<IdentityCryptoService>;
+    let authTokenService: jest.Mocked<AuthTokenService>;
+
+    const mockUser: User = {
+      id: 'user-dev-1',
+      createdAt: new Date(),
+      deletedAt: null,
+      countryCode: 'US',
+    };
+
+    beforeEach(async () => {
+      prisma = createPrismaMock();
+      encryptionService = {
+        processPublicValue: jest.fn().mockImplementation((val, type) =>
+          Promise.resolve({
+            publicValueHash: `hash-${val}-${type}`,
+          }),
+        ),
+      } as unknown as jest.Mocked<IdentityCryptoService>;
+      authTokenService = {
+        generateAuthResponse: jest.fn().mockReturnValue({
+          access_token: 'dev-jwt-token',
+          user_id: mockUser.id,
+        }),
+      } as unknown as jest.Mocked<AuthTokenService>;
+
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: IdentityCryptoService, useValue: encryptionService },
+          { provide: AuthTokenService, useValue: authTokenService },
+          { provide: FirebaseService, useValue: {} },
+          { provide: PubSubPublisherService, useValue: {} },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should log in dev user with email identifier', async () => {
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      prisma.authCredential.findFirst.mockResolvedValue({
+        id: 'cred-1',
+        valueHash: 'hash-dev@breathaway.test-EMAIL',
+        user: mockUser,
+      } as any);
+
+      const result = await service.devLogin(dto);
+
+      expect(encryptionService.processPublicValue).toHaveBeenCalledWith(
+        'dev@breathaway.test',
+        IdentityType.EMAIL,
+      );
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: 'DEV_LOGIN',
+          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+        },
+      );
+      expect(result).toEqual({
+        access_token: 'dev-jwt-token',
+        user_id: mockUser.id,
+      });
+    });
+
+    it('should log in dev user with phone identifier', async () => {
+      const dto: DevLoginRequestDto = { identifier: '+1234567890' };
+
+      prisma.authCredential.findFirst.mockResolvedValue({
+        id: 'cred-2',
+        valueHash: 'hash-+1234567890-PHONE',
+        user: mockUser,
+      } as any);
+
+      const result = await service.devLogin(dto);
+
+      expect(encryptionService.processPublicValue).toHaveBeenCalledWith(
+        '+1234567890',
+        IdentityType.PHONE,
+      );
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: 'DEV_LOGIN',
+          publicValueHash: 'hash-+1234567890-PHONE',
+        },
+      );
+      expect(result).toEqual({
+        access_token: 'dev-jwt-token',
+        user_id: mockUser.id,
+      });
+    });
+
+    it('should throw UserNotFoundException if credential is not found', async () => {
+      const dto: DevLoginRequestDto = { identifier: 'unknown@example.com' };
+      prisma.authCredential.findFirst.mockResolvedValue(null);
+
+      await expect(service.devLogin(dto)).rejects.toThrow(
+        UserNotFoundException,
+      );
+    });
+  });
+
+  describe('signout', () => {
+    let service: AuthService;
+    let eventEmitter: { emit: jest.Mock };
+
+    beforeEach(async () => {
+      eventEmitter = { emit: jest.fn() };
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: createPrismaMock() },
+          { provide: IdentityCryptoService, useValue: {} },
+          { provide: AuthTokenService, useValue: {} },
+          { provide: FirebaseService, useValue: {} },
+          { provide: PubSubPublisherService, useValue: {} },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: eventEmitter },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should emit audit log and return confirmation message', () => {
+      const result = service.signout('user-signout-123');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        AUDIT_LOG_EVENT,
+        expect.objectContaining({
+          actionType: AuditActionType.USER_LOGOUT,
+          userId: 'user-signout-123',
+        }),
+      );
+      expect(result).toEqual({ message: 'Signout successful' });
     });
   });
 });
