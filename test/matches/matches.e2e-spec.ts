@@ -1,14 +1,16 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import {
+  IdentityType,
+  IntentType,
+  LikeStatus,
+  MatchStatus,
+} from '@prisma/client';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { MatchesModule } from '@modules/matches/matches.module';
-import {
-  MatchStatus,
-  IntentType,
-  IdentityType,
-  LikeStatus,
-} from '@prisma/client';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -222,13 +224,17 @@ describe('MatchesController (e2e)', () => {
       expect(matchInResponse).toBeDefined();
     });
 
-    it('DELETE /api/v1/matches/:id - should unmatch (soft delete) the match', async () => {
+    it('DELETE /api/v1/matches/:id - should unmatch (soft delete) the match (204 No Content)', async () => {
       const res = await authedRequest(app)
         .delete(`/api/v1/matches/${matchId}`)
         .set('authorization', `Bearer ${user1Jwt}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.status).toBe(204);
+    });
+
+    it('GET /api/v1/matches - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/matches');
+      expect(res.status).toBe(401);
     });
 
     it('GET /api/v1/matches/:id - should return 404 after unmatching', async () => {

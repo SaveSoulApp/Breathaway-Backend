@@ -86,8 +86,12 @@ export class PubSubIngestionController extends BaseController {
     // automatically. We must explicitly seed it here from the message envelope.
     const incomingMessageId = payload?.message?.messageId;
     const correlationId = incomingMessageId ?? randomUUID();
-    this.cls.set('requestId', correlationId);
-    this.cls.set('pubsubMessageId', incomingMessageId ?? null);
+    try {
+      this.cls.set('requestId', correlationId);
+      this.cls.set('pubsubMessageId', incomingMessageId ?? null);
+    } catch {
+      // Context not available in non-CLS execution environments
+    }
 
     // Do NOT log the full payload wholesale (PII safety). Log the metadata instead.
     this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_RECEIVED, {

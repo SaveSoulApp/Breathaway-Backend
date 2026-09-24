@@ -1,13 +1,15 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { IdentityType } from '@prisma/client';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
-import { IdentityType } from '@prisma/client';
 
 describe('IdentitiesController (e2e)', () => {
   let app: INestApplication;
@@ -263,6 +265,11 @@ describe('IdentitiesController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(404);
+    });
+
+    it('GET /api/v1/identities - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/identities');
+      expect(res.status).toBe(401);
     });
   });
 });

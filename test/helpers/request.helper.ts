@@ -32,6 +32,7 @@ function getClientIdentityHeaders(
     'x-client-id': clientId,
     'x-device-id': 'e2e-test-device-001',
     'x-user-agent': `${appName}/${minVersion} (${platform} 17.0; TestDevice)`,
+    'x-timezone': 'UTC',
   };
 }
 

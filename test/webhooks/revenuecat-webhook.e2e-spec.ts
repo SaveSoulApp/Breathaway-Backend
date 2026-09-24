@@ -108,6 +108,72 @@ describe('RevenueCat webhook behaviour (e2e)', () => {
     expect(response.status).toBe(401);
   });
 
+  it('rejects webhook request when timestamp is outside 300s tolerance window (401)', async () => {
+    // Arrange
+    const payload = {
+      api_version: '1.0',
+      event: { type: 'TEST', id: 'evt_expired' },
+    };
+    const rawPayload = JSON.stringify(payload);
+    // 600 seconds in the past exceeds the 300s tolerance window
+    const expiredTimestamp = Math.floor(Date.now() / 1000) - 600;
+    const signature = createSignatureHeader(expiredTimestamp, rawPayload);
+
+    // Act
+    const response = await request(app.getHttpServer())
+      .post('/webhooks/revenuecat')
+      .set('x-revenuecat-webhook-signature', signature)
+      .send(payload);
+
+    // Assert
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects webhook request with invalid HMAC signature hash (401)', async () => {
+    // Arrange
+    const payload = {
+      api_version: '1.0',
+      event: { type: 'TEST', id: 'evt_bad_hash' },
+    };
+    const rawPayload = JSON.stringify(payload);
+    const nowSec = Math.floor(Date.now() / 1000);
+    // Compute signature with incorrect secret
+    const signature = createSignatureHeader(
+      nowSec,
+      rawPayload,
+      'wrong_signing_secret_999',
+    );
+
+    // Act
+    const response = await request(app.getHttpServer())
+      .post('/webhooks/revenuecat')
+      .set('x-revenuecat-webhook-signature', signature)
+      .send(payload);
+
+    // Assert
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects webhook request with malformed signature header format (401)', async () => {
+    // Arrange
+    const payload = {
+      api_version: '1.0',
+      event: { type: 'TEST', id: 'evt_malformed' },
+    };
+
+    // Act
+    const response = await request(app.getHttpServer())
+      .post('/webhooks/revenuecat')
+      .set(
+        'x-revenuecat-webhook-signature',
+        'malformed-signature-without-t-and-v1',
+      )
+      .send(payload);
+
+    // Assert
+    expect(response.status).toBe(401);
+  });
+
   it('accepts a payload carrying fields the DTO does not declare when HMAC is valid', async () => {
     // Arrange
     const payload = {

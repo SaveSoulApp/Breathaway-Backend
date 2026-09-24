@@ -1,12 +1,14 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
+import { Platform } from '@common/interfaces';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { DevicesModule } from '@modules/devices/devices.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
-import { Platform } from '@common/interfaces';
 
 describe('DevicesController (e2e)', () => {
   let app: INestApplication;
@@ -66,7 +68,7 @@ describe('DevicesController (e2e)', () => {
       });
     });
 
-    it('POST /api/v1/devices - fails if token already registered for the same user', async () => {
+    it('POST /api/v1/devices - succeeds idempotently if token already registered for the same user', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/devices')
         .set('authorization', `Bearer ${validJwt}`)
@@ -74,7 +76,21 @@ describe('DevicesController (e2e)', () => {
           token: 'test-fcm-token-1', // same token
         });
 
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({
+        token: 'test-fcm-token-1',
+        userId: seededUserId,
+        isActive: true,
+      });
+    });
+
+    it('POST /api/v1/devices - rejects invalid payload with missing token (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/devices')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({});
+
+      expect(res.status).toBe(400);
     });
 
     it('GET /api/v1/devices - returns all devices for user', async () => {
@@ -103,6 +119,14 @@ describe('DevicesController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(deviceId);
+    });
+
+    it('GET /api/v1/devices/:id - returns 404 for unknown device ID', async () => {
+      const res = await authedRequest(app)
+        .get('/api/v1/devices/non-existent-device-id')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      expect(res.status).toBe(404);
     });
 
     it('PUT /api/v1/devices/:id - updates device completely', async () => {
@@ -169,6 +193,11 @@ describe('DevicesController (e2e)', () => {
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(checkRes.status).toBe(404);
+    });
+
+    it('GET /api/v1/devices - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app).get('/api/v1/devices');
+      expect(res.status).toBe(401);
     });
   });
 });

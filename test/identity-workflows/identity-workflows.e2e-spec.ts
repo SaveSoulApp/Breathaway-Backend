@@ -25,6 +25,7 @@ describe('IdentityWorkflows (e2e)', () => {
   let notificationsService: NotificationsService;
   let crypto: IdentityCryptoService;
   let validToken: string;
+  let verifyIdTokenSpy: jest.SpyInstance;
 
   const allCreatedUserIds: string[] = [];
 
@@ -43,7 +44,9 @@ describe('IdentityWorkflows (e2e)', () => {
 
     validToken = 'test-oidc-bearer-token';
 
-    (
+    const expectedProjectId =
+      configService.get<string>('GCP_PROJECT_ID') || 'test';
+    verifyIdTokenSpy = (
       jest.spyOn(
         OAuth2Client.prototype,
         'verifyIdToken',
@@ -52,7 +55,8 @@ describe('IdentityWorkflows (e2e)', () => {
       getPayload: () => ({
         iss: 'https://accounts.google.com',
         aud: configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
-        email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+        email: `pubsub-invoker@${expectedProjectId}.iam.gserviceaccount.com`,
+        email_verified: true,
       }),
     });
 
@@ -60,6 +64,7 @@ describe('IdentityWorkflows (e2e)', () => {
   });
 
   afterAll(async () => {
+    verifyIdTokenSpy?.mockRestore();
     await cleanupTestUsers(prisma, allCreatedUserIds);
     await app.close();
   });

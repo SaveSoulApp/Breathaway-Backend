@@ -1,7 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -86,10 +88,12 @@ describe('SocialIdentitiesController (e2e)', () => {
 
     it('should throw InternalServerErrorException if INSTAGRAM_ACCESS_TOKEN is missing', async () => {
       const originalGet = configService.get.bind(configService);
-      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
-        if (key === 'INSTAGRAM_ACCESS_TOKEN') return undefined;
-        return originalGet(key);
-      });
+      const configSpy = jest
+        .spyOn(configService, 'get')
+        .mockImplementation((key: string) => {
+          if (key === 'INSTAGRAM_ACCESS_TOKEN') return undefined;
+          return originalGet(key);
+        });
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
@@ -100,8 +104,16 @@ describe('SocialIdentitiesController (e2e)', () => {
         'Instagram verification is currently unavailable.',
       );
 
-      // Restore the mock
-      jest.restoreAllMocks();
+      // Restore only the specific mock
+      configSpy.mockRestore();
+    });
+
+    it('should reject invalid payload without instagramId (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/social-identities/verify/instagram')
+        .send({});
+
+      expect(res.status).toBe(400);
     });
   });
 });

@@ -29,7 +29,6 @@ describe('WebhooksController (e2e)', () => {
   });
 
   afterAll(async () => {
-    jest.restoreAllMocks();
     await cleanupTestUsers(prisma, allCreatedUserIds);
     await app.close();
   });

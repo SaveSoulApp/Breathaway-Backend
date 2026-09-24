@@ -40,6 +40,7 @@ describe('PubSubIngestionController (e2e)', () => {
   let configService: ConfigService;
   let dummyHandler: DummyPubSubHandler;
   let validToken: string;
+  let verifyIdTokenSpy: jest.SpyInstance;
 
   beforeAll(async () => {
     const context = await createAuthTestApp([PubSubModule, DummyModule]);
@@ -49,7 +50,7 @@ describe('PubSubIngestionController (e2e)', () => {
 
     validToken = 'valid-oidc-bearer-token';
 
-    (
+    verifyIdTokenSpy = (
       jest.spyOn(
         OAuth2Client.prototype,
         'verifyIdToken',
@@ -59,12 +60,15 @@ describe('PubSubIngestionController (e2e)', () => {
       >
     ).mockImplementation(async (opts) => {
       if (opts.idToken === 'valid-oidc-bearer-token') {
+        const expectedProjectId =
+          configService.get<string>('GCP_PROJECT_ID') || 'test';
         return {
           getPayload: () => ({
             iss: 'https://accounts.google.com',
             aud:
               configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
-            email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+            email: `pubsub-invoker@${expectedProjectId}.iam.gserviceaccount.com`,
+            email_verified: true,
           }),
         } as unknown as LoginTicket;
       }
@@ -73,6 +77,7 @@ describe('PubSubIngestionController (e2e)', () => {
   });
 
   afterAll(async () => {
+    verifyIdTokenSpy?.mockRestore();
     await app.close();
   });
 

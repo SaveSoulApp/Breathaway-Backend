@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
+
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -136,6 +138,13 @@ describe('OneTimePasswordsController (e2e)', () => {
       expect(res.body.detail).toBe(
         'Please wait before requesting another OTP.',
       );
+    });
+
+    it('POST /api/v1/one-time-passwords/generate - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/one-time-passwords/generate')
+        .send();
+      expect(res.status).toBe(401);
     });
   });
 });

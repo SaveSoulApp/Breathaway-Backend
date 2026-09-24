@@ -1,13 +1,14 @@
-import { INestApplication } from '@nestjs/common';
+import { Global, INestApplication, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Global, Module } from '@nestjs/common';
 import axios from 'axios';
+
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
 import { InstagramModule } from '@modules/instagram/instagram.module';
+
 import {
+  buildBasicAuthHeader,
   createAuthTestApp,
   getDevLoginCredentials,
-  buildBasicAuthHeader,
 } from '../helpers/app-test.helper';
 import { authedRequest } from '../helpers/request.helper';
 

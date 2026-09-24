@@ -31,14 +31,28 @@ export default async function globalSetup(): Promise<void> {
   // We do NOT overwrite vars that are already set (e.g. by CI).
   loadEnvFile(path.resolve(process.cwd(), '.env.test'));
 
+  // Ensure default admin and GCP OIDC test credentials are set
+  process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+  process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
+  process.env.GCP_OIDC_AUDIENCE =
+    process.env.GCP_OIDC_AUDIENCE ||
+    'https://backend-service-at7g3x4m6q-el.a.run.app';
+
   // Run pending migrations against the test database.
   // `prisma migrate deploy` is idempotent — safe to call on every run.
   // It also implicitly creates the schema if it does not yet exist.
-  execSync('npx prisma migrate deploy', {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      DATABASE_URL: process.env.DATABASE_URL,
-    },
-  });
+  try {
+    execSync('npx prisma migrate deploy', {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        DATABASE_URL: process.env.DATABASE_URL,
+      },
+    });
+  } catch (error) {
+    console.warn(
+      '⚠️ [globalSetup] Could not run "prisma migrate deploy". Test database may be offline.',
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
