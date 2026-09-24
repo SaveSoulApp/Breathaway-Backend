@@ -17,13 +17,13 @@ import {
 
 import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { GcpOidcAuthGuard } from '@common/guards';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { ClsService } from 'nestjs-cls';
 
 import { PubSubPushRequestDto } from './dto';
-import { PubSubAuthGuard } from './guards/pubsub-auth.guard';
 import { PubSubRegistryService } from './pubsub-registry.service';
 
 @ApiTags('PubSub (Internal)')
@@ -34,15 +34,15 @@ import { PubSubRegistryService } from './pubsub-registry.service';
   version: ['1'],
 })
 @SkipClientIdentity()
-@UseGuards(PubSubAuthGuard)
+@UseGuards(GcpOidcAuthGuard)
 /**
  * Internal HTTP endpoint that receives GCP Pub/Sub push-delivery messages and
  * dispatches them to registered @PubSubListener handlers.
  *
- * Excluded from the public Swagger docs and protected by a shared-secret token
- * guard (PubSubAuthGuard). All routes skip the standard client-identity check
- * because Pub/Sub push requests originate from Google's infrastructure, not
- * from app clients.
+ * Excluded from the public Swagger docs and protected by GcpOidcAuthGuard, which
+ * validates Google-signed OIDC ID tokens passed in the Authorization header.
+ * All routes skip the standard client-identity check because Pub/Sub push requests
+ * originate from Google infrastructure, not app clients.
  */
 export class PubSubIngestionController extends BaseController {
   constructor(

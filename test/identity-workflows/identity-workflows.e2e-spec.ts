@@ -1,17 +1,20 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+import { OAuth2Client } from 'google-auth-library';
+import request from 'supertest';
+
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
-import { PubSubModule } from '@modules/pubsub/pubsub.module';
-import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
-import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { createAuthTestApp } from '../helpers/app-test.helper';
-import request from 'supertest';
+import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
-import { IdentityType, LikeStatus, IntentType } from '@prisma/client';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
+import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
+
+import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 
 describe('IdentityWorkflows (e2e)', () => {
   let app: INestApplication;
@@ -38,9 +41,20 @@ describe('IdentityWorkflows (e2e)', () => {
     notificationsService = app.get(NotificationsService);
     crypto = app.get(IdentityCryptoService);
 
-    validToken =
-      configService.get<string>('PUBSUB_VERIFICATION_TOKEN') ||
-      'test-PUBSUB_VERIFICATION_TOKEN';
+    validToken = 'test-oidc-bearer-token';
+
+    (
+      jest.spyOn(
+        OAuth2Client.prototype,
+        'verifyIdToken',
+      ) as unknown as jest.SpyInstance
+    ).mockResolvedValue({
+      getPayload: () => ({
+        iss: 'https://accounts.google.com',
+        aud: configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+        email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+      }),
+    });
 
     jest.spyOn(notificationsService, 'dispatch').mockResolvedValue();
   });
@@ -64,7 +78,8 @@ describe('IdentityWorkflows (e2e)', () => {
       subscription: 'projects/test/subscriptions/test',
     };
     return request(app.getHttpServer())
-      .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+      .post('/api/v1/pubsub/ingest')
+      .set('Authorization', `Bearer ${validToken}`)
       .send(payload);
   };
 
