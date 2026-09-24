@@ -30,6 +30,13 @@ describe('envValidationSchema', () => {
       expect(value.PORT).toBe(3000);
       expect(value.DEPLOYMENT_ENV).toBe('gcp');
       expect(value.APP_NAME).toBe('BreathAway');
+      expect(value.APP_URL).toBe('https://www.breathaway.app');
+      expect(value.WEBPUSH_ICON_URL).toBe(
+        'https://www.breathaway.app/icon.png',
+      );
+      expect(value.WEBPUSH_BADGE_URL).toBe(
+        'https://www.breathaway.app/badge.png',
+      );
       expect(value.MIN_APP_VERSION).toBe('1.0.0');
       expect(value.REQUIRED_PLATFORMS).toBe(
         '["iOS","Android","Postman","Web"]',

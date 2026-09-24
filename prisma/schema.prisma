@@ -58,6 +58,7 @@ enum CreditSource {
 enum DevicePlatform {
   ANDROID
   IOS
+  WEB
 }
 
 enum GenderType {

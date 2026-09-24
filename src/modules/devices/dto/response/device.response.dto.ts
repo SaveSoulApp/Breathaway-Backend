@@ -24,7 +24,7 @@ export class DeviceResponseDto {
   @Expose()
   token: string;
 
-  /** Operating system platform the device runs (IOS or ANDROID). */
+  /** Operating system platform the device runs (IOS, ANDROID, or WEB). */
   @ApiProperty({ description: 'Device platform', enum: DevicePlatform })
   @Expose()
   platform: DevicePlatform;

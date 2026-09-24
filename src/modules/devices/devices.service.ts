@@ -456,6 +456,8 @@ export class DevicesService extends BaseService {
         return DevicePlatform.IOS;
       case Platform.ANDROID:
         return DevicePlatform.ANDROID;
+      case Platform.WEB:
+        return DevicePlatform.WEB;
       default:
         this.logger.warn('Unknown platform, defaulting to ANDROID', {
           platform,

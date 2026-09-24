@@ -24,6 +24,7 @@ import {
   UserBlockedException,
 } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
+import { CHAT_MESSAGE_SENT_EVENT } from '../events';
 import * as chatUtils from '../utils/chats.utils';
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -34,6 +35,7 @@ describe('ChatsService', () => {
   let service: ChatsService;
   let prisma: MockPrismaService;
   let blocksService: { isBlocked: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
 
   let mockSupabaseClient: any;
 
@@ -117,6 +119,7 @@ describe('ChatsService', () => {
 
     service = module.get<ChatsService>(ChatsService);
     prisma = module.get(PrismaService);
+    eventEmitter = module.get(EventEmitter2);
   });
 
   afterEach(() => {
@@ -312,6 +315,17 @@ describe('ChatsService', () => {
         senderId: 'user-1',
         content: 'hello',
       });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CHAT_MESSAGE_SENT_EVENT,
+        expect.objectContaining({
+          messageId: 'msg-1',
+          roomId: 'room-1',
+          matchId: 'match-1',
+          senderId: 'user-1',
+          recipientId: 'user-2',
+          content: 'hello',
+        }),
+      );
     });
 
     it('should throw InternalServerErrorException on room upsert failure', async () => {

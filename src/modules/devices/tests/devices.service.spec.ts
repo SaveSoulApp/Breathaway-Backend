@@ -190,6 +190,34 @@ describe('DevicesService', () => {
       expect(result).toEqual(androidMockDevice);
     });
 
+    it('should create a new device successfully (WEB)', async () => {
+      const webDto: CreateDeviceRequestDto = {
+        ...createDto,
+        platform: Platform.WEB,
+      };
+      const webMockDevice = {
+        ...mockDevice,
+        platform: DevicePlatform.WEB,
+      };
+      prisma.device.findUnique.mockResolvedValue(null);
+      prisma.device.create.mockResolvedValue(webMockDevice);
+      prisma.device.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.createDevice('user-1', webDto);
+
+      expect(prisma.device.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'user-1',
+          token: 'fcm-token',
+          platform: DevicePlatform.WEB,
+          deviceId: 'device-123',
+          appVersion: '1.0.0',
+          isActive: true,
+        },
+      });
+      expect(result).toEqual(webMockDevice);
+    });
+
     it('should emit DEVICE_ADDED event when a new device is registered', async () => {
       prisma.device.findUnique.mockResolvedValue(null);
       prisma.device.create.mockResolvedValue(mockDevice);

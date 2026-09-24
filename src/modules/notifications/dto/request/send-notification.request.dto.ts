@@ -121,4 +121,12 @@ export class SendNotificationRequestDto {
   @IsString()
   @IsOptional()
   sound?: string = 'default';
+
+  @ApiPropertyOptional({
+    description: 'Deep link route or URL for client navigation',
+    example: '/matches/match-123',
+  })
+  @IsString()
+  @IsOptional()
+  link?: string;
 }
