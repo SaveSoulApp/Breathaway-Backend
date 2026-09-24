@@ -5,10 +5,13 @@ import {
   Module,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PubSubModule } from '@modules/pubsub/pubsub.module';
-import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
-import { createAuthTestApp } from '../helpers/app-test.helper';
+import { OAuth2Client } from 'google-auth-library';
 import request from 'supertest';
+
+import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
+
+import { createAuthTestApp } from '../helpers/app-test.helper';
 
 // Define a test handler to track if our event gets processed
 @Injectable()
@@ -45,8 +48,24 @@ describe('PubSubIngestionController (e2e)', () => {
     configService = app.get(ConfigService);
     dummyHandler = app.get(DummyPubSubHandler);
 
-    validToken =
-      configService.get<string>('PUBSUB_VERIFICATION_TOKEN') || 'test-token';
+    validToken = 'valid-oidc-bearer-token';
+
+    jest
+      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+      .mockImplementation(async (opts) => {
+        if (opts.idToken === 'valid-oidc-bearer-token') {
+          return {
+            getPayload: () => ({
+              iss: 'https://accounts.google.com',
+              aud:
+                configService.get<string>('GCP_OIDC_AUDIENCE') ||
+                'test-audience',
+              email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+            }),
+          } as any;
+        }
+        throw new Error('Invalid token');
+      });
   });
 
   afterAll(async () => {
@@ -72,31 +91,33 @@ describe('PubSubIngestionController (e2e)', () => {
     };
   };
 
-  describe('Authentication (PubSubAuthGuard)', () => {
-    it('should reject requests without a token', async () => {
+  describe('Authentication (GcpOidcAuthGuard)', () => {
+    it('should reject requests without a Bearer token', async () => {
       const payload = getBasePayload('test.event');
       const res = await request(app.getHttpServer())
         .post('/api/v1/pubsub/ingest')
         .send(payload);
 
       expect(res.status).toBe(401);
-      expect(res.body.detail).toBe('Invalid Pub/Sub verification token');
+      expect(res.body.detail).toBe('Invalid or missing Bearer token');
     });
 
-    it('should reject requests with an invalid token', async () => {
+    it('should reject requests with an invalid Bearer token', async () => {
       const payload = getBasePayload('test.event');
       const res = await request(app.getHttpServer())
-        .post('/api/v1/pubsub/ingest?token=invalid_token')
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', 'Bearer invalid_token')
         .send(payload);
 
       expect(res.status).toBe(401);
-      expect(res.body.detail).toBe('Invalid Pub/Sub verification token');
+      expect(res.body.detail).toBe('Invalid OIDC token');
     });
 
-    it('should allow requests with a valid token', async () => {
+    it('should allow requests with a valid Bearer token', async () => {
       const payload = getBasePayload('test.event');
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send(payload);
 
       // The handler returns void, so the controller returns 200 OK
@@ -108,7 +129,8 @@ describe('PubSubIngestionController (e2e)', () => {
     it('should return 200 OK for an unregistered event type and log a warning', async () => {
       const payload = getBasePayload('unregistered.event');
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send(payload);
 
       expect(res.status).toBe(200);
@@ -120,7 +142,8 @@ describe('PubSubIngestionController (e2e)', () => {
       const payload = getBasePayload('test.event', dataObj);
 
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send(payload);
 
       expect(res.status).toBe(200);
@@ -131,7 +154,8 @@ describe('PubSubIngestionController (e2e)', () => {
     it('should return 500 if the handler throws an error (to trigger Pub/Sub retry)', async () => {
       const payload = getBasePayload('error.event');
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send(payload);
 
       expect(res.status).toBe(500);
@@ -140,7 +164,8 @@ describe('PubSubIngestionController (e2e)', () => {
 
     it('should ignore and return 200 for payloads with missing message objects', async () => {
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send({ somethingElse: true });
 
       expect(res.status).toBe(200);
@@ -156,7 +181,8 @@ describe('PubSubIngestionController (e2e)', () => {
       };
 
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+        .post('/api/v1/pubsub/ingest')
+        .set('Authorization', `Bearer ${validToken}`)
         .send(payload);
 
       expect(res.status).toBe(200);

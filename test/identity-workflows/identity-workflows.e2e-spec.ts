@@ -10,8 +10,8 @@ import { createAuthTestApp } from '../helpers/app-test.helper';
 import request from 'supertest';
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { IdentityType, LikeStatus, IntentType } from '@prisma/client';
-import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { OAuth2Client } from 'google-auth-library';
 
 describe('IdentityWorkflows (e2e)', () => {
   let app: INestApplication;
@@ -38,9 +38,15 @@ describe('IdentityWorkflows (e2e)', () => {
     notificationsService = app.get(NotificationsService);
     crypto = app.get(IdentityCryptoService);
 
-    validToken =
-      configService.get<string>('PUBSUB_VERIFICATION_TOKEN') ||
-      'test-PUBSUB_VERIFICATION_TOKEN';
+    validToken = 'test-oidc-bearer-token';
+
+    jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue({
+      getPayload: () => ({
+        iss: 'https://accounts.google.com',
+        aud: configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+        email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+      }),
+    } as any);
 
     jest.spyOn(notificationsService, 'dispatch').mockResolvedValue();
   });
@@ -64,7 +70,8 @@ describe('IdentityWorkflows (e2e)', () => {
       subscription: 'projects/test/subscriptions/test',
     };
     return request(app.getHttpServer())
-      .post(`/api/v1/pubsub/ingest?token=${validToken}`)
+      .post('/api/v1/pubsub/ingest')
+      .set('Authorization', `Bearer ${validToken}`)
       .send(payload);
   };
 

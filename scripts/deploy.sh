@@ -111,7 +111,6 @@ deploy_service() {
         "HMAC_KEY_BASE64=hmac-key-base64:latest"
         "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
         "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
-        "PUBSUB_VERIFICATION_TOKEN=pubsub-verification-token:latest"
         "KMS_KEY_NAMES=kms-key-names:latest"
         "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
         "SUPABASE_URL=supabase-url:latest"
