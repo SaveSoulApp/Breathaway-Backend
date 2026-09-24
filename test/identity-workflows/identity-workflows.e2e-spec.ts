@@ -1,17 +1,20 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+import { OAuth2Client } from 'google-auth-library';
+import request from 'supertest';
+
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
-import { PubSubModule } from '@modules/pubsub/pubsub.module';
-import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
-import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { createAuthTestApp } from '../helpers/app-test.helper';
-import request from 'supertest';
+import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { PubSubEvent } from '@modules/pubsub/enums';
-import { IdentityType, LikeStatus, IntentType } from '@prisma/client';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
-import { OAuth2Client } from 'google-auth-library';
+import { PubSubModule } from '@modules/pubsub/pubsub.module';
+import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
+
+import { createAuthTestApp } from '../helpers/app-test.helper';
+import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 
 describe('IdentityWorkflows (e2e)', () => {
   let app: INestApplication;
@@ -40,13 +43,18 @@ describe('IdentityWorkflows (e2e)', () => {
 
     validToken = 'test-oidc-bearer-token';
 
-    jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue({
-      getPayload: () => ({
-        iss: 'https://accounts.google.com',
-        aud: configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
-        email: 'pubsub-invoker@test.iam.gserviceaccount.com',
-      }),
-    } as any);
+    jest
+      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+      .mockImplementation(async () => {
+        return {
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            aud:
+              configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+            email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+          }),
+        } as any;
+      });
 
     jest.spyOn(notificationsService, 'dispatch').mockResolvedValue();
   });

@@ -117,7 +117,9 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockRejectedValue(new Error('Signature verification failed'));
+        .mockImplementation(async () => {
+          throw new Error('Signature verification failed');
+        });
 
       const context = createMockExecutionContext({
         headers: {
@@ -143,7 +145,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -174,7 +176,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -205,7 +207,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -236,7 +238,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -273,7 +275,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -310,7 +312,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const context = createMockExecutionContext({
         headers: {
@@ -343,7 +345,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const req: Record<string, unknown> = {
         headers: {
@@ -385,7 +387,7 @@ describe(GcpOidcAuthGuard.name, () => {
 
       jest
         .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-        .mockResolvedValue(mockTicket);
+        .mockImplementation(async () => mockTicket);
 
       const req: Record<string, unknown> = {
         headers: {
