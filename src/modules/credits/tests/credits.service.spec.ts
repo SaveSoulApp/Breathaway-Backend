@@ -292,6 +292,120 @@ describe('CreditsService', () => {
     });
   });
 
+  describe('getExpiringCredits', () => {
+    it('should return unexpired bundles with unused balance after FIFO debits', async () => {
+      // Arrange
+      const now = new Date('2026-07-20T10:00:00Z');
+      jest.useFakeTimers().setSystemTime(now);
+      const jul25Expiry = new Date('2026-07-25T10:00:00Z');
+      const jul30Expiry = new Date('2026-07-30T10:00:00Z');
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'bundle-1',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 10,
+          source: CreditSource.PURCHASE,
+          expiresAt: jul25Expiry,
+          createdAt: new Date('2026-07-15T10:00:00Z'),
+        },
+        {
+          id: 'bundle-2',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 20,
+          source: CreditSource.PURCHASE,
+          expiresAt: jul30Expiry,
+          createdAt: new Date('2026-07-16T10:00:00Z'),
+        },
+        {
+          id: 'debit-1',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 5,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-07-17T10:00:00Z'),
+        },
+      ] as any);
+
+      // Act
+      const result = await service.getExpiringCredits(userId);
+
+      // Assert
+      expect(result).toEqual([
+        {
+          creditId: 'bundle-1',
+          remainingBalance: 5,
+          expiresAt: jul25Expiry,
+        },
+        {
+          creditId: 'bundle-2',
+          remainingBalance: 20,
+          expiresAt: jul30Expiry,
+        },
+      ]);
+      jest.useRealTimers();
+    });
+
+    it('should exclude expired bundles or bundles with zero remaining balance', async () => {
+      // Arrange
+      const now = new Date('2026-07-26T10:00:00Z');
+      jest.useFakeTimers().setSystemTime(now);
+      const pastExpiry = new Date('2026-07-25T10:00:00Z');
+      const futureExpiry = new Date('2026-07-30T10:00:00Z');
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'bundle-1',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 10,
+          source: CreditSource.PURCHASE,
+          expiresAt: pastExpiry,
+          createdAt: new Date('2026-07-15T10:00:00Z'),
+        },
+        {
+          id: 'bundle-2',
+          transactionType: CreditTransactionType.CREDIT,
+          amount: 5,
+          source: CreditSource.PURCHASE,
+          expiresAt: futureExpiry,
+          createdAt: new Date('2026-07-16T10:00:00Z'),
+        },
+        {
+          id: 'debit-1',
+          transactionType: CreditTransactionType.DEBIT,
+          amount: 15,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-07-17T10:00:00Z'),
+        },
+      ] as any);
+
+      // Act
+      const result = await service.getExpiringCredits(userId);
+
+      // Assert
+      expect(result).toEqual([]);
+      jest.useRealTimers();
+    });
+
+    it('should respect custom transaction client if passed', async () => {
+      // Arrange
+      const mockTx = {
+        creditLedger: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+
+      // Act
+      const result = await service.getExpiringCredits(userId, mockTx as any);
+
+      // Assert
+      expect(mockTx.creditLedger.findMany).toHaveBeenCalled();
+      expect(prisma.creditLedger.findMany).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('getLedger', () => {
     it('should return paginated credit ledger with default query', async () => {
       // Arrange
@@ -621,6 +735,21 @@ describe('CreditsService', () => {
           balance: 15,
         }),
       );
+    });
+
+    it('should log error and rethrow when database creation fails in consumeCredits', async () => {
+      // Arrange
+      const dto: ConsumeCreditsRequestDto = {
+        userId,
+        amount: 10,
+        referenceId: 'ref-db-fail',
+      };
+      jest.spyOn(service, 'hasSufficientCredits').mockResolvedValue(true);
+      const dbError = new Error('Prisma debit write failure');
+      prisma.creditLedger.create.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(service.consumeCredits(dto)).rejects.toThrow(dbError);
     });
   });
 
@@ -969,6 +1098,35 @@ describe('CreditsService', () => {
           urgency: 'warning',
         }),
       );
+    });
+
+    it('should not dispatch warning when all credits in the warning window are already consumed', async () => {
+      // Arrange
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const expiringDate = new Date('2026-09-05T00:00:00Z');
+
+      prisma.creditLedger.aggregate.mockResolvedValueOnce({
+        _sum: { amount: 10 },
+      } as never);
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'credit-1',
+          userId,
+          amount: 10,
+          transactionType: CreditTransactionType.CREDIT,
+          expiresAt: expiringDate,
+        },
+      ] as never);
+
+      // Act
+      await service.handleExpiryWarningBatch({
+        userIds: [userId],
+        asOf: asOf.toISOString(),
+      });
+
+      // Assert
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 });

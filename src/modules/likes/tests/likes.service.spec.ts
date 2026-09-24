@@ -781,4 +781,99 @@ describe('LikesService', () => {
       );
     });
   });
+
+  describe('updateLabel', () => {
+    const updateDto = { label: 'Sarah from gym' };
+
+    it('should throw LikeNotFoundException if like not found or deleted', async () => {
+      // Arrange
+      prisma.like.findFirst.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        service.updateLabel(likeId, userId, updateDto),
+      ).rejects.toThrow(LikeNotFoundException);
+      expect(prisma.like.findFirst).toHaveBeenCalledWith({
+        where: { id: likeId, senderUserId: userId, deletedAt: null },
+      });
+    });
+
+    it('should update label and return like with decrypted public value', async () => {
+      // Arrange
+      prisma.like.findFirst.mockResolvedValue(mockLikeData);
+      const updatedLike = {
+        ...mockLikeData,
+        label: updateDto.label,
+        targetIdentity: {
+          id: 'target-id-123',
+          type: IdentityType.EMAIL,
+          publicValueMasked: 't***@example.com',
+        },
+      };
+      prisma.like.update.mockResolvedValue(updatedLike as never);
+      identitiesServiceMock.getDecryptedPublicValue.mockResolvedValue(
+        'target@example.com',
+      );
+
+      // Act
+      const result = await service.updateLabel(likeId, userId, updateDto);
+
+      // Assert
+      expect(prisma.like.update).toHaveBeenCalledWith({
+        where: { id: likeId },
+        data: { label: updateDto.label },
+        select: expect.any(Object),
+      });
+      expect(result).toEqual({
+        ...updatedLike,
+        targetIdentity: {
+          ...updatedLike.targetIdentity,
+          publicValue: 'target@example.com',
+        },
+      });
+    });
+
+    it('should allow clearing label with null value', async () => {
+      // Arrange
+      prisma.like.findFirst.mockResolvedValue(mockLikeData);
+      const updatedLike = {
+        ...mockLikeData,
+        label: null,
+        targetIdentity: {
+          id: 'target-id-123',
+          type: IdentityType.EMAIL,
+          publicValueMasked: 't***@example.com',
+        },
+      };
+      prisma.like.update.mockResolvedValue(updatedLike as never);
+      identitiesServiceMock.getDecryptedPublicValue.mockResolvedValue(
+        'target@example.com',
+      );
+
+      // Act
+      const result = await service.updateLabel(likeId, userId, {
+        label: null as any,
+      });
+
+      // Assert
+      expect(prisma.like.update).toHaveBeenCalledWith({
+        where: { id: likeId },
+        data: { label: null },
+        select: expect.any(Object),
+      });
+      expect(result.label).toBeNull();
+    });
+
+    it('should log error and rethrow when database update fails', async () => {
+      // Arrange
+      prisma.like.findFirst.mockResolvedValue(mockLikeData);
+      const dbError = new Error('Prisma update error');
+      prisma.like.update.mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(
+        service.updateLabel(likeId, userId, updateDto),
+      ).rejects.toThrow(dbError);
+    });
+  });
 });

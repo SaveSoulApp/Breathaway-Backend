@@ -1,5 +1,5 @@
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
@@ -7,15 +7,17 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import { MetaWebhookDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
+import { PurchaseEventType } from '../enums/purchase-event-type.enum';
 import {
   WebhookMessageHandler,
   WebhookPurchaseHandler,
 } from '../handlers/webhook-handler.interface';
-import { WebhooksService } from '../webhooks.service';
+import { ParsedPurchaseEvent } from '../interfaces/purchase-event.interface';
 import {
   WEBHOOK_MESSAGE_HANDLERS,
   WEBHOOK_PURCHASE_HANDLERS,
 } from '../webhooks.constants';
+import { WebhooksService } from '../webhooks.service';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -323,6 +325,121 @@ describe('WebhooksService', () => {
           intent: MetaWebhookIntent.UNKNOWN,
           step: 'intent_routing',
         },
+      );
+    });
+  });
+
+  describe('parseRevenueCatWebhook', () => {
+    it('should delegate to parseRevenueCatWebhook util and return parsed event', () => {
+      // Arrange
+      const rawPayload = {
+        api_version: '1.0',
+        event: {
+          type: 'NON_RENEWING_PURCHASE',
+          id: 'rc-evt-1',
+          app_user_id: 'user-1',
+        },
+      };
+
+      // Act
+      const result = service.parseRevenueCatWebhook(rawPayload);
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.gatewayEventId).toBe('rc-evt-1');
+      expect(result.candidateUserIds).toContain('user-1');
+    });
+  });
+
+  describe('handlePurchaseEvent', () => {
+    const validEvent: ParsedPurchaseEvent = {
+      gateway: 'REVENUECAT' as any,
+      type: PurchaseEventType.PURCHASE,
+      providerEventType: 'NON_RENEWING_PURCHASE',
+      gatewayTransactionId: 'txn-1',
+      gatewayEventId: 'evt-1',
+      gatewayUserId: 'user-1',
+      productId: 'credit_pack_10',
+      environment: 'SANDBOX' as any,
+      channel: null,
+      amount: 10,
+      currency: 'USD',
+      countryCode: 'US',
+      occurredAt: new Date(),
+      candidateUserIds: ['user-1'],
+      raw: {},
+    };
+
+    it('should ignore and drop event when event type is UNKNOWN', async () => {
+      // Arrange
+      const unknownEvent: ParsedPurchaseEvent = {
+        ...validEvent,
+        type: PurchaseEventType.UNKNOWN,
+      };
+
+      // Act
+      await service.handlePurchaseEvent(unknownEvent);
+
+      // Assert
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Ignoring unhandled purchase event type',
+        expect.objectContaining({
+          gateway: 'REVENUECAT',
+          step: 'event_routing',
+        }),
+      );
+      expect(mockPurchaseHandler.canHandle).not.toHaveBeenCalled();
+      expect(mockPurchaseHandler.handle).not.toHaveBeenCalled();
+    });
+
+    it('should route event to the first matching purchase handler and stop', async () => {
+      // Arrange
+      mockPurchaseHandler.canHandle.mockReturnValue(true);
+      mockPurchaseHandler.handle.mockResolvedValue(undefined);
+
+      // Act
+      await service.handlePurchaseEvent(validEvent);
+
+      // Assert
+      expect(mockPurchaseHandler.canHandle).toHaveBeenCalledWith(validEvent);
+      expect(mockPurchaseHandler.handle).toHaveBeenCalledWith(validEvent);
+    });
+
+    it('should log error and rethrow when purchase handler fails', async () => {
+      // Arrange
+      const handlerError = new Error('Purchase processor failure');
+      mockPurchaseHandler.canHandle.mockReturnValue(true);
+      mockPurchaseHandler.handle.mockRejectedValue(handlerError);
+
+      // Act & Assert
+      await expect(service.handlePurchaseEvent(validEvent)).rejects.toThrow(
+        handlerError,
+      );
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to handle purchase event',
+        expect.objectContaining({
+          gateway: 'REVENUECAT',
+          step: 'handle_purchase',
+        }),
+      );
+    });
+
+    it('should log warning when no handler claims the event', async () => {
+      // Arrange
+      mockPurchaseHandler.canHandle.mockReturnValue(false);
+
+      // Act
+      await service.handlePurchaseEvent(validEvent);
+
+      // Assert
+      expect(mockPurchaseHandler.canHandle).toHaveBeenCalledWith(validEvent);
+      expect(mockPurchaseHandler.handle).not.toHaveBeenCalled();
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'No handler claimed purchase event',
+        expect.objectContaining({
+          gateway: 'REVENUECAT',
+          step: 'event_routing',
+        }),
       );
     });
   });

@@ -541,16 +541,38 @@ describe('SubscriptionsService', () => {
         }),
       );
     });
+
+    it('should return early when event is already processed', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue({
+        id: 'evt-existing',
+      } as any);
+
+      const result = await service.handleCancellation(params);
+
+      expect(result).toBeUndefined();
+      expect(prisma.userSubscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should log and rethrow when transaction encounters unexpected error', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue(null);
+      prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
+      prisma.userSubscription.update.mockRejectedValue(new Error('Tx failure'));
+
+      await expect(service.handleCancellation(params)).rejects.toThrow(
+        'Tx failure',
+      );
+    });
   });
 
   describe('handleGracePeriod', () => {
+    const params = {
+      storeTransactionId,
+      storePlatform: StorePlatform.APPLE,
+      storeEventId: 'evt-444',
+    };
+
     it('should update status to GRACE_PERIOD and log event', async () => {
       // Arrange
-      const params = {
-        storeTransactionId,
-        storePlatform: StorePlatform.APPLE,
-        storeEventId: 'evt-444',
-      };
       prisma.subscriptionEvent.findFirst.mockResolvedValue(null);
       prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
       prisma.userSubscription.update.mockResolvedValue({
@@ -575,6 +597,29 @@ describe('SubscriptionsService', () => {
           rawPayload: undefined,
         },
       });
+    });
+
+    it('should return early when event is already processed', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue({
+        id: 'evt-existing',
+      } as any);
+
+      const result = await service.handleGracePeriod(params);
+
+      expect(result).toBeUndefined();
+      expect(prisma.userSubscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should log and rethrow when transaction encounters unexpected error', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue(null);
+      prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
+      prisma.userSubscription.update.mockRejectedValue(
+        new Error('Grace period Tx failure'),
+      );
+
+      await expect(service.handleGracePeriod(params)).rejects.toThrow(
+        'Grace period Tx failure',
+      );
     });
   });
 
@@ -614,13 +659,14 @@ describe('SubscriptionsService', () => {
   });
 
   describe('handleRevocation', () => {
+    const params = {
+      storeTransactionId,
+      storePlatform: StorePlatform.APPLE,
+      storeEventId: 'evt-666',
+    };
+
     it('should set status to REVOKED, log event, and emit audit log', async () => {
       // Arrange
-      const params = {
-        storeTransactionId,
-        storePlatform: StorePlatform.APPLE,
-        storeEventId: 'evt-666',
-      };
       prisma.subscriptionEvent.findFirst.mockResolvedValue(null);
       prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
       prisma.userSubscription.update.mockResolvedValue({
@@ -642,6 +688,29 @@ describe('SubscriptionsService', () => {
           actionType: AuditActionType.SUBSCRIPTION_REVOKED,
           resourceId: mockSubscription.id,
         }),
+      );
+    });
+
+    it('should return early when event is already processed', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue({
+        id: 'evt-existing',
+      } as any);
+
+      const result = await service.handleRevocation(params);
+
+      expect(result).toBeUndefined();
+      expect(prisma.userSubscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should log and rethrow when transaction encounters unexpected error', async () => {
+      prisma.subscriptionEvent.findFirst.mockResolvedValue(null);
+      prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
+      prisma.userSubscription.update.mockRejectedValue(
+        new Error('Revocation Tx failure'),
+      );
+
+      await expect(service.handleRevocation(params)).rejects.toThrow(
+        'Revocation Tx failure',
       );
     });
   });

@@ -463,6 +463,25 @@ describe('ChatsService', () => {
         lastName: 'Smith',
       });
     });
+
+    it('should throw InternalServerErrorException if fetching rooms throws an error', async () => {
+      mockChatRoomQuery.limit.mockRejectedValueOnce(new Error('DB failure'));
+
+      await expect(service.getRooms('user-1', { limit: 20 })).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw InternalServerErrorException if fetching rooms returns an error object', async () => {
+      mockChatRoomQuery.limit.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Database error' },
+      });
+
+      await expect(service.getRooms('user-1', { limit: 20 })).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
   });
 
   describe('handleUserDeletedEvent', () => {
@@ -474,6 +493,34 @@ describe('ChatsService', () => {
       );
 
       expect(mockChatRoomQuery.delete).toHaveBeenCalled();
+    });
+
+    it('should log error when deleting rooms returns an error', async () => {
+      mockChatRoomQuery.or.mockResolvedValueOnce({
+        error: { message: 'Deletion error' },
+      });
+
+      await service.handleUserDeletedEvent(
+        new UserDeletedEvent('user-deleted'),
+      );
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to delete chat rooms for deleted user',
+        expect.objectContaining({ userId: 'user-deleted' }),
+      );
+    });
+
+    it('should log error when deleting rooms throws an exception', async () => {
+      mockChatRoomQuery.or.mockRejectedValueOnce(new Error('Crash'));
+
+      await service.handleUserDeletedEvent(
+        new UserDeletedEvent('user-deleted'),
+      );
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Exception while deleting chat rooms for user',
+        expect.objectContaining({ userId: 'user-deleted' }),
+      );
     });
   });
 });

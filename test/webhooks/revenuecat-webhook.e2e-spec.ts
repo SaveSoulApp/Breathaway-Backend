@@ -8,10 +8,9 @@ import request from 'supertest';
 
 import { LoggerService } from '@core/logger';
 import { AppValidationPipe } from '@core/pipes';
-
-import { RevenueCatWebhookGuard } from '../guards/revenuecat-webhook.guard';
-import { WebhooksController } from '../webhooks.controller';
-import { WebhooksService } from '../webhooks.service';
+import { RevenueCatWebhookGuard } from '@modules/webhooks/guards/revenuecat-webhook.guard';
+import { WebhooksController } from '@modules/webhooks/webhooks.controller';
+import { WebhooksService } from '@modules/webhooks/webhooks.service';
 
 /**
  * Guards the properties this endpoint cannot afford to lose:

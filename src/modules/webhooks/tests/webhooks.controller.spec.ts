@@ -170,5 +170,36 @@ describe('WebhooksController', () => {
       expect(service.handlePurchaseEvent).toHaveBeenCalledWith(parsedEvent);
       expect(result).toEqual({ status: 'ok' });
     });
+
+    it('should answer status ok even for test events when parsed event is dispatched', async () => {
+      // Arrange
+      const dto: RevenueCatWebhookRequestDto = {
+        api_version: '1.0',
+        event: {
+          id: 'evt-test',
+          type: 'TEST',
+          app_user_id: 'test-user',
+        },
+      };
+
+      const parsedEvent = {
+        gateway: 'REVENUECAT' as any,
+        providerEventType: 'TEST',
+        gatewayTransactionId: null,
+        productId: null,
+        environment: 'SANDBOX' as any,
+      } as any;
+
+      service.parseRevenueCatWebhook.mockReturnValue(parsedEvent);
+      service.handlePurchaseEvent.mockResolvedValue(undefined);
+
+      // Act
+      const result = await controller.handleRevenueCatWebhook(dto);
+
+      // Assert
+      expect(service.parseRevenueCatWebhook).toHaveBeenCalledWith(dto);
+      expect(service.handlePurchaseEvent).toHaveBeenCalledWith(parsedEvent);
+      expect(result).toEqual({ status: 'ok' });
+    });
   });
 });

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 
+import { InternalServerErrorException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep, MockProxy } from 'jest-mock-extended';
@@ -514,6 +515,67 @@ describe('EmailService', () => {
           expect(contentWithoutName).not.toMatch(/match, !/);
         }).not.toThrow();
       }
+    });
+  });
+
+  describe('Handlebars helpers & template compilation', () => {
+    it('should compile and cache template on demand via getOrCompileTemplate', () => {
+      // Arrange
+      (service as any).templateCache.clear();
+      mockFs.readFileSync.mockReturnValue('<p>Compiled on demand</p>');
+
+      // Act
+      const template1 = (service as any).getOrCompileTemplate(
+        EmailType.WELCOME,
+      );
+      const template2 = (service as any).getOrCompileTemplate(
+        EmailType.WELCOME,
+      );
+
+      // Assert
+      expect(template1).toBe(template2); // cached instance
+      expect(template1({ name: 'Alice' })).toBe('<p>Compiled on demand</p>');
+    });
+
+    it('should evaluate registered Handlebars helpers (gt, gte, lt, lte, eq)', () => {
+      const Handlebars = require('handlebars');
+      expect(Handlebars.helpers.gt(5, 3)).toBe(true);
+      expect(Handlebars.helpers.gt(3, 5)).toBe(false);
+      expect(Handlebars.helpers.gte(5, 5)).toBe(true);
+      expect(Handlebars.helpers.gte(4, 5)).toBe(false);
+      expect(Handlebars.helpers.lt(2, 4)).toBe(true);
+      expect(Handlebars.helpers.lt(5, 4)).toBe(false);
+      expect(Handlebars.helpers.lte(4, 4)).toBe(true);
+      expect(Handlebars.helpers.lte(5, 4)).toBe(false);
+      expect(Handlebars.helpers.eq('same', 'same')).toBe(true);
+      expect(Handlebars.helpers.eq('a', 'b')).toBe(false);
+    });
+
+    it('should warn when partials directory does not exist and continue', () => {
+      // Arrange
+      mockFs.existsSync.mockImplementation((p) => {
+        if (String(p).includes('partials')) return false;
+        return true;
+      });
+
+      // Act & Assert — should not throw
+      expect(() => (service as any).registerPartials()).not.toThrow();
+    });
+
+    it('should register partials when partial files exist', () => {
+      // Arrange
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.readdirSync.mockReturnValue([
+        'header.hbs',
+      ] as unknown as ReturnType<typeof fs.readdirSync>);
+      mockFs.readFileSync.mockReturnValue('<header>App</header>');
+
+      // Act
+      (service as any).registerPartials();
+
+      // Assert
+      const Handlebars = require('handlebars');
+      expect(Handlebars.partials['header']).toBeDefined();
     });
   });
 });

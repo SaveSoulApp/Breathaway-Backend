@@ -192,6 +192,38 @@ describe('TransactionsService', () => {
       await expect(service.record(buildDto())).rejects.toBe(duplicate);
     });
 
+    it('logs an error and rethrows if a database error occurs that is not P2002', async () => {
+      const dbError = new Error('Database connection failed');
+      prisma.transaction.create.mockRejectedValue(dbError);
+
+      await expect(service.record(buildDto())).rejects.toThrow(dbError);
+    });
+
+    it('recursively sanitizes arrays inside rawPayload', async () => {
+      prisma.transaction.create.mockResolvedValue(mockTransaction as never);
+
+      await service.record(
+        buildDto({
+          rawPayload: {
+            items: [
+              {
+                $email: { value: 'arraybuyer@example.com' },
+                item_name: 'pack_1',
+              },
+            ],
+          },
+        }),
+      );
+
+      const created = prisma.transaction.create.mock.calls[0][0] as unknown as {
+        data: { rawPayload: { items: Array<Record<string, unknown>> } };
+      };
+      const serialized = JSON.stringify(created.data.rawPayload);
+
+      expect(serialized).not.toContain('arraybuyer@example.com');
+      expect(serialized).toContain('pack_1');
+    });
+
     it('uses the supplied transaction client when one is given', async () => {
       const tx = {
         transaction: { create: jest.fn().mockResolvedValue(mockTransaction) },
@@ -297,6 +329,53 @@ describe('TransactionsService', () => {
       };
       expect(call.where.occurredAt.lte.toISOString()).toBe(
         '2026-09-08T23:59:59.999Z',
+      );
+    });
+
+    it('filters by occurredFrom and occurredTo with ISO strings', async () => {
+      await service.findAll({
+        page: 1,
+        limit: 20,
+        occurredFrom: '2026-09-01T00:00:00.000Z',
+        occurredTo: '2026-09-08T12:00:00.000Z',
+      });
+
+      expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            occurredAt: {
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('filters by search term on gatewayTransactionId and remaining filters', async () => {
+      await service.findAll({
+        page: 1,
+        limit: 20,
+        userId: USER_ID,
+        type: TransactionType.PURCHASE,
+        status: TransactionStatus.COMPLETED,
+        productId: 'likes_10',
+        search: '51a83d84',
+      });
+
+      expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: USER_ID,
+            type: TransactionType.PURCHASE,
+            status: TransactionStatus.COMPLETED,
+            productId: 'likes_10',
+            gatewayTransactionId: {
+              contains: '51a83d84',
+              mode: 'insensitive',
+            },
+          }),
+        }),
       );
     });
   });
