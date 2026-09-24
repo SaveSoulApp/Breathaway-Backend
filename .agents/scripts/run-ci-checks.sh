@@ -1,0 +1,1 @@
+../skills/prepare-for-pull-request/scripts/run-ci-checks.sh

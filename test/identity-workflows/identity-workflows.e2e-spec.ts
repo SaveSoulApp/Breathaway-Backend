@@ -43,18 +43,18 @@ describe('IdentityWorkflows (e2e)', () => {
 
     validToken = 'test-oidc-bearer-token';
 
-    jest
-      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
-      .mockImplementation(async () => {
-        return {
-          getPayload: () => ({
-            iss: 'https://accounts.google.com',
-            aud:
-              configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
-            email: 'pubsub-invoker@test.iam.gserviceaccount.com',
-          }),
-        } as any;
-      });
+    (
+      jest.spyOn(
+        OAuth2Client.prototype,
+        'verifyIdToken',
+      ) as unknown as jest.SpyInstance
+    ).mockResolvedValue({
+      getPayload: () => ({
+        iss: 'https://accounts.google.com',
+        aud: configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+        email: 'pubsub-invoker@test.iam.gserviceaccount.com',
+      }),
+    });
 
     jest.spyOn(notificationsService, 'dispatch').mockResolvedValue();
   });
