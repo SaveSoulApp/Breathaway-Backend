@@ -189,6 +189,7 @@ deploy_service() {
     for secret in "${secrets[@]}"; do
         gcloud_run_args+=(--update-secrets="${secret}")
     done
+    gcloud_run_args+=(--remove-secrets="PUBSUB_VERIFICATION_TOKEN")
 
     gcloud "${gcloud_run_args[@]}" || print_error "Deployment failed"
     print_success "Deployment completed successfully"
