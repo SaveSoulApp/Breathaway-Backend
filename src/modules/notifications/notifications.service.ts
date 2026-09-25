@@ -203,13 +203,22 @@ export class NotificationsService extends BaseService {
       if (emailEnabledUserIds.length > 0) {
         const emailType = NOTIFICATION_TYPE_TO_EMAIL_TYPE[dto.type];
         if (emailType) {
+          const appUrl = (
+            this.configService.get<string>('APP_URL') ??
+            'https://www.breathaway.app'
+          ).replace(/\/+$/, '');
+          const logoUrl =
+            this.configService.get<string>('EMAIL_LOGO_URL') ||
+            `${appUrl}/images/logo/breathaway-wordmark.png`;
+
           promises.push(
             this.emailService.send({
               emailType,
               userIds: emailEnabledUserIds,
               templateData: {
                 ...(dto.payload ?? {}),
-                appUrl: this.configService.get<string>('APP_URL') ?? '',
+                appUrl,
+                logoUrl,
                 currentYear: DateUtil.now().getFullYear(),
               },
               recipientData: dto.recipientData,

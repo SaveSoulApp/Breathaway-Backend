@@ -31,12 +31,9 @@ describe('envValidationSchema', () => {
       expect(value.DEPLOYMENT_ENV).toBe('gcp');
       expect(value.APP_NAME).toBe('BreathAway');
       expect(value.APP_URL).toBe('https://www.breathaway.app');
-      expect(value.WEBPUSH_ICON_URL).toBe(
-        'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png',
-      );
-      expect(value.WEBPUSH_BADGE_URL).toBe(
-        'https://www.breathaway.app/badge.png',
-      );
+      expect(value.WEBPUSH_ICON_URL).toBeUndefined();
+      expect(value.WEBPUSH_BADGE_URL).toBeUndefined();
+      expect(value.EMAIL_LOGO_URL).toBeUndefined();
       expect(value.MIN_APP_VERSION).toBe('1.0.0');
       expect(value.REQUIRED_PLATFORMS).toBe(
         '["iOS","Android","Postman","Web"]',
@@ -257,6 +254,29 @@ describe('envValidationSchema', () => {
 
       expect(error).toBeDefined();
       expect(error?.details.length).toBeGreaterThanOrEqual(4); // DATABASE_URL + 3 invalid fields
+    });
+
+    it('should validate custom asset and branding URLs when provided', () => {
+      const { error, value } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          WEBPUSH_ICON_URL: 'https://cdn.example.com/custom-icon.png',
+          WEBPUSH_BADGE_URL: 'https://cdn.example.com/custom-badge.png',
+          EMAIL_LOGO_URL: 'https://cdn.example.com/custom-logo.png',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.WEBPUSH_ICON_URL).toBe(
+        'https://cdn.example.com/custom-icon.png',
+      );
+      expect(value.WEBPUSH_BADGE_URL).toBe(
+        'https://cdn.example.com/custom-badge.png',
+      );
+      expect(value.EMAIL_LOGO_URL).toBe(
+        'https://cdn.example.com/custom-logo.png',
+      );
     });
   });
 

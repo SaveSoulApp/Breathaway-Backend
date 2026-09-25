@@ -22,6 +22,7 @@ import { FcmProviderService } from '../../providers/fcm.provider.service';
 describe('FcmProviderService', () => {
   let service: FcmProviderService;
   let prisma: MockPrismaService;
+  let configService: ConfigService;
 
   const mockMessaging = {
     send: jest.fn(),
@@ -61,9 +62,9 @@ describe('FcmProviderService', () => {
             get: jest.fn((key: string) => {
               if (key === 'APP_URL') return 'https://www.breathaway.app';
               if (key === 'WEBPUSH_ICON_URL')
-                return 'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png';
+                return 'https://custom-cdn.breathaway.app/custom-icon.png';
               if (key === 'WEBPUSH_BADGE_URL')
-                return 'https://www.breathaway.app/badge.png';
+                return 'https://custom-cdn.breathaway.app/custom-badge.png';
               return null;
             }),
           },
@@ -73,6 +74,7 @@ describe('FcmProviderService', () => {
 
     service = module.get<FcmProviderService>(FcmProviderService);
     prisma = module.get(PrismaService);
+    configService = module.get(ConfigService);
   });
 
   afterEach(() => {
@@ -276,10 +278,10 @@ describe('FcmProviderService', () => {
       expect(callArgs.token).toBe('token-web');
       expect(callArgs.webpush).toBeDefined();
       expect(callArgs.webpush.notification.icon).toBe(
-        'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png',
+        'https://custom-cdn.breathaway.app/custom-icon.png',
       );
       expect(callArgs.webpush.notification.badge).toBe(
-        'https://www.breathaway.app/badge.png',
+        'https://custom-cdn.breathaway.app/custom-badge.png',
       );
       expect(callArgs.webpush.fcmOptions.link).toBe(
         'https://www.breathaway.app/app/matches/match-123',
@@ -288,6 +290,44 @@ describe('FcmProviderService', () => {
       expect(callArgs.android).toBeUndefined();
       expect(callArgs.data.link).toBe('/matches/match-123');
       expect(callArgs.data.route).toBe('/matches/match-123');
+    });
+
+    it('should dynamically derive icon and badge from APP_URL when env vars are omitted', async () => {
+      (configService.get as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'APP_URL') return 'https://staging.breathaway.app';
+        return null;
+      });
+
+      const dtoWithLink: SendNotificationRequestDto = {
+        ...baseDto,
+        link: '/matches/match-123',
+      };
+      const devices = [
+        {
+          id: 'dev-web-staging',
+          userId: 'user-1',
+          token: 'token-web-staging',
+          platform: DevicePlatform.WEB,
+          deviceId: 'web-staging',
+          isActive: true,
+          appVersion: null,
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
+        },
+      ];
+
+      await service.send(dtoWithLink, devices);
+
+      const callArgs = mockMessaging.send.mock.calls[0][0];
+      expect(callArgs.webpush.notification.icon).toBe(
+        'https://staging.breathaway.app/icons/notification-192.png',
+      );
+      expect(callArgs.webpush.notification.badge).toBe(
+        'https://staging.breathaway.app/badge.png',
+      );
+      expect(callArgs.webpush.fcmOptions.link).toBe(
+        'https://staging.breathaway.app/app/matches/match-123',
+      );
     });
 
     it('should use sendEachForMulticast for multiple WEB devices with webpush config', async () => {
