@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Device, DevicePlatform } from '@prisma/client';
 import * as admin from 'firebase-admin';
 
@@ -20,6 +21,7 @@ export interface FcmPayload {
   data: Record<string, string>;
   apns?: admin.messaging.ApnsConfig;
   android?: admin.messaging.AndroidConfig;
+  webpush?: admin.messaging.WebpushConfig;
 }
 
 @Injectable()
@@ -31,6 +33,7 @@ export class FcmProviderService
     loggerService: LoggerService,
     private readonly firebaseService: FirebaseService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
   ) {
     super(loggerService);
   }
@@ -48,6 +51,7 @@ export class FcmProviderService
 
     const iosTokens: string[] = [];
     const androidTokens: string[] = [];
+    const webTokens: string[] = [];
 
     devices.forEach((device) => {
       if (device.token) {
@@ -55,12 +59,14 @@ export class FcmProviderService
           iosTokens.push(device.token);
         } else if (device.platform === DevicePlatform.ANDROID) {
           androidTokens.push(device.token);
+        } else if (device.platform === DevicePlatform.WEB) {
+          webTokens.push(device.token);
         }
       }
     });
 
     this.logger.debug(
-      `Found ${iosTokens.length} iOS and ${androidTokens.length} Android devices for FCM`,
+      `Found ${iosTokens.length} iOS, ${androidTokens.length} Android, and ${webTokens.length} Web devices for FCM`,
     );
 
     const promises: Promise<void>[] = [];
@@ -75,6 +81,11 @@ export class FcmProviderService
       promises.push(
         this.sendToFcm(androidTokens, androidPayload, DevicePlatform.ANDROID),
       );
+    }
+
+    if (webTokens.length > 0) {
+      const webPayload = this.createWebPayload(payloadDto);
+      promises.push(this.sendToFcm(webTokens, webPayload, DevicePlatform.WEB));
     }
 
     const results = await Promise.allSettled(promises);
@@ -114,6 +125,8 @@ export class FcmProviderService
           apns: platform === DevicePlatform.IOS ? payload.apns : undefined,
           android:
             platform === DevicePlatform.ANDROID ? payload.android : undefined,
+          webpush:
+            platform === DevicePlatform.WEB ? payload.webpush : undefined,
         };
 
         const batchResponse = await messaging.sendEachForMulticast(message);
@@ -157,6 +170,8 @@ export class FcmProviderService
           apns: platform === DevicePlatform.IOS ? payload.apns : undefined,
           android:
             platform === DevicePlatform.ANDROID ? payload.android : undefined,
+          webpush:
+            platform === DevicePlatform.WEB ? payload.webpush : undefined,
         };
 
         try {
@@ -233,6 +248,11 @@ export class FcmProviderService
   }
 
   private createBasePayload(dto: SendNotificationRequestDto): FcmPayload {
+    const link =
+      dto.link ||
+      (dto.payload?.link as string | undefined) ||
+      (dto.payload?.chatUrl as string | undefined);
+
     return {
       notification: {
         title: dto.title,
@@ -245,6 +265,7 @@ export class FcmProviderService
         id: dto.id || Date.now().toString(),
         title: dto.title,
         body: dto.body,
+        ...(link ? { link, route: link } : {}),
       }),
     };
   }
@@ -283,6 +304,62 @@ export class FcmProviderService
         },
       },
     };
+  }
+
+  private createWebPayload(dto: SendNotificationRequestDto): FcmPayload {
+    const base = this.createBasePayload(dto);
+    const link = this.resolveWebLink(dto);
+    const icon =
+      this.configService.get<string>('WEBPUSH_ICON_URL') ||
+      'https://www.breathaway.app/icon.png';
+    const badge =
+      this.configService.get<string>('WEBPUSH_BADGE_URL') ||
+      'https://www.breathaway.app/badge.png';
+
+    return {
+      ...base,
+      webpush: {
+        notification: {
+          title: dto.title,
+          body: dto.body,
+          icon,
+          badge,
+        },
+        fcmOptions: {
+          link,
+        },
+      },
+    };
+  }
+
+  private resolveWebLink(dto: SendNotificationRequestDto): string {
+    const rawLink =
+      dto.link ||
+      (dto.payload?.link as string | undefined) ||
+      (dto.payload?.chatUrl as string | undefined);
+
+    const baseUrl = (
+      this.configService.get<string>('APP_URL') || 'https://www.breathaway.app'
+    ).replace(/\/+$/, '');
+
+    if (!rawLink) {
+      return `${baseUrl}/app`;
+    }
+
+    if (/^https?:\/\//i.test(rawLink)) {
+      return rawLink;
+    }
+
+    if (rawLink.startsWith('/app/')) {
+      return `${baseUrl}${rawLink}`;
+    }
+
+    if (rawLink === '/app' || rawLink === 'app') {
+      return `${baseUrl}/app`;
+    }
+
+    const normalized = rawLink.startsWith('/') ? rawLink : `/${rawLink}`;
+    return `${baseUrl}/app${normalized}`;
   }
 
   private convertDataToStrings(

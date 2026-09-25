@@ -153,6 +153,13 @@ export class NotificationsService extends BaseService {
       }
     }
 
+    // Synchronize deep link between dto.link and dto.payload.link
+    if (!dto.link && typeof dto.payload?.link === 'string') {
+      dto.link = dto.payload.link;
+    } else if (dto.link && !dto.payload?.link) {
+      dto.payload = { ...(dto.payload ?? {}), link: dto.link };
+    }
+
     // Interpolate title and body from push templates if missing
     const pushTemplateConfig = PUSH_TEMPLATE_MAP[dto.type];
     if (pushTemplateConfig) {

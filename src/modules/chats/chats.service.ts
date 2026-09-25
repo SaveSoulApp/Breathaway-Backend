@@ -25,6 +25,7 @@ import {
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
 } from './dto';
+import { CHAT_MESSAGE_SENT_EVENT, ChatMessageSentEvent } from './events';
 import { generateRoomParticipants } from './utils/chats.utils';
 
 @Injectable()
@@ -440,16 +441,24 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to send message');
     }
 
-    // 6. Fire-and-forget push notification
-    this.triggerPushNotification(targetUserId, senderId, content).catch(
-      (err: Error) => {
-        this.logger.error('Failed to send push notification', {
-          targetUserId,
-          senderId,
-          step: 'send_push',
-          err: serializeError(err),
-        });
-      },
+    const messageId =
+      typeof message.id === 'string'
+        ? message.id
+        : typeof message.id === 'number'
+          ? `${message.id}`
+          : '';
+
+    // 6. Emit domain event for notification dispatch
+    this.eventEmitter.emit(
+      CHAT_MESSAGE_SENT_EVENT,
+      new ChatMessageSentEvent(
+        messageId,
+        room.id,
+        activeMatch.id,
+        senderId,
+        targetUserId,
+        content,
+      ),
     );
 
     return message;
@@ -528,21 +537,6 @@ export class ChatsService extends BaseService {
     }
 
     return { success: true };
-  }
-
-  private async triggerPushNotification(
-    targetUserId: string,
-    senderId: string,
-    content: string,
-  ) {
-    // TODO: Integrate with existing push notification service
-    this.logger.debug('Push Notification Simulation', {
-      targetUserId,
-      senderId,
-      contentPreview: content.substring(0, 20),
-      step: 'simulate_push',
-    });
-    return Promise.resolve();
   }
 
   /**

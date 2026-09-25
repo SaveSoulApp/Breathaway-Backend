@@ -8,6 +8,10 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from '@modules/auth/events';
 import {
+  CHAT_MESSAGE_SENT_EVENT,
+  ChatMessageSentEvent,
+} from '@modules/chats/events';
+import {
   CREDIT_BUNDLE_EXPIRING_EVENT,
   CREDITS_PURCHASED_EVENT,
   CREDITS_USED_EVENT,
@@ -85,12 +89,14 @@ export class NotificationEventsListener extends BaseService {
         type: NotificationType.DEVICE_ADDED,
         category: NotificationCategory.SYSTEM,
         priority: NotificationPriority.HIGH,
+        link: '/settings/devices',
         payload: {
           name,
           platform: event.platform,
           deviceId: event.deviceId ?? '',
           appVersion: event.appVersion ?? '',
           addedAt: DateUtil.now().toUTCString(),
+          link: '/settings/devices',
         },
       });
     } catch (err) {
@@ -112,6 +118,7 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.LIKE_SENT,
         category: NotificationCategory.SOCIAL,
+        link: '/likes',
         payload: {
           name,
           targetMaskedValue: event.targetMaskedValue,
@@ -120,6 +127,7 @@ export class NotificationEventsListener extends BaseService {
           expiresAt: event.expiresAt
             ? event.expiresAt.toISOString().slice(0, 10)
             : '',
+          link: '/likes',
         },
       });
     } catch (err) {
@@ -141,11 +149,13 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.LIKE_WITHDRAWN,
         category: NotificationCategory.SOCIAL,
+        link: '/likes',
         payload: {
           name,
           targetMaskedValue: event.targetMaskedValue,
           targetLabel: event.targetLabel ?? null,
           withdrawnAt: DateUtil.now().toUTCString(),
+          link: '/likes',
         },
       });
     } catch (err) {
@@ -181,6 +191,8 @@ export class NotificationEventsListener extends BaseService {
           ? event.likeTwoLabel
           : userOneName;
 
+      const matchRoute = `/matches/${event.matchId}`;
+
       // Dispatch for User One
       await this.notificationsService.dispatch({
         channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
@@ -188,11 +200,13 @@ export class NotificationEventsListener extends BaseService {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
+        link: matchRoute,
         payload: {
           name: userOneName,
           matchName: userOneDisplayName,
           matchId: event.matchId,
-          chatUrl: `/matches/${event.matchId}`,
+          chatUrl: matchRoute,
+          link: matchRoute,
         },
       });
 
@@ -203,11 +217,13 @@ export class NotificationEventsListener extends BaseService {
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
         priority: NotificationPriority.HIGH,
+        link: matchRoute,
         payload: {
           name: userTwoName,
           matchName: userTwoDisplayName,
           matchId: event.matchId,
-          chatUrl: `/matches/${event.matchId}`,
+          chatUrl: matchRoute,
+          link: matchRoute,
         },
       });
     } catch (err) {
@@ -232,12 +248,14 @@ export class NotificationEventsListener extends BaseService {
         type: NotificationType.IDENTITY_ADDED,
         category: NotificationCategory.SYSTEM,
         priority: NotificationPriority.HIGH,
+        link: '/settings/identities',
         payload: {
           name,
           identityType: event.identityType,
           maskedValue: event.maskedValue,
           addedAt: DateUtil.now().toUTCString(),
           isVerified: event.isVerified,
+          link: '/settings/identities',
         },
       });
     } catch (err) {
@@ -261,11 +279,13 @@ export class NotificationEventsListener extends BaseService {
         type: NotificationType.IDENTITY_REMOVED,
         category: NotificationCategory.SYSTEM,
         priority: NotificationPriority.HIGH,
+        link: '/settings/identities',
         payload: {
           name,
           identityType: event.identityType,
           maskedValue: event.maskedValue,
           removedAt: DateUtil.now().toUTCString(),
+          link: '/settings/identities',
         },
       });
     } catch (err) {
@@ -288,8 +308,10 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.WELCOME,
         category: NotificationCategory.SYSTEM,
+        link: '/explore',
         payload: {
           name,
+          link: '/explore',
         },
       });
     } catch (err) {
@@ -311,6 +333,7 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.CREDITS_PURCHASED,
         category: NotificationCategory.SYSTEM,
+        link: '/credits',
         payload: {
           name,
           creditsAdded: Math.abs(event.amount),
@@ -319,6 +342,7 @@ export class NotificationEventsListener extends BaseService {
           expiresAt: event.expiresAt
             ? event.expiresAt.toISOString().slice(0, 10)
             : '',
+          link: '/credits',
         },
       });
     } catch (err) {
@@ -340,11 +364,13 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.CREDITS_USED,
         category: NotificationCategory.SYSTEM,
+        link: '/credits',
         payload: {
           name,
           creditsUsed: event.amount,
           creditBalance: event.balance,
           usedAt: DateUtil.now().toUTCString(),
+          link: '/credits',
         },
       });
     } catch (err) {
@@ -366,10 +392,12 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.LIKES_EXPIRED,
         category: NotificationCategory.SYSTEM,
+        link: '/likes',
         payload: {
           name,
           count: event.count,
           expiryDate: event.expiryDate,
+          link: '/likes',
         },
       });
     } catch (err) {
@@ -393,6 +421,7 @@ export class NotificationEventsListener extends BaseService {
         userIds: [event.userId],
         type: NotificationType.BUNDLE_EXPIRY_WARNING,
         category: NotificationCategory.SYSTEM,
+        link: '/credits',
         payload: {
           name,
           count: event.count,
@@ -400,6 +429,7 @@ export class NotificationEventsListener extends BaseService {
           daysRemaining: event.daysRemaining,
           urgency: event.urgency,
           isUrgent: event.isUrgent,
+          link: '/credits',
         },
       });
     } catch (err) {
@@ -411,6 +441,49 @@ export class NotificationEventsListener extends BaseService {
           err: serializeError(err),
         },
       );
+    }
+  }
+
+  @OnEvent(CHAT_MESSAGE_SENT_EVENT, { async: true })
+  async handleChatMessageSent(event: ChatMessageSentEvent): Promise<void> {
+    try {
+      const [recipientName, senderName] = await Promise.all([
+        this.resolveUserFirstName(event.recipientId),
+        this.resolveUserFirstName(event.senderId),
+      ]);
+
+      const messagePreview =
+        event.content.length > 80
+          ? `${event.content.slice(0, 77)}...`
+          : event.content;
+
+      const link = `/matches/${event.matchId}`;
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.PUSH],
+        userIds: [event.recipientId],
+        type: NotificationType.NEW_MESSAGE,
+        category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.HIGH,
+        link,
+        payload: {
+          name: recipientName,
+          senderName: senderName || 'Someone',
+          messagePreview,
+          roomId: event.roomId,
+          matchId: event.matchId,
+          chatUrl: link,
+          link,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch NEW_MESSAGE notification', {
+        roomId: event.roomId,
+        senderId: event.senderId,
+        recipientId: event.recipientId,
+        step: 'handle_chat_message_sent_event',
+        err: serializeError(err),
+      });
     }
   }
 }

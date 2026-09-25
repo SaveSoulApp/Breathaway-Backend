@@ -1,6 +1,6 @@
-import { DevicePlatform } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DevicePlatform } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -10,6 +10,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { UserWelcomeEvent } from '@modules/auth/events';
+import { ChatMessageSentEvent } from '@modules/chats/events';
 import {
   CreditBundleExpiringEvent,
   CreditsPurchasedEvent,
@@ -434,6 +435,98 @@ describe('NotificationEventsListener', () => {
             isUrgent: true,
           }),
         }),
+      );
+    });
+  });
+
+  describe('handleChatMessageSent', () => {
+    it('should dispatch NEW_MESSAGE notification with preview and match route link', async () => {
+      prisma.userProfile.findUnique
+        .mockResolvedValueOnce({ firstName: 'Bob' } as never)
+        .mockResolvedValueOnce({ firstName: 'Alice' } as never);
+
+      const event = new ChatMessageSentEvent(
+        'msg-1',
+        'room-1',
+        'match-1',
+        'sender-user',
+        'recipient-user',
+        'Hey there! How are you doing today?',
+      );
+
+      await listener.handleChatMessageSent(event);
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.NEW_MESSAGE,
+          category: NotificationCategory.SOCIAL,
+          priority: NotificationPriority.HIGH,
+          channels: [NotificationChannel.PUSH],
+          userIds: ['recipient-user'],
+          link: '/matches/match-1',
+          payload: expect.objectContaining({
+            name: 'Bob',
+            senderName: 'Alice',
+            messagePreview: 'Hey there! How are you doing today?',
+            roomId: 'room-1',
+            matchId: 'match-1',
+            chatUrl: '/matches/match-1',
+            link: '/matches/match-1',
+          }),
+        }),
+      );
+    });
+
+    it('should truncate preview if message content is long', async () => {
+      prisma.userProfile.findUnique
+        .mockResolvedValueOnce({ firstName: 'Bob' } as never)
+        .mockResolvedValueOnce({ firstName: 'Alice' } as never);
+
+      const longContent = 'A'.repeat(100);
+      const event = new ChatMessageSentEvent(
+        'msg-2',
+        'room-1',
+        'match-1',
+        'sender-user',
+        'recipient-user',
+        longContent,
+      );
+
+      await listener.handleChatMessageSent(event);
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.NEW_MESSAGE,
+          payload: expect.objectContaining({
+            messagePreview: `${'A'.repeat(77)}...`,
+          }),
+        }),
+      );
+    });
+
+    it('should handle errors gracefully without throwing', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Bob',
+      } as never);
+      notificationsService.dispatch.mockRejectedValue(
+        new Error('Dispatch error'),
+      );
+
+      const event = new ChatMessageSentEvent(
+        'msg-3',
+        'room-1',
+        'match-1',
+        'sender-user',
+        'recipient-user',
+        'Hello',
+      );
+
+      await expect(
+        listener.handleChatMessageSent(event),
+      ).resolves.not.toThrow();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to dispatch NEW_MESSAGE notification',
+        expect.anything(),
       );
     });
   });
