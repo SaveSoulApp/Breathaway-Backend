@@ -309,12 +309,14 @@ export class FcmProviderService
   private createWebPayload(dto: SendNotificationRequestDto): FcmPayload {
     const base = this.createBasePayload(dto);
     const link = this.resolveWebLink(dto);
+    const baseUrl = this.resolveBaseAppUrl();
+
     const icon =
       this.configService.get<string>('WEBPUSH_ICON_URL') ||
-      'https://www.breathaway.app/icon.png';
+      `${baseUrl}/icons/notification-192.png`;
     const badge =
       this.configService.get<string>('WEBPUSH_BADGE_URL') ||
-      'https://www.breathaway.app/badge.png';
+      `${baseUrl}/badge.png`;
 
     return {
       ...base,
@@ -338,9 +340,7 @@ export class FcmProviderService
       (dto.payload?.link as string | undefined) ||
       (dto.payload?.chatUrl as string | undefined);
 
-    const baseUrl = (
-      this.configService.get<string>('APP_URL') || 'https://www.breathaway.app'
-    ).replace(/\/+$/, '');
+    const baseUrl = this.resolveBaseAppUrl();
 
     if (!rawLink) {
       return `${baseUrl}/app`;
@@ -360,6 +360,12 @@ export class FcmProviderService
 
     const normalized = rawLink.startsWith('/') ? rawLink : `/${rawLink}`;
     return `${baseUrl}/app${normalized}`;
+  }
+
+  private resolveBaseAppUrl(): string {
+    return (
+      this.configService.get<string>('APP_URL') || 'https://www.breathaway.app'
+    ).replace(/\/+$/, '');
   }
 
   private convertDataToStrings(

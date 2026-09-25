@@ -160,6 +160,65 @@ describe('DevicesController', () => {
       });
       expect(result).toEqual(mockDevice);
     });
+
+    it('should preserve Platform.WEB when specified in request body even if header contains mobile platform', async () => {
+      const createDto: CreateDeviceRequestDto = {
+        deviceId: 'web-uuid',
+        token: 'fcm-web-token',
+        platform: Platform.WEB,
+      };
+
+      const userAgentData = {
+        version: '1.0.0',
+        platform: Platform.ANDROID,
+      };
+
+      service.createDevice.mockResolvedValue(mockDevice);
+
+      const result = await controller.registerDevice(
+        'user-1',
+        'web-uuid',
+        userAgentData as UserAgentData,
+        createDto,
+      );
+
+      expect(service.createDevice).toHaveBeenCalledWith('user-1', {
+        deviceId: 'web-uuid',
+        token: 'fcm-web-token',
+        platform: Platform.WEB,
+        appVersion: '1.0.0',
+      });
+      expect(result).toEqual(mockDevice);
+    });
+
+    it('should assign Platform.WEB when userAgentData specifies Platform.WEB and body platform is omitted', async () => {
+      const createDto: CreateDeviceRequestDto = {
+        deviceId: 'web-uuid',
+        token: 'fcm-web-token',
+      };
+
+      const userAgentData = {
+        version: '1.0.0',
+        platform: Platform.WEB,
+      };
+
+      service.createDevice.mockResolvedValue(mockDevice);
+
+      const result = await controller.registerDevice(
+        'user-1',
+        'web-uuid',
+        userAgentData as UserAgentData,
+        createDto,
+      );
+
+      expect(service.createDevice).toHaveBeenCalledWith('user-1', {
+        deviceId: 'web-uuid',
+        token: 'fcm-web-token',
+        platform: Platform.WEB,
+        appVersion: '1.0.0',
+      });
+      expect(result).toEqual(mockDevice);
+    });
   });
 
   describe('getUserDevices', () => {

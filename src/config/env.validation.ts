@@ -27,12 +27,9 @@ export const envValidationSchema = Joi.object({
     .default('gcp'),
   APP_NAME: Joi.string().default('BreathAway'),
   APP_URL: Joi.string().uri().default('https://www.breathaway.app'),
-  WEBPUSH_ICON_URL: Joi.string()
-    .uri()
-    .default('https://www.breathaway.app/icon.png'),
-  WEBPUSH_BADGE_URL: Joi.string()
-    .uri()
-    .default('https://www.breathaway.app/badge.png'),
+  WEBPUSH_ICON_URL: Joi.string().uri().empty('').optional(),
+  WEBPUSH_BADGE_URL: Joi.string().uri().empty('').optional(),
+  EMAIL_LOGO_URL: Joi.string().uri().empty('').optional(),
   MIN_APP_VERSION: Joi.string().default('1.0.0'),
   REQUIRED_PLATFORMS: Joi.string().default('["iOS","Android","Postman","Web"]'),
   CORS_ORIGINS: Joi.string().default(
