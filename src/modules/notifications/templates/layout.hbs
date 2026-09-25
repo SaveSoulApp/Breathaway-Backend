@@ -106,7 +106,7 @@
       }
 
       /* ==========================================================================
-         Header (rendered via {{> header}} partial)
+         Header (rendered via header partial)
          ========================================================================== */
       .email-header {
         background: linear-gradient(135deg, #6C63FF 0%, #4ECDC4 100%);
@@ -119,17 +119,15 @@
         margin-bottom: 8px;
       }
 
-      .email-header__logo-text {
-        font-size: 28px;
-        font-weight: 800;
-        color: #FFFFFF;
-        letter-spacing: -0.5px;
-      }
-
-      .email-header__logo-icon {
-        font-size: 32px;
-        margin-right: 6px;
-        vertical-align: middle;
+      .email-header__logo-img {
+        max-height: 36px;
+        height: auto;
+        width: auto;
+        max-width: 220px;
+        display: block;
+        margin: 0 auto;
+        border: 0;
+        outline: none;
       }
 
       .email-header__tagline {
@@ -240,7 +238,7 @@
       }
 
       /* ==========================================================================
-         Footer (rendered via {{> footer}} partial)
+         Footer (rendered via footer partial)
          ========================================================================== */
       .email-footer {
         background-color: #2D2D3A;
