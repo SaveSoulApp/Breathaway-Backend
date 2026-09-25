@@ -490,8 +490,66 @@ describe(ClientIdentityGuard.name, () => {
           appName: 'TestApp',
           version: '1.0.0',
           platform: 'web',
-          osVersion: 'Windows NT 10.0',
+          osVersion: 'Windows 10',
           deviceModel: 'Chrome 120.0.0.0',
+        },
+      });
+    });
+
+    it('should parse tablet browser user-agent and identify tablet device model', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'tablet-device-id',
+          'user-agent':
+            'Mozilla/5.0 (iPad; CPU OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'tablet-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'iOS 16.5',
+          deviceModel: 'Apple iPad',
+        },
+      });
+    });
+
+    it('should parse mobile browser user-agent and identify mobile device model', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'mobile-device-id',
+          'user-agent':
+            'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'mobile-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Android 13',
+          deviceModel: 'Google Pixel 7',
         },
       });
     });

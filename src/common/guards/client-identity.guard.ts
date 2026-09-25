@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+import { UAParser } from 'ua-parser-js';
 
 import { LoggerService } from '@core/logger';
 
@@ -164,8 +165,9 @@ export class ClientIdentityGuard implements CanActivate {
     }
 
     // Fallback: Support standard browser User-Agent strings for web clients
-    if (this.isBrowserUserAgent(userAgent)) {
-      return this.parseBrowserUserAgent(userAgent);
+    const parsedUa = new UAParser(userAgent).getResult();
+    if (parsedUa.browser.name || parsedUa.os.name) {
+      return this.parseBrowserUserAgent(parsedUa);
     }
 
     throw new BadRequestException(
@@ -173,15 +175,7 @@ export class ClientIdentityGuard implements CanActivate {
     );
   }
 
-  private isBrowserUserAgent(userAgent: string): boolean {
-    return (
-      userAgent.startsWith('Mozilla/') ||
-      userAgent.includes('AppleWebKit') ||
-      userAgent.includes('Gecko')
-    );
-  }
-
-  private parseBrowserUserAgent(userAgent: string): UserAgentData {
+  private parseBrowserUserAgent(result: UAParser.IResult): UserAgentData {
     const matchingPlatform = Array.from(this.requiredPlatforms).find(
       (p) => p.toLowerCase() === (Platform.WEB as string),
     );
@@ -192,42 +186,11 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    let osVersion = 'Browser';
-    if (userAgent.includes('Macintosh') || userAgent.includes('Mac OS X')) {
-      const macMatch = userAgent.match(/Mac OS X ([0-9_]+)/);
-      osVersion = macMatch
-        ? `macOS ${macMatch[1].replace(/_/g, '.')}`
-        : 'macOS';
-    } else if (userAgent.includes('Windows NT')) {
-      const winMatch = userAgent.match(/Windows NT ([0-9.]+)/);
-      osVersion = winMatch ? `Windows NT ${winMatch[1]}` : 'Windows';
-    } else if (userAgent.includes('Android')) {
-      const androidMatch = userAgent.match(/Android ([0-9.]+)/);
-      osVersion = androidMatch ? `Android ${androidMatch[1]}` : 'Android';
-    } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-      const iosMatch = userAgent.match(/OS ([0-9_]+) like Mac OS X/);
-      osVersion = iosMatch ? `iOS ${iosMatch[1].replace(/_/g, '.')}` : 'iOS';
-    } else if (userAgent.includes('Linux')) {
-      osVersion = 'Linux';
-    }
+    const osVersion =
+      [result.os.name, result.os.version].filter(Boolean).join(' ') ||
+      'Browser';
 
-    let deviceModel = 'Desktop';
-    const edgeMatch = userAgent.match(/Edg\/([0-9.]+)/);
-    const chromeMatch = userAgent.match(/Chrome\/([0-9.]+)/);
-    const firefoxMatch = userAgent.match(/Firefox\/([0-9.]+)/);
-    const safariMatch = userAgent.match(/Version\/([0-9.]+).*Safari/);
-
-    if (edgeMatch) {
-      deviceModel = `Edge ${edgeMatch[1]}`;
-    } else if (chromeMatch) {
-      deviceModel = `Chrome ${chromeMatch[1]}`;
-    } else if (firefoxMatch) {
-      deviceModel = `Firefox ${firefoxMatch[1]}`;
-    } else if (safariMatch) {
-      deviceModel = `Safari ${safariMatch[1]}`;
-    } else if (userAgent.includes('Safari')) {
-      deviceModel = 'Safari';
-    }
+    const deviceModel = this.resolveBrowserDeviceModel(result);
 
     return {
       appName: this.appName || 'BreathAway',
@@ -236,6 +199,41 @@ export class ClientIdentityGuard implements CanActivate {
       osVersion,
       deviceModel,
     };
+  }
+
+  private resolveBrowserDeviceModel(result: UAParser.IResult): string {
+    const browserIdentifier = [result.browser.name, result.browser.version]
+      .filter(Boolean)
+      .join(' ');
+
+    switch (result.device.type) {
+      case 'tablet':
+        return this.formatDeviceName(result.device, 'Tablet');
+      case 'mobile':
+        return this.formatDeviceName(result.device, 'Mobile');
+      case 'smarttv':
+        return this.formatDeviceName(result.device, 'SmartTV');
+      case 'wearable':
+        return this.formatDeviceName(result.device, 'Wearable');
+      case 'console':
+        return this.formatDeviceName(result.device, 'Console');
+      default:
+        return browserIdentifier || result.device.model || 'Desktop';
+    }
+  }
+
+  private formatDeviceName(
+    device: { vendor?: string; model?: string },
+    fallback: string,
+  ): string {
+    if (!device.model) return fallback;
+    if (
+      device.vendor &&
+      !device.model.toLowerCase().startsWith(device.vendor.toLowerCase())
+    ) {
+      return `${device.vendor} ${device.model}`;
+    }
+    return device.model;
   }
 
   private isVersionValid(version: string): boolean {
