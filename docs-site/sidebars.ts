@@ -84,7 +84,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Reference',
       collapsed: true,
-      items: ['api/overview', 'api/authentication', 'api/conventions'],
+      items: ['api/overview', 'api/authentication', 'api/conventions', 'api/web-push'],
     },
     {
       type: 'category',

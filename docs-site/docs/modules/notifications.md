@@ -56,7 +56,7 @@ flowchart TD
     end
 
     subgraph Channels["Provider Adapters"]
-        FCM["FcmProviderService<br/>(Firebase Cloud Messaging)"]
+        FCM["FcmProviderService<br/>(Firebase Cloud Messaging: iOS, Android, WebPush)"]
         BREVO["EmailService → BrevoEmailAdapter<br/>(Brevo v3 REST API)"]
         WA["WhatsAppProviderService<br/>(Twilio / WhatsApp API)"]
     end
@@ -137,6 +137,42 @@ The `BrevoEmailAdapter` implements `IEmailAdapter` and communicates with the Bre
   "htmlContent": "<!DOCTYPE html>..."
 }
 ```
+
+---
+
+## 📲 Push Notifications & Multi-Platform FCM Delivery
+
+BreathAway leverages Firebase Cloud Messaging (`FcmProviderService`) to broadcast push notifications across **iOS**, **Android**, and **Web Browsers (Web Push)**.
+
+### Token Grouping & Platform-Specific Configurations
+
+Device tokens associated with the recipient user are fetched from the `Device` table and segregated by `DevicePlatform`:
+
+1. **iOS (`DevicePlatform.IOS`)**:
+   - Dispatches via Apple Push Notification service (`apns`).
+   - Configures `aps: { sound: 'default', badge: 1 }` and `category` headers.
+2. **Android (`DevicePlatform.ANDROID`)**:
+   - Dispatches via FCM Android block (`android`).
+   - Configures `priority: 'high'`, `notification: { channelId: 'default', sound: 'default' }`.
+3. **Web (`DevicePlatform.WEB`)**:
+   - Dispatches via WebPush protocol block (`webpush`).
+   - Configures browser notification display metadata:
+     - `icon`: Configured via `WEBPUSH_ICON_URL` (defaulting to `${APP_URL}/icon-192x192.png`).
+     - `badge`: Configured via `WEBPUSH_BADGE_URL` (defaulting to `${APP_URL}/badge-72x72.png`).
+     - `fcmOptions: { link: resolveWebLink(...) }`: The fully-qualified HTTPS deep link the browser focuses or navigates to when the user clicks the notification.
+
+### Deep Linking & Payload Normalization
+
+Every outgoing push notification includes unified navigation metadata in its top-level `data` payload:
+- `link`: Normalized route (e.g., `/matches/01HM...`, `/credits`).
+- `route`: Alias for `link` for cross-client compatibility.
+
+Relative links are resolved against the `APP_URL` environment variable:
+- Absolute URLs (`https://...`) pass through unmodified.
+- Relative routes (e.g., `/matches/:id`) are appended to `${APP_URL}/app${link}`.
+
+> [!TIP]
+> For a full client-side implementation guide (service workers, VAPID key setup, token synchronization, and foreground toast handling), consult the [Web Push Integration Guide](../api/web-push.md).
 
 ---
 
@@ -456,6 +492,8 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo         | `no-reply@breathaway.app`    |
 | `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails             | `BreathAway`                 |
 | `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.com` |
+| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                | `https://app.breathaway.com/icon-192x192.png` |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.com/badge-72x72.png` |
 | `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue      | `notifications-stream`       |
 
 > [!CAUTION]
