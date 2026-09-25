@@ -61,7 +61,7 @@ describe('FcmProviderService', () => {
             get: jest.fn((key: string) => {
               if (key === 'APP_URL') return 'https://www.breathaway.app';
               if (key === 'WEBPUSH_ICON_URL')
-                return 'https://www.breathaway.app/icon.png';
+                return 'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png';
               if (key === 'WEBPUSH_BADGE_URL')
                 return 'https://www.breathaway.app/badge.png';
               return null;
@@ -276,7 +276,7 @@ describe('FcmProviderService', () => {
       expect(callArgs.token).toBe('token-web');
       expect(callArgs.webpush).toBeDefined();
       expect(callArgs.webpush.notification.icon).toBe(
-        'https://www.breathaway.app/icon.png',
+        'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png',
       );
       expect(callArgs.webpush.notification.badge).toBe(
         'https://www.breathaway.app/badge.png',

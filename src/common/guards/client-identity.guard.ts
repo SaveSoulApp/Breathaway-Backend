@@ -102,8 +102,18 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const userAgent = headers['x-user-agent'];
-    if (!userAgent || typeof userAgent !== 'string')
+    const userAgentHeader = headers['x-user-agent'];
+    const standardUserAgent = headers['user-agent'];
+
+    const userAgent =
+      typeof userAgentHeader === 'string' && userAgentHeader.trim().length > 0
+        ? userAgentHeader
+        : typeof standardUserAgent === 'string' &&
+            standardUserAgent.trim().length > 0
+          ? standardUserAgent
+          : undefined;
+
+    if (!userAgent)
       throw new BadRequestException('x-user-agent header is required');
 
     const uaData = this.validateAndParseUserAgent(userAgent);
@@ -123,16 +133,57 @@ export class ClientIdentityGuard implements CanActivate {
     const regex = /^([^/]+)\/([^\s]+)\s+\(([^\s]+)\s+([^;]+);\s*([^)]+)\)$/;
     const match = userAgent.match(regex);
 
-    if (!match) {
-      throw new BadRequestException(
-        `x-user-agent must follow format: ${this.appName}/Version (Platform OSVersion; DeviceModel)`,
+    if (match) {
+      const [, parsedAppName, version, platform, osVersion, deviceModel] =
+        match;
+
+      const matchingPlatform = Array.from(this.requiredPlatforms).find(
+        (p) => p.toLowerCase() === platform.toLowerCase(),
       );
+
+      if (!matchingPlatform) {
+        throw new UnauthorizedException(
+          `Invalid platform. Supported: ${Array.from(this.requiredPlatforms).join(', ')}`,
+        );
+      }
+
+      const isWeb = (platform.toLowerCase() as Platform) === Platform.WEB;
+      if (!isWeb && !this.isVersionValid(version)) {
+        throw new UnauthorizedException(
+          `App version must be at least ${this.minAppVersion}`,
+        );
+      }
+
+      return {
+        appName: parsedAppName,
+        version,
+        platform: platform.toLowerCase() as Platform,
+        osVersion,
+        deviceModel,
+      };
     }
 
-    const [, parsedAppName, version, platform, osVersion, deviceModel] = match;
+    // Fallback: Support standard browser User-Agent strings for web clients
+    if (this.isBrowserUserAgent(userAgent)) {
+      return this.parseBrowserUserAgent(userAgent);
+    }
 
+    throw new BadRequestException(
+      `x-user-agent must follow format: ${this.appName}/Version (Platform OSVersion; DeviceModel)`,
+    );
+  }
+
+  private isBrowserUserAgent(userAgent: string): boolean {
+    return (
+      userAgent.startsWith('Mozilla/') ||
+      userAgent.includes('AppleWebKit') ||
+      userAgent.includes('Gecko')
+    );
+  }
+
+  private parseBrowserUserAgent(userAgent: string): UserAgentData {
     const matchingPlatform = Array.from(this.requiredPlatforms).find(
-      (p) => p.toLowerCase() === platform.toLowerCase(),
+      (p) => p.toLowerCase() === (Platform.WEB as string),
     );
 
     if (!matchingPlatform) {
@@ -141,17 +192,47 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const isWeb = (platform.toLowerCase() as Platform) === Platform.WEB;
-    if (!isWeb && !this.isVersionValid(version)) {
-      throw new UnauthorizedException(
-        `App version must be at least ${this.minAppVersion}`,
-      );
+    let osVersion = 'Browser';
+    if (userAgent.includes('Macintosh') || userAgent.includes('Mac OS X')) {
+      const macMatch = userAgent.match(/Mac OS X ([0-9_]+)/);
+      osVersion = macMatch
+        ? `macOS ${macMatch[1].replace(/_/g, '.')}`
+        : 'macOS';
+    } else if (userAgent.includes('Windows NT')) {
+      const winMatch = userAgent.match(/Windows NT ([0-9.]+)/);
+      osVersion = winMatch ? `Windows NT ${winMatch[1]}` : 'Windows';
+    } else if (userAgent.includes('Android')) {
+      const androidMatch = userAgent.match(/Android ([0-9.]+)/);
+      osVersion = androidMatch ? `Android ${androidMatch[1]}` : 'Android';
+    } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+      const iosMatch = userAgent.match(/OS ([0-9_]+) like Mac OS X/);
+      osVersion = iosMatch ? `iOS ${iosMatch[1].replace(/_/g, '.')}` : 'iOS';
+    } else if (userAgent.includes('Linux')) {
+      osVersion = 'Linux';
+    }
+
+    let deviceModel = 'Desktop';
+    const edgeMatch = userAgent.match(/Edg\/([0-9.]+)/);
+    const chromeMatch = userAgent.match(/Chrome\/([0-9.]+)/);
+    const firefoxMatch = userAgent.match(/Firefox\/([0-9.]+)/);
+    const safariMatch = userAgent.match(/Version\/([0-9.]+).*Safari/);
+
+    if (edgeMatch) {
+      deviceModel = `Edge ${edgeMatch[1]}`;
+    } else if (chromeMatch) {
+      deviceModel = `Chrome ${chromeMatch[1]}`;
+    } else if (firefoxMatch) {
+      deviceModel = `Firefox ${firefoxMatch[1]}`;
+    } else if (safariMatch) {
+      deviceModel = `Safari ${safariMatch[1]}`;
+    } else if (userAgent.includes('Safari')) {
+      deviceModel = 'Safari';
     }
 
     return {
-      appName: parsedAppName,
-      version,
-      platform: platform.toLowerCase() as Platform,
+      appName: this.appName || 'BreathAway',
+      version: '1.0.0',
+      platform: Platform.WEB,
       osVersion,
       deviceModel,
     };

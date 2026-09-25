@@ -437,5 +437,63 @@ describe(ClientIdentityGuard.name, () => {
         },
       });
     });
+
+    it('should parse standard browser user-agent header when x-user-agent is omitted', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web-browser-device-id',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web-browser-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'macOS 10.15.7',
+          deviceModel: 'Chrome 151.0.0.0',
+        },
+      });
+    });
+
+    it('should parse standard browser user-agent when passed via x-user-agent', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web-browser-device-id',
+          'x-user-agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web-browser-device-id',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Windows NT 10.0',
+          deviceModel: 'Chrome 120.0.0.0',
+        },
+      });
+    });
   });
 });

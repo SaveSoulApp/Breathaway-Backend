@@ -311,7 +311,7 @@ export class FcmProviderService
     const link = this.resolveWebLink(dto);
     const icon =
       this.configService.get<string>('WEBPUSH_ICON_URL') ||
-      'https://www.breathaway.app/icon.png';
+      'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png';
     const badge =
       this.configService.get<string>('WEBPUSH_BADGE_URL') ||
       'https://www.breathaway.app/badge.png';

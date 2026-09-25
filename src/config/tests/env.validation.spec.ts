@@ -32,7 +32,7 @@ describe('envValidationSchema', () => {
       expect(value.APP_NAME).toBe('BreathAway');
       expect(value.APP_URL).toBe('https://www.breathaway.app');
       expect(value.WEBPUSH_ICON_URL).toBe(
-        'https://www.breathaway.app/icon.png',
+        'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png',
       );
       expect(value.WEBPUSH_BADGE_URL).toBe(
         'https://www.breathaway.app/badge.png',

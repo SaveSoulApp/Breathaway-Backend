@@ -98,10 +98,20 @@ export class DevicesController extends BaseController {
   ) {
     // Override/app device metadata from headers if provided
     if (deviceId) createDeviceDto.deviceId = deviceId;
-    if (userAgentData.version)
+    if (userAgentData.version && !createDeviceDto.appVersion) {
       createDeviceDto.appVersion = userAgentData.version;
-    if (userAgentData.platform)
-      createDeviceDto.platform = userAgentData.platform;
+    }
+    if (userAgentData.platform) {
+      const isWebTarget =
+        createDeviceDto.platform === interfaces.Platform.WEB ||
+        userAgentData.platform === interfaces.Platform.WEB;
+
+      if (isWebTarget) {
+        createDeviceDto.platform = interfaces.Platform.WEB;
+      } else {
+        createDeviceDto.platform = userAgentData.platform;
+      }
+    }
 
     return this.devicesService.createDevice(userId, createDeviceDto);
   }

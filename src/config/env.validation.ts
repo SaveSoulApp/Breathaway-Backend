@@ -29,7 +29,9 @@ export const envValidationSchema = Joi.object({
   APP_URL: Joi.string().uri().default('https://www.breathaway.app'),
   WEBPUSH_ICON_URL: Joi.string()
     .uri()
-    .default('https://www.breathaway.app/icon.png'),
+    .default(
+      'https://breathaway-git-develop-save-soul-labs.vercel.app/icons/notification-192.png',
+    ),
   WEBPUSH_BADGE_URL: Joi.string()
     .uri()
     .default('https://www.breathaway.app/badge.png'),
