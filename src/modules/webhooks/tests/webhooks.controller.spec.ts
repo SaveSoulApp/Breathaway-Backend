@@ -6,7 +6,8 @@ import { LoggerService } from '@core/logger';
 
 import { MetaWebhookDto, RevenueCatWebhookRequestDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
-import { RevenueCatWebhookGuard } from '../guards';
+import { RazorpayWebhookGuard, RevenueCatWebhookGuard } from '../guards';
+import { RazorpayPaymentHandler } from '../handlers/razorpay-payment.handler';
 import { MetaWebhookResult } from '../interfaces/meta-webhook-result.interface';
 import { WebhooksController } from '../webhooks.controller';
 import { WebhooksService } from '../webhooks.service';
@@ -43,16 +44,24 @@ describe('WebhooksController', () => {
       handlePurchaseEvent: jest.fn(),
     };
 
+    const mockRazorpayHandler = {
+      canHandle: jest.fn().mockReturnValue(true),
+      handle: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WebhooksService, useValue: mockService },
+        { provide: RazorpayPaymentHandler, useValue: mockRazorpayHandler },
         { provide: LoggerService, useValue: logger },
       ],
     })
       .overrideGuard(RevenueCatWebhookGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(RazorpayWebhookGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 
@@ -199,6 +208,47 @@ describe('WebhooksController', () => {
       // Assert
       expect(service.parseRevenueCatWebhook).toHaveBeenCalledWith(dto);
       expect(service.handlePurchaseEvent).toHaveBeenCalledWith(parsedEvent);
+      expect(result).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('handleRazorpayWebhook', () => {
+    it('should invoke razorpayPaymentHandler when it can handle the event', async () => {
+      // Arrange
+      const dto = {
+        event: 'payment.captured',
+        entity: 'event',
+        payload: { payment: { entity: { id: 'pay_123' } } },
+      } as any;
+
+      const handler = (controller as any).razorpayPaymentHandler;
+
+      // Act
+      const result = await controller.handleRazorpayWebhook(dto);
+
+      // Assert
+      expect(handler.canHandle).toHaveBeenCalledWith(dto);
+      expect(handler.handle).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ status: 'ok' });
+    });
+
+    it('should return ok without calling handle when handler cannot handle the event', async () => {
+      // Arrange
+      const dto = {
+        event: 'unhandled.event',
+        entity: 'event',
+        payload: {},
+      } as any;
+
+      const handler = (controller as any).razorpayPaymentHandler;
+      handler.canHandle.mockReturnValue(false);
+
+      // Act
+      const result = await controller.handleRazorpayWebhook(dto);
+
+      // Assert
+      expect(handler.canHandle).toHaveBeenCalledWith(dto);
+      expect(handler.handle).not.toHaveBeenCalled();
       expect(result).toEqual({ status: 'ok' });
     });
   });

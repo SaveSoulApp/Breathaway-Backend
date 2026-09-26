@@ -89,6 +89,7 @@ model User {
   creditLedger  CreditLedger[]
   subscriptions UserSubscription[]
   transactions  Transaction[]
+  paymentOrders PaymentOrder[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
   /// Null for email-only users or social accounts that have no phone credential.
@@ -332,6 +333,7 @@ enum PaymentGateway {
   RAZORPAY
   CASHFREE
   EASEBUZZ
+  DECENTRO
 }
 
 enum TransactionChannel {
@@ -402,6 +404,9 @@ model Transaction {
   /// Gateway payload with PII stripped (see TransactionsService.sanitizePayload).
   rawPayload Json?
 
+  /// Back-reference to the PaymentOrder that triggered this transaction (web only).
+  paymentOrder PaymentOrder?
+
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
@@ -412,6 +417,90 @@ model Transaction {
   @@index([occurredAt])
   @@index([channel])
   @@index([channel, occurredAt])
+}
+
+// ──────────────────────────────────────────────
+// Web Payment Orders
+//
+// Tracks the lifecycle of a payment order from creation
+// (before the user opens checkout) through fulfillment.
+// Separate from Transaction so the order state machine
+// is explicit and idempotent regardless of webhook delivery.
+// ──────────────────────────────────────────────
+
+enum PaymentOrderStatus {
+  /// Order created at gateway, awaiting payment
+  PENDING
+  /// Payment captured — confirmed by webhook or verify
+  PAID
+  /// Payment failed or declined
+  FAILED
+  /// Reconciliation timeout — no payment after 30 min
+  EXPIRED
+  /// Post-capture refund
+  REFUNDED
+}
+
+/// Provider-agnostic payment order created by the backend before the user
+/// opens the checkout. Ties together the gateway-side order with the plan
+/// being purchased and the credits granted on success.
+model PaymentOrder {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  /// Amount in smallest currency unit (paise for INR)
+  amount      Int
+  currency    String             @db.Char(3)
+  countryCode String             @db.Char(2)
+  gateway     PaymentGateway
+  status      PaymentOrderStatus @default(PENDING)
+
+  /// Razorpay order_Nx..., Cashfree cf_order_...
+  gatewayOrderId String
+
+  /// The Transaction row created on successful payment (set after fulfillment).
+  /// Unique ensures at most one Transaction per PaymentOrder — no double-grant.
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  /// When the gateway-side order was created (echoed back from the gateway response)
+  gatewayCreatedAt DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt      @db.Timestamptz
+
+  @@unique([gateway, gatewayOrderId])
+  @@index([userId])
+  @@index([status])
+  @@index([status, createdAt])
+}
+
+/// Editable routing table that maps (country, gateway) → priority.
+/// Changing this row swaps or disables gateways without a code deploy.
+model PaymentGatewayRoute {
+  id String @id @default(ulid())
+
+  countryCode String         @db.Char(2)
+  gateway     PaymentGateway
+  /// Lower number = higher preference (1 is tried first)
+  priority    Int            @default(1)
+  enabled     Boolean        @default(true)
+
+  /// Optional amount range guard in smallest currency unit (e.g. paise).
+  /// Null means no limit.
+  minAmount Int?
+  maxAmount Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt      @db.Timestamptz
+
+  @@unique([countryCode, gateway])
+  @@index([countryCode, enabled, priority])
 }
 
 // ──────────────────────────────────────────────
@@ -478,6 +567,7 @@ model SubscriptionPlan {
 
   prices        SubscriptionPlanPrice[]
   subscriptions UserSubscription[]
+  paymentOrders PaymentOrder[]
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz

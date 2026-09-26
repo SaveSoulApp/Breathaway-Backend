@@ -30,5 +30,5 @@
       "@modules/*": ["src/modules/*"]
     }
   },
-  "exclude": ["node_modules", "dist", "docs-site", "scripts"]
+  "exclude": ["node_modules", "dist", "docs-site", "scripts", "prisma"]
 }

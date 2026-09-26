@@ -86,4 +86,12 @@ export const envValidationSchema = Joi.object({
 
   // Swagger Documentation Access Control
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('true'),
+
+  // Payment Gateway — Razorpay
+  // Values are optional at startup so the service can boot in environments
+  // where Razorpay is not yet configured. `ConfigService.getOrThrow` inside
+  // RazorpayGateway will surface a clear error on first use if they are missing.
+  RAZORPAY_KEY_ID: Joi.string().optional(),
+  RAZORPAY_KEY_SECRET: Joi.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: Joi.string().optional(),
 });

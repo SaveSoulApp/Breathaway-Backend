@@ -57,4 +57,6 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   ActiveSubscriptionNotFoundException: HttpStatus.NOT_FOUND,
   InvalidSubscriptionDatesException: HttpStatus.BAD_REQUEST,
   TransactionNotFoundException: HttpStatus.NOT_FOUND,
+  OrderNotFoundException: HttpStatus.NOT_FOUND,
+  OrderAlreadyPaidException: HttpStatus.CONFLICT,
 };
