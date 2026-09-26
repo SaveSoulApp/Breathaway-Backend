@@ -70,6 +70,16 @@ To prevent cross-cutting leakage and tight coupling, domain feature services **n
 - **Zero Coupling**: Feature modules never import `NotificationsModule` or inject `NotificationsService`.
 - **Deep Dive**: See the dedicated [Decoupled Domain Events Architecture](./architecture/domain-events.md) guide.
 
+### 5. Web Payments & Gateway Orchestration
+
+The platform provides a provider-agnostic, secure payment orchestration engine for web clients:
+
+- **Dumb Frontend Model**: The client app never calculates prices or selects payment gateways. It provides purchase intent (`planId`), and the backend dynamically routes to the appropriate gateway (e.g. Razorpay) based on regional database routing rules (`PaymentGatewayRoute`).
+- **Cryptographic Security**: Client callbacks and webhooks require HMAC-SHA256 signature verification compared using `crypto.timingSafeEqual`.
+- **Atomic Double-Grant Prevention**: Credit fulfillment and ledger insertion execute inside a single atomic Prisma transaction with conditional updates and unique constraint guards (`P2002`/`P2025`).
+- **Autonomous Reconciliation**: An autonomous background sweeper (`PaymentsReconciliationService`) polls stale `PENDING` orders every 2 minutes to settle dropped webhooks and terminate expired checkouts.
+- **Deep Dive**: See the dedicated [Web Payments Architecture & Gateway Orchestration](./architecture/payments.md) guide.
+
 ---
 
 ## 🔄 Request Lifecycle & Global Enhancers
