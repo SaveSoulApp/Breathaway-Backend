@@ -1,7 +1,8 @@
-import { PaginationMeta } from '@common/dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
+
+import { BaseAuditExcludeDto, PaginationMeta } from '@common/dto';
 
 /**
  * Minimal target identity shape embedded in every like response.
@@ -26,7 +27,7 @@ export class LikeTargetIdentityDto {
 /**
  * Response shape for a single like — returned by POST, GET /:id, and PATCH /:id/label.
  */
-export class LikeResponseDto {
+export class LikeResponseDto extends BaseAuditExcludeDto {
   @ApiProperty()
   @Expose()
   id: string;
@@ -50,10 +51,6 @@ export class LikeResponseDto {
   @Expose()
   @Type(() => LikeTargetIdentityDto)
   targetIdentity: LikeTargetIdentityDto;
-
-  @ApiProperty()
-  @Expose()
-  createdAt: Date;
 
   @ApiPropertyOptional()
   @Expose()

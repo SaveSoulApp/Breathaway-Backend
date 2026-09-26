@@ -8,13 +8,15 @@ import {
 } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 /**
  * A single gateway transaction as returned by the admin listing endpoints.
  *
  * `rawPayload` is deliberately excluded — it is diagnostic-only and, even after
  * sanitisation, is not something the listing needs to hand back.
  */
-export class TransactionResponseDto {
+export class TransactionResponseDto extends BaseAuditExcludeDto {
   @ApiProperty({ description: 'ULID of the transaction' })
   @Expose()
   id: string;
@@ -98,8 +100,4 @@ export class TransactionResponseDto {
   @ApiProperty({ description: 'When the purchase happened at the gateway' })
   @Expose()
   occurredAt: Date;
-
-  @ApiProperty({ description: 'When we recorded it' })
-  @Expose()
-  createdAt: Date;
 }

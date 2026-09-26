@@ -16,6 +16,7 @@ import {
 
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -60,6 +61,7 @@ export class CreditsController extends BaseController {
   @Get('balance')
   @ApiOperation({ summary: 'Get current credit balance' })
   @ApiResponse({ status: HttpStatus.OK, type: CreditBalanceResponseDto })
+  @SerializeExpose(CreditBalanceResponseDto)
   async getBalance(
     @CurrentUserId() userId: string,
   ): Promise<CreditBalanceResponseDto> {
@@ -76,6 +78,7 @@ export class CreditsController extends BaseController {
   @Get('expiring')
   @ApiOperation({ summary: 'Get expiring credits breakdown' })
   @ApiResponse({ status: HttpStatus.OK, type: ExpiringCreditsResponseDto })
+  @SerializeExpose(ExpiringCreditsResponseDto)
   async getExpiringCredits(
     @CurrentUserId() userId: string,
   ): Promise<ExpiringCreditsResponseDto> {
@@ -96,6 +99,7 @@ export class CreditsController extends BaseController {
     status: HttpStatus.OK,
     type: PaginatedCreditLedgerResponseDto,
   })
+  @SerializeExpose(PaginatedCreditLedgerResponseDto)
   async getLedger(
     @CurrentUserId() userId: string,
     @Query() query: CreditLedgerQueryRequestDto,
@@ -114,6 +118,7 @@ export class CreditsController extends BaseController {
   @Get('ledger/:id')
   @ApiOperation({ summary: 'Get single ledger entry' })
   @ApiResponse({ status: HttpStatus.OK, type: CreditLedgerResponseDto })
+  @SerializeExpose(CreditLedgerResponseDto)
   async getLedgerEntry(
     @CurrentUserId() userId: string,
     @Param('id') id: string,

@@ -132,7 +132,7 @@ describe('LikesController', () => {
           hasPrev: false,
         },
       } as PaginatedLikeResponseDto;
-      service.findAllForUser.mockResolvedValue(paginatedResponse);
+      service.findAllForUser.mockResolvedValue(paginatedResponse as any);
 
       // Act
       const result = await controller.findAll(userId, query);
@@ -146,9 +146,7 @@ describe('LikesController', () => {
   describe('findOne', () => {
     it('should return specific like by ID', async () => {
       // Arrange
-      service.findOneForUser.mockResolvedValue(
-        mockLikeResponse as LikeResponseDto,
-      );
+      service.findOneForUser.mockResolvedValue(mockLikeResponse as any);
 
       // Act
       const result = await controller.findOne(userId, likeId);

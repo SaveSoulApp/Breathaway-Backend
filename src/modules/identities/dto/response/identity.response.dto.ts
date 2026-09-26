@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IdentityType } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 /**
  * Safe, masked representation of an identity returned by most endpoints.
  *
@@ -9,7 +11,7 @@ import { Expose } from 'class-transformer';
  * only `publicValueMasked` (e.g. `"+91••••7890"`) is exposed for display purposes.
  * Use `IdentityCompleteResponseDto` for routes that intentionally expose the plaintext.
  */
-export class IdentityResponseDto {
+export class IdentityResponseDto extends BaseAuditExcludeDto {
   @ApiProperty()
   @Expose()
   id: string;
@@ -25,14 +27,6 @@ export class IdentityResponseDto {
   @ApiPropertyOptional()
   @Expose()
   verifiedAt: Date | null;
-
-  @ApiProperty()
-  @Expose()
-  createdAt: Date;
-
-  @ApiPropertyOptional()
-  @Expose()
-  deletedAt: Date | null;
 
   @ApiPropertyOptional()
   @Expose()

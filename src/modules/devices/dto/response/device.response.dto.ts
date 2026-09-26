@@ -2,13 +2,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DevicePlatform } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 /**
  * Response representation of a registered user device.
  *
  * Returned by device management endpoints to represent the registered state,
  * ownership, and diagnostic metadata of a user's notification device.
  */
-export class DeviceResponseDto {
+export class DeviceResponseDto extends BaseAuditExcludeDto {
   /** Unique identifier of the device record, represented as a ULID. */
   @ApiProperty({ description: 'Device record ID (ULID)' })
   @Expose()
@@ -43,14 +45,4 @@ export class DeviceResponseDto {
   @ApiProperty({ description: 'Whether the device is active' })
   @Expose()
   isActive: boolean;
-
-  /** Timestamp when the device was first registered. */
-  @ApiProperty({ description: 'Creation timestamp' })
-  @Expose()
-  createdAt: Date;
-
-  /** Timestamp when the device record was last updated. */
-  @ApiProperty({ description: 'Last update timestamp' })
-  @Expose()
-  updatedAt: Date;
 }

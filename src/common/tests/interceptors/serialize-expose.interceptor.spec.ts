@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Expose } from 'class-transformer';
 import { lastValueFrom, Observable } from 'rxjs';
 
+import { BaseAuditExcludeDto } from '@common/dto';
 import { SubscriptionPlanResponseDto } from '@modules/subscriptions/dto';
 
 import {
@@ -120,6 +121,58 @@ describe(SerializeExposerInterceptor.name, () => {
     expect(typeof result[0].prices[0].price).toBe('number');
     expect(result[0].prices[0].currencyCode).toBe('INR');
     expect(result[0].prices[0].countryCode).toBe('IN');
+    // Ensure internal DB audit timestamps are excluded from the serialized DTO
+    expect(
+      (result[0] as unknown as { createdAt?: unknown }).createdAt,
+    ).toBeUndefined();
+    expect(
+      (result[0] as unknown as { updatedAt?: unknown }).updatedAt,
+    ).toBeUndefined();
+  });
+
+  it('should strip createdAt, updatedAt, and deletedAt when DTO extends BaseAuditExcludeDto', async () => {
+    class EntityWithAuditDto extends BaseAuditExcludeDto {
+      @Expose()
+      id: string;
+
+      @Expose()
+      name: string;
+    }
+
+    const auditInterceptor = new SerializeExposerInterceptor(
+      EntityWithAuditDto,
+    );
+    const context = createMockExecutionContext();
+    const callHandler = createMockCallHandler({
+      id: 'user_123',
+      name: 'Alice',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      secretHash: 'should-not-leak',
+    });
+
+    const resultObservable = auditInterceptor.intercept(
+      context,
+      callHandler,
+    ) as Observable<EntityWithAuditDto>;
+    const result = await lastValueFrom(resultObservable);
+
+    expect(result).toBeInstanceOf(EntityWithAuditDto);
+    expect(result.id).toBe('user_123');
+    expect(result.name).toBe('Alice');
+    expect(
+      (result as unknown as { createdAt?: unknown }).createdAt,
+    ).toBeUndefined();
+    expect(
+      (result as unknown as { updatedAt?: unknown }).updatedAt,
+    ).toBeUndefined();
+    expect(
+      (result as unknown as { deletedAt?: unknown }).deletedAt,
+    ).toBeUndefined();
+    expect(
+      (result as unknown as { secretHash?: unknown }).secretHash,
+    ).toBeUndefined();
   });
 });
 
