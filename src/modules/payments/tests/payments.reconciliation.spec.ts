@@ -23,6 +23,7 @@ import {
   PAYMENT_COMPLETED_EVENT,
   PaymentCompletedEvent,
 } from '../events/payment-completed.event';
+import { GatewayOrderStatus } from '../gateways/payment-gateway.interface';
 import { RazorpayGateway } from '../gateways/razorpay/razorpay.gateway';
 import { PaymentsReconciliationService } from '../payments.reconciliation';
 
@@ -169,7 +170,9 @@ describe('PaymentsReconciliationService', () => {
       (prisma.paymentOrder.findMany as jest.Mock).mockResolvedValue([
         staleOrder,
       ]);
-      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue('CAPTURED');
+      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue(
+        GatewayOrderStatus.CAPTURED,
+      );
       (prisma.paymentOrder.update as jest.Mock).mockResolvedValue({});
 
       // Act
@@ -227,7 +230,9 @@ describe('PaymentsReconciliationService', () => {
       (prisma.paymentOrder.findMany as jest.Mock).mockResolvedValue([
         staleOrder,
       ]);
-      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue('FAILED');
+      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue(
+        GatewayOrderStatus.FAILED,
+      );
       (prisma.paymentOrder.update as jest.Mock).mockResolvedValue({});
 
       // Act
@@ -265,7 +270,9 @@ describe('PaymentsReconciliationService', () => {
       (prisma.paymentOrder.findMany as jest.Mock).mockResolvedValue([
         staleOrder,
       ]);
-      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue('CAPTURED');
+      razorpayGatewayMock.fetchOrderStatus.mockResolvedValue(
+        GatewayOrderStatus.CAPTURED,
+      );
       (prisma.$transaction as jest.Mock).mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Order already updated', {
           code: 'P2025',

@@ -7,6 +7,7 @@ import { PaymentGateway } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 
 import { GatewayOrderCreationException } from '../application/exceptions';
+import { GatewayOrderStatus } from '../gateways/payment-gateway.interface';
 import { RazorpayGateway } from '../gateways/razorpay/razorpay.gateway';
 
 describe('RazorpayGateway', () => {
@@ -114,7 +115,7 @@ describe('RazorpayGateway', () => {
       const status = await gateway.fetchOrderStatus('order_123');
 
       // Assert
-      expect(status).toBe('CAPTURED');
+      expect(status).toBe(GatewayOrderStatus.CAPTURED);
     });
 
     it('should return FAILED when razorpay order is attempted and has failed payments', async () => {
@@ -131,7 +132,7 @@ describe('RazorpayGateway', () => {
       const status = await gateway.fetchOrderStatus('order_123');
 
       // Assert
-      expect(status).toBe('FAILED');
+      expect(status).toBe(GatewayOrderStatus.FAILED);
     });
 
     it('should return PENDING when razorpay order is created', async () => {
@@ -145,7 +146,7 @@ describe('RazorpayGateway', () => {
       const status = await gateway.fetchOrderStatus('order_123');
 
       // Assert
-      expect(status).toBe('PENDING');
+      expect(status).toBe(GatewayOrderStatus.PENDING);
     });
 
     it('should return PENDING when fetch rejects', async () => {
@@ -159,7 +160,7 @@ describe('RazorpayGateway', () => {
       const status = await gateway.fetchOrderStatus('order_123');
 
       // Assert
-      expect(status).toBe('PENDING');
+      expect(status).toBe(GatewayOrderStatus.PENDING);
     });
   });
 

@@ -34,6 +34,7 @@ import {
   PAYMENT_COMPLETED_EVENT,
   PaymentCompletedEvent,
 } from '../events/payment-completed.event';
+import { GatewayOrderStatus } from '../gateways/payment-gateway.interface';
 import { RazorpayGateway } from '../gateways/razorpay/razorpay.gateway';
 import { PaymentsService } from '../payments.service';
 
@@ -76,7 +77,9 @@ describe('PaymentsService', () => {
           gatewayOrderId: 'order_rzp_123',
         },
       }),
-      fetchOrderStatus: jest.fn().mockResolvedValue('CAPTURED'),
+      fetchOrderStatus: jest
+        .fn()
+        .mockResolvedValue(GatewayOrderStatus.CAPTURED),
       verifySignature: jest.fn().mockReturnValue(true),
       fetchCapturedPaymentId: jest.fn().mockResolvedValue('pay_rzp_456'),
     } as unknown as jest.Mocked<RazorpayGateway>;

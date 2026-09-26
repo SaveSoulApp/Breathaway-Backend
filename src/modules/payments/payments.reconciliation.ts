@@ -19,12 +19,15 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CreditsService } from '@modules/credits/credits.service';
 import { TransactionsService } from '@modules/transactions/transactions.service';
 
-import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
-import { PaymentGatewayAdapter } from './gateways/payment-gateway.interface';
 import {
   PAYMENT_COMPLETED_EVENT,
   PaymentCompletedEvent,
 } from './events/payment-completed.event';
+import {
+  GatewayOrderStatus,
+  PaymentGatewayAdapter,
+} from './gateways/payment-gateway.interface';
+import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
 
 /** PENDING orders older than this are eligible for reconciliation. */
 const STALE_AFTER_MINUTES = 15;
@@ -144,15 +147,18 @@ export class PaymentsReconciliationService extends BaseService {
           order.gatewayOrderId,
         );
 
-        if (gatewayStatus === 'CAPTURED' || gatewayStatus === 'AUTHORIZED') {
+        if (
+          gatewayStatus === GatewayOrderStatus.CAPTURED ||
+          gatewayStatus === GatewayOrderStatus.AUTHORIZED
+        ) {
           // We don't have the payment id from the gateway poll alone.
           // Use the gatewayOrderId as the gatewayTransactionId for deduplication.
           // In practice, Razorpay returns full payment data when we call fetchPayments.
           await this.fulfilFromReconciliation(order, ctx);
           settled++;
         } else if (
-          gatewayStatus === 'FAILED' ||
-          gatewayStatus === 'CANCELLED'
+          gatewayStatus === GatewayOrderStatus.FAILED ||
+          gatewayStatus === GatewayOrderStatus.CANCELLED
         ) {
           await this.prisma.paymentOrder.update({
             where: { id: order.id, status: PaymentOrderStatus.PENDING },

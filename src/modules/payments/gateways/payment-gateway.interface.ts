@@ -59,12 +59,13 @@ export interface GatewayOrderResult {
  * Normalised status returned by `PaymentGatewayAdapter.fetchOrderStatus`.
  * Used by the reconciliation cron.
  */
-export type GatewayOrderStatus =
-  | 'CAPTURED'
-  | 'AUTHORIZED'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'PENDING';
+export enum GatewayOrderStatus {
+  CAPTURED = 'CAPTURED',
+  AUTHORIZED = 'AUTHORIZED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  PENDING = 'PENDING',
+}
 
 /**
  * Parameters for server-side signature verification after checkout closes.

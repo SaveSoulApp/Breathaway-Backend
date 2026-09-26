@@ -101,7 +101,7 @@ export class RazorpayGateway implements PaymentGatewayAdapter {
     try {
       const order = await this.client.orders.fetch(gatewayOrderId);
 
-      if (order.status === 'paid') return 'CAPTURED';
+      if (order.status === 'paid') return GatewayOrderStatus.CAPTURED;
 
       // For `attempted` orders, inspect the individual payments to find failures.
       if (order.status === 'attempted') {
@@ -109,13 +109,13 @@ export class RazorpayGateway implements PaymentGatewayAdapter {
         const items =
           (payments as { items?: { status: string }[] }).items ?? [];
         const hasFailed = items.some((p) => p.status === 'failed');
-        if (hasFailed) return 'FAILED';
+        if (hasFailed) return GatewayOrderStatus.FAILED;
       }
 
-      return 'PENDING';
+      return GatewayOrderStatus.PENDING;
     } catch {
       // If the order cannot be fetched, treat it as still pending.
-      return 'PENDING';
+      return GatewayOrderStatus.PENDING;
     }
   }
 
