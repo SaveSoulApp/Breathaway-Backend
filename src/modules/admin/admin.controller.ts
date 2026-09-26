@@ -18,6 +18,7 @@ import {
 import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { RequireTimezoneGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { CreditsService } from '@modules/credits/credits.service';
@@ -91,6 +92,7 @@ export class AdminController extends BaseController {
     type: CreditLedgerResponseDto,
   })
   @UseGuards(RequireTimezoneGuard)
+  @SerializeExpose(CreditLedgerResponseDto)
   async grantCredits(
     @Body() dto: GrantCreditsRequestDto,
   ): Promise<CreditLedgerResponseDto> {
@@ -120,6 +122,7 @@ export class AdminController extends BaseController {
     description: 'Credits successfully consumed; debit ledger entry returned.',
     type: CreditLedgerResponseDto,
   })
+  @SerializeExpose(CreditLedgerResponseDto)
   async consumeCredits(
     @Body() dto: ConsumeCreditsRequestDto,
   ): Promise<CreditLedgerResponseDto> {

@@ -2,9 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SubscriptionPlanStatus } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 import { SubscriptionPlanPriceResponseDto } from './subscription-plan-price.response.dto';
 
-export class SubscriptionPlanResponseDto {
+export class SubscriptionPlanResponseDto extends BaseAuditExcludeDto {
   @ApiProperty()
   @Expose()
   id: string;
@@ -53,12 +55,4 @@ export class SubscriptionPlanResponseDto {
   @Expose()
   @Type(() => SubscriptionPlanPriceResponseDto)
   prices: SubscriptionPlanPriceResponseDto[];
-
-  @ApiProperty()
-  @Expose()
-  createdAt: Date;
-
-  @ApiProperty()
-  @Expose()
-  updatedAt: Date;
 }

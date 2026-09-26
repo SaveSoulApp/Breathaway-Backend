@@ -2,7 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GenderType } from '@prisma/client';
 import { Expose } from 'class-transformer';
 
-export class ProfileResponseDto {
+import { BaseAuditExcludeDto } from '@common/dto';
+
+export class ProfileResponseDto extends BaseAuditExcludeDto {
   @ApiProperty({ description: 'Profile ID (ULID)' })
   @Expose()
   id: string;
@@ -26,12 +28,4 @@ export class ProfileResponseDto {
   @ApiPropertyOptional({ description: 'Gender of the user', enum: GenderType })
   @Expose()
   gender?: GenderType;
-
-  @ApiProperty({ description: 'Profile creation timestamp' })
-  @Expose()
-  createdAt: Date;
-
-  @ApiProperty({ description: 'Profile last update timestamp' })
-  @Expose()
-  updatedAt: Date;
 }

@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 /**
  * Embedded profile snapshot of the blocked user; flattened from the nested Prisma profile join.
  */
@@ -27,16 +29,12 @@ class BlockedUserDto {
  * Response shape for all /blocks endpoints; represents a single active block relationship
  * with the blocked user's basic identity.
  */
-export class BlockResponseDto {
+export class BlockResponseDto extends BaseAuditExcludeDto {
   @ApiProperty({
     description: 'The unique identifier (ULID) of the block record',
   })
   @Expose()
   id: string;
-
-  @ApiProperty({ description: 'Timestamp when the block was created' })
-  @Expose()
-  createdAt: Date;
 
   @ApiProperty({
     description: 'Basic profile information of the blocked user',

@@ -1,7 +1,3 @@
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 import {
   Controller,
   Get,
@@ -16,6 +12,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
 import {
   PaginatedTransactionResponseDto,
@@ -60,6 +62,7 @@ export class TransactionsController extends BaseController {
     status: HttpStatus.OK,
     type: PaginatedTransactionResponseDto,
   })
+  @SerializeExpose(PaginatedTransactionResponseDto)
   async findAll(
     @Query() query: TransactionQueryRequestDto,
   ): Promise<PaginatedTransactionResponseDto> {
@@ -75,6 +78,7 @@ export class TransactionsController extends BaseController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a single transaction' })
   @ApiResponse({ status: HttpStatus.OK, type: TransactionResponseDto })
+  @SerializeExpose(TransactionResponseDto)
   async findOne(@Param('id') id: string): Promise<TransactionResponseDto> {
     return this.transactionsService.findOne(id);
   }

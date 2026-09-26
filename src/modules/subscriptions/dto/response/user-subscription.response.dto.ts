@@ -6,6 +6,8 @@ import {
 } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 
+import { BaseAuditExcludeDto } from '@common/dto';
+
 export class SubscriptionPlanSummaryResponseDto {
   @ApiProperty()
   @Expose()
@@ -28,7 +30,7 @@ export class SubscriptionPlanSummaryResponseDto {
   validityDays: number;
 }
 
-export class UserSubscriptionResponseDto {
+export class UserSubscriptionResponseDto extends BaseAuditExcludeDto {
   @ApiProperty()
   @Expose()
   id: string;
@@ -94,12 +96,4 @@ export class UserSubscriptionResponseDto {
   @Expose()
   @Type(() => SubscriptionPlanSummaryResponseDto)
   plan: SubscriptionPlanSummaryResponseDto;
-
-  @ApiProperty()
-  @Expose()
-  createdAt: Date;
-
-  @ApiProperty()
-  @Expose()
-  updatedAt: Date;
 }

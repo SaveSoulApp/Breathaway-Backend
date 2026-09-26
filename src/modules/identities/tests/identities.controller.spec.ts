@@ -70,9 +70,7 @@ describe('IdentitiesController', () => {
     it('should create a new identity', async () => {
       // Arrange
 
-      service.create.mockResolvedValue(
-        mockIdentityResponse as IdentityResponseDto,
-      );
+      service.create.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
 
@@ -95,9 +93,7 @@ describe('IdentitiesController', () => {
     it('should return all identities for a user', async () => {
       // Arrange
 
-      service.findAllByUser.mockResolvedValue([
-        mockIdentityResponse as IdentityResponseDto,
-      ]);
+      service.findAllByUser.mockResolvedValue([mockIdentityResponse as any]);
 
       // Act
       const result = await controller.findAll(mockUserId);
@@ -133,9 +129,7 @@ describe('IdentitiesController', () => {
     it('should return a specific identity by id', async () => {
       // Arrange
 
-      service.findOne.mockResolvedValue(
-        mockIdentityResponse as IdentityResponseDto,
-      );
+      service.findOne.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
       const result = await controller.findOne(mockUserId, mockIdentityId);
@@ -177,9 +171,7 @@ describe('IdentitiesController', () => {
     it('should update a specific identity', async () => {
       // Arrange
 
-      service.update.mockResolvedValue(
-        mockIdentityResponse as IdentityResponseDto,
-      );
+      service.update.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
 
@@ -219,9 +211,7 @@ describe('IdentitiesController', () => {
     it('should verify a specific identity', async () => {
       // Arrange
 
-      service.verify.mockResolvedValue(
-        mockIdentityResponse as IdentityResponseDto,
-      );
+      service.verify.mockResolvedValue(mockIdentityResponse as any);
 
       // Act
       const result = await controller.verify(mockUserId, mockIdentityId);
