@@ -5,13 +5,14 @@ import { CreditsModule } from '@modules/credits/credits.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
 import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
+import { PaymentRoutesService } from './payment-routes.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsReconciliationService } from './payments.reconciliation';
 import { PaymentsService } from './payments.service';
 
 /**
  * Encapsulates the web payment bounded context — order creation, gateway routing,
- * client-side verification, and reconciliation of stale PENDING orders.
+ * administrative route management, client-side verification, and reconciliation.
  *
  * ## Imports
  * - `CreditsModule`: `CreditsService` is used inside the atomic fulfillment
@@ -24,11 +25,17 @@ import { PaymentsService } from './payments.service';
  * ## Exports
  * - `PaymentsService`: exported so `WebhooksModule` can call `fulfil()` from the
  *   Razorpay webhook handler without duplicating the fulfillment logic.
+ * - `PaymentRoutesService`: exported for administrative operations (`AdminModule`) and tests.
  */
 @Module({
   imports: [CreditsModule, TransactionsModule, IpGeolocationModule],
   controllers: [PaymentsController],
-  providers: [PaymentsService, PaymentsReconciliationService, RazorpayGateway],
-  exports: [PaymentsService],
+  providers: [
+    PaymentsService,
+    PaymentsReconciliationService,
+    PaymentRoutesService,
+    RazorpayGateway,
+  ],
+  exports: [PaymentsService, PaymentRoutesService],
 })
 export class PaymentsModule {}

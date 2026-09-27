@@ -76,14 +76,34 @@ const config: Config = {
           label: 'Spec',
         },
         {
-          href: 'http://localhost:3000/api/public',
-          label: 'Public Swagger UI',
+          type: 'dropdown',
+          label: 'Public API Docs',
           position: 'right',
+          items: [
+            {
+              href: 'http://localhost:3000/api/public',
+              label: 'Swagger UI',
+            },
+            {
+              href: 'http://localhost:3000/api/public/redoc',
+              label: 'ReDoc',
+            },
+          ],
         },
         {
-          href: 'http://localhost:3000/api/admin',
-          label: 'Admin Swagger UI',
+          type: 'dropdown',
+          label: 'Admin API Docs',
           position: 'right',
+          items: [
+            {
+              href: 'http://localhost:3000/api/admin',
+              label: 'Swagger UI',
+            },
+            {
+              href: 'http://localhost:3000/api/admin/redoc',
+              label: 'ReDoc',
+            },
+          ],
         },
       ],
     },
@@ -169,8 +189,16 @@ const config: Config = {
               href: 'http://localhost:3000/api/public',
             },
             {
+              label: 'Public ReDoc UI',
+              href: 'http://localhost:3000/api/public/redoc',
+            },
+            {
               label: 'Admin Swagger UI',
               href: 'http://localhost:3000/api/admin',
+            },
+            {
+              label: 'Admin ReDoc UI',
+              href: 'http://localhost:3000/api/admin/redoc',
             },
           ],
         },

@@ -21,6 +21,7 @@ import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 import { MatchesModule } from '@modules/matches/matches.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from '@modules/one-time-passwords/one-time-passwords.module';
+import { PaymentsModule } from '@modules/payments/payments.module';
 import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { ReportsModule } from '@modules/reports/reports.module';
@@ -76,6 +77,7 @@ function publicApiDocumentation(app: INestApplication): void {
     MatchesModule,
     NotificationsModule,
     OneTimePasswordsModule,
+    PaymentsModule,
     PreferencesModule,
     ProfilesModule,
     SocialIdentitiesModule,
@@ -149,6 +151,36 @@ function publicApiDocumentation(app: INestApplication): void {
     include: publicModules,
   });
 
+  // Deep sanitization: ensure no admin paths or admin tags leak into public OpenAPI spec
+  Object.keys(publicDoc.paths).forEach((path) => {
+    if (path.toLowerCase().includes('/admin')) {
+      delete publicDoc.paths[path];
+    } else {
+      const pathItem = publicDoc.paths[path] as Record<string, unknown>;
+      if (pathItem && typeof pathItem === 'object') {
+        Object.values(pathItem).forEach((operation: unknown) => {
+          if (
+            operation &&
+            typeof operation === 'object' &&
+            'tags' in operation &&
+            Array.isArray((operation as { tags?: string[] }).tags)
+          ) {
+            const op = operation as { tags: string[] };
+            op.tags = op.tags.filter(
+              (tag) => !tag.toLowerCase().startsWith('admin'),
+            );
+          }
+        });
+      }
+    }
+  });
+
+  if (publicDoc.tags) {
+    publicDoc.tags = publicDoc.tags.filter(
+      (tag) => !tag.name.toLowerCase().startsWith('admin'),
+    );
+  }
+
   applyGlobalSecurityToOperations(publicDoc, [
     'X-Request-ID',
     'X-Timezone',
@@ -171,21 +203,28 @@ function publicApiDocumentation(app: INestApplication): void {
   });
 
   const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get(
-    `/${SWAGGER_PUBLIC_PATH}/${REDOC_SUBPATH}`,
-    redoc({
-      title: 'BreathAway Public API Docs',
-      specUrl: `/${SWAGGER_PUBLIC_PATH}-json`,
-      redocOptions: {
-        theme: {
-          colors: {
-            primary: {
-              main: '#000000',
-            },
+  const publicRedocHandler = redoc({
+    title: 'BreathAway Public API Docs',
+    specUrl: `/${SWAGGER_PUBLIC_PATH}-json`,
+    redocOptions: {
+      theme: {
+        colors: {
+          primary: {
+            main: '#000000',
           },
         },
       },
-    }),
+    },
+  });
+
+  httpAdapter.get(
+    `/${SWAGGER_PUBLIC_PATH}/${REDOC_SUBPATH}`,
+    (req: express.Request, res: express.Response) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      publicRedocHandler(req, res);
+    },
   );
 }
 
@@ -230,6 +269,32 @@ function adminApiDocumentation(app: INestApplication): void {
     include: adminModules,
   });
 
+  // Deep sanitization: ensure public payment checkout endpoints and tags do not appear in admin OpenAPI spec
+  Object.keys(adminDoc.paths).forEach((path) => {
+    if (path.startsWith('/api/v1/payments') && !path.includes('/admin/')) {
+      delete adminDoc.paths[path];
+    } else {
+      const pathItem = adminDoc.paths[path] as Record<string, unknown>;
+      if (pathItem && typeof pathItem === 'object') {
+        Object.values(pathItem).forEach((operation: unknown) => {
+          if (
+            operation &&
+            typeof operation === 'object' &&
+            'tags' in operation &&
+            Array.isArray((operation as { tags?: string[] }).tags)
+          ) {
+            const op = operation as { tags: string[] };
+            op.tags = op.tags.filter((tag) => tag !== 'Payments');
+          }
+        });
+      }
+    }
+  });
+
+  if (adminDoc.tags) {
+    adminDoc.tags = adminDoc.tags.filter((tag) => tag.name !== 'Payments');
+  }
+
   applyGlobalSecurityToOperations(adminDoc, ['X-Request-ID', 'X-Timezone']);
 
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
@@ -245,21 +310,28 @@ function adminApiDocumentation(app: INestApplication): void {
   });
 
   const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get(
-    `/${SWAGGER_ADMIN_PATH}/${REDOC_SUBPATH}`,
-    redoc({
-      title: 'BreathAway Admin API Docs',
-      specUrl: `/${SWAGGER_ADMIN_PATH}-json`,
-      redocOptions: {
-        theme: {
-          colors: {
-            primary: {
-              main: '#000000',
-            },
+  const adminRedocHandler = redoc({
+    title: 'BreathAway Admin API Docs',
+    specUrl: `/${SWAGGER_ADMIN_PATH}-json`,
+    redocOptions: {
+      theme: {
+        colors: {
+          primary: {
+            main: '#000000',
           },
         },
       },
-    }),
+    },
+  });
+
+  httpAdapter.get(
+    `/${SWAGGER_ADMIN_PATH}/${REDOC_SUBPATH}`,
+    (req: express.Request, res: express.Response) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      adminRedocHandler(req, res);
+    },
   );
 }
 

@@ -303,6 +303,58 @@ await this.prisma.$transaction(async (tx) => {
 
 ---
 
+## 🔀 Dynamic Routing & Priority Step Architecture
+
+The `PaymentGatewayRoute` table decouples the payment orchestration layer from static gateway providers. Routes are mapped by `(countryCode, gateway)` with amount guards (`minAmount`, `maxAmount`), an availability kill-switch (`enabled`), and a **contiguous ordinal priority step number** (`1, 2, 3, ... N`).
+
+```mermaid
+flowchart TD
+    subgraph Callers["Authorized Callers (Admin Basic Auth)"]
+        Admin["Human Administrator<br/>(Dashboard / Swagger UI)"]
+        Monitor["Autonomous Monitor / Balancer<br/>(Real-Time Success Rates)"]
+    end
+
+    subgraph API["Administrative Surface (/api/v1/admin/payments/routes)"]
+        Ctrl["PaymentRoutesAdminController"]
+        Svc["PaymentRoutesService"]
+    end
+
+    subgraph Routing["Routing & Re-ranking Engine"]
+        Tx["Atomic Re-ranking Transaction"]
+        Table[("PaymentGatewayRoute<br/>(countryCode, gateway, priority, enabled)")]
+    end
+
+    Admin -->|CRUD / Reorder / Amount Limits| Ctrl
+    Monitor -->|Toggle Kill-Switch / Reorder by Success Rate| Ctrl
+    Ctrl --> Svc
+    Svc --> Tx
+    Tx --> Table
+```
+
+### Contiguous Step Numbers vs Arbitrary Rankings
+
+In traditional routing systems, operators often assign arbitrary priority numbers (e.g. `900` or `1000`) to express low priority, leaving random gaps and unpredictable fallback behaviors.
+
+BreathAway enforces **strict, contiguous ordinal step numbers** within each country:
+
+1. **Contiguity Invariant**: Priorities for a country with `N` configured gateways are always strictly `1, 2, ... N`.
+2. **Deterministic Fallback**: `PaymentsService.selectGateway()` evaluates routes using `WHERE countryCode = :c AND enabled = true ORDER BY priority ASC`. Step 1 is always evaluated first; if disabled or outside amount limits, Step 2 is selected next.
+3. **Atomic Re-ranking**: When moving a route from Step `P_old` to Step `P_new`:
+   - If promoting (`P_new < P_old`), intermediate routes in `[P_new, P_old - 1]` automatically increment by `+1`.
+   - If demoting (`P_new > P_old`), intermediate routes in `[P_old + 1, P_new]` automatically decrement by `-1`.
+4. **Validation Guard**: Requesting a priority step outside `[1, N]` (or `[1, N + 1]` during route creation) is rejected with `400 Bad Request` (`InvalidPriorityStepException`).
+
+### Dynamic Success-Rate Balancing & Automated Circuit Breaking
+
+The administrative API is designed for dual consumption:
+
+- **Human Administrators**: Provision new country routes, update minimum/maximum amount thresholds, and audit gateway allocations.
+- **Autonomous Systems**: An internal monitoring agent tracks moving-window payment conversion rates per provider. If a gateway experiences a surge in bank errors:
+  - **Circuit Breaker**: The monitor calls `PATCH /api/v1/admin/payments/routes/:id/toggle` to disable the route (`enabled = false`), instantly shifting live traffic to the Step 2 gateway.
+  - **Dynamic Traffic Reordering**: When recovery is detected, the monitor computes new ranks and calls `PUT /api/v1/admin/payments/routes/reorder`, passing an array of route IDs in preferred order.
+
+---
+
 ## 🛡 Security Architecture & Threat Model
 
 | Threat / Attack Vector          | Mitigation Strategy                               | Implementation Detail                                                                                                                                                 |

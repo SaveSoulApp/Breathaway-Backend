@@ -27,16 +27,26 @@ src/modules/payments/
 │   └── exceptions/
 │       ├── gateway-not-available.exception.ts     # 503: No active route for country
 │       ├── gateway-order-creation.exception.ts    # 502: Upstream provider rejected order
+│       ├── invalid-amount-range.exception.ts      # 400: minAmount > maxAmount
+│       ├── invalid-priority-step.exception.ts     # 400: Priority step out of bounds (no 900/1000)
+│       ├── invalid-reorder-payload.exception.ts   # 400: Route IDs mismatch for country
 │       ├── order-already-paid.exception.ts        # 409: Duplicate fulfillment attempt
 │       ├── order-not-found.exception.ts           # 404: Order not found or user mismatch
+│       ├── route-already-exists.exception.ts      # 409: Route exists for [country, gateway]
+│       ├── route-not-found.exception.ts           # 404: Route ID not found
 │       └── index.ts                               # Barrel export
 ├── dto/
 │   ├── request/
 │   │   ├── create-order.request.dto.ts            # Body: { planId }
+│   │   ├── create-payment-route.request.dto.ts    # Body: { countryCode, gateway, priority, ... }
+│   │   ├── list-payment-routes-query.request.dto.ts # Query: { countryCode, enabled, gateway }
+│   │   ├── reorder-payment-routes.request.dto.ts  # Body: { countryCode, routeIds: [...] }
+│   │   ├── update-payment-route.request.dto.ts    # Body: { priority, enabled, minAmount, ... }
 │   │   └── verify-order.request.dto.ts            # Body: { razorpay_order_id, ... }
 │   ├── response/
 │   │   ├── create-order.response.dto.ts           # Response: { orderId, provider, action }
-│   │   └── order-status.response.dto.ts           # Response: { status, creditsGranted }
+│   │   ├── order-status.response.dto.ts           # Response: { status, creditsGranted }
+│   │   └── payment-route.response.dto.ts          # Response: { id, countryCode, gateway, priority, ... }
 │   └── index.ts                                   # Barrel export
 ├── events/
 │   ├── payment-completed.event.ts                 # Strongly typed domain event
@@ -47,11 +57,15 @@ src/modules/payments/
 │   │   └── razorpay.gateway.ts                    # Razorpay Node SDK implementation
 │   └── index.ts
 ├── tests/
+│   ├── payment-routes-admin.controller.spec.ts    # Route management controller tests
+│   ├── payment-routes.service.spec.ts             # Route CRUD, re-ranking & validation tests
 │   ├── payments.controller.spec.ts                # HTTP endpoint & controller unit tests
 │   ├── payments.service.spec.ts                   # Core business logic & transaction tests
 │   ├── payments.reconciliation.spec.ts            # Cron polling & stale order sweep tests
 │   └── razorpay.gateway.spec.ts                   # Gateway adapter & signature tests
-├── payments.controller.ts                         # REST controller exposing endpoints
+├── payment-routes-admin.controller.ts             # REST controller for route administration
+├── payment-routes.service.ts                      # Route management & atomic priority engine
+├── payments.controller.ts                         # REST controller exposing public endpoints
 ├── payments.service.ts                            # Core fulfillment & order orchestration
 ├── payments.reconciliation.ts                     # Background @Cron reconciliation engine
 └── payments.module.ts                             # NestJS feature module configuration
@@ -175,6 +189,127 @@ Submits the signature payload returned by the gateway checkout SDK to trigger im
 
 ---
 
+## 🛡️ Administrative & Dynamic Routing API
+
+The administrative surface (`/api/v1/admin/payments/routes`) allows human administrators and autonomous health-monitoring systems to manage gateway configurations, amount limits, kill-switches, and step-based priorities in real time.
+
+All administrative endpoints are protected by **HTTP Basic Authentication** (`AdminBasicAuthGuard`).
+
+### 1. Priority Step Architecture (Strict Ordinal Ranking)
+
+Rather than assigning arbitrary numbers (such as `900` or `1000`), gateway preference within a country is defined strictly by **contiguous ordinal step numbers**: `1, 2, 3, ... N`.
+
+- **Step 1** is the primary preferred gateway tried first by `PaymentsService.selectGateway()`.
+- **Step 2** is the immediate fallback if Step 1 is disabled or outside transaction amount limits.
+- When creating or modifying a route, assigning it to Step `K` automatically shifts adjacent routes in an atomic database transaction.
+- Out-of-bounds priority numbers (e.g. passing `900` when only 3 routes exist) are rejected with `400 Bad Request` (`InvalidPriorityStepException`).
+
+### 2. Dual-Caller Operational Models
+
+1. **Human Administrators**:
+   - Create and configure new routes for expansion countries.
+   - Adjust `minAmount` / `maxAmount` bounds (e.g., reserving UPI gateways for microtransactions).
+   - Reorder priority ranks via admin drag-and-drop interfaces.
+2. **Autonomous Health & Success-Rate Balancers**:
+   - Internal background workers monitoring gateway error rates can invoke `PATCH /toggle` to immediately isolate failing gateways.
+   - Workers periodically compute country-level conversion rates and submit a ranked array to `PUT /reorder` to optimize traffic dynamically.
+
+### 3. Administrative Endpoints
+
+#### A. Create Route (`POST /api/v1/admin/payments/routes`)
+
+Provisions a new gateway for a country. If `priority` is omitted, it defaults to the next step (`N + 1`).
+
+```http
+POST /api/v1/admin/payments/routes
+Authorization: Basic <admin_credentials>
+Content-Type: application/json
+
+{
+  "countryCode": "IN",
+  "gateway": "CASHFREE",
+  "priority": 2,
+  "enabled": true,
+  "minAmount": 100,
+  "maxAmount": 500000
+}
+```
+
+#### B. List Routes (`GET /api/v1/admin/payments/routes`)
+
+Lists all configured routes ordered by `countryCode ASC, priority ASC`. Supports query filters: `?countryCode=IN&enabled=true&gateway=RAZORPAY`.
+
+```json
+[
+  {
+    "id": "01J8VXYZ1234ABCDEFGHJKMNPQ",
+    "countryCode": "IN",
+    "gateway": "RAZORPAY",
+    "priority": 1,
+    "enabled": true,
+    "minAmount": null,
+    "maxAmount": null,
+    "createdAt": "2026-09-27T00:00:00.000Z",
+    "updatedAt": "2026-09-27T00:00:00.000Z"
+  },
+  {
+    "id": "01J8VXYZ5678ABCDEFGHJKMNPR",
+    "countryCode": "IN",
+    "gateway": "CASHFREE",
+    "priority": 2,
+    "enabled": true,
+    "minAmount": 100,
+    "maxAmount": 500000,
+    "createdAt": "2026-09-27T00:00:00.000Z",
+    "updatedAt": "2026-09-27T00:00:00.000Z"
+  }
+]
+```
+
+#### C. Batch Reorder Steps (`PUT /api/v1/admin/payments/routes/reorder`)
+
+Atomically re-ranks priority steps for all routes of a country. Index 0 becomes Step 1, Index 1 becomes Step 2, etc.
+
+```http
+PUT /api/v1/admin/payments/routes/reorder
+Authorization: Basic <admin_credentials>
+Content-Type: application/json
+
+{
+  "countryCode": "IN",
+  "routeIds": [
+    "01J8VXYZ5678ABCDEFGHJKMNPR",
+    "01J8VXYZ1234ABCDEFGHJKMNPQ"
+  ]
+}
+```
+
+#### D. Update Route (`PATCH /api/v1/admin/payments/routes/:id`)
+
+Updates amount limits, enabled status, or shifts priority step.
+
+```http
+PATCH /api/v1/admin/payments/routes/01J8VXYZ1234ABCDEFGHJKMNPQ
+Authorization: Basic <admin_credentials>
+Content-Type: application/json
+
+{
+  "priority": 1,
+  "minAmount": 500,
+  "maxAmount": 200000
+}
+```
+
+#### E. Toggle Enabled (Circuit Breaker) (`PATCH /api/v1/admin/payments/routes/:id/toggle`)
+
+Single-click or automated toggle of gateway availability.
+
+#### F. Delete Route (`DELETE /api/v1/admin/payments/routes/:id`)
+
+Removes a route and automatically compacts remaining priority steps for that country.
+
+---
+
 ## 🔄 Internal Module Flow
 
 The following sequence illustrates the internal method invocations within `PaymentsModule` during order creation:
@@ -294,6 +429,11 @@ Domain exceptions in `application/exceptions/` are automatically mapped to stand
 | **`GatewayNotAvailableException`**           | `503 Service Unavailable` | No active `PaymentGatewayRoute` is configured for the country and amount.  |
 | **`GatewayOrderCreationException`**          | `502 Bad Gateway`         | The upstream gateway (e.g. Razorpay) rejected order creation.              |
 | **`UnauthorizedException`**                  | `401 Unauthorized`        | Invalid HMAC-SHA256 signature in `POST /verify`.                           |
+| **`RouteNotFoundException`**                 | `404 Not Found`           | The requested payment route ID does not exist.                             |
+| **`RouteAlreadyExistsException`**            | `409 Conflict`            | A route already exists for the given [countryCode, gateway] pair.          |
+| **`InvalidPriorityStepException`**           | `400 Bad Request`         | Priority step is out of bounds (arbitrary values like 900 or 1000).        |
+| **`InvalidAmountRangeException`**            | `400 Bad Request`         | minAmount exceeds maxAmount.                                               |
+| **`InvalidReorderPayloadException`**         | `400 Bad Request`         | routeIds does not match the exact set of routes for the country.           |
 
 ---
 
