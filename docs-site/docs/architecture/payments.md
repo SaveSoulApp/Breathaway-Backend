@@ -66,13 +66,13 @@ flowchart TD
     PS -->|"Initialize order"| GA
     GA -->|"Create gateway order"| RZP_API
     PS -->|"Insert PENDING order"| PO
-    PS -->>|"Return action (SDK config + keyId)"| UI
+    PS -->|"Return action (SDK config + keyId)"| UI
 
     UI -->|"2. Open modal"| SDK
     SDK -->|"User completes payment"| RZP_API
 
     %% Dual path fulfillment
-    SDK -->>|"3a. Callback with signature"| UI
+    SDK -->|"3a. Callback with signature"| UI
     UI -->|"POST /payments/orders/:id/verify"| PC
     PC -->|"Server-side HMAC check & fulfil"| PS
 
