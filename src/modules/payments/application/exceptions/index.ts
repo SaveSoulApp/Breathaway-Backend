@@ -1,3 +1,6 @@
+export * from './cannot-delete-only-gateway.exception';
+export * from './cannot-disable-only-gateway.exception';
+export * from './duplicate-priority.exception';
 export * from './gateway-not-available.exception';
 export * from './gateway-order-creation.exception';
 export * from './invalid-amount-range.exception';

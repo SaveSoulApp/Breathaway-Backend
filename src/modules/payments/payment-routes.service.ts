@@ -6,6 +6,9 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import {
+  CannotDeleteOnlyGatewayException,
+  CannotDisableOnlyGatewayException,
+  DuplicatePriorityException,
   InvalidAmountRangeException,
   InvalidPriorityStepException,
   InvalidReorderPayloadException,
@@ -72,6 +75,11 @@ export class PaymentRoutesService extends BaseService {
       where: { countryCode },
     });
 
+    // Rule: Cannot create the first/only gateway for a country as disabled
+    if (existingCount === 0 && dto.enabled === false) {
+      throw new CannotDisableOnlyGatewayException(countryCode);
+    }
+
     const targetPriority = dto.priority ?? existingCount + 1;
 
     if (targetPriority < 1 || targetPriority > existingCount + 1) {
@@ -97,7 +105,7 @@ export class PaymentRoutesService extends BaseService {
         });
       }
 
-      return tx.paymentGatewayRoute.create({
+      const newRoute = await tx.paymentGatewayRoute.create({
         data: {
           countryCode,
           gateway,
@@ -107,6 +115,11 @@ export class PaymentRoutesService extends BaseService {
           maxAmount: dto.maxAmount ?? null,
         },
       });
+
+      // Strict priority verification: ensure no duplicate priorities exist for this country
+      await this.verifyUniquePriorities(tx, countryCode);
+
+      return newRoute;
     });
 
     this.logger.event(LOG_EVENT.PAYMENT_ROUTE_CREATED, {
@@ -194,6 +207,16 @@ export class PaymentRoutesService extends BaseService {
 
     const countryCode = route.countryCode;
 
+    // Rule: Cannot disable the only gateway for the country
+    if (dto.enabled === false && route.enabled === true) {
+      const enabledCount = await this.prisma.paymentGatewayRoute.count({
+        where: { countryCode, enabled: true },
+      });
+      if (enabledCount <= 1) {
+        throw new CannotDisableOnlyGatewayException(countryCode);
+      }
+    }
+
     // Handle priority step shift if priority is changing
     if (dto.priority !== undefined && dto.priority !== route.priority) {
       const existingCount = await this.prisma.paymentGatewayRoute.count({
@@ -239,7 +262,7 @@ export class PaymentRoutesService extends BaseService {
           });
         }
 
-        return tx.paymentGatewayRoute.update({
+        const res = await tx.paymentGatewayRoute.update({
           where: { id: route.id },
           data: {
             priority: targetPriority,
@@ -252,6 +275,11 @@ export class PaymentRoutesService extends BaseService {
               : {}),
           },
         });
+
+        // Strict priority verification: ensure no duplicate priorities exist
+        await this.verifyUniquePriorities(tx, countryCode);
+
+        return res;
       });
 
       this.logger.event(LOG_EVENT.PAYMENT_ROUTE_UPDATED, {
@@ -301,6 +329,16 @@ export class PaymentRoutesService extends BaseService {
 
     if (!route) {
       throw new RouteNotFoundException(id);
+    }
+
+    // Rule: Cannot disable the only gateway for the country
+    if (route.enabled === true) {
+      const enabledCount = await this.prisma.paymentGatewayRoute.count({
+        where: { countryCode: route.countryCode, enabled: true },
+      });
+      if (enabledCount <= 1) {
+        throw new CannotDisableOnlyGatewayException(route.countryCode);
+      }
     }
 
     const updated = await this.prisma.paymentGatewayRoute.update({
@@ -373,6 +411,7 @@ export class PaymentRoutesService extends BaseService {
    *
    * @param id - Route ULID.
    * @throws {RouteNotFoundException} If the route does not exist.
+   * @throws {CannotDeleteOnlyGatewayException} If attempting to delete the only gateway for the country.
    */
   async deleteRoute(id: string): Promise<void> {
     const route = await this.prisma.paymentGatewayRoute.findUnique({
@@ -381,6 +420,15 @@ export class PaymentRoutesService extends BaseService {
 
     if (!route) {
       throw new RouteNotFoundException(id);
+    }
+
+    // Rule: Cannot delete the only gateway for the country
+    const totalCount = await this.prisma.paymentGatewayRoute.count({
+      where: { countryCode: route.countryCode },
+    });
+
+    if (totalCount <= 1) {
+      throw new CannotDeleteOnlyGatewayException(route.countryCode);
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -395,6 +443,9 @@ export class PaymentRoutesService extends BaseService {
           priority: { decrement: 1 },
         },
       });
+
+      // Strict priority verification: ensure no duplicate priorities exist
+      await this.verifyUniquePriorities(tx, route.countryCode);
     });
 
     this.logger.event(LOG_EVENT.PAYMENT_ROUTE_DELETED, {
@@ -405,6 +456,13 @@ export class PaymentRoutesService extends BaseService {
     });
   }
 
+  /**
+   * Enforces that minAmount is strictly less than maxAmount when both are defined.
+   *
+   * @param minAmount - Lower amount boundary.
+   * @param maxAmount - Upper amount boundary.
+   * @throws {InvalidAmountRangeException} If minAmount >= maxAmount.
+   */
   private validateAmountRange(
     minAmount?: number | null,
     maxAmount?: number | null,
@@ -414,9 +472,35 @@ export class PaymentRoutesService extends BaseService {
       minAmount !== null &&
       maxAmount !== undefined &&
       maxAmount !== null &&
-      minAmount > maxAmount
+      minAmount >= maxAmount
     ) {
       throw new InvalidAmountRangeException(minAmount, maxAmount);
+    }
+  }
+
+  /**
+   * Verifies that all routes for a country have strictly unique priority steps.
+   *
+   * @param tx - Active database transaction client.
+   * @param countryCode - Target country code.
+   * @throws {DuplicatePriorityException} If duplicate priority steps exist for the country.
+   */
+  private async verifyUniquePriorities(
+    tx: Prisma.TransactionClient,
+    countryCode: string,
+  ): Promise<void> {
+    const routes = await tx.paymentGatewayRoute.findMany({
+      where: { countryCode },
+      select: { priority: true },
+      orderBy: { priority: 'asc' },
+    });
+
+    const seen = new Set<number>();
+    for (const r of routes ?? []) {
+      if (seen.has(r.priority)) {
+        throw new DuplicatePriorityException(countryCode, r.priority);
+      }
+      seen.add(r.priority);
     }
   }
 }

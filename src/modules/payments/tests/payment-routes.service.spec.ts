@@ -11,6 +11,9 @@ import {
 import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import {
+  CannotDeleteOnlyGatewayException,
+  CannotDisableOnlyGatewayException,
+  DuplicatePriorityException,
   InvalidAmountRangeException,
   InvalidPriorityStepException,
   InvalidReorderPayloadException,
@@ -74,6 +77,9 @@ describe('PaymentRoutesService', () => {
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(null);
       prisma.paymentGatewayRoute.count.mockResolvedValue(0);
       prisma.paymentGatewayRoute.create.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+      ] as any);
 
       // Act
       const result = await service.createRoute({
@@ -95,6 +101,21 @@ describe('PaymentRoutesService', () => {
       });
     });
 
+    it('should throw CannotDisableOnlyGatewayException when creating first route for a country as disabled', async () => {
+      // Arrange: 0 existing routes, creating as disabled
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(null);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(0);
+
+      // Act & Assert
+      await expect(
+        service.createRoute({
+          countryCode: 'IN',
+          gateway: PaymentGateway.RAZORPAY,
+          enabled: false,
+        }),
+      ).rejects.toThrow(CannotDisableOnlyGatewayException);
+    });
+
     it('should shift existing routes when inserting at an existing priority step', async () => {
       // Arrange: 2 routes already exist; inserting at Step 1
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(null);
@@ -104,6 +125,11 @@ describe('PaymentRoutesService', () => {
         ...mockRoute,
         priority: 1,
       });
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 2 },
+        { priority: 3 },
+      ] as any);
 
       // Act
       const result = await service.createRoute({
@@ -153,7 +179,8 @@ describe('PaymentRoutesService', () => {
       ).rejects.toThrow(InvalidPriorityStepException);
     });
 
-    it('should throw InvalidAmountRangeException if minAmount > maxAmount', async () => {
+    it('should throw InvalidAmountRangeException if minAmount >= maxAmount (min has to be strictly less than max)', async () => {
+      // min > max
       await expect(
         service.createRoute({
           countryCode: 'IN',
@@ -162,6 +189,33 @@ describe('PaymentRoutesService', () => {
           maxAmount: 1000,
         }),
       ).rejects.toThrow(InvalidAmountRangeException);
+
+      // min === max
+      await expect(
+        service.createRoute({
+          countryCode: 'IN',
+          gateway: PaymentGateway.RAZORPAY,
+          minAmount: 1000,
+          maxAmount: 1000,
+        }),
+      ).rejects.toThrow(InvalidAmountRangeException);
+    });
+
+    it('should throw DuplicatePriorityException if duplicate priority step is detected', async () => {
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(null);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(1);
+      prisma.paymentGatewayRoute.create.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 1 },
+      ] as any);
+
+      await expect(
+        service.createRoute({
+          countryCode: 'IN',
+          gateway: PaymentGateway.CASHFREE,
+        }),
+      ).rejects.toThrow(DuplicatePriorityException);
     });
   });
 
@@ -221,8 +275,9 @@ describe('PaymentRoutesService', () => {
 
   describe('updateRoute', () => {
     it('should update enabled and amount limits when priority is unchanged', async () => {
-      // Arrange
+      // Arrange: 2 enabled routes exist
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(2);
       const updatedMock = { ...mockRoute, enabled: false, minAmount: 500 };
       prisma.paymentGatewayRoute.update.mockResolvedValue(updatedMock);
 
@@ -238,6 +293,37 @@ describe('PaymentRoutesService', () => {
         where: { id: mockRoute.id },
         data: { enabled: false, minAmount: 500 },
       });
+    });
+
+    it('should throw CannotDisableOnlyGatewayException when attempting to disable the only enabled gateway for a country', async () => {
+      // Arrange: only 1 enabled route exists
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(1);
+
+      // Act & Assert
+      await expect(
+        service.updateRoute(mockRoute.id, {
+          enabled: false,
+        }),
+      ).rejects.toThrow(CannotDisableOnlyGatewayException);
+    });
+
+    it('should allow updating fields without throwing CannotDisableOnlyGatewayException when route is already disabled', async () => {
+      // Arrange: route is already disabled
+      const disabledRoute = { ...mockRoute, enabled: false };
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(disabledRoute);
+      prisma.paymentGatewayRoute.update.mockResolvedValue({
+        ...disabledRoute,
+        minAmount: 500,
+      });
+
+      // Act
+      const result = await service.updateRoute(disabledRoute.id, {
+        minAmount: 500,
+      });
+
+      // Assert
+      expect(result.minAmount).toBe(500);
     });
 
     it('should throw InvalidPriorityStepException if updated priority is out of bounds (e.g. 1000)', async () => {
@@ -261,6 +347,11 @@ describe('PaymentRoutesService', () => {
         ...routeAtStep3,
         priority: 1,
       });
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 2 },
+        { priority: 3 },
+      ] as any);
 
       // Act
       const result = await service.updateRoute(routeAtStep3.id, {
@@ -289,6 +380,11 @@ describe('PaymentRoutesService', () => {
         ...routeAtStep1,
         priority: 3,
       });
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 2 },
+        { priority: 3 },
+      ] as any);
 
       // Act
       const result = await service.updateRoute(routeAtStep1.id, {
@@ -307,22 +403,47 @@ describe('PaymentRoutesService', () => {
       expect(result.priority).toBe(3);
     });
 
+    it('should throw DuplicatePriorityException during priority update if duplicate priority step is detected', async () => {
+      const routeAtStep3 = { ...mockRoute, priority: 3 };
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(routeAtStep3);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(3);
+      prisma.paymentGatewayRoute.updateMany.mockResolvedValue({ count: 2 });
+      prisma.paymentGatewayRoute.update.mockResolvedValue({
+        ...routeAtStep3,
+        priority: 1,
+      });
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 1 },
+      ] as any);
+
+      await expect(
+        service.updateRoute(routeAtStep3.id, { priority: 1 }),
+      ).rejects.toThrow(DuplicatePriorityException);
+    });
+
     it('should throw InvalidAmountRangeException if new minAmount exceeds existing maxAmount', async () => {
       // Arrange
       const routeWithMax = { ...mockRoute, maxAmount: 2000 };
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(routeWithMax);
 
-      // Act & Assert
+      // Act & Assert (min > max)
       await expect(
         service.updateRoute(mockRoute.id, { minAmount: 3000 }),
+      ).rejects.toThrow(InvalidAmountRangeException);
+
+      // Act & Assert (min === max)
+      await expect(
+        service.updateRoute(mockRoute.id, { minAmount: 2000 }),
       ).rejects.toThrow(InvalidAmountRangeException);
     });
   });
 
   describe('toggleRoute', () => {
-    it('should flip enabled from true to false', async () => {
-      // Arrange
+    it('should flip enabled from true to false when multiple enabled routes exist', async () => {
+      // Arrange: 2 enabled routes exist
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(2);
       prisma.paymentGatewayRoute.update.mockResolvedValue({
         ...mockRoute,
         enabled: false,
@@ -336,6 +457,37 @@ describe('PaymentRoutesService', () => {
       expect(prisma.paymentGatewayRoute.update).toHaveBeenCalledWith({
         where: { id: mockRoute.id },
         data: { enabled: false },
+      });
+    });
+
+    it('should throw CannotDisableOnlyGatewayException when toggling off the only enabled route for a country', async () => {
+      // Arrange: only 1 enabled route exists
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(1);
+
+      // Act & Assert
+      await expect(service.toggleRoute(mockRoute.id)).rejects.toThrow(
+        CannotDisableOnlyGatewayException,
+      );
+    });
+
+    it('should allow toggling a disabled route back to enabled', async () => {
+      // Arrange: route is currently disabled
+      const disabledRoute = { ...mockRoute, enabled: false };
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(disabledRoute);
+      prisma.paymentGatewayRoute.update.mockResolvedValue({
+        ...disabledRoute,
+        enabled: true,
+      });
+
+      // Act
+      const result = await service.toggleRoute(disabledRoute.id);
+
+      // Assert
+      expect(result.enabled).toBe(true);
+      expect(prisma.paymentGatewayRoute.update).toHaveBeenCalledWith({
+        where: { id: disabledRoute.id },
+        data: { enabled: true },
       });
     });
 
@@ -394,8 +546,13 @@ describe('PaymentRoutesService', () => {
       // Arrange: deleting Step 2 out of 3
       const routeStep2 = { ...mockRoute, id: 'r2', priority: 2 };
       prisma.paymentGatewayRoute.findUnique.mockResolvedValue(routeStep2);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(3);
       prisma.paymentGatewayRoute.delete.mockResolvedValue(routeStep2);
       prisma.paymentGatewayRoute.updateMany.mockResolvedValue({ count: 1 });
+      prisma.paymentGatewayRoute.findMany.mockResolvedValue([
+        { priority: 1 },
+        { priority: 2 },
+      ] as any);
 
       // Act
       await service.deleteRoute(routeStep2.id);
@@ -413,6 +570,17 @@ describe('PaymentRoutesService', () => {
           priority: { decrement: 1 },
         },
       });
+    });
+
+    it('should throw CannotDeleteOnlyGatewayException when attempting to delete the only gateway for a country', async () => {
+      // Arrange: only 1 route exists for the country
+      prisma.paymentGatewayRoute.findUnique.mockResolvedValue(mockRoute);
+      prisma.paymentGatewayRoute.count.mockResolvedValue(1);
+
+      // Act & Assert
+      await expect(service.deleteRoute(mockRoute.id)).rejects.toThrow(
+        CannotDeleteOnlyGatewayException,
+      );
     });
 
     it('should throw RouteNotFoundException when deleting non-existent route', async () => {

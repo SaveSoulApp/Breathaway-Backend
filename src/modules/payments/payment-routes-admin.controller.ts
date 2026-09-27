@@ -82,7 +82,8 @@ export class PaymentRoutesAdminController extends BaseController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid priority step or invalid amount range.',
+    description:
+      'Invalid priority step, invalid amount range, or cannot create only gateway disabled.',
   })
   async createRoute(
     @Body() dto: CreatePaymentRouteRequestDto,
@@ -195,7 +196,8 @@ export class PaymentRoutesAdminController extends BaseController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid priority step or invalid amount range.',
+    description:
+      'Invalid priority step, invalid amount range, or cannot disable the only active gateway for the country.',
   })
   async updateRoute(
     @Param('id') id: string,
@@ -226,6 +228,11 @@ export class PaymentRoutesAdminController extends BaseController {
     type: PaymentRouteResponseDto,
   })
   @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Cannot disable the only active payment gateway for the country.',
+  })
+  @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Payment gateway route not found.',
   })
@@ -241,7 +248,8 @@ export class PaymentRoutesAdminController extends BaseController {
   @ApiOperation({
     summary: 'Delete payment gateway route',
     description:
-      'Deletes a payment gateway route and automatically compacts remaining priority steps.',
+      'Deletes a payment gateway route and automatically compacts remaining priority steps. ' +
+      'Cannot delete the only gateway configured for the country.',
   })
   @ApiParam({
     name: 'id',
@@ -251,6 +259,11 @@ export class PaymentRoutesAdminController extends BaseController {
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'Payment gateway route deleted successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Cannot delete the only payment gateway configured for the country.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

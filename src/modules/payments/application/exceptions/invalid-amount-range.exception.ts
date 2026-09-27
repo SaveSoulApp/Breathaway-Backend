@@ -6,7 +6,7 @@ import { DomainException } from '@shared/domain/exceptions/domain.exception';
 export class InvalidAmountRangeException extends DomainException {
   constructor(minAmount: number, maxAmount: number) {
     super(
-      `Invalid payment amount range: minAmount (${minAmount}) cannot exceed maxAmount (${maxAmount}).`,
+      `Invalid payment amount range: minAmount (${minAmount}) must be strictly less than maxAmount (${maxAmount}).`,
     );
   }
 }

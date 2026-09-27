@@ -25,16 +25,19 @@ The `PaymentsModule` orchestrates provider-agnostic payment processing for the w
 src/modules/payments/
 ├── application/
 │   └── exceptions/
-│       ├── gateway-not-available.exception.ts     # 503: No active route for country
-│       ├── gateway-order-creation.exception.ts    # 502: Upstream provider rejected order
-│       ├── invalid-amount-range.exception.ts      # 400: minAmount > maxAmount
-│       ├── invalid-priority-step.exception.ts     # 400: Priority step out of bounds (no 900/1000)
-│       ├── invalid-reorder-payload.exception.ts   # 400: Route IDs mismatch for country
-│       ├── order-already-paid.exception.ts        # 409: Duplicate fulfillment attempt
-│       ├── order-not-found.exception.ts           # 404: Order not found or user mismatch
-│       ├── route-already-exists.exception.ts      # 409: Route exists for [country, gateway]
-│       ├── route-not-found.exception.ts           # 404: Route ID not found
-│       └── index.ts                               # Barrel export
+│       ├── cannot-delete-only-gateway.exception.ts # 400: Cannot delete the only route for country
+│       ├── cannot-disable-only-gateway.exception.ts # 400: Cannot disable the only active route for country
+│       ├── duplicate-priority.exception.ts         # 409: Duplicate priority step in country
+│       ├── gateway-not-available.exception.ts      # 503: No active route for country
+│       ├── gateway-order-creation.exception.ts     # 502: Upstream provider rejected order
+│       ├── invalid-amount-range.exception.ts       # 400: minAmount >= maxAmount
+│       ├── invalid-priority-step.exception.ts      # 400: Priority step out of bounds (no 900/1000)
+│       ├── invalid-reorder-payload.exception.ts    # 400: Route IDs mismatch for country
+│       ├── order-already-paid.exception.ts         # 409: Duplicate fulfillment attempt
+│       ├── order-not-found.exception.ts            # 404: Order not found or user mismatch
+│       ├── route-already-exists.exception.ts       # 409: Route exists for [country, gateway]
+│       ├── route-not-found.exception.ts            # 404: Route ID not found
+│       └── index.ts                                # Barrel export
 ├── dto/
 │   ├── request/
 │   │   ├── create-order.request.dto.ts            # Body: { planId }
@@ -307,6 +310,31 @@ Single-click or automated toggle of gateway availability.
 #### F. Delete Route (`DELETE /api/v1/admin/payments/routes/:id`)
 
 Removes a route and automatically compacts remaining priority steps for that country.
+
+---
+
+### 🛡️ Strict Route Invariants & Business Rules
+
+The Payment Gateway Route engine enforces 4 strict business rules across all administrative operations (`create`, `update`, `toggle`, `delete`, and `reorder`):
+
+1. **Cannot Delete the Only Gateway for a Country** (`CannotDeleteOnlyGatewayException` → `400 Bad Request`):
+   - Every supported country must retain at least one configured gateway route.
+   - Deletion is blocked whenever `totalCount <= 1` for that country.
+
+2. **Cannot Disable the Only Active Gateway for a Country** (`CannotDisableOnlyGatewayException` → `400 Bad Request`):
+   - A country must never be left in an un-payable state with 0 enabled routes.
+   - Creating the initial gateway for a country with `enabled: false` is blocked.
+   - Disabling the last active gateway via `PATCH /:id` (`enabled: false`) or `PATCH /:id/toggle` is blocked whenever `enabledCount <= 1`.
+   - Toggling an already disabled gateway back to `enabled: true` is always permitted.
+
+3. **Strict Amount Range Constraint (`minAmount < maxAmount`)** (`InvalidAmountRangeException` → `400 Bad Request`):
+   - When both boundaries are present, `minAmount` must be strictly less than `maxAmount`.
+   - Any payload where `minAmount >= maxAmount` is rejected.
+
+4. **Strict Priority Separation & Uniqueness** (`DuplicatePriorityException` → `409 Conflict`):
+   - No two gateways for the same country can share a priority step.
+   - Priority steps are strictly contiguous `1, 2, ... N`.
+   - Atomic shifting runs within Prisma database transactions and verifies post-shift uniqueness to eliminate any race condition or duplicate assignment.
 
 ---
 

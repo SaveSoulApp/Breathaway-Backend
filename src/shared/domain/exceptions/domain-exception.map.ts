@@ -64,4 +64,7 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   InvalidPriorityStepException: HttpStatus.BAD_REQUEST,
   InvalidAmountRangeException: HttpStatus.BAD_REQUEST,
   InvalidReorderPayloadException: HttpStatus.BAD_REQUEST,
+  CannotDeleteOnlyGatewayException: HttpStatus.BAD_REQUEST,
+  CannotDisableOnlyGatewayException: HttpStatus.BAD_REQUEST,
+  DuplicatePriorityException: HttpStatus.CONFLICT,
 };

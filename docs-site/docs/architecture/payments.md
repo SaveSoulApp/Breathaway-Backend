@@ -353,6 +353,27 @@ The administrative API is designed for dual consumption:
   - **Circuit Breaker**: The monitor calls `PATCH /api/v1/admin/payments/routes/:id/toggle` to disable the route (`enabled = false`), instantly shifting live traffic to the Step 2 gateway.
   - **Dynamic Traffic Reordering**: When recovery is detected, the monitor computes new ranks and calls `PUT /api/v1/admin/payments/routes/reorder`, passing an array of route IDs in preferred order.
 
+### Safety Invariants & Boundary Guards
+
+To prevent accidental misconfigurations that could make checkout inaccessible for entire countries or introduce nondeterministic routing collisions, four core business invariants are enforced:
+
+1. **Country Route Minimum (`totalCount >= 1`)**:
+   - Deletion of the final gateway for a country is forbidden (`CannotDeleteOnlyGatewayException`).
+   - Every supported country must retain at least one configured routing entry.
+
+2. **Active Gateway Guarantee (`enabledCount >= 1`)**:
+   - Disabling the last active gateway via `updateRoute`, `toggleRoute`, or creating an initial gateway as disabled is strictly blocked (`CannotDisableOnlyGatewayException`).
+   - Ensures users in that country never experience an empty gateway pool.
+
+3. **Strict Amount Boundaries (`minAmount < maxAmount`)**:
+   - Setting `minAmount >= maxAmount` is rejected with `InvalidAmountRangeException` (`400 Bad Request`).
+   - Prevents impossible filter ranges where no transaction could ever qualify.
+
+4. **Strict Priority Uniqueness & Zero Duplication**:
+   - No two gateways for the same country may share a priority step.
+   - All shifts are performed in database transactions with automated post-shift uniqueness verification (`verifyUniquePriorities`).
+   - Any collision triggers immediate transaction rollback and throws `DuplicatePriorityException` (`409 Conflict`).
+
 ---
 
 ## 🛡 Security Architecture & Threat Model
