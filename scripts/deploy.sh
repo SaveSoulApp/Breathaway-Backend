@@ -123,6 +123,9 @@ deploy_service() {
         "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
         "IPINFO_TOKEN=ipinfo-token:latest"
         "BREVO_API_KEY=brevo-api-key:latest"
+        "RAZORPAY_KEY_ID=razorpay-key-id:latest"
+        "RAZORPAY_KEY_SECRET=razorpay-key-secret:latest"
+        "RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest"
     )
 
     local gcloud_run_args=(
