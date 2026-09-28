@@ -19,6 +19,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { CreditsService } from '@modules/credits/credits.service';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import { TransactionsService } from '@modules/transactions/transactions.service';
 
 import {
@@ -44,6 +45,9 @@ describe('PaymentsService', () => {
   let creditsServiceMock: jest.Mocked<CreditsService>;
   let transactionsServiceMock: jest.Mocked<TransactionsService>;
   let ipGeolocationServiceMock: jest.Mocked<IpGeolocationService>;
+  let identitiesServiceMock: jest.Mocked<
+    Pick<IdentitiesService, 'getUserPhoneNumber'>
+  >;
   let razorpayGatewayMock: jest.Mocked<RazorpayGateway>;
   let eventEmitterMock: { emit: jest.Mock };
 
@@ -65,6 +69,10 @@ describe('PaymentsService', () => {
     ipGeolocationServiceMock = {
       getCountryCodeByIp: jest.fn().mockResolvedValue('IN'),
     } as unknown as jest.Mocked<IpGeolocationService>;
+
+    identitiesServiceMock = {
+      getUserPhoneNumber: jest.fn().mockResolvedValue('+919876543210'),
+    };
 
     razorpayGatewayMock = {
       provider: PaymentGateway.RAZORPAY,
@@ -121,6 +129,7 @@ describe('PaymentsService', () => {
           provide: IpGeolocationService,
           useValue: ipGeolocationServiceMock,
         },
+        { provide: IdentitiesService, useValue: identitiesServiceMock },
         { provide: RazorpayGateway, useValue: razorpayGatewayMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -181,6 +190,7 @@ describe('PaymentsService', () => {
           amount: 49900,
           currency: 'INR',
           userName: 'John',
+          userContact: '+919876543210',
         }),
       );
       expect(prisma.paymentOrder.create).toHaveBeenCalledWith({
@@ -196,6 +206,83 @@ describe('PaymentsService', () => {
         }),
         select: { id: true },
       });
+    });
+
+    it('should override user contact when explicit contact is provided in DTO', async () => {
+      // Arrange
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        countryCode: 'IN',
+      });
+      (prisma.subscriptionPlan.findFirst as jest.Mock).mockResolvedValue({
+        id: planId,
+        creditsGranted: 10,
+        validityDays: 30,
+      });
+      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
+        price: new Prisma.Decimal(499),
+        currencyCode: 'INR',
+      });
+      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
+        gateway: PaymentGateway.RAZORPAY,
+        priority: 1,
+      });
+      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
+        firstName: 'John',
+      });
+      (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
+        id: orderId,
+      });
+
+      // Act
+      await service.createOrder(userId, {
+        planId,
+        contact: '+919999988888',
+      });
+
+      // Assert
+      expect(razorpayGatewayMock.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userContact: '+919999988888',
+        }),
+      );
+    });
+
+    it('should fall back to undefined userContact when user has no verified phone and no override', async () => {
+      // Arrange
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        countryCode: 'IN',
+      });
+      (prisma.subscriptionPlan.findFirst as jest.Mock).mockResolvedValue({
+        id: planId,
+        creditsGranted: 10,
+        validityDays: 30,
+      });
+      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
+        price: new Prisma.Decimal(499),
+        currencyCode: 'INR',
+      });
+      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
+        gateway: PaymentGateway.RAZORPAY,
+        priority: 1,
+      });
+      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
+        firstName: 'John',
+      });
+      (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
+        id: orderId,
+      });
+      identitiesServiceMock.getUserPhoneNumber.mockResolvedValue(null);
+
+      // Act
+      await service.createOrder(userId, { planId });
+
+      // Assert
+      expect(razorpayGatewayMock.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userContact: undefined,
+          userName: 'John',
+        }),
+      );
     });
 
     it('should use IP geolocation when user countryCode is absent', async () => {

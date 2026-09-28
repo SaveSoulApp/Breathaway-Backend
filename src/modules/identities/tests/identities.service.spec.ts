@@ -1066,4 +1066,93 @@ describe('IdentitiesService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('getUserPhoneNumber', () => {
+    it('should return null when user has no verified PHONE identity', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      // Act
+      const result = await service.getUserPhoneNumber(mockUserId);
+
+      // Assert
+      expect(result).toBeNull();
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: mockUserId,
+          type: IdentityType.PHONE,
+          isVerified: true,
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          publicValueCiphertext: true,
+          publicValueIv: true,
+          publicValueTag: true,
+          publicValueWrappedKey: true,
+          publicValueKeyId: true,
+        },
+      });
+    });
+
+    it('should decrypt and return E.164 formatted phone number when verified PHONE identity exists', async () => {
+      // Arrange
+      const phoneIdentity = {
+        publicValueCiphertext: 'phone-cipher',
+        publicValueIv: 'phone-iv',
+        publicValueTag: 'phone-tag',
+        publicValueWrappedKey: 'phone-wrapped-key',
+        publicValueKeyId: 'phone-key-id',
+      };
+      prisma.identity.findFirst.mockResolvedValue(phoneIdentity as any);
+      encryption.decryptPublicValue.mockResolvedValue('919876543210');
+
+      // Act
+      const result = await service.getUserPhoneNumber(mockUserId);
+
+      // Assert
+      expect(result).toBe('+919876543210');
+      expect(encryption.decryptPublicValue).toHaveBeenCalledWith(phoneIdentity);
+    });
+
+    it('should return null when decrypted phone cannot be parsed as valid E.164', async () => {
+      // Arrange
+      const phoneIdentity = {
+        publicValueCiphertext: 'bad-cipher',
+        publicValueIv: 'bad-iv',
+        publicValueTag: 'bad-tag',
+        publicValueWrappedKey: 'bad-wrapped-key',
+        publicValueKeyId: 'bad-key-id',
+      };
+      prisma.identity.findFirst.mockResolvedValue(phoneIdentity as any);
+      encryption.decryptPublicValue.mockResolvedValue('invalid-phone-digits');
+
+      // Act
+      const result = await service.getUserPhoneNumber(mockUserId);
+
+      // Assert
+      expect(result).toBeNull();
+    });
+
+    it('should return null when decryption throws an error', async () => {
+      // Arrange
+      const phoneIdentity = {
+        publicValueCiphertext: 'bad-cipher',
+        publicValueIv: 'bad-iv',
+        publicValueTag: 'bad-tag',
+        publicValueWrappedKey: 'bad-wrapped-key',
+        publicValueKeyId: 'bad-key-id',
+      };
+      prisma.identity.findFirst.mockResolvedValue(phoneIdentity as any);
+      encryption.decryptPublicValue.mockRejectedValue(
+        new Error('Decryption failed'),
+      );
+
+      // Act
+      const result = await service.getUserPhoneNumber(mockUserId);
+
+      // Assert
+      expect(result).toBeNull();
+    });
+  });
 });

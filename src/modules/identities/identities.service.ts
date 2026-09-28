@@ -885,6 +885,63 @@ export class IdentitiesService extends BaseService {
     }
   }
 
+  /**
+   * Resolves and decrypts the authenticated user's verified phone number in E.164 format.
+   *
+   * Used for checkout prefill (e.g. Razorpay/Cashfree) so that the customer does
+   * not need to manually enter their phone number on the payment gateway screen.
+   *
+   * @param userId - UUID of the user.
+   * @returns The fully formatted E.164 phone string (e.g. `"+919876543210"`),
+   *   or `null` when the user has no verified PHONE identity or parsing fails.
+   */
+  async getUserPhoneNumber(userId: string): Promise<string | null> {
+    const phoneIdentity = await this.prisma.identity.findFirst({
+      where: {
+        userId,
+        type: IdentityType.PHONE,
+        isVerified: true,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        publicValueCiphertext: true,
+        publicValueIv: true,
+        publicValueTag: true,
+        publicValueWrappedKey: true,
+        publicValueKeyId: true,
+      },
+    });
+
+    if (!phoneIdentity) {
+      return null;
+    }
+
+    try {
+      const digits = await this.encryption.decryptPublicValue({
+        publicValueCiphertext: phoneIdentity.publicValueCiphertext,
+        publicValueIv: phoneIdentity.publicValueIv,
+        publicValueTag: phoneIdentity.publicValueTag,
+        publicValueWrappedKey: phoneIdentity.publicValueWrappedKey,
+        publicValueKeyId: phoneIdentity.publicValueKeyId,
+      });
+
+      if (!digits) {
+        return null;
+      }
+
+      const parsed = parsePhoneNumberWithError(`+${digits}`);
+      return parsed.format('E.164');
+    } catch (error) {
+      this.logger.warn('Failed to resolve or decrypt user phone number', {
+        userId,
+        step: 'get_user_phone_number',
+        error: serializeError(error),
+      });
+      return null;
+    }
+  }
+
   // ----- Private helpers -----
 
   /**

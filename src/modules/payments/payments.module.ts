@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { IpGeolocationModule } from '@infrastructure/ip-geolocation';
 import { CreditsModule } from '@modules/credits/credits.module';
+import { IdentitiesModule } from '@modules/identities/identities.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
 import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
@@ -21,6 +22,8 @@ import { PaymentsService } from './payments.service';
  *   as a `Transaction` row, providing the idempotency key.
  * - `IpGeolocationModule`: country code fallback for users without a phone-derived
  *   `countryCode` on their `User` row.
+ * - `IdentitiesModule`: `IdentitiesService` resolves and decrypts the user's verified
+ *   phone number for gateway checkout prefill.
  *
  * ## Exports
  * - `PaymentsService`: exported so `WebhooksModule` can call `fulfil()` from the
@@ -28,7 +31,12 @@ import { PaymentsService } from './payments.service';
  * - `PaymentRoutesService`: exported for administrative operations (`AdminModule`) and tests.
  */
 @Module({
-  imports: [CreditsModule, TransactionsModule, IpGeolocationModule],
+  imports: [
+    CreditsModule,
+    TransactionsModule,
+    IpGeolocationModule,
+    IdentitiesModule,
+  ],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,

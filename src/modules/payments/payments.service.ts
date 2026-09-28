@@ -19,6 +19,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
+import { IdentitiesService } from '@modules/identities/identities.service';
 import { TransactionsService } from '@modules/transactions/transactions.service';
 
 import {
@@ -72,6 +73,7 @@ export class PaymentsService extends BaseService {
     private readonly creditsService: CreditsService,
     private readonly transactionsService: TransactionsService,
     private readonly ipGeolocationService: IpGeolocationService,
+    private readonly identitiesService: IdentitiesService,
     private readonly razorpayGateway: RazorpayGateway,
   ) {
     super(logger);
@@ -133,7 +135,7 @@ export class PaymentsService extends BaseService {
     }
 
     // 4. Resolve user contact info for prefill (best-effort — never blocks the order).
-    const userContact = await this.resolveUserContact(userId);
+    const userContact = await this.resolveUserContact(userId, dto.contact);
 
     // 5. Create a placeholder PaymentOrder ULID to use as the gateway receipt.
     //    We insert it after the gateway responds, using the returned gatewayOrderId.
@@ -563,21 +565,29 @@ export class PaymentsService extends BaseService {
 
   private async resolveUserContact(
     userId: string,
+    overrideContact?: string,
   ): Promise<{ phone?: string; name?: string } | null> {
     try {
-      // Phone numbers are stored encrypted in this project — only firstName
-      // is available for Razorpay checkout prefill. Contact (phone) is left
-      // undefined; Razorpay will show an empty field for the user to fill.
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { userId },
-        select: { firstName: true },
-      });
+      const [profile, phone] = await Promise.all([
+        this.prisma.userProfile.findUnique({
+          where: { userId },
+          select: { firstName: true },
+        }),
+        overrideContact?.trim()
+          ? Promise.resolve(overrideContact.trim())
+          : this.identitiesService.getUserPhoneNumber(userId),
+      ]);
 
       return {
         name: profile?.firstName,
-        phone: undefined,
+        phone: phone ?? undefined,
       };
-    } catch {
+    } catch (error) {
+      this.logger.warn('Failed to resolve user contact for prefill', {
+        userId,
+        step: 'resolve_user_contact',
+        error: serializeError(error),
+      });
       return null;
     }
   }
