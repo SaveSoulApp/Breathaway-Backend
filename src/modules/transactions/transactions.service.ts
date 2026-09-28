@@ -180,6 +180,33 @@ export class TransactionsService extends BaseService {
   }
 
   /**
+   * Attaches or updates the raw gateway payload on an existing transaction.
+   *
+   * Used when a transaction was initially recorded via a client-side shortcut
+   * (e.g. signature verification) without the full webhook payload, and the authoritative
+   * webhook later delivers the full diagnostic payload.
+   *
+   * Strips PII before persisting using `sanitizePayload`.
+   *
+   * @param transactionId - Internal Transaction ULID.
+   * @param rawPayload    - Inbound gateway event payload.
+   * @param tx            - Optional Prisma transaction client.
+   */
+  async attachRawPayload(
+    transactionId: string,
+    rawPayload: Record<string, unknown>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.transaction.update({
+      where: { id: transactionId },
+      data: {
+        rawPayload: this.sanitizePayload(rawPayload) as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
    * Returns a paginated, filtered list of transactions across all users.
    *
    * Admin-facing: unlike the credits ledger, this is deliberately not scoped to a

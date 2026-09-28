@@ -262,6 +262,11 @@ export class PaymentsReconciliationService extends BaseService {
             currency: order.currency,
             countryCode: order.countryCode,
             occurredAt: DateUtil.now().toISOString(),
+            rawPayload: {
+              source: 'reconciliation',
+              gatewayOrderId: order.gatewayOrderId,
+              gatewayPaymentId,
+            },
           },
           tx,
         );

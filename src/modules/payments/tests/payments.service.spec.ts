@@ -448,6 +448,7 @@ describe('PaymentsService', () => {
           gatewayTransactionId: verifyDto.razorpay_payment_id,
           productId: planId,
           creditsGranted: 10,
+          rawPayload: verifyDto,
         }),
         prisma,
       );

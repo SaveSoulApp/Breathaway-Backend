@@ -314,6 +314,7 @@ export class PaymentsService extends BaseService {
       gatewayPaymentId: dto.razorpay_payment_id,
       gatewayOrderId: dto.razorpay_order_id,
       ctx,
+      rawPayload: dto as unknown as Record<string, unknown>,
     });
 
     return { status: PaymentOrderStatus.PAID, creditsGranted };
@@ -346,8 +347,9 @@ export class PaymentsService extends BaseService {
     gatewayPaymentId: string;
     gatewayOrderId: string;
     ctx: Record<string, unknown>;
+    rawPayload?: Record<string, unknown>;
   }): Promise<number> {
-    const { order, gatewayPaymentId, gatewayOrderId, ctx } = params;
+    const { order, gatewayPaymentId, gatewayOrderId, ctx, rawPayload } = params;
 
     const validityDays =
       order.plan.validityDays > 0
@@ -385,6 +387,7 @@ export class PaymentsService extends BaseService {
             currency: order.currency,
             countryCode: order.countryCode,
             occurredAt: DateUtil.now().toISOString(),
+            rawPayload,
           },
           tx,
         );

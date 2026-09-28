@@ -84,6 +84,17 @@ export class RazorpayPaymentHandler extends BaseHandler {
         ...ctx,
         transactionId: existing.id,
       });
+
+      // If initially recorded via client-side verify without the full webhook payload,
+      // attach the full sanitized webhook payload for diagnostics and audit.
+      const payloadObj = existing.rawPayload as Record<string, unknown> | null;
+      if (!payloadObj || !('event' in payloadObj)) {
+        await this.transactionsService.attachRawPayload(
+          existing.id,
+          dto as unknown as Record<string, unknown>,
+        );
+      }
+
       return;
     }
 
@@ -133,6 +144,7 @@ export class RazorpayPaymentHandler extends BaseHandler {
         gatewayPaymentId: payment.id,
         gatewayOrderId: payment.order_id,
         ctx,
+        rawPayload: dto as unknown as Record<string, unknown>,
       });
     } catch (error) {
       if (this.isDuplicate(error)) {

@@ -16,7 +16,7 @@ describe('RazorpayPaymentHandler', () => {
   let handler: RazorpayPaymentHandler;
   let prisma: MockPrismaService;
   let transactionsService: jest.Mocked<
-    Pick<TransactionsService, 'findByGatewayTransaction'>
+    Pick<TransactionsService, 'findByGatewayTransaction' | 'attachRawPayload'>
   >;
   let paymentsService: jest.Mocked<Pick<PaymentsService, 'fulfil'>>;
 
@@ -47,6 +47,7 @@ describe('RazorpayPaymentHandler', () => {
 
     transactionsService = {
       findByGatewayTransaction: jest.fn().mockResolvedValue(null),
+      attachRawPayload: jest.fn().mockResolvedValue(undefined),
     };
 
     paymentsService = {
@@ -135,10 +136,11 @@ describe('RazorpayPaymentHandler', () => {
       expect(paymentsService.fulfil).not.toHaveBeenCalled();
     });
 
-    it('should skip processing if payment was already recorded in transactions table', async () => {
+    it('should skip processing if payment was already recorded with full webhook payload', async () => {
       // Arrange
       transactionsService.findByGatewayTransaction.mockResolvedValue({
         id: 'tx_existing',
+        rawPayload: { event: 'payment.captured' },
       } as any);
 
       // Act
@@ -146,6 +148,27 @@ describe('RazorpayPaymentHandler', () => {
 
       // Assert
       expect(paymentsService.fulfil).not.toHaveBeenCalled();
+      expect(transactionsService.attachRawPayload).not.toHaveBeenCalled();
+    });
+
+    it('should attach rawPayload to existing transaction if recorded without full webhook payload', async () => {
+      // Arrange
+      transactionsService.findByGatewayTransaction.mockResolvedValue({
+        id: 'tx_existing',
+        rawPayload: null,
+      } as any);
+
+      const dto = mockWebhookDto('payment.captured');
+
+      // Act
+      await handler.handle(dto);
+
+      // Assert
+      expect(paymentsService.fulfil).not.toHaveBeenCalled();
+      expect(transactionsService.attachRawPayload).toHaveBeenCalledWith(
+        'tx_existing',
+        dto,
+      );
     });
 
     it('should do nothing if PaymentOrder is not found', async () => {
@@ -202,6 +225,9 @@ describe('RazorpayPaymentHandler', () => {
           }),
           gatewayPaymentId: 'pay_rzp_123',
           gatewayOrderId: 'order_rzp_456',
+          rawPayload: expect.objectContaining({
+            event: 'payment.captured',
+          }),
         }),
       );
     });
