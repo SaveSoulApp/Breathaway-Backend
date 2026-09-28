@@ -44,6 +44,10 @@ import { PaymentsService } from './payments.service';
     PaymentRoutesService,
     RazorpayGateway,
   ],
-  exports: [PaymentsService, PaymentRoutesService],
+  exports: [
+    PaymentsService,
+    PaymentRoutesService,
+    PaymentsReconciliationService,
+  ],
 })
 export class PaymentsModule {}

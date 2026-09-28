@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import {
   CreditSource,
@@ -36,7 +35,12 @@ const EXPIRE_AFTER_MINUTES = 30;
 
 /**
  * Reconciles stale PENDING payment orders by polling the gateway for their
- * actual status. Runs every 2 minutes via `@Cron`.
+ * actual status. Invoked via HTTP POST by GCP Cloud Scheduler every 2 minutes
+ * at `/api/v1/internal/jobs/reconcile-payments`.
+ *
+ * Using Cloud Scheduler (instead of `@Cron`) ensures exactly one invocation
+ * fires per tick across all Cloud Run instances, and the job does not silently
+ * drop when the service scales to zero.
  *
  * This is the **safety net** for payments where the Razorpay webhook was
  * never delivered (network failure, Cloud Run cold-start, dashboard test).
@@ -45,8 +49,8 @@ const EXPIRE_AFTER_MINUTES = 30;
  * ## Idempotency
  * Fulfillment uses the same atomic `$transaction` block as the webhook handler.
  * The `@@unique([gateway, gatewayTransactionId])` constraint on `Transaction`
- * ensures credits are never double-granted, even if the webhook and the cron
- * race on the same payment.
+ * ensures credits are never double-granted, even if the webhook and the
+ * reconciliation job race on the same payment.
  */
 @Injectable()
 export class PaymentsReconciliationService extends BaseService {
@@ -79,10 +83,18 @@ export class PaymentsReconciliationService extends BaseService {
    * - Failed / cancelled → mark FAILED.
    * - Still pending + older than 30 min → mark EXPIRED.
    *
-   * Runs every 2 minutes. Each invocation is independent — no shared state.
+   * Called by `MaintenanceController` via `POST /api/v1/internal/jobs/reconcile-payments`,
+   * which is itself triggered by GCP Cloud Scheduler every 2 minutes.
+   * Each invocation is independent — no shared state.
+   *
+   * @returns A summary of the reconciliation run.
    */
-  @Cron('*/2 * * * *')
-  async reconcileStaleOrders(): Promise<void> {
+  async reconcileStaleOrders(): Promise<{
+    total: number;
+    settled: number;
+    failed: number;
+    expired: number;
+  }> {
     const now = DateUtil.now();
     const staleThreshold = DateUtil.dayjs(now)
       .subtract(STALE_AFTER_MINUTES, 'minute')
@@ -101,7 +113,8 @@ export class PaymentsReconciliationService extends BaseService {
       take: 50, // process at most 50 per tick to bound execution time
     });
 
-    if (staleOrders.length === 0) return;
+    if (staleOrders.length === 0)
+      return { total: 0, settled: 0, failed: 0, expired: 0 };
 
     this.logger.debug('Reconciliation: processing stale orders', {
       count: staleOrders.length,
@@ -184,6 +197,8 @@ export class PaymentsReconciliationService extends BaseService {
       expired,
       step: 'reconcile_complete',
     });
+
+    return { total: staleOrders.length, settled, failed, expired };
   }
 
   // ──────────────────────────────────────────────────────────────────────────

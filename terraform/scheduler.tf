@@ -96,3 +96,38 @@ resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
     }
   }
 }
+
+# 6. Create the Reconcile Payments Job (Runs every 2 minutes)
+#
+# Replaces the in-process @Cron('*/2 * * * *') that previously ran on every
+# active Cloud Run instance simultaneously and dropped silently when scaled to
+# zero. A single Cloud Scheduler invocation fires once per tick, independent
+# of the number of running instances.
+resource "google_cloud_scheduler_job" "reconcile_payments_job" {
+  name        = "reconcile-payments-job"
+  description = "Polls stale PENDING payment orders against the gateway and settles their status"
+  schedule    = "*/30 * * * *"
+  time_zone   = "UTC"
+  region      = var.region
+  project     = var.project_id
+
+  # Retry config: allow up to 3 attempts with exponential back-off.
+  # The fulfillment path is idempotent (unique constraint on gatewayTransactionId),
+  # so retries are safe and preferable to silently dropping a reconciliation tick.
+  retry_config {
+    retry_count          = 3
+    min_backoff_duration = "5s"
+    max_backoff_duration = "60s"
+    max_doublings        = 2
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "${data.google_cloud_run_v2_service.backend_service.uri}/api/v1/internal/jobs/reconcile-payments"
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_invoker.email
+      audience              = data.google_cloud_run_v2_service.backend_service.uri
+    }
+  }
+}

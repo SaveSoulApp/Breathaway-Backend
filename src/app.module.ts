@@ -4,7 +4,6 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
@@ -107,7 +106,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     MiddlewareModule,
     PrismaModule,
     GcpSecretManagerModule,
-    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
 
     //Business Modules

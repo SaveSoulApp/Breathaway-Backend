@@ -108,10 +108,11 @@ describe('PaymentsReconciliationService', () => {
       (prisma.paymentOrder.findMany as jest.Mock).mockResolvedValue([]);
 
       // Act
-      await service.reconcileStaleOrders();
+      const result = await service.reconcileStaleOrders();
 
       // Assert
       expect(razorpayGatewayMock.fetchOrderStatus).not.toHaveBeenCalled();
+      expect(result).toEqual({ total: 0, settled: 0, failed: 0, expired: 0 });
     });
 
     it('should expire orders older than 30 minutes', async () => {
