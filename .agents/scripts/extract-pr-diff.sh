@@ -1,0 +1,1 @@
+../skills/ai-pr-review/scripts/extract-pr-diff.sh

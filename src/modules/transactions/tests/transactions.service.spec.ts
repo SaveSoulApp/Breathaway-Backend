@@ -398,4 +398,32 @@ describe('TransactionsService', () => {
       );
     });
   });
+
+  describe('attachRawPayload', () => {
+    it('sanitizes and updates rawPayload on existing transaction', async () => {
+      prisma.transaction.update.mockResolvedValue({} as never);
+
+      await service.attachRawPayload('txn-id-123', {
+        event: 'payment.captured',
+        contact: '+919876543210',
+        email: 'test@example.com',
+        nested: {
+          phone_number: '12345',
+          fee: 100,
+        },
+      });
+
+      expect(prisma.transaction.update).toHaveBeenCalledWith({
+        where: { id: 'txn-id-123' },
+        data: {
+          rawPayload: {
+            event: 'payment.captured',
+            nested: {
+              fee: 100,
+            },
+          },
+        },
+      });
+    });
+  });
 });

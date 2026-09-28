@@ -1,8 +1,3 @@
-import { ApiStandardErrors } from '@common/decorators';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { GcpOidcAuthGuard } from '@common/guards';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Controller,
   HttpCode,
@@ -16,6 +11,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { GcpOidcAuthGuard } from '@common/guards';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import { PaymentsReconciliationService } from '../payments/payments.reconciliation';
 import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
@@ -41,6 +44,7 @@ export class MaintenanceController extends BaseController {
   constructor(
     logger: LoggerService,
     private readonly maintenanceService: MaintenanceService,
+    private readonly paymentsReconciliationService: PaymentsReconciliationService,
   ) {
     super(logger);
   }
@@ -102,5 +106,26 @@ export class MaintenanceController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK })
   async warnExpiringBundles() {
     return this.maintenanceService.warnExpiringCreditBundles();
+  }
+
+  /**
+   * Triggers the payment reconciliation job, which polls all PENDING
+   * `PaymentOrder` rows older than 15 minutes against the payment gateway and
+   * settles their status (PAID / FAILED / EXPIRED).
+   *
+   * Intended to be called every 2 minutes by GCP Cloud Scheduler. Running as
+   * an HTTP-triggered job ensures exactly one execution per tick, regardless
+   * of how many Cloud Run instances are active.
+   *
+   * @returns A summary `{ total, settled, failed, expired }` of the run.
+   */
+  @Post('reconcile-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reconcile stale PENDING payment orders against the gateway',
+  })
+  @ApiResponse({ status: HttpStatus.OK })
+  async reconcilePayments() {
+    return this.paymentsReconciliationService.reconcileStaleOrders();
   }
 }

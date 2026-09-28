@@ -93,4 +93,45 @@ describe('setupSwagger', () => {
     const adapter = appMock.getHttpAdapter();
     expect(adapter.get).toHaveBeenCalledTimes(2);
   });
+
+  it('should sanitize public and admin docs to prevent route/tag leaks', () => {
+    configServiceMock.get.mockReturnValue('true');
+
+    const publicMockDoc = {
+      paths: {
+        '/api/v1/payments/orders': { post: {} },
+        '/api/v1/admin/payments/routes': { get: {} },
+      },
+      tags: [{ name: 'Payments' }, { name: 'Admin - Payments' }],
+    };
+
+    const adminMockDoc = {
+      paths: {
+        '/api/v1/payments/orders': { post: {} },
+        '/api/v1/admin/payments/routes': { get: {} },
+      },
+      tags: [{ name: 'Payments' }, { name: 'Admin - Payments' }],
+    };
+
+    (SwaggerModule.createDocument as jest.Mock)
+      .mockReturnValueOnce(publicMockDoc)
+      .mockReturnValueOnce(adminMockDoc);
+
+    setupSwagger(
+      appMock as unknown as INestApplication,
+      configServiceMock as unknown as ConfigService,
+    );
+
+    // Assert public doc is sanitized
+    expect(publicMockDoc.paths['/api/v1/payments/orders']).toBeDefined();
+    expect(
+      publicMockDoc.paths['/api/v1/admin/payments/routes'],
+    ).toBeUndefined();
+    expect(publicMockDoc.tags).toEqual([{ name: 'Payments' }]);
+
+    // Assert admin doc is sanitized
+    expect(adminMockDoc.paths['/api/v1/payments/orders']).toBeUndefined();
+    expect(adminMockDoc.paths['/api/v1/admin/payments/routes']).toBeDefined();
+    expect(adminMockDoc.tags).toEqual([{ name: 'Admin - Payments' }]);
+  });
 });

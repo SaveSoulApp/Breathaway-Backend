@@ -5,12 +5,14 @@ import { ClsService } from 'nestjs-cls';
 import { GcpOidcAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 
+import { PaymentsReconciliationService } from '../../payments/payments.reconciliation';
 import { MaintenanceController } from '../maintenance.controller';
 import { MaintenanceService } from '../maintenance.service';
 
 describe('MaintenanceController', () => {
   let controller: MaintenanceController;
   let service: jest.Mocked<MaintenanceService>;
+  let reconciliationService: jest.Mocked<PaymentsReconciliationService>;
 
   beforeEach(async () => {
     const mockMaintenanceService = {
@@ -18,6 +20,10 @@ describe('MaintenanceController', () => {
       voidPendingLikes: jest.fn(),
       expireSubscriptions: jest.fn(),
       warnExpiringCreditBundles: jest.fn(),
+    };
+
+    const mockReconciliationService = {
+      reconcileStaleOrders: jest.fn(),
     };
 
     const loggerServiceMock = {
@@ -36,6 +42,10 @@ describe('MaintenanceController', () => {
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MaintenanceService, useValue: mockMaintenanceService },
+        {
+          provide: PaymentsReconciliationService,
+          useValue: mockReconciliationService,
+        },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
@@ -45,6 +55,7 @@ describe('MaintenanceController', () => {
 
     controller = module.get<MaintenanceController>(MaintenanceController);
     service = module.get(MaintenanceService);
+    reconciliationService = module.get(PaymentsReconciliationService);
   });
 
   afterEach(() => {
@@ -107,6 +118,25 @@ describe('MaintenanceController', () => {
 
       // Assert
       expect(service.warnExpiringCreditBundles).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('reconcilePayments', () => {
+    it('should delegate to paymentsReconciliationService.reconcileStaleOrders', async () => {
+      // Arrange
+      const expectedResult = { total: 3, settled: 2, failed: 0, expired: 1 };
+      reconciliationService.reconcileStaleOrders.mockResolvedValue(
+        expectedResult,
+      );
+
+      // Act
+      const result = await controller.reconcilePayments();
+
+      // Assert
+      expect(
+        reconciliationService.reconcileStaleOrders,
+      ).toHaveBeenCalledTimes(1);
       expect(result).toEqual(expectedResult);
     });
   });

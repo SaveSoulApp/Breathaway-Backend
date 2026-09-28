@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'modules/credits',
         'modules/subscriptions',
+        'modules/payments',
         'modules/webhooks',
         'modules/admin',
       ],
@@ -73,6 +74,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'architecture',
+        'architecture/payments',
         'architecture/domain-events',
         'architecture/database',
         'architecture/supabase-realtime',
@@ -84,7 +86,12 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Reference',
       collapsed: true,
-      items: ['api/overview', 'api/authentication', 'api/conventions', 'api/web-push'],
+      items: [
+        'api/overview',
+        'api/authentication',
+        'api/conventions',
+        'api/web-push',
+      ],
     },
     {
       type: 'category',

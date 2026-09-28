@@ -4,7 +4,6 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ScheduleModule } from '@nestjs/schedule';
 import { seconds, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
@@ -42,6 +41,7 @@ import { MatchResolverModule } from './modules/match-resolver/match-resolver.mod
 import { MatchesModule } from './modules/matches/matches.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OneTimePasswordsModule } from './modules/one-time-passwords/one-time-passwords.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
@@ -106,7 +106,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     MiddlewareModule,
     PrismaModule,
     GcpSecretManagerModule,
-    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
 
     //Business Modules
@@ -136,6 +135,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     ReportsModule,
     SubscriptionsModule,
     TransactionsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

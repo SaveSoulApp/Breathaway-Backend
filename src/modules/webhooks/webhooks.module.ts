@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 
 import { CreditsModule } from '@modules/credits/credits.module';
+import { PaymentsModule } from '@modules/payments/payments.module';
 import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
-import { RevenueCatWebhookGuard } from './guards';
+import { RazorpayWebhookGuard, RevenueCatWebhookGuard } from './guards';
 import { GenericMessageHandler } from './handlers/generic-message.handler';
 import { OtpVerificationHandler } from './handlers/otp-verification.handler';
+import { RazorpayPaymentHandler } from './handlers/razorpay-payment.handler';
 import { RevenueCatPurchaseHandler } from './handlers/revenuecat-purchase.handler';
 import {
   WEBHOOK_MESSAGE_HANDLERS,
@@ -16,23 +18,31 @@ import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
 
 /**
- * Inbound webhook surface for every third party that calls us — Meta today,
- * payment gateways alongside it.
+ * Inbound webhook surface for every third party that calls us — Meta,
+ * RevenueCat (mobile), and Razorpay (web).
  *
  * Imports:
  *   - TransactionsModule: records the gateway-side money event.
  *   - CreditsModule: grants the credits a purchase buys.
  *   - SubscriptionsModule: maps a store product ID to its credit allocation.
+ *   - PaymentsModule: provides `PaymentsService.fulfil()` used by `RazorpayPaymentHandler`.
  */
 @Module({
-  imports: [TransactionsModule, CreditsModule, SubscriptionsModule],
+  imports: [
+    TransactionsModule,
+    CreditsModule,
+    SubscriptionsModule,
+    PaymentsModule,
+  ],
   controllers: [WebhooksController],
   providers: [
     WebhooksService,
     RevenueCatWebhookGuard,
+    RazorpayWebhookGuard,
     OtpVerificationHandler,
     GenericMessageHandler,
     RevenueCatPurchaseHandler,
+    RazorpayPaymentHandler,
     {
       provide: WEBHOOK_MESSAGE_HANDLERS,
       useFactory: (

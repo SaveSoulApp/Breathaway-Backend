@@ -10,3 +10,5 @@ export {
   RevenueCatWebhookRequestDto,
   RevenueCatEventDto,
 } from './request/revenuecat-webhook.request.dto';
+
+export { RazorpayWebhookRequestDto } from './request/razorpay-payment-webhook.request.dto';

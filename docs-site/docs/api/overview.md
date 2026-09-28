@@ -55,8 +55,12 @@ To view the Swagger documents locally:
    SWAGGER_ENABLED=true
    ```
 3. Open your browser and visit:
-   - Public UI: [http://localhost:3000/api/public](http://localhost:3000/api/public)
-   - Admin UI: [http://localhost:3000/api/admin](http://localhost:3000/api/admin)
+   - **Public APIs**:
+     - Swagger UI: [http://localhost:3000/api/public](http://localhost:3000/api/public)
+     - ReDoc UI: [http://localhost:3000/api/public/redoc](http://localhost:3000/api/public/redoc)
+   - **Admin APIs**:
+     - Swagger UI: [http://localhost:3000/api/admin](http://localhost:3000/api/admin)
+     - ReDoc UI: [http://localhost:3000/api/admin/redoc](http://localhost:3000/api/admin/redoc)
 
 > [!NOTE]
 > Swagger endpoints may be protected with basic authentication in staging/production environments to prevent leaking API specifications. Use the configured Swagger username and password retrieved from environment variables (or GCP Secret Manager) to authenticate.
