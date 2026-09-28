@@ -91,6 +91,23 @@ describe('RazorpayWebhookGuard', () => {
       expect(result).toBe(true);
     });
 
+    it('should return true when signature matches object body when rawBody is undefined', () => {
+      // Arrange
+      const payloadObj = { event: 'payment.captured' };
+      const signature = generateSignature(JSON.stringify(payloadObj));
+
+      const context = createMockContext(
+        { 'x-razorpay-signature': signature },
+        payloadObj,
+      );
+
+      // Act
+      const result = guard.canActivate(context);
+
+      // Assert
+      expect(result).toBe(true);
+    });
+
     it('should throw UnauthorizedException when X-Razorpay-Signature header is missing', () => {
       // Arrange
       const context = createMockContext({}, { event: 'payment.captured' });

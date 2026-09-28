@@ -59,15 +59,17 @@ export class RazorpayWebhookGuard implements CanActivate {
 
     // The raw body Buffer is attached to the request by the global rawBody middleware
     // (same mechanism used by RevenueCatWebhookGuard — already configured in main.ts).
-    const rawBody = (request as Request & { rawBody?: Buffer }).rawBody;
-    const payloadStr = rawBody
-      ? rawBody.toString('utf8')
-      : typeof request.body === 'string'
-        ? request.body
-        : JSON.stringify(request.body);
+    const rawBody =
+      (request as Request & { rawBody?: Buffer }).rawBody ??
+      Buffer.from(
+        typeof request.body === 'string'
+          ? request.body
+          : JSON.stringify(request.body ?? {}),
+        'utf8',
+      );
 
     const computedSig = createHmac('sha256', secret)
-      .update(payloadStr)
+      .update(rawBody)
       .digest('hex');
 
     const computedBuf = Buffer.from(computedSig, 'utf8');
