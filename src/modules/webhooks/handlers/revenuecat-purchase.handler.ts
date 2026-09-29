@@ -37,8 +37,6 @@ export class RevenueCatPurchaseHandler
   extends BaseHandler
   implements WebhookPurchaseHandler
 {
-  private readonly defaultExpiryDays: number;
-
   constructor(
     logger: LoggerService,
     // Queried directly rather than through a domain service: resolution is a
@@ -50,10 +48,6 @@ export class RevenueCatPurchaseHandler
     private readonly subscriptionPlansService: SubscriptionPlansService,
   ) {
     super(logger);
-    this.defaultExpiryDays = this.configService.get<number>(
-      'CREDIT_EXPIRY_DAYS',
-      90,
-    );
   }
 
   canHandle(event: ParsedPurchaseEvent): boolean {
@@ -123,10 +117,6 @@ export class RevenueCatPurchaseHandler
       return;
     }
 
-    const validityDays =
-      plan.validityDays > 0 ? plan.validityDays : this.defaultExpiryDays;
-    const expiresAt = DateUtil.addDays(DateUtil.now(), validityDays);
-
     try {
       await this.prisma.$transaction(async (tx) => {
         const transaction = await this.transactionsService.record(
@@ -160,7 +150,7 @@ export class RevenueCatPurchaseHandler
             amount: plan.creditsGranted,
             source: CreditSource.PURCHASE,
             referenceId: transaction.id,
-            expiresAt: expiresAt.toISOString(),
+            // PURCHASE credits are permanent (no expiryDays).
           },
           tx,
         );
@@ -170,7 +160,6 @@ export class RevenueCatPurchaseHandler
           transactionId: transaction.id,
           userId,
           creditsGranted: plan.creditsGranted,
-          expiresAt: expiresAt.toISOString(),
           step: 'complete',
         });
       });

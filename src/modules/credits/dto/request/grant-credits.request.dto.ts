@@ -1,19 +1,24 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CreditSource } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
-  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
   IsPositive,
   IsString,
+  Min,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
 
 /**
  * Payload for `POST /credits/internal/grant`; submitted by admin or internal services
  * to award credits to a user. `LIKE_USAGE` is rejected at the service layer — use a
  * valid source enum value.
+ *
+ * Credits granted via PURCHASE and SUBSCRIPTION sources are always permanent
+ * (expiresAt = null). Only BONUS, REFERRAL, and ADMIN grants may carry an
+ * optional expiry via `expiryDays`. If `expiryDays` is absent, the granted
+ * bundle is also permanent.
  */
 export class GrantCreditsRequestDto {
   @ApiProperty({ description: 'The ULID of the user receiving the credits' })
@@ -25,7 +30,10 @@ export class GrantCreditsRequestDto {
   @IsPositive()
   amount: number;
 
-  /** Case-insensitive; transformed to uppercase before validation. `LIKE_USAGE` is a system-only source and will be rejected by the service. */
+  /**
+   * Case-insensitive; transformed to uppercase before validation.
+   * `LIKE_USAGE` is a system-only source and will be rejected by the service.
+   */
   @ApiProperty({ enum: CreditSource, description: 'Source of the credits' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toUpperCase() : value,
@@ -34,20 +42,29 @@ export class GrantCreditsRequestDto {
   source: CreditSource;
 
   /** Links this grant to an external event (e.g., campaign ID, subscription ID) for traceability. */
-  @ApiProperty({
-    required: false,
+  @ApiPropertyOptional({
     description: 'Optional reference ID (e.g. campaign ID)',
   })
   @IsString()
   @IsOptional()
   referenceId?: string;
 
-  /** ISO 8601 date string; when provided, the granted credit bundle expires at this timestamp and any unused portion will be swept by the expiration job. */
-  @ApiProperty({
-    required: false,
-    description: 'Optional expiration date in ISO format',
+  /**
+   * Number of days from now until this credit bundle expires.
+   * Only applicable for BONUS, REFERRAL, and ADMIN sources — the server
+   * computes the exact `expiresAt` date. When absent (or zero), the bundle
+   * is permanent and never expires.
+   *
+   * @minimum 1
+   */
+  @ApiPropertyOptional({
+    description:
+      'Optional expiry window in days (BONUS/REFERRAL/ADMIN only). Omit for permanent credits.',
+    minimum: 1,
+    example: 30,
   })
-  @IsDateString()
   @IsOptional()
-  expiresAt?: string;
+  @IsInt()
+  @Min(1)
+  expiryDays?: number | null;
 }

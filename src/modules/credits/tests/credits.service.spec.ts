@@ -564,7 +564,6 @@ describe('CreditsService', () => {
       userId,
       amount: 10,
       source: CreditSource.PURCHASE,
-      expiresAt: '2025-01-01',
     };
 
     it('should throw InvalidCreditSourceException if source is LIKE_USAGE', async () => {
@@ -589,7 +588,8 @@ describe('CreditsService', () => {
           amount: 10,
           source: CreditSource.PURCHASE,
           referenceId: undefined,
-          expiresAt: expect.any(Date),
+          // PURCHASE credits are permanent — no expiry date.
+          expiresAt: null,
         },
       });
       expect(result).toEqual({
