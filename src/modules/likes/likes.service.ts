@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { IdentityType, LikeStatus, MatchStatus, Prisma } from '@prisma/client';
 
 import { SortOrder } from '@common/enums';
@@ -37,31 +36,36 @@ import {
   LikeSentEvent,
   LikeWithdrawnEvent,
 } from './events';
-import { CreateLikeResult, LIKE_SELECT, RawLike } from './likes.types';
+import {
+  ACTIVE_LIKE_FILTER,
+  CreateLikeResult,
+  LIKE_SELECT,
+  RawLike,
+} from './likes.types';
 
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
  *
  * A like represents one user's expressed intent to connect with another person's identity.
  * This service coordinates identity resolution (via IdentityCryptoService and IdentitiesService),
- * duplicate prevention, expiry scheduling, match resolution (via MatchResolverService),
+ * duplicate prevention, match resolution (via MatchResolverService),
  * and audit logging for every state-changing operation.
+ *
+ * Likes created by this service have no expiry by default (`expiresAt = null`), meaning
+ * they remain valid indefinitely until explicitly withdrawn or deleted. The `expiresAt`
+ * column is preserved in the schema for future use cases that may require time-limited likes.
  */
 @Injectable()
 export class LikesService extends BaseService {
-  private readonly expiryDays: number;
-
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly identityCryptoService: IdentityCryptoService,
     private readonly identitiesService: IdentitiesService,
     private readonly matchResolverService: MatchResolverService,
     private readonly creditsService: CreditsService,
   ) {
     super(logger);
-    this.expiryDays = this.configService.get<number>('LIKE_EXPIRY_DAYS', 90);
   }
 
   /**
@@ -129,13 +133,16 @@ export class LikesService extends BaseService {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        // Only an in-flight PENDING like blocks re-liking.
+        // Only a live, non-expired PENDING like blocks re-liking.
         // WITHDRAWN (initiator of an unmatch), VOIDED (other party), and
         // DELETED (soft-deleted likes) are terminal or inactive states that
         // must allow a fresh like — the upsert path in create() will update
         // those rows rather than inserting a new one.
         // MATCHED is implicitly blocked by the AlreadyMatchedException guard below.
+        // An expired PENDING like (expiresAt in the past) is also treated as
+        // inactive — the upsert path will reactivate it with a fresh expiresAt.
         status: LikeStatus.PENDING,
+        ...ACTIVE_LIKE_FILTER,
       },
     });
 
@@ -166,8 +173,12 @@ export class LikesService extends BaseService {
    * Match resolution is triggered asynchronously after the like is persisted — a failure
    * there is logged but does NOT roll back the like.
    *
-   * @param userId - UUID of the authenticated user sending the like.
-   * @param dto    - Payload containing the target identity reference, intent, and optional label.
+   * Created likes have no expiry (`expiresAt = null`) and remain valid indefinitely
+   * until explicitly withdrawn or deleted by the sender.
+   *
+   * @param userId   - UUID of the authenticated user sending the like.
+   * @param dto      - Payload containing the target identity reference, intent, and optional label.
+   * @param timezone - Optional IANA timezone string. Reserved for future use (e.g. time-limited likes).
    * @returns The created like with the decrypted target identity `publicValue` attached.
    * @throws {BadRequestException} When neither `targetIdentityId` nor `targetIdentity` is supplied,
    *   or when the user attempts to like an identity that maps to themselves.
@@ -317,18 +328,21 @@ export class LikesService extends BaseService {
       targetIdentityId,
     });
 
-    // Step 4: Duplicate check — only a live PENDING like is a hard block.
+    // Step 4: Duplicate check — only a live, non-expired PENDING like is a hard block.
     const existingPendingLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        // Only an in-flight PENDING like blocks re-liking.
+        // Only a live, non-expired PENDING like blocks re-liking.
         // WITHDRAWN (initiator of an unmatch) and VOIDED (other party) are
         // terminal system-set states that must allow a fresh like — the upsert
         // path below will update those rows rather than inserting a new one.
         // MATCHED is implicitly blocked by the AlreadyMatchedException guard above.
+        // An expired PENDING like (expiresAt in the past) is treated as
+        // inactive — the upsert path will reactivate it with the new values.
         status: LikeStatus.PENDING,
+        ...ACTIVE_LIKE_FILTER,
       },
     });
 
@@ -342,9 +356,10 @@ export class LikesService extends BaseService {
       throw new AlreadyLikedException();
     }
 
-    // Step 4.5: Detect an existing WITHDRAWN, VOIDED, or DELETED row for the same pair.
-    // The @@unique([senderUserId, targetIdentityId]) constraint means we cannot
-    // INSERT a new row — we must UPDATE the existing one back to PENDING instead.
+    // Step 4.5: Detect an existing WITHDRAWN, VOIDED, DELETED, or expired PENDING
+    // row for the same pair. The @@unique([senderUserId, targetIdentityId]) constraint
+    // means we cannot INSERT a new row — we must UPDATE the existing one back to
+    // PENDING instead.
     const reusableLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
@@ -356,6 +371,12 @@ export class LikesService extends BaseService {
             },
           },
           { deletedAt: { not: null } },
+          // An expired PENDING like is also reusable — it is no longer active
+          // but the unique constraint still exists, so we must upsert it.
+          {
+            status: LikeStatus.PENDING,
+            expiresAt: { not: null, lte: new Date() },
+          },
         ],
       },
       select: { id: true, status: true },
@@ -396,18 +417,25 @@ export class LikesService extends BaseService {
     // Step 5: Persist like + deduct credits atomically.
     // Two paths:
     //   a) Upsert — an existing WITHDRAWN/VOIDED row is updated back to PENDING
-    //      with a fresh expiresAt, intent, and label. The row ID is preserved so
-    //      any existing references (audit history, match links) remain intact.
-    //   b) Insert — no prior row exists, create a new one as before.
-    let expiresAt = DateUtil.now();
-    if (timezone) {
-      expiresAt = dayjs
-        .tz(DateUtil.now(), timezone)
-        .add(this.expiryDays, 'day')
-        .endOf('day')
-        .toDate();
-    } else {
-      expiresAt.setDate(expiresAt.getDate() + this.expiryDays);
+    //      with a refreshed intent and label. The row ID is preserved so any
+    //      existing references (audit history, match links) remain intact.
+    //   b) Insert — no prior row exists, create a new one.
+    //
+    // expiresAt is derived from dto.expiryDays when it is a positive integer.
+    // If the caller omits the field or passes null, the like is permanent
+    // (expiresAt = null) and remains valid until explicitly withdrawn or deleted.
+    let expiresAt: Date | null = null;
+    if (dto.expiryDays) {
+      if (timezone) {
+        expiresAt = dayjs
+          .tz(DateUtil.now(), timezone)
+          .add(dto.expiryDays, 'day')
+          .endOf('day')
+          .toDate();
+      } else {
+        expiresAt = DateUtil.now();
+        expiresAt.setDate(expiresAt.getDate() + dto.expiryDays);
+      }
     }
 
     let like: CreateLikeResult;

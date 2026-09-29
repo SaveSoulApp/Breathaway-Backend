@@ -96,7 +96,7 @@ describe('LikesService', () => {
     createdAt: DateUtil.now(),
     updatedAt: DateUtil.now(),
     deletedAt: null,
-    expiresAt: DateUtil.now(),
+    expiresAt: null,
     targetIdentity: mockTargetIdentity,
   } as unknown as Like & { targetIdentity: Identity };
 
@@ -373,7 +373,7 @@ describe('LikesService', () => {
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           label: null,
-          expiresAt: expect.any(Date),
+          expiresAt: null,
         },
         select: expect.any(Object),
       });
@@ -402,7 +402,7 @@ describe('LikesService', () => {
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           label: null,
-          expiresAt: expect.any(Date),
+          expiresAt: null,
           deletedAt: null,
         },
         select: expect.any(Object),
@@ -459,7 +459,7 @@ describe('LikesService', () => {
           intent: IntentType.RELATIONSHIP,
           status: LikeStatus.PENDING,
           label: null,
-          expiresAt: expect.any(Date),
+          expiresAt: null,
           deletedAt: null,
         },
         select: expect.any(Object),

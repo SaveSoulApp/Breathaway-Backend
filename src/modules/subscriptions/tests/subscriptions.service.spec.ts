@@ -401,7 +401,7 @@ describe('SubscriptionsService', () => {
           amount: mockPlan.creditsGranted,
           source: CreditSource.SUBSCRIPTION,
           referenceId: mockSubscription.id,
-          expiresAt: params.expiresDate.toISOString(),
+          // SUBSCRIPTION credits are permanent — no expiresAt.
         },
         prisma,
       );
@@ -480,7 +480,7 @@ describe('SubscriptionsService', () => {
           amount: mockPlan.creditsGranted,
           source: CreditSource.SUBSCRIPTION,
           referenceId: mockSubscription.id,
-          expiresAt: params.newPeriodEnd.toISOString(),
+          // SUBSCRIPTION credits are permanent — no expiresAt.
         },
         prisma,
       );

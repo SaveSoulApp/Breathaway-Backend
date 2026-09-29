@@ -3,10 +3,12 @@ import { IdentityType, IntentType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -99,4 +101,22 @@ export class CreateLikeRequestDto {
   @IsString()
   @MaxLength(100)
   label?: string;
+
+  /**
+   * Optional duration in whole days after which this like will expire.
+   *
+   * When provided and greater than zero, the service calculates `expiresAt` as
+   * `now + expiryDays` (end-of-day in the caller's timezone if supplied).
+   * When absent, `null`, or `0`, the like is permanent (`expiresAt = null`).
+   */
+  @ApiPropertyOptional({
+    description:
+      'Number of days until the like expires. Omit or set to null for a permanent like (no expiry).',
+    minimum: 1,
+    example: 30,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expiryDays?: number | null;
 }

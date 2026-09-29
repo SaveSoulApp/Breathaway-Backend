@@ -17,7 +17,6 @@ describe('MaintenanceController', () => {
   beforeEach(async () => {
     const mockMaintenanceService = {
       expireCreditBundles: jest.fn(),
-      voidPendingLikes: jest.fn(),
       expireSubscriptions: jest.fn(),
       warnExpiringCreditBundles: jest.fn(),
     };
@@ -77,21 +76,6 @@ describe('MaintenanceController', () => {
     });
   });
 
-  describe('expireLikes', () => {
-    it('should delegate to maintenanceService.voidPendingLikes', async () => {
-      // Arrange
-      const expectedResult = { voidedCount: 42 };
-      service.voidPendingLikes.mockResolvedValue(expectedResult);
-
-      // Act
-      const result = await controller.expireLikes();
-
-      // Assert
-      expect(service.voidPendingLikes).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(expectedResult);
-    });
-  });
-
   describe('expireSubscriptions', () => {
     it('should delegate to maintenanceService.expireSubscriptions', async () => {
       // Arrange
@@ -134,9 +118,9 @@ describe('MaintenanceController', () => {
       const result = await controller.reconcilePayments();
 
       // Assert
-      expect(
-        reconciliationService.reconcileStaleOrders,
-      ).toHaveBeenCalledTimes(1);
+      expect(reconciliationService.reconcileStaleOrders).toHaveBeenCalledTimes(
+        1,
+      );
       expect(result).toEqual(expectedResult);
     });
   });

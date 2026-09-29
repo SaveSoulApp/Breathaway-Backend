@@ -68,26 +68,6 @@ export class MaintenanceController extends BaseController {
     return this.maintenanceService.expireCreditBundles();
   }
 
-  /**
-   * Triggers the like-expiration job, voiding all PENDING likes older than
-   * 90 days to prevent stale swipes from matching after a long dormancy.
-   *
-   * Intended to be called periodically (e.g., nightly) by GCP Cloud Scheduler.
-   * Voided likes are not deleted — the status change preserves audit history
-   * while making them ineligible for match resolution.
-   *
-   * @returns `{ voidedCount: number }` — the number of likes transitioned to VOIDED.
-   */
-  @Post('expire-likes')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Run job to void pending likes exceeding 90-day TTL',
-  })
-  @ApiResponse({ status: HttpStatus.OK })
-  async expireLikes() {
-    return this.maintenanceService.voidPendingLikes();
-  }
-
   @Post('expire-subscriptions')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

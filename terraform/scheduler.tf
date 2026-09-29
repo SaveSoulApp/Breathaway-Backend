@@ -57,27 +57,7 @@ resource "google_cloud_scheduler_job" "expire_credit_bundles_job" {
   }
 }
 
-# 4. Create the Expire Likes Job (Runs daily at 1:00 AM)
-resource "google_cloud_scheduler_job" "expire_pending_likes_job" {
-  name        = "expire-pending-likes-job"
-  description = "Internal job to void pending likes exceeding 90-day TTL"
-  schedule    = "0 1 * * *"
-  time_zone   = "UTC"
-  region      = var.region
-  project     = var.project_id
-
-  http_target {
-    http_method = "POST"
-    uri         = "${data.google_cloud_run_v2_service.backend_service.uri}/api/v1/internal/jobs/expire-likes"
-
-    oidc_token {
-      service_account_email = google_service_account.scheduler_invoker.email
-      audience              = data.google_cloud_run_v2_service.backend_service.uri
-    }
-  }
-}
-
-# 5. Create the Warn Expiring Bundles Job (Runs daily at 10:00 AM)
+# 4. Create the Warn Expiring Bundles Job (Runs daily at 10:00 AM)
 resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
   name        = "warn-expiring-credit-bundles-job"
   description = "Internal job to fan-out warnings for credit bundles expiring in 7 days"
@@ -97,7 +77,7 @@ resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
   }
 }
 
-# 6. Create the Reconcile Payments Job (Runs every 2 minutes)
+# 5. Create the Reconcile Payments Job (Runs every 2 minutes)
 #
 # Replaces the in-process @Cron('*/2 * * * *') that previously ran on every
 # active Cloud Run instance simultaneously and dropped silently when scaled to
