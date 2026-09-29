@@ -329,7 +329,9 @@ export class SubscriptionsService extends BaseService {
             amount: plan.creditsGranted,
             source: CreditSource.SUBSCRIPTION,
             referenceId: sub.id,
-            expiresAt: params.expiresDate.toISOString(),
+            // SUBSCRIPTION credits are permanent — users keep them even if the
+            // subscription lapses. The subscription's own expiresAt still
+            // governs access to subscription-gated features.
           },
           tx,
         );
@@ -407,7 +409,8 @@ export class SubscriptionsService extends BaseService {
             amount: sub.plan.creditsGranted,
             source: CreditSource.SUBSCRIPTION,
             referenceId: sub.id,
-            expiresAt: params.newPeriodEnd.toISOString(),
+            // SUBSCRIPTION credits are permanent — users keep them even after
+            // the renewal period ends or the subscription lapses.
           },
           tx,
         );
@@ -602,7 +605,8 @@ export class SubscriptionsService extends BaseService {
             amount: sub.plan.creditsGranted,
             source: CreditSource.SUBSCRIPTION,
             referenceId: sub.id,
-            expiresAt: params.newPeriodEnd.toISOString(),
+            // SUBSCRIPTION credits are permanent — users keep them even after
+            // the renewal period ends or the subscription lapses.
           },
           tx,
         );

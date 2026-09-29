@@ -409,13 +409,19 @@ export class CreditsService extends BaseService {
    * Adds credits to a user's account by writing a CREDIT ledger entry and
    * emitting an audit event for traceability.
    *
+   * **Expiry policy:**
+   * Credits are permanent by default (`expiresAt = null`). Only grants with a
+   * `CreditSource` of `BONUS`, `REFERRAL`, or `ADMIN` may carry an optional
+   * expiry window via `dto.expiryDays`. `PURCHASE` and `SUBSCRIPTION` credits
+   * are always permanent — customers paid for them and should not lose them.
+   *
    * `LIKE_USAGE` is a system-only source reserved for automated debit
    * processing; manually granting credits under this source is blocked to
    * prevent misuse. Supports an optional Prisma transaction client so the
    * grant can be committed atomically alongside related operations (e.g.,
    * a purchase confirmation).
    *
-   * @param dto - Recipient, amount, source, optional reference ID, and optional expiry.
+   * @param dto - Recipient, amount, source, optional reference ID, and optional expiry window in days.
    * @param tx  - Optional Prisma transaction client for atomic multi-step operations.
    * @returns The newly created `CreditLedger` record.
    * @throws {BadRequestException} When `dto.source` is `LIKE_USAGE`.
@@ -441,12 +447,20 @@ export class CreditsService extends BaseService {
     const client = tx ?? this.prisma;
     let ledger;
     try {
+      // Credits are permanent by default (expiresAt = null).
+      // Only BONUS, REFERRAL, and ADMIN grants may carry an explicit expiry
+      // window via dto.expiryDays. PURCHASE and SUBSCRIPTION credits are
+      // always permanent — customers paid for them.
       let expiresAt: Date | null = null;
-      if (dto.expiresAt) {
+      if (dto.expiryDays) {
         if (timezone) {
-          expiresAt = dayjs.tz(dto.expiresAt, timezone).endOf('day').toDate();
+          expiresAt = dayjs
+            .tz(DateUtil.now(), timezone)
+            .add(dto.expiryDays, 'day')
+            .endOf('day')
+            .toDate();
         } else {
-          expiresAt = DateUtil.parse(dto.expiresAt);
+          expiresAt = DateUtil.addDays(DateUtil.now(), dto.expiryDays);
         }
       }
 

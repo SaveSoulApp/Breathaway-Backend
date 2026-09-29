@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CreditTransactionType, LikeStatus } from '@prisma/client';
+import { CreditTransactionType } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -12,8 +12,6 @@ import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
-
-import { LIKES_EXPIRED_EVENT, LikesExpiredEvent } from './events';
 
 /** Number of users processed per Pub/Sub batch message. Tunable via env. */
 const DEFAULT_EXPIRY_BATCH_SIZE = 100;
@@ -41,78 +39,6 @@ export class MaintenanceService extends BaseService {
     this.expiryBatchSize =
       this.configService.get<number>('CREDIT_EXPIRY_BATCH_SIZE') ??
       DEFAULT_EXPIRY_BATCH_SIZE;
-  }
-
-  /**
-   * Bulk-voids all PENDING likes whose `createdAt` timestamp is older than
-   * 90 days, preventing long-dormant swipes from triggering a match if the
-   * target user returns to the platform much later.
-   *
-   * Uses `updateMany` for a single-query bulk update rather than fetching
-   * records individually. Voided likes are retained for audit purposes.
-   *
-   * @returns `{ voidedCount: number }` — the number of likes updated.
-   */
-  async voidPendingLikes() {
-    const ninetyDaysAgo = DateUtil.dayjs().subtract(90, 'days').toDate();
-    const ctx = { days: 90 };
-
-    this.logger.log('Expiration job for pending likes started', {
-      ...ctx,
-      step: 'init',
-    });
-
-    try {
-      const expiringLikes = await this.prisma.like.groupBy({
-        by: ['senderUserId'],
-        where: {
-          status: LikeStatus.PENDING,
-          createdAt: { lte: ninetyDaysAgo },
-        },
-        _count: {
-          id: true,
-        },
-      });
-
-      const result = await this.prisma.like.updateMany({
-        where: {
-          status: LikeStatus.PENDING,
-          createdAt: { lte: ninetyDaysAgo },
-        },
-        data: {
-          status: LikeStatus.VOIDED,
-        },
-      });
-
-      if (expiringLikes.length > 0) {
-        const expiryDate = ninetyDaysAgo.toISOString().slice(0, 10);
-        for (const item of expiringLikes) {
-          this.eventEmitter.emit(
-            LIKES_EXPIRED_EVENT,
-            new LikesExpiredEvent(
-              item.senderUserId,
-              item._count.id,
-              expiryDate,
-            ),
-          );
-        }
-      }
-
-      this.logger.log('Expiration job for pending likes completed', {
-        ...ctx,
-        step: 'complete',
-        voidedCount: result.count,
-      });
-
-      return { voidedCount: result.count };
-    } catch (error) {
-      this.logger.error('Failed to void pending likes', {
-        ...ctx,
-        step: 'void_likes',
-        err: serializeError(error),
-      });
-      throw error;
-    }
   }
 
   /**

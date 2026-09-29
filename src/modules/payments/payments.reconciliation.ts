@@ -55,7 +55,6 @@ const EXPIRE_AFTER_MINUTES = 30;
 @Injectable()
 export class PaymentsReconciliationService extends BaseService {
   private readonly gatewayMap: Map<string, PaymentGatewayAdapter>;
-  private readonly defaultCreditExpiryDays: number;
   private readonly isProduction: boolean;
 
   constructor(
@@ -68,10 +67,6 @@ export class PaymentsReconciliationService extends BaseService {
   ) {
     super(logger);
     this.gatewayMap = new Map([[razorpayGateway.provider, razorpayGateway]]);
-    this.defaultCreditExpiryDays = this.configService.get<number>(
-      'CREDIT_EXPIRY_DAYS',
-      90,
-    );
     this.isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
   }
@@ -107,7 +102,7 @@ export class PaymentsReconciliationService extends BaseService {
       },
       include: {
         plan: {
-          select: { id: true, creditsGranted: true, validityDays: true },
+          select: { id: true, creditsGranted: true },
         },
       },
       take: 50, // process at most 50 per tick to bound execution time
@@ -218,7 +213,7 @@ export class PaymentsReconciliationService extends BaseService {
       id: string;
       userId: string;
       planId: string;
-      plan: { id: string; creditsGranted: number; validityDays: number };
+      plan: { id: string; creditsGranted: number };
       amount: number;
       currency: string;
       countryCode: string;
@@ -246,11 +241,6 @@ export class PaymentsReconciliationService extends BaseService {
       }
     }
 
-    const validityDays =
-      order.plan.validityDays > 0
-        ? order.plan.validityDays
-        : this.defaultCreditExpiryDays;
-    const expiresAt = DateUtil.addDays(DateUtil.now(), validityDays);
     const environment = this.isProduction
       ? TransactionEnvironment.PRODUCTION
       : TransactionEnvironment.SANDBOX;
@@ -291,13 +281,13 @@ export class PaymentsReconciliationService extends BaseService {
           data: { transactionId: transaction.id },
         });
 
+        // Grant credits — PURCHASE credits are permanent (no expiryDays).
         await this.creditsService.grantCredits(
           {
             userId: order.userId,
             amount: order.plan.creditsGranted,
             source: CreditSource.PURCHASE,
             referenceId: transaction.id,
-            expiresAt: expiresAt.toISOString(),
           },
           tx,
         );

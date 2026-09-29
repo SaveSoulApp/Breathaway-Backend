@@ -10,6 +10,8 @@ import { AuditActionType } from '@modules/audit/dto';
 import { BlocksService } from '@modules/blocks/blocks.service';
 import { MatchesService } from '@modules/matches/matches.service';
 
+import { ACTIVE_LIKE_FILTER } from '@modules/likes/likes.types';
+
 import { MATCH_CREATED_EVENT, MatchCreatedEvent } from './events';
 
 /**
@@ -184,7 +186,8 @@ export class MatchResolverService extends BaseService {
   }
 
   /**
-   * Searches for a PENDING, non-expired like from `userBId` targeting `userAId`.
+   * Searches for an active (non-expired) like from `userBId` targeting `userAId`
+   * that is eligible to form a mutual match.
    *
    * @param userAId - The sender of the new like whose perspective we are checking from.
    * @param userBId - The target of the new like, who must have previously liked back.
@@ -201,11 +204,14 @@ export class MatchResolverService extends BaseService {
         // Include VOIDED so that B's like — which was system-voided when a
         // previous match was dissolved — can still satisfy the mutual-like
         // condition when A re-likes B (Option A: frictionless re-match).
-        // expiresAt is still enforced to prevent zombie re-matches from
-        // very old voided likes.
         status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
         deletedAt: null,
-        expiresAt: { gt: DateUtil.now() },
+        // Only admit likes that have not yet expired. Permanent likes
+        // (expiresAt = null) always pass. Time-limited likes must still be
+        // within their window. ACTIVE_LIKE_FILTER handles both cases correctly —
+        // a plain { gt: now } would silently exclude all permanent likes because
+        // NULL > X evaluates to UNKNOWN (not TRUE) in SQL.
+        ...ACTIVE_LIKE_FILTER,
       },
       select: {
         id: true,

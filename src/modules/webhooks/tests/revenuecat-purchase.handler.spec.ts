@@ -166,29 +166,13 @@ describe('RevenueCatPurchaseHandler', () => {
       );
     });
 
-    it('expires the granted bundle after the plan validity window', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
-
+    it('grants PURCHASE credits as permanent (no expiryDays)', async () => {
       await handler.handle(buildEvent());
 
       const [grant] = creditsService.grantCredits.mock.calls[0];
-      expect(grant.expiresAt).toBe('2026-01-31T00:00:00.000Z');
-
-      jest.useRealTimers();
-    });
-
-    it('falls back to CREDIT_EXPIRY_DAYS when the plan sets no validity', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
-      plansService.getPlanByProductId.mockResolvedValue(
-        buildPlan({ validityDays: 0 }) as never,
-      );
-
-      await handler.handle(buildEvent());
-
-      const [grant] = creditsService.grantCredits.mock.calls[0];
-      expect(grant.expiresAt).toBe('2026-04-01T00:00:00.000Z');
-
-      jest.useRealTimers();
+      // PURCHASE credits are permanent — expiryDays must be absent so that
+      // expiresAt = null is stored in the ledger.
+      expect(grant.expiryDays).toBeUndefined();
     });
 
     it('skips a redelivered event without granting again', async () => {

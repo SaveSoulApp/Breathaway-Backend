@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CreditTransactionType, LikeStatus } from '@prisma/client';
+import { CreditTransactionType } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -16,7 +16,6 @@ import { PubSubTopic } from '@modules/pubsub/enums/pubsub-topics.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { SubscriptionsService } from '@modules/subscriptions/services/subscriptions.service';
 
-import { LIKES_EXPIRED_EVENT } from '../events';
 import { MaintenanceService } from '../maintenance.service';
 
 describe('MaintenanceService', () => {
@@ -73,68 +72,6 @@ describe('MaintenanceService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('voidPendingLikes', () => {
-    it('should void likes older than 90 days and emit LIKES_EXPIRED event', async () => {
-      // Arrange
-      (prisma.like.groupBy as jest.Mock).mockResolvedValueOnce([
-        {
-          senderUserId: 'user-1',
-          _count: { id: 3 },
-        },
-      ]);
-      (prisma.like.updateMany as jest.Mock).mockResolvedValueOnce({ count: 3 });
-
-      // Act
-      const result = await service.voidPendingLikes();
-
-      // Assert
-      expect(result).toEqual({ voidedCount: 3 });
-      expect(prisma.like.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: LikeStatus.PENDING,
-          }),
-          data: { status: LikeStatus.VOIDED },
-        }),
-      );
-      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
-        LIKES_EXPIRED_EVENT,
-        expect.objectContaining({
-          userId: 'user-1',
-          count: 3,
-        }),
-      );
-    });
-
-    it('should handle zero expiring likes gracefully', async () => {
-      // Arrange
-      (prisma.like.groupBy as jest.Mock).mockResolvedValueOnce([]);
-      (prisma.like.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
-
-      // Act
-      const result = await service.voidPendingLikes();
-
-      // Assert
-      expect(result).toEqual({ voidedCount: 0 });
-      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
-    });
-
-    it('should log and rethrow an error if voiding fails', async () => {
-      // Arrange
-      const dbError = new Error('Database connection failed');
-      (prisma.like.groupBy as jest.Mock).mockRejectedValueOnce(dbError);
-
-      // Act & Assert
-      await expect(service.voidPendingLikes()).rejects.toThrow(dbError);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Failed to void pending likes',
-        expect.objectContaining({
-          step: 'void_likes',
-        }),
-      );
-    });
   });
 
   describe('expireCreditBundles', () => {

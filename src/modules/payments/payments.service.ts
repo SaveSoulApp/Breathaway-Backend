@@ -63,7 +63,6 @@ export class PaymentsService extends BaseService {
   /** Map from gateway enum value → adapter instance. Built at construction time. */
   private readonly gatewayMap: Map<string, PaymentGatewayAdapter>;
 
-  private readonly defaultCreditExpiryDays: number;
   private readonly isProduction: boolean;
 
   constructor(
@@ -78,10 +77,6 @@ export class PaymentsService extends BaseService {
   ) {
     super(logger);
     this.gatewayMap = new Map([[razorpayGateway.provider, razorpayGateway]]);
-    this.defaultCreditExpiryDays = this.configService.get<number>(
-      'CREDIT_EXPIRY_DAYS',
-      90,
-    );
     this.isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
   }
@@ -264,7 +259,7 @@ export class PaymentsService extends BaseService {
       where: { id: orderId, userId },
       include: {
         plan: {
-          select: { id: true, creditsGranted: true, validityDays: true },
+          select: { id: true, creditsGranted: true },
         },
         transaction: { select: { creditsGranted: true } },
       },
@@ -338,7 +333,7 @@ export class PaymentsService extends BaseService {
       id: string;
       userId: string;
       planId: string;
-      plan: { id: string; creditsGranted: number; validityDays: number };
+      plan: { id: string; creditsGranted: number };
       amount: number;
       currency: string;
       countryCode: string;
@@ -350,12 +345,6 @@ export class PaymentsService extends BaseService {
     rawPayload?: Record<string, unknown>;
   }): Promise<number> {
     const { order, gatewayPaymentId, gatewayOrderId, ctx, rawPayload } = params;
-
-    const validityDays =
-      order.plan.validityDays > 0
-        ? order.plan.validityDays
-        : this.defaultCreditExpiryDays;
-    const expiresAt = DateUtil.addDays(DateUtil.now(), validityDays);
 
     const environment = this.isProduction
       ? TransactionEnvironment.PRODUCTION
@@ -398,14 +387,13 @@ export class PaymentsService extends BaseService {
           data: { transactionId: transaction.id },
         });
 
-        // Grant credits.
+        // Grant credits — PURCHASE credits are permanent (no expiryDays).
         await this.creditsService.grantCredits(
           {
             userId: order.userId,
             amount: order.plan.creditsGranted,
             source: CreditSource.PURCHASE,
             referenceId: transaction.id,
-            expiresAt: expiresAt.toISOString(),
           },
           tx,
         );
@@ -506,7 +494,7 @@ export class PaymentsService extends BaseService {
   private async loadActivePlan(planId: string) {
     const plan = await this.prisma.subscriptionPlan.findFirst({
       where: { id: planId, status: SubscriptionPlanStatus.ACTIVE },
-      select: { id: true, creditsGranted: true, validityDays: true },
+      select: { id: true, creditsGranted: true },
     });
 
     if (!plan) {
