@@ -26,5 +26,7 @@ describe('OtpMessageGenerator', () => {
     expect(message.length).toBeGreaterThan(sampleSlug.length + 20);
     expect(message.trim()).toEqual(message);
     expect(message).toMatch(/\brapid-amber-summit\b/);
+    expect(message).toContain(` ${sampleSlug} - `);
+    expect(message).not.toContain(`${sampleSlug}.`);
   });
 });

@@ -1,3 +1,5 @@
+import { randomInt } from 'crypto';
+
 /**
  * High-entropy combinatorial natural language message synthesizer for Instagram OTP verification.
  *
@@ -18,6 +20,16 @@ export class OtpMessageGenerator {
     'Hi everyone,',
     'Hey guys,',
     'Greetings Breathaway,',
+    'Hello!',
+    'Hi Breathaway,',
+    'Hey there!',
+    'Good morning Breathaway team,',
+    'Good afternoon,',
+    'Quick hello to the team,',
+    'Hiya Breathaway!',
+    'Hey everyone,',
+    'Warm greetings from a new user,',
+    'Hi team Breathaway,',
   ];
 
   private static readonly INTENTS = [
@@ -31,19 +43,34 @@ export class OtpMessageGenerator {
     'Finishing up my registration on Breathaway.',
     'Confirming my profile verification.',
     'Registering my profile here.',
+    'Authenticating my Instagram handle.',
+    'Sending over my verification details.',
+    'Validating my profile for the app.',
+    'Syncing my Instagram account with Breathaway.',
+    'Here to verify my account profile.',
+    'Completing my onboarding on Breathaway.',
+    'Following up on the app verification step.',
+    'Finalizing my account setup.',
+    'Activating my Breathaway profile.',
+    'Connecting my social identity to Breathaway.',
   ];
 
   private static readonly CONNECTORS = [
-    'My verification code is',
+    'My verification code:',
     'Here is my reference code:',
     'Verification code:',
-    'My link code is',
+    'My link code:',
     'Account code:',
-    'My reference tag is',
-    'Connecting with code:',
+    'My reference tag:',
+    'Connecting code:',
     'Reference ID:',
     'Here is my verification key:',
     'Security code:',
+    'My activation code:',
+    'Profile link code:',
+    'My verification tag:',
+    'Account verification ID:',
+    'Access code:',
   ];
 
   private static readonly CLOSINGS = [
@@ -56,7 +83,17 @@ export class OtpMessageGenerator {
     'Looking forward to using the app!',
     'Let me know once verified.',
     'Thank you!',
-    'Can’t wait to try the app!',
+    "Cant wait to try the app!",
+    'Many thanks!',
+    'Much appreciated!',
+    'Best wishes!',
+    'Talk soon!',
+    'Appreciate the assistance!',
+    'Looking forward to getting started!',
+    'Thanks for the support!',
+    'Have a wonderful day ahead!',
+    'Super pumped to explore the app!',
+    'Thanks in advance!',
   ];
 
   /**
@@ -71,11 +108,11 @@ export class OtpMessageGenerator {
     const connector = this.pickRandom(this.CONNECTORS);
     const closing = this.pickRandom(this.CLOSINGS);
 
-    return `${greeting} ${intent} ${connector} ${slug}. ${closing}`;
+    return `${greeting} ${intent} ${connector} ${slug} - ${closing}`;
   }
 
   private static pickRandom<T>(items: readonly T[]): T {
-    const index = Math.floor(Math.random() * items.length);
+    const index = randomInt(items.length);
     return items[index];
   }
 }

@@ -10,7 +10,7 @@ export class OtpResponseDto {
     description:
       'Human-friendly natural language message embedding the OTP slug for Instagram verification',
     example:
-      'Hey Breathaway! Linking my Instagram profile. Verification code: rapid-amber-summit. Cheers!',
+      'Hey Breathaway! Linking my Instagram profile. Verification code: rapid-amber-summit - Cheers!',
   })
   @Expose()
   message: string;

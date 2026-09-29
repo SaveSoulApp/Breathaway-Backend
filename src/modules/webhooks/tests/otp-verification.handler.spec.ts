@@ -111,6 +111,28 @@ describe('OtpVerificationHandler', () => {
       expect(handler.canHandle(message)).toBe(false);
     });
 
+    it('should return false for 4-word hyphenated sequences to avoid false positives', () => {
+      const message: ParsedInstagramMessage = {
+        senderId: '123',
+        recipientId: '456',
+        messageId: 'mid',
+        text: 'Hey team, my reference is swift-golden-falcon-extra. Thanks!',
+        timestamp: 123456,
+      };
+      expect(handler.canHandle(message)).toBe(false);
+    });
+
+    it('should return false for hyphenated URLs with 4 or more parts', () => {
+      const message: ParsedInstagramMessage = {
+        senderId: '123',
+        recipientId: '456',
+        messageId: 'mid',
+        text: 'Check out my feed at https://instagram.com/my-awesome-travel-blog',
+        timestamp: 123456,
+      };
+      expect(handler.canHandle(message)).toBe(false);
+    });
+
     it('should return false when message text is empty or missing', () => {
       const message: ParsedInstagramMessage = {
         senderId: '123',
@@ -146,6 +168,10 @@ describe('OtpVerificationHandler', () => {
       );
       expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Published OTP verification event for sender 123',
+        expect.objectContaining({
+          senderId: '123',
+          step: 'publish_otp_event',
+        }),
       );
     });
 
@@ -154,7 +180,7 @@ describe('OtpVerificationHandler', () => {
         senderId: 'user-ig-456',
         recipientId: 'breathaway-ig',
         messageId: 'mid-abc',
-        text: 'Hey Breathaway! Linking my Instagram profile. Verification code: rapid-amber-summit. Cheers!',
+        text: 'Hey Breathaway! Linking my Instagram profile. Verification code: rapid-amber-summit - Cheers!',
         timestamp: 1727600000,
       };
 
@@ -171,6 +197,32 @@ describe('OtpVerificationHandler', () => {
       );
       expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Published OTP verification event for sender user-ig-456',
+        expect.objectContaining({
+          senderId: 'user-ig-456',
+          step: 'publish_otp_event',
+        }),
+      );
+    });
+
+    it('should strip trailing punctuation if user copied with a trailing period', async () => {
+      const message: ParsedInstagramMessage = {
+        senderId: '123',
+        recipientId: '456',
+        messageId: 'mid',
+        text: 'verify: rapid-amber-summit.',
+        timestamp: 123456,
+      };
+
+      await handler.handle(message);
+
+      expect(pubsubPublisher.publish).toHaveBeenCalledWith(
+        PubSubTopic.IDENTITY_WORKFLOWS,
+        PubSubEvent.INSTAGRAM_OTP_RECEIVED,
+        {
+          otp: 'rapid-amber-summit',
+          senderId: '123',
+          timestamp: 123456,
+        },
       );
     });
 
@@ -210,7 +262,7 @@ describe('OtpVerificationHandler', () => {
       expect(pubsubPublisher.publish).not.toHaveBeenCalled();
     });
 
-    it('should log an error if publish fails', async () => {
+    it('should log a structured error if publish fails', async () => {
       const message: ParsedInstagramMessage = {
         senderId: '123',
         recipientId: '456',
@@ -225,7 +277,46 @@ describe('OtpVerificationHandler', () => {
       await handler.handle(message);
 
       expect(contextualLogger.error).toHaveBeenCalledWith(
-        'Failed to publish OTP verification event: PubSub Error',
+        'Failed to publish OTP verification event',
+        expect.objectContaining({
+          senderId: '123',
+          step: 'publish_otp_event',
+          err: expect.objectContaining({
+            message: 'PubSub Error',
+          }),
+        }),
+      );
+    });
+
+    it('should reuse cached match populated by canHandle', async () => {
+      const message: ParsedInstagramMessage = {
+        senderId: '123',
+        recipientId: '456',
+        messageId: 'mid',
+        text: 'Hi team, linking my account with swift-golden-falcon - cheers!',
+        timestamp: 123456,
+      };
+
+      const canHandleResult = handler.canHandle(message);
+      expect(canHandleResult).toBe(true);
+
+      const extractSpy = jest.spyOn(
+        handler as unknown as { extractOtp: (t: string) => string | null },
+        'extractOtp',
+      );
+
+      await handler.handle(message);
+
+      // extractOtp should NOT be called again during handle because it was cached
+      expect(extractSpy).not.toHaveBeenCalled();
+      expect(pubsubPublisher.publish).toHaveBeenCalledWith(
+        PubSubTopic.IDENTITY_WORKFLOWS,
+        PubSubEvent.INSTAGRAM_OTP_RECEIVED,
+        {
+          otp: 'swift-golden-falcon',
+          senderId: '123',
+          timestamp: 123456,
+        },
       );
     });
   });
