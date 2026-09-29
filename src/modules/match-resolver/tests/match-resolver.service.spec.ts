@@ -168,7 +168,9 @@ describe('MatchResolverService', () => {
           // that a re-like from the other side triggers a frictionless re-match.
           status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
           deletedAt: null,
-          expiresAt: { gt: expect.any(Date) },
+          // ACTIVE_LIKE_FILTER: permanent likes (null) always pass;
+          // time-limited likes must still be within their window.
+          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
         select: {
           id: true,

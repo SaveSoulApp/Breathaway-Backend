@@ -36,7 +36,12 @@ import {
   LikeSentEvent,
   LikeWithdrawnEvent,
 } from './events';
-import { CreateLikeResult, LIKE_SELECT, RawLike } from './likes.types';
+import {
+  ACTIVE_LIKE_FILTER,
+  CreateLikeResult,
+  LIKE_SELECT,
+  RawLike,
+} from './likes.types';
 
 /**
  * Manages the full lifecycle of a like — creation, retrieval, label annotation, and soft-deletion.
@@ -128,13 +133,16 @@ export class LikesService extends BaseService {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        // Only an in-flight PENDING like blocks re-liking.
+        // Only a live, non-expired PENDING like blocks re-liking.
         // WITHDRAWN (initiator of an unmatch), VOIDED (other party), and
         // DELETED (soft-deleted likes) are terminal or inactive states that
         // must allow a fresh like — the upsert path in create() will update
         // those rows rather than inserting a new one.
         // MATCHED is implicitly blocked by the AlreadyMatchedException guard below.
+        // An expired PENDING like (expiresAt in the past) is also treated as
+        // inactive — the upsert path will reactivate it with a fresh expiresAt.
         status: LikeStatus.PENDING,
+        ...ACTIVE_LIKE_FILTER,
       },
     });
 
@@ -320,18 +328,21 @@ export class LikesService extends BaseService {
       targetIdentityId,
     });
 
-    // Step 4: Duplicate check — only a live PENDING like is a hard block.
+    // Step 4: Duplicate check — only a live, non-expired PENDING like is a hard block.
     const existingPendingLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
         targetIdentityId,
         deletedAt: null,
-        // Only an in-flight PENDING like blocks re-liking.
+        // Only a live, non-expired PENDING like blocks re-liking.
         // WITHDRAWN (initiator of an unmatch) and VOIDED (other party) are
         // terminal system-set states that must allow a fresh like — the upsert
         // path below will update those rows rather than inserting a new one.
         // MATCHED is implicitly blocked by the AlreadyMatchedException guard above.
+        // An expired PENDING like (expiresAt in the past) is treated as
+        // inactive — the upsert path will reactivate it with the new values.
         status: LikeStatus.PENDING,
+        ...ACTIVE_LIKE_FILTER,
       },
     });
 
@@ -345,9 +356,10 @@ export class LikesService extends BaseService {
       throw new AlreadyLikedException();
     }
 
-    // Step 4.5: Detect an existing WITHDRAWN, VOIDED, or DELETED row for the same pair.
-    // The @@unique([senderUserId, targetIdentityId]) constraint means we cannot
-    // INSERT a new row — we must UPDATE the existing one back to PENDING instead.
+    // Step 4.5: Detect an existing WITHDRAWN, VOIDED, DELETED, or expired PENDING
+    // row for the same pair. The @@unique([senderUserId, targetIdentityId]) constraint
+    // means we cannot INSERT a new row — we must UPDATE the existing one back to
+    // PENDING instead.
     const reusableLike = await this.prisma.like.findFirst({
       where: {
         senderUserId: userId,
@@ -359,6 +371,12 @@ export class LikesService extends BaseService {
             },
           },
           { deletedAt: { not: null } },
+          // An expired PENDING like is also reusable — it is no longer active
+          // but the unique constraint still exists, so we must upsert it.
+          {
+            status: LikeStatus.PENDING,
+            expiresAt: { not: null, lte: new Date() },
+          },
         ],
       },
       select: { id: true, status: true },

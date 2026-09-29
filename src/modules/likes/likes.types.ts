@@ -1,4 +1,4 @@
-import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
+import { IdentityType, IntentType, LikeStatus, Prisma } from '@prisma/client';
 
 /** Minimal targetIdentity shape returned by like queries. */
 export type RawLikeIdentity = {
@@ -44,3 +44,22 @@ export const LIKE_SELECT = {
     },
   },
 } as const;
+
+/**
+ * Reusable Prisma `where` fragment that admits only likes which have not yet
+ * expired, regardless of whether they carry an explicit expiry date.
+ *
+ * Two categories of active likes exist:
+ *  - Permanent likes: `expiresAt IS NULL` — valid indefinitely.
+ *  - Time-limited likes: `expiresAt > now()` — still within their window.
+ *
+ * The `OR` is mandatory. A plain `expiresAt: { gt: now }` filter silently
+ * excludes `NULL` rows in SQL (NULL > X is always UNKNOWN, not TRUE), which
+ * would incorrectly block permanent likes from matching or being queried.
+ *
+ * Import and spread this into any Prisma `where` clause that operates on
+ * "active" likes. Never inline the condition — define it here once.
+ */
+export const ACTIVE_LIKE_FILTER: Prisma.LikeWhereInput = {
+  OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+};
