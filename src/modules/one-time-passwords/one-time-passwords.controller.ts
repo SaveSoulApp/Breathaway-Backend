@@ -63,11 +63,12 @@ export class OneTimePasswordsController extends BaseController {
   })
   @SerializeExpose(OtpResponseDto)
   async generateOtp(@CurrentUserId() userId: string): Promise<OtpResponseDto> {
-    const { otp, expiresIn } =
+    const { otp, message, expiresIn } =
       await this.oneTimePasswordsService.generateAndStoreOtp(userId);
 
     return {
       otp,
+      message,
       expiresIn,
     };
   }

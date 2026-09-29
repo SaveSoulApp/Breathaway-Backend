@@ -51,7 +51,11 @@ describe('OneTimePasswordsController', () => {
   describe('generateOtp', () => {
     it('should generate and return a new OTP', async () => {
       // Arrange
-      const resultData = { otp: 'abc-def-ghi', expiresIn: 300 };
+      const resultData = {
+        otp: 'abc-def-ghi',
+        message: 'Hey Breathaway! My code is abc-def-ghi. Thanks!',
+        expiresIn: 300,
+      };
       service.generateAndStoreOtp.mockResolvedValue(resultData);
 
       // Act

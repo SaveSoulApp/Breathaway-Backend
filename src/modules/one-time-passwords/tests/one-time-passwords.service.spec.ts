@@ -111,7 +111,11 @@ describe('OneTimePasswordsService', () => {
         'EX',
         otpRateLimitTtl,
       );
-      expect(result).toEqual({ otp: plainOtp, expiresIn: otpTtl });
+      expect(result).toEqual({
+        otp: plainOtp,
+        message: expect.stringContaining(plainOtp),
+        expiresIn: otpTtl,
+      });
     });
 
     it('should throw an exception if rate limit is exceeded', async () => {

@@ -1,8 +1,10 @@
+import { Injectable } from '@nestjs/common';
+
 import { BaseHandler } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { Injectable } from '@nestjs/common';
+
 import { ParsedInstagramMessage } from '../interfaces/meta-webhook-result.interface';
 import { WebhookMessageHandler } from './webhook-handler.interface';
 
@@ -11,7 +13,13 @@ export class OtpVerificationHandler
   extends BaseHandler
   implements WebhookMessageHandler
 {
-  private readonly verifyRegex = /^verify:\s*(\S+)/i;
+  /**
+   * Matches either:
+   * 1. Legacy format: "verify: <token>" (e.g., "verify: 123456" or "verify: swift-golden-falcon")
+   * 2. Natural language format: 3-word kebab slug embedded anywhere in conversational text (e.g., "swift-golden-falcon")
+   */
+  private readonly verificationRegex =
+    /(?:verify:\s*([a-z0-9-]+)|\b([a-z]{2,25}-[a-z]{2,25}-[a-z]{2,25})\b)/i;
 
   constructor(
     logger: LoggerService,
@@ -21,16 +29,22 @@ export class OtpVerificationHandler
   }
 
   canHandle(message: ParsedInstagramMessage): boolean {
-    return this.verifyRegex.test(message.text);
+    if (!message?.text) {
+      return false;
+    }
+    return this.verificationRegex.test(message.text);
   }
 
   async handle(message: ParsedInstagramMessage): Promise<void> {
-    const match = message.text.match(this.verifyRegex);
-    if (!match || !match[1]) {
+    if (!message?.text) {
       return;
     }
 
-    const extractedOtp = match[1];
+    const match = message.text.match(this.verificationRegex);
+    const extractedOtp = (match?.[1] || match?.[2])?.toLowerCase();
+    if (!extractedOtp) {
+      return;
+    }
 
     try {
       await this.pubsubPublisher.publish(
