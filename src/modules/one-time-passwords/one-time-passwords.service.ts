@@ -14,6 +14,7 @@ import {
   OtpRateLimitExceededException,
   InvalidOtpException,
 } from './application/exceptions';
+import { OtpMessageGenerator } from './utils/otp-message-generator.util';
 
 /**
  * Manages the full lifecycle of short-lived, single-use OTPs backed by Redis.
@@ -68,11 +69,12 @@ export class OneTimePasswordsService
    */
   async generateAndStoreOtp(
     userId: string,
-  ): Promise<{ otp: string; expiresIn: number }> {
+  ): Promise<{ otp: string; message: string; expiresIn: number }> {
     const rateLimitKey = await this.checkForRateLimits(userId);
 
     const plainOtp = this.generateId();
     const hashedOtp = hashString(plainOtp);
+    const message = OtpMessageGenerator.generateMessage(plainOtp);
 
     const redisKey = `otp:${hashedOtp}`;
 
@@ -110,7 +112,7 @@ export class OneTimePasswordsService
       userId: userId,
     });
 
-    return { otp: plainOtp, expiresIn: this.otpTtl };
+    return { otp: plainOtp, message, expiresIn: this.otpTtl };
   }
 
   /**

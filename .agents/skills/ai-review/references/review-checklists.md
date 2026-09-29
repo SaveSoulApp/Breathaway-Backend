@@ -76,21 +76,6 @@ As specified in `AGENTS.md`:
   3. Internal absolute path modules (`@infrastructure/...`, `@modules/...`, `@shared/...`)
   4. Local relative paths (`./dto/...`)
 - [ ] **Absolute Path Rule**: Any import traversing more than two directory levels up (`../../../`) must use absolute paths (`@modules/...` or `src/...`).
+
 - [ ] **Naming Conventions**: Kebab-case files (`*.controller.ts`, `*.service.ts`, `*.request.dto.ts`), PascalCase classes, camelCase methods/variables, UPPER_SNAKE_CASE constants.
 
----
-
-## 8. Mermaid Diagram Guidelines
-
-- Diagrams must be rendered in valid Mermaid syntax inside ````mermaid` fenced code blocks.
-- Supported types:
-  - `graph TD` (Top-down workflow or architecture)
-  - `sequenceDiagram` (Request/response lifecycle or domain event flow)
-- Quote node labels containing brackets, parentheses, or special characters:
-  ```mermaid
-  graph TD
-    Client["Client App"] --> Controller["SubscriptionsController"]
-    Controller --> Service["SubscriptionsService"]
-    Service --> Event["EventEmitter2.emit('subscription.created')"]
-  ```
-- Do not use unsupported diagram types.

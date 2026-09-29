@@ -1,22 +1,22 @@
 ---
-name: ai-pr-review
+name: ai-review
 description: >-
   Executes an automated local AI code review for the current local branch against develop,
-  replicating .github/workflows/ai-pr-review.yml without external cloud models, APIs, or GitHub MCP.
-  Analyzes branch git diffs against develop, generates an AI summary, Mermaid architecture/flow diagram,
-  file walkthrough, and major changes list. Trigger when the user runs "/ai-review", "/ai-pr-review",
+  replicating .github/workflows/ai-review.yml without external cloud models, APIs, or GitHub MCP.
+  Analyzes branch git diffs against develop, identifies potential bugs, security concerns,
+  performance concerns, maintainability issues, and suggested improvements. Trigger when the user runs "/ai-review",
   "/pr-review", asks for an AI review, or asks to review the current branch against develop.
 ---
 
 # AI Local Code Reviewer
 
-This skill provides an automated, comprehensive code review of the **currently checked out local branch** compared against the **`develop`** branch (or `origin/develop`), replicating the review pipeline from [.github/workflows/ai-pr-review.yml](file:///.github/workflows/ai-pr-review.yml).
+This skill provides an automated, comprehensive code review of the **currently checked out local branch** compared against the **`develop`** branch (or `origin/develop`), replicating the review pipeline from [.github/workflows/ai-review.yml](file:///.github/workflows/ai-review.yml).
 
 ### Key Execution Principles
 - **100% Local Inference**: Evaluates code directly using the active model in session. No external cloud endpoints, curl scripts, or `GEMINI_API_KEY` secrets needed.
 - **Zero GitHub MCP / Open PR Dependency**: Operates entirely offline from GitHub PR APIs. It does not search for open PRs, list PRs, or make remote API updates. It reviews the local branch state directly.
 - **Default Base Branch**: Compares the current local branch against `origin/develop` (fallback to `develop`).
-- **Focused Output**: Delivers an executive architectural review containing only the high-value summary, Mermaid visualization, file-by-file walkthrough, and major changes.
+- **Focused Output**: Delivers an actionable engineering code review strictly structured around Potential Bugs, Security Concerns, Performance Concerns, Maintainability, and Suggested Improvements.
 
 ---
 
@@ -25,7 +25,6 @@ This skill provides an automated, comprehensive code review of the **currently c
 Users can trigger this skill using any of the following:
 
 - `/ai-review` *(Default: reviews local running branch against `origin/develop`)*
-- `/ai-pr-review`
 - `/pr-review`
 - `/ai-review --base <branch>` *(e.g. `--base main` if reviewing against a different branch)*
 - `/ai-review --uncommitted` *(include unstaged or uncommitted working directory changes)*
@@ -54,10 +53,10 @@ git log --oneline -n 10 $(git merge-base origin/develop HEAD)..HEAD
 
 ### Step 2: Extract & Filter Git Diff Against Develop
 
-Run the local diff extractor script which applies the exact exclusions defined in `ai-pr-review.yml`:
+Run the local diff extractor script which applies the exact exclusions defined in `ai-review.yml`:
 
 ```bash
-.agents/skills/ai-pr-review/scripts/extract-pr-diff.sh --base origin/develop --stat
+.agents/skills/ai-review/scripts/extract-pr-diff.sh --base origin/develop --stat
 ```
 
 *(If `--uncommitted` was requested, add `--include-uncommitted`).*
@@ -76,26 +75,29 @@ Leverage local workspace access to understand full context around modified files
 - Inspect modified controllers, services, and modules using `view_file`.
 - Inspect schema relations in `prisma/schema.prisma` or migration files if models were added or changed.
 - Inspect DTO request/response contracts and domain events emitted.
+- Cross-reference with [.agents/skills/ai-review/references/review-checklists.md](file:///.agents/skills/ai-review/references/review-checklists.md).
 
 ---
 
 ### Step 4: Generate Streamlined Review Output
 
-Format the output strictly using the following 4 sections. **Do NOT include** sections for *Potential Bugs*, *Security Concerns*, *Performance Concerns*, *Maintainability*, or *Suggested Improvements*:
+Format the output strictly using the following 5 sections. **Do NOT include** sections for *AI Summary & Walkthrough*, *Architecture / Flow Diagram*, *File Walkthrough*, or *Major Changes*:
 
 ```markdown
-## 🤖 AI Summary & Walkthrough
-Provide a concise, high-level summary of what this branch accomplishes, its motivation, and its primary architectural impact.
+## Potential Bugs
+Identify logic errors, edge cases, regex traps, unhandled exceptions, race conditions, or incorrect assumptions in the code.
 
-## 🗺️ Architecture / Flow Diagram
-Generate a valid Mermaid.js `sequenceDiagram` or `graph TD` visualizing the end-to-end data flow, request lifecycle, or service interactions introduced by the changes.
-Enclose within ```mermaid code blocks with valid syntax and quoted labels.
+## Security Concerns
+Identify authorization gaps, authentication flaws, IDOR vulnerabilities, unauthenticated endpoint exposure, weak PRNG, unhandled injection, or information disclosure in logs.
 
-## 📂 File Walkthrough
-Provide a clean, bulleted list categorized by domain layer (e.g., Database & Config, Core Services, Webhooks & Admin), explaining what changed file-by-file.
+## Performance Concerns
+Identify N+1 queries, unindexed filters, duplicate operations/evaluations, connection leaks, unoptimized transactions, or unneeded overhead under load.
 
-## Major Changes
-- High-level bulleted summary of key features, database models, endpoints, or architectural patterns introduced in this branch.
+## Maintainability
+Identify violations of project standards (e.g. 4-group imports, absolute paths, decoupled notification architecture), hardcoded copy/configurations, inconsistent typing/formatting, or anti-patterns.
+
+## Suggested Improvements
+Actionable code snippets, concrete architectural refactors, and test coverage suggestions directly addressing the concerns identified above.
 ```
 
-> **Trivial Changes Fast-Path**: If the diff contains only trivial modifications (e.g. whitespace, comments, or documentation bumps), output a concise 1-2 sentence summary and skip unused sections.
+> **Clean Code Fast-Path**: If the diff contains no issues in a given category, state "No critical concerns identified" under that heading with a brief 1-line justification.
