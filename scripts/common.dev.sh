@@ -66,9 +66,17 @@ export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
 export CREDIT_EXPIRY_DAYS='90'
 export LIKE_EXPIRY_DAYS='90'
 
-# Cloud Run Autoscaling & Concurrency Limits
+# Cloud Run Resources & Concurrency Limits (Public API)
+export CPU='2'
+export MEMORY='2Gi'
 export MAX_INSTANCES='10'
 export CONCURRENCY='160'
+
+# Cloud Run Resources & Concurrency Limits (Internal Maintenance Service)
+export MAINTENANCE_CPU='2'
+export MAINTENANCE_MEMORY='2Gi'
+export MAINTENANCE_MAX_INSTANCES='5'
+export MAINTENANCE_CONCURRENCY='80'
 
 # Database Connection Pool Sizing & Timeouts
 export DB_POOL_MAX='4'
