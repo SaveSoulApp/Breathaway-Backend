@@ -18,7 +18,7 @@ export class RequireTimezoneGuard implements CanActivate {
 
     if (!request.headers['x-timezone']) {
       throw new BadRequestException(
-        'The x-timezone header is required for this endpoint to accurately process credit expiration.',
+        'The x-timezone header is required for this endpoint to accurately process the request.',
       );
     }
 
