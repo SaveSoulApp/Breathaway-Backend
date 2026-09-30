@@ -58,20 +58,29 @@ export class GcpOidcAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
 
     // GCP_OIDC_AUDIENCE should be configured in your environment (e.g. Cloud Run URL).
-    const audience = this.configService.get<string>('GCP_OIDC_AUDIENCE');
+    // Can be a single URL or comma-separated list of authorized audiences (e.g. backend and maintenance services).
+    const audienceConfig = this.configService.get<string>('GCP_OIDC_AUDIENCE');
 
-    if (!audience) {
+    if (!audienceConfig) {
       this.logger.error('GCP_OIDC_AUDIENCE environment variable is not set', {
         step: 'authenticate',
       });
       throw new UnauthorizedException('Server configuration error');
     }
 
+    const allowedAudiences = audienceConfig
+      .split(',')
+      .map((aud) => aud.trim())
+      .filter(Boolean);
+
+    const audienceParam =
+      allowedAudiences.length === 1 ? allowedAudiences[0] : allowedAudiences;
+
     try {
       // 1. Fetch and cache Google's public JWKS to verify token signature and expiry
       const loginTicket = await this.oAuth2Client.verifyIdToken({
         idToken: token,
-        audience,
+        audience: audienceParam,
       });
 
       const payload = loginTicket.getPayload();
@@ -91,9 +100,9 @@ export class GcpOidcAuthGuard implements CanActivate {
       }
 
       // 3. Explicitly verify audience claim matches expected service URL (prevents cross-service replay)
-      if (payload.aud !== audience) {
+      if (!allowedAudiences.includes(payload.aud)) {
         throw new Error(
-          `Invalid audience: expected ${audience}, received ${payload.aud}`,
+          `Invalid audience: expected one of [${allowedAudiences.join(', ')}], received ${payload.aud}`,
         );
       }
 

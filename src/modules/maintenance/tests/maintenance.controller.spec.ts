@@ -4,6 +4,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { GcpOidcAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
+import { InstagramService } from '@modules/instagram/instagram.service';
 
 import { PaymentsReconciliationService } from '../../payments/payments.reconciliation';
 import { MaintenanceController } from '../maintenance.controller';
@@ -13,6 +14,7 @@ describe('MaintenanceController', () => {
   let controller: MaintenanceController;
   let service: jest.Mocked<MaintenanceService>;
   let reconciliationService: jest.Mocked<PaymentsReconciliationService>;
+  let instagramService: jest.Mocked<InstagramService>;
 
   beforeEach(async () => {
     const mockMaintenanceService = {
@@ -23,6 +25,10 @@ describe('MaintenanceController', () => {
 
     const mockReconciliationService = {
       reconcileStaleOrders: jest.fn(),
+    };
+
+    const mockInstagramService = {
+      refreshSystemAccessToken: jest.fn(),
     };
 
     const loggerServiceMock = {
@@ -45,6 +51,7 @@ describe('MaintenanceController', () => {
           provide: PaymentsReconciliationService,
           useValue: mockReconciliationService,
         },
+        { provide: InstagramService, useValue: mockInstagramService },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
@@ -55,6 +62,7 @@ describe('MaintenanceController', () => {
     controller = module.get<MaintenanceController>(MaintenanceController);
     service = module.get(MaintenanceService);
     reconciliationService = module.get(PaymentsReconciliationService);
+    instagramService = module.get(InstagramService);
   });
 
   afterEach(() => {
@@ -119,6 +127,28 @@ describe('MaintenanceController', () => {
 
       // Assert
       expect(reconciliationService.reconcileStaleOrders).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('rotateInstagramToken', () => {
+    it('should delegate to instagramService.refreshSystemAccessToken', async () => {
+      // Arrange
+      const expectedResult = {
+        access_token: 'new-rotated-token',
+        expires_in: 5184000,
+      };
+      instagramService.refreshSystemAccessToken.mockResolvedValue(
+        expectedResult,
+      );
+
+      // Act
+      const result = await controller.rotateInstagramToken();
+
+      // Assert
+      expect(instagramService.refreshSystemAccessToken).toHaveBeenCalledTimes(
         1,
       );
       expect(result).toEqual(expectedResult);

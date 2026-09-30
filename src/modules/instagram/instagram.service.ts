@@ -63,6 +63,7 @@ export class InstagramService extends BaseService {
           'access-token-instagram',
           newToken,
         );
+        process.env.INSTAGRAM_ACCESS_TOKEN = newToken;
         this.logger.debug('Refreshed token persisted in Secret Manager', {
           step: 'persist_secret',
         });
@@ -88,7 +89,8 @@ export class InstagramService extends BaseService {
 
   /**
    * Refreshes the system-level Instagram token by reading the current value from
-   * `INSTAGRAM_ACCESS_TOKEN` environment config and delegating to `refreshAccessToken`.
+   * GCP Secret Manager (with fallback to `INSTAGRAM_ACCESS_TOKEN` configuration)
+   * and delegating to `refreshAccessToken`.
    *
    * Designed for automated rotation jobs — no token needs to be supplied externally.
    * Logs and throws immediately if the config value is absent, preventing a silent
@@ -96,7 +98,7 @@ export class InstagramService extends BaseService {
    *
    * @returns The raw Graph API response containing the new token and its expiry.
    * @throws {InternalServerErrorException} When `INSTAGRAM_ACCESS_TOKEN` is not
-   *   set in the environment configuration.
+   *   available from Secret Manager or environment configuration.
    * @throws {HttpException} When the Graph API rejects the stored token.
    */
   async refreshSystemAccessToken(): Promise<unknown> {
@@ -104,9 +106,27 @@ export class InstagramService extends BaseService {
       step: 'init',
     });
 
-    const accessToken = this.configService.get<string>(
-      'INSTAGRAM_ACCESS_TOKEN',
-    );
+    let accessToken: string | undefined;
+
+    try {
+      accessToken = await this.gcpSecretManager.getSecret(
+        'access-token-instagram',
+      );
+      this.logger.debug(
+        'Retrieved system Instagram token from Secret Manager',
+        { step: 'fetch_secret' },
+      );
+    } catch (error) {
+      this.logger.warn(
+        'Could not fetch token from Secret Manager, falling back to ConfigService',
+        {
+          step: 'fallback_config',
+          err: serializeError(error),
+        },
+      );
+      accessToken = this.configService.get<string>('INSTAGRAM_ACCESS_TOKEN');
+    }
+
     if (!accessToken) {
       this.logger.error('INSTAGRAM_ACCESS_TOKEN is not configured', {
         step: 'refresh_system',

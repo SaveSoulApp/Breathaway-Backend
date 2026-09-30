@@ -17,8 +17,9 @@ import { SkipClientIdentity } from '@common/decorators/skip-client-identity.deco
 import { GcpOidcAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { InstagramService } from '@modules/instagram/instagram.service';
+import { PaymentsReconciliationService } from '@modules/payments/payments.reconciliation';
 
-import { PaymentsReconciliationService } from '../payments/payments.reconciliation';
 import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
@@ -45,6 +46,7 @@ export class MaintenanceController extends BaseController {
     logger: LoggerService,
     private readonly maintenanceService: MaintenanceService,
     private readonly paymentsReconciliationService: PaymentsReconciliationService,
+    private readonly instagramService: InstagramService,
   ) {
     super(logger);
   }
@@ -107,5 +109,27 @@ export class MaintenanceController extends BaseController {
   @ApiResponse({ status: HttpStatus.OK })
   async reconcilePayments() {
     return this.paymentsReconciliationService.reconcileStaleOrders();
+  }
+
+  /**
+   * Refreshes the system-level Instagram access token via the Graph API and
+   * persists the updated token directly to GCP Secret Manager.
+   *
+   * Intended to be called monthly (1st of every month at midnight UTC) by
+   * GCP Cloud Scheduler targeting the internal maintenance service.
+   *
+   * @returns The Graph API refresh response payload.
+   */
+  @Post('rotate-instagram-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Rotate Instagram access token and update GCP Secret Manager',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Instagram access token refreshed successfully',
+  })
+  async rotateInstagramToken(): Promise<unknown> {
+    return this.instagramService.refreshSystemAccessToken();
   }
 }

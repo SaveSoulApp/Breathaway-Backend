@@ -390,5 +390,47 @@ describe(GcpOidcAuthGuard.name, () => {
       expect(result).toBe(true);
       expect(req.oidcPayload).toEqual(mockPayload);
     });
+
+    it('should return true when token matches one of multiple configured GCP_OIDC_AUDIENCE values', async () => {
+      const maintenanceAudience =
+        'https://maintenance-service-at7g3x4m6q-el.a.run.app';
+      const multiAudience = `${mockAudience}, ${maintenanceAudience}`;
+
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'GCP_OIDC_AUDIENCE') return multiAudience;
+        if (key === 'GCP_PROJECT_ID') return mockProjectId;
+        return undefined;
+      });
+
+      const mockPayload: Partial<TokenPayload> = {
+        iss: 'accounts.google.com',
+        aud: maintenanceAudience,
+        email: 'scheduler-invoker@breathaway-dev.iam.gserviceaccount.com',
+        email_verified: true,
+      };
+
+      const mockTicket = {
+        getPayload: jest.fn().mockReturnValue(mockPayload),
+      } as unknown as LoginTicket;
+
+      spyOnVerifyIdToken().mockResolvedValue(mockTicket);
+
+      const req: Record<string, unknown> = {
+        headers: {
+          authorization: 'Bearer valid-oidc-jwt',
+        },
+      };
+
+      const context = createMockExecutionContext(req);
+
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(OAuth2Client.prototype.verifyIdToken).toHaveBeenCalledWith({
+        idToken: 'valid-oidc-jwt',
+        audience: [mockAudience, maintenanceAudience],
+      });
+      expect(req.oidcPayload).toEqual(mockPayload);
+    });
   });
 });

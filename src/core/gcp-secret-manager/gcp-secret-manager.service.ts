@@ -61,4 +61,40 @@ export class GcpSecretManagerService
       throw error;
     }
   }
+
+  /**
+   * Retrieves the plaintext payload of the latest version of a secret from GCP Secret Manager.
+   *
+   * @param secretName - The short secret name (e.g. 'access-token-instagram').
+   * @returns The UTF-8 string value of the secret payload.
+   * @throws {Error} When the secret does not exist or payload is missing.
+   */
+  async getSecret(secretName: string): Promise<string> {
+    const ctx = { secretName };
+    try {
+      const projectId = await this.client.getProjectId();
+      const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+
+      const [version] = await this.client.accessSecretVersion({ name });
+      const payload = version.payload?.data?.toString('utf8');
+
+      if (!payload) {
+        throw new Error(
+          `Secret '${secretName}' payload is empty or not readable`,
+        );
+      }
+
+      this.logger.debug(
+        `Successfully retrieved secret '${secretName}' from GCP Secret Manager`,
+        { ...ctx, step: 'get_secret_success' },
+      );
+      return payload;
+    } catch (error) {
+      this.logger.error(
+        `Failed to retrieve secret '${secretName}' from GCP Secret Manager: ${(error as Error).message}`,
+        { ...ctx, step: 'get_secret_failed', error },
+      );
+      throw error;
+    }
+  }
 }

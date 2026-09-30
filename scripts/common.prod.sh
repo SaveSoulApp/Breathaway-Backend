@@ -8,6 +8,10 @@ export PROJECT_ID="breathaway"
 export REGION="asia-south1"
 export REPOSITORY="breathaway-backend"
 export SERVICE_NAME="backend-service"
+export BACKEND_SERVICE_ACCOUNT="backend-service@${PROJECT_ID}.iam.gserviceaccount.com"
+
+export MAINTENANCE_SERVICE_NAME="maintenance-service"
+export MAINTENANCE_SERVICE_ACCOUNT="maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Define the base URL for Artifact Registry (Without the tag)
 # The deploy.sh script will dynamically append :${GIT_COMMIT_HASH} to this.

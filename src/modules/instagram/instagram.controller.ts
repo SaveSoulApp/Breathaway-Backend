@@ -1,10 +1,12 @@
+import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { ApiStandardErrors } from '@common/decorators';
-import { Controller, Get, Query, UseGuards, HttpStatus } from '@nestjs/common';
-import { BaseController } from '@core/base';
 import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
 import { InstagramService } from './instagram.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Instagram')
 @ApiStandardErrors()

@@ -9,6 +9,7 @@ import { GcpSecretManagerService } from '../gcp-secret-manager.service';
 
 const mockGetProjectId = jest.fn();
 const mockAddSecretVersion = jest.fn();
+const mockAccessSecretVersion = jest.fn();
 const mockClose = jest.fn();
 
 jest.mock('@google-cloud/secret-manager', () => {
@@ -17,6 +18,7 @@ jest.mock('@google-cloud/secret-manager', () => {
       return {
         getProjectId: mockGetProjectId,
         addSecretVersion: mockAddSecretVersion,
+        accessSecretVersion: mockAccessSecretVersion,
         close: mockClose,
       };
     }),
@@ -28,6 +30,8 @@ describe('GcpSecretManagerService', () => {
   let mockLogger: {
     log: jest.Mock;
     error: jest.Mock;
+    warn: jest.Mock;
+    debug: jest.Mock;
     forContext: jest.Mock;
   };
 
@@ -37,6 +41,8 @@ describe('GcpSecretManagerService', () => {
     mockLogger = {
       log: jest.fn(),
       error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
       forContext: jest.fn().mockReturnThis(),
     };
 
@@ -80,6 +86,52 @@ describe('GcpSecretManagerService', () => {
       await expect(
         service.upsertSecret('test-secret', 'secret-val'),
       ).rejects.toThrow(error);
+    });
+  });
+
+  describe('getSecret', () => {
+    it('should successfully retrieve the latest secret version payload', async () => {
+      mockGetProjectId.mockResolvedValue('test-project-123');
+      mockAccessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: Buffer.from('my-secret-token', 'utf8'),
+          },
+        },
+      ]);
+
+      const result = await service.getSecret('access-token-instagram');
+
+      expect(mockGetProjectId).toHaveBeenCalled();
+      expect(mockAccessSecretVersion).toHaveBeenCalledWith({
+        name: 'projects/test-project-123/secrets/access-token-instagram/versions/latest',
+      });
+      expect(result).toBe('my-secret-token');
+    });
+
+    it('should throw an error if secret payload is empty or missing', async () => {
+      mockGetProjectId.mockResolvedValue('test-project-123');
+      mockAccessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: null,
+          },
+        },
+      ]);
+
+      await expect(service.getSecret('access-token-instagram')).rejects.toThrow(
+        "Secret 'access-token-instagram' payload is empty or not readable",
+      );
+    });
+
+    it('should throw an error if accessSecretVersion fails', async () => {
+      const error = new Error('Permission denied');
+      mockGetProjectId.mockResolvedValue('test-project-123');
+      mockAccessSecretVersion.mockRejectedValue(error);
+
+      await expect(service.getSecret('access-token-instagram')).rejects.toThrow(
+        error,
+      );
     });
   });
 

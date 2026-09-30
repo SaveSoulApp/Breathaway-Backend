@@ -7,6 +7,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Default values
 ENV="dev"
 FORCE_BUILD="false"
+DEPLOY_MAINTENANCE="true"
 
 # Helper logging functions
 print_status() { echo -e "\033[0;34m🔨 $1\033[0m"; }
@@ -31,12 +32,17 @@ while [[ $# -gt 0 ]]; do
             FORCE_BUILD="true"
             shift
             ;;
+        --no-maintenance)
+            DEPLOY_MAINTENANCE="false"
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --env=<dev|prod>, -e <dev|prod>   Target deployment environment (default: dev)"
             echo "  --force                           Force Docker image rebuild even if tag exists"
+            echo "  --no-maintenance                  Skip deploying the internal maintenance-service"
             echo "  --help, -h                        Show this help message"
             exit 0
             ;;
@@ -128,6 +134,7 @@ deploy_service() {
         "RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest"
     )
 
+    local backend_sa="${BACKEND_SERVICE_ACCOUNT:-backend-service@${PROJECT_ID}.iam.gserviceaccount.com}"
     local gcloud_run_args=(
         run deploy "${SERVICE_NAME}"
         --image="${IMAGE_TAG_WITH_COMMIT}"
@@ -136,7 +143,8 @@ deploy_service() {
         --cpu=2
         --max-instances="${MAX_INSTANCES:-20}"
         --concurrency="${CONCURRENCY:-80}"
-        --allow-unauthenticated # Remove if this is a private microservice
+        --service-account="${backend_sa}"
+        --allow-unauthenticated # Public API service
         --quiet
     )
 
@@ -198,10 +206,117 @@ deploy_service() {
     print_success "Deployment completed successfully"
 }
 
+deploy_maintenance_service() {
+    local maint_service="${MAINTENANCE_SERVICE_NAME:-maintenance-service}"
+    local maint_sa="${MAINTENANCE_SERVICE_ACCOUNT:-maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com}"
+    print_status "Deploying to Cloud Run: ${maint_service} (${REGION}) [Internal / Private]"
+
+    local secrets=(
+        "CLIENT_IDS=client-ids:latest"
+        "API_KEYS=api-keys:latest"
+        "JWT_SECRET=jwt-secret:latest"
+        "INSTAGRAM_ACCESS_TOKEN=access-token-instagram:latest"
+        "DATABASE_URL=database-url:latest"
+        "REDIS_URL=redis-url:latest"
+        "GCP_SECRET_MASTER_KEYS=gcp-secret-master-keys:latest"
+        "ACTIVE_MASTER_KEY_ID=active-master-key-id:latest"
+        "HMAC_KEY_BASE64=hmac-key-base64:latest"
+        "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
+        "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
+        "KMS_KEY_NAMES=kms-key-names:latest"
+        "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
+        "SUPABASE_URL=supabase-url:latest"
+        "SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest"
+        "SUPABASE_JWT_PRIVATE_KEY=supabase-jwt-private-key:latest"
+        "ADMIN_USERNAME=admin-username:latest"
+        "ADMIN_PASSWORD=admin-password:latest"
+        "SWAGGER_USERNAME=swagger-username:latest"
+        "SWAGGER_PASSWORD=swagger-password:latest"
+        "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
+        "IPINFO_TOKEN=ipinfo-token:latest"
+        "BREVO_API_KEY=brevo-api-key:latest"
+        "RAZORPAY_KEY_ID=razorpay-key-id:latest"
+        "RAZORPAY_KEY_SECRET=razorpay-key-secret:latest"
+        "RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest"
+    )
+
+    local gcloud_run_args=(
+        run deploy "${maint_service}"
+        --image="${IMAGE_TAG_WITH_COMMIT}"
+        --region="${REGION}"
+        --memory=2Gi
+        --cpu=2
+        --max-instances="5"
+        --concurrency="80"
+        --service-account="${maint_sa}"
+        --ingress=internal
+        --no-allow-unauthenticated
+        --quiet
+    )
+
+    # Prepare environment variables (Swagger disabled on internal maintenance service)
+    local env_vars=(
+        "NODE_ENV=${NODE_ENV}"
+        "LOG_LEVEL=${LOG_LEVEL}"
+        "SHOULD_LOG_RESPONSE=${SHOULD_LOG_RESPONSE}"
+        "DEPLOYMENT_ENV=${DEPLOYMENT_ENV}"
+        "APP_NAME=${APP_NAME}"
+        "REQUIRED_PLATFORMS=${REQUIRED_PLATFORMS}"
+        "MIN_APP_VERSION=${MIN_APP_VERSION}"
+        "CORS_ORIGINS=${CORS_ORIGINS}"
+        "GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+        "GCP_BUCKET_NAME=${GCP_BUCKET_NAME}"
+        "META_VERIFY_TOKEN=${META_VERIFY_TOKEN}"
+        "FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}"
+        "JWT_EXPIRES_IN=${JWT_EXPIRES_IN}"
+        "JWT_AUDIENCE=${JWT_AUDIENCE}"
+        "JWT_ISSUER=${JWT_ISSUER}"
+        "OTP_TTL=${OTP_TTL}"
+        "EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}"
+        "EMAIL_FROM_NAME=${EMAIL_FROM_NAME}"
+        "EMAIL_PROVIDER=${EMAIL_PROVIDER}"
+        "MAILGUN_API_KEY=${MAILGUN_API_KEY}"
+        "MAILGUN_DOMAIN=${MAILGUN_DOMAIN}"
+        "SENDGRID_API_KEY=${SENDGRID_API_KEY}"
+        "SWAGGER_ENABLED=false"
+        "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
+        "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
+        "CREDIT_EXPIRY_DAYS=${CREDIT_EXPIRY_DAYS}"
+        "LIKE_EXPIRY_DAYS=${LIKE_EXPIRY_DAYS}"
+        "DB_POOL_MAX=${DB_POOL_MAX:-4}"
+        "DB_POOL_MIN=${DB_POOL_MIN:-0}"
+        "DB_POOL_ACQUISITION_TIMEOUT_MS=${DB_POOL_ACQUISITION_TIMEOUT_MS:-5000}"
+        "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
+        "DB_POOL_STATEMENT_TIMEOUT_MS=${DB_POOL_STATEMENT_TIMEOUT_MS:-15000}"
+        "DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE}"
+        "IPINFO_TIMEOUT_MS=${IPINFO_TIMEOUT_MS}"
+        "SUPABASE_JWT_KEY_ID=${SUPABASE_JWT_KEY_ID:-}"
+    )
+
+    local env_vars_str="^~^"
+    for ev in "${env_vars[@]}"; do
+        env_vars_str="${env_vars_str}${ev}~"
+    done
+    env_vars_str="${env_vars_str%~}"
+
+    gcloud_run_args+=(--set-env-vars="${env_vars_str}")
+
+    for secret in "${secrets[@]}"; do
+        gcloud_run_args+=(--update-secrets="${secret}")
+    done
+    gcloud_run_args+=(--remove-secrets="PUBSUB_VERIFICATION_TOKEN")
+
+    gcloud "${gcloud_run_args[@]}" || print_error "Maintenance service deployment failed"
+    print_success "Maintenance service deployment completed successfully"
+}
+
 main() {
     print_status "Starting deployment for ${SERVICE_NAME} in environment [${ENV}] (Commit: ${GIT_COMMIT})"
     build_image
     deploy_service
+    if [[ "${DEPLOY_MAINTENANCE}" == "true" ]]; then
+        deploy_maintenance_service
+    fi
 }
 
 main
