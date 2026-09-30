@@ -19,7 +19,7 @@ variable "maintenance_service_name" {
   default = "maintenance-service"
 }
 
-# Data block to get the deployed backend Cloud Run service details dynamically (like its URL and deployed image)
+# Data block to get the deployed backend Cloud Run service details dynamically (like its URL)
 data "google_cloud_run_v2_service" "backend_service" {
   name     = var.service_name
   location = var.region
@@ -79,48 +79,17 @@ resource "google_project_iam_member" "maintenance_runner_cloudsql" {
   member  = "serviceAccount:${google_service_account.maintenance_runner.email}"
 }
 
-# 8. Define the Dedicated Maintenance Cloud Run Service (Private Internal Ingress)
-resource "google_cloud_run_v2_service" "maintenance_service" {
+# 8. Data block to dynamically query the deployed Maintenance Cloud Run service
+data "google_cloud_run_v2_service" "maintenance_service" {
   name     = var.maintenance_service_name
   location = var.region
   project  = var.project_id
-  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
-
-  template {
-    service_account = google_service_account.maintenance_runner.email
-
-    scaling {
-      min_instance_count = 0
-      max_instance_count = 5
-    }
-
-    containers {
-      image = data.google_cloud_run_v2_service.backend_service.template[0].containers[0].image
-
-      resources {
-        limits = {
-          cpu    = "2"
-          memory = "2Gi"
-        }
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [
-      template[0].containers[0].image,
-      template[0].containers[0].env,
-      template[0].volumes,
-      client,
-      client_version,
-    ]
-  }
 }
 
 # 9. Grant permissions so the scheduler can securely invoke the Maintenance Cloud Run service
 resource "google_cloud_run_v2_service_iam_member" "scheduler_maintenance_invoker_binding" {
-  name     = google_cloud_run_v2_service.maintenance_service.name
-  location = google_cloud_run_v2_service.maintenance_service.location
+  name     = data.google_cloud_run_v2_service.maintenance_service.name
+  location = data.google_cloud_run_v2_service.maintenance_service.location
   project  = var.project_id
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.scheduler_invoker.email}"
@@ -144,11 +113,11 @@ resource "google_cloud_scheduler_job" "rotate_instagram_token_job" {
 
   http_target {
     http_method = "POST"
-    uri         = "${google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/rotate-instagram-token"
+    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/rotate-instagram-token"
 
     oidc_token {
       service_account_email = google_service_account.scheduler_invoker.email
-      audience              = google_cloud_run_v2_service.maintenance_service.uri
+      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
     }
   }
 }
@@ -164,11 +133,11 @@ resource "google_cloud_scheduler_job" "expire_credit_bundles_job" {
 
   http_target {
     http_method = "POST"
-    uri         = "${google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/expire-bundles"
+    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/expire-bundles"
 
     oidc_token {
       service_account_email = google_service_account.scheduler_invoker.email
-      audience              = google_cloud_run_v2_service.maintenance_service.uri
+      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
     }
   }
 }
@@ -184,11 +153,11 @@ resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
 
   http_target {
     http_method = "POST"
-    uri         = "${google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/warn-expiring-bundles"
+    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/warn-expiring-bundles"
 
     oidc_token {
       service_account_email = google_service_account.scheduler_invoker.email
-      audience              = google_cloud_run_v2_service.maintenance_service.uri
+      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
     }
   }
 }
@@ -211,11 +180,11 @@ resource "google_cloud_scheduler_job" "reconcile_payments_job" {
 
   http_target {
     http_method = "POST"
-    uri         = "${google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/reconcile-payments"
+    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/reconcile-payments"
 
     oidc_token {
       service_account_email = google_service_account.scheduler_invoker.email
-      audience              = google_cloud_run_v2_service.maintenance_service.uri
+      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
     }
   }
 }
