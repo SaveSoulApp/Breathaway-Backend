@@ -91,7 +91,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.DEVICE_ADDED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/devices',
         payload: {
@@ -250,7 +250,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.IDENTITY_ADDED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/identities',
         payload: {
@@ -281,7 +281,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.IDENTITY_REMOVED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/identities',
         payload: {
@@ -336,7 +336,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.CREDITS_PURCHASED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.BILLING,
         link: '/credits',
         payload: {
           name,
@@ -367,7 +367,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.CREDITS_USED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.BILLING,
         link: '/credits',
         payload: {
           name,
@@ -395,7 +395,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.LIKES_EXPIRED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.REMINDER,
         link: '/likes',
         payload: {
           name,
@@ -424,7 +424,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.BUNDLE_EXPIRY_WARNING,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.REMINDER,
         link: '/credits',
         payload: {
           name,
@@ -510,7 +510,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.PAYMENT_COMPLETED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.BILLING,
         priority: NotificationPriority.HIGH,
         link: '/credits',
         payload: {

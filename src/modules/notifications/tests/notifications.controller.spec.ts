@@ -2,15 +2,22 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
+import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
 import {
+  BatchReadResponseDto,
+  GetNotificationsRequestDto,
+  NotificationResponseDto,
+  PaginatedNotificationsResponseDto,
   SendNotificationRequestDto,
   SendNotificationResponseDto,
+  UnreadCountResponseDto,
 } from '../dto';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
+import { NotificationPriority } from '../enums/notification-priority.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsController } from '../notifications.controller';
 import { NotificationsService } from '../notifications.service';
@@ -34,6 +41,11 @@ describe('NotificationsController', () => {
 
     const mockService = {
       dispatch: jest.fn(),
+      getUserNotifications: jest.fn(),
+      getUnreadCount: jest.fn(),
+      markAsRead: jest.fn(),
+      markAllAsRead: jest.fn(),
+      dismissNotification: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -47,6 +59,8 @@ describe('NotificationsController', () => {
     })
       .overrideGuard(AdminBasicAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 
     controller = module.get<NotificationsController>(NotificationsController);
@@ -57,9 +71,90 @@ describe('NotificationsController', () => {
     jest.clearAllMocks();
   });
 
+  describe('getNotifications', () => {
+    it('should return paginated notifications feed for the current user', async () => {
+      const query: GetNotificationsRequestDto = { limit: 10 };
+      const expectedResponse: PaginatedNotificationsResponseDto = {
+        items: [],
+        nextCursor: null,
+        hasMore: false,
+        unreadCount: 0,
+      };
+
+      service.getUserNotifications.mockResolvedValue(expectedResponse);
+
+      const result = await controller.getNotifications('user-1', query);
+
+      expect(service.getUserNotifications).toHaveBeenCalledWith(
+        'user-1',
+        query,
+      );
+      expect(result).toEqual(expectedResponse);
+    });
+  });
+
+  describe('getUnreadCount', () => {
+    it('should return unread count for user', async () => {
+      const expectedResponse: UnreadCountResponseDto = { unreadCount: 3 };
+      service.getUnreadCount.mockResolvedValue(expectedResponse);
+
+      const result = await controller.getUnreadCount('user-1');
+
+      expect(service.getUnreadCount).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(expectedResponse);
+    });
+  });
+
+  describe('markAsRead', () => {
+    it('should mark notification as read and return updated entity', async () => {
+      const expectedResponse: NotificationResponseDto = {
+        id: 'notif-1',
+        userId: 'user-1',
+        type: NotificationType.NEW_MATCH,
+        category: NotificationCategory.SOCIAL,
+        priority: NotificationPriority.NORMAL,
+        title: 'New Match',
+        body: 'You have a match',
+        isRead: true,
+        createdAt: new Date(),
+      };
+
+      service.markAsRead.mockResolvedValue(expectedResponse);
+
+      const result = await controller.markAsRead('user-1', 'notif-1');
+
+      expect(service.markAsRead).toHaveBeenCalledWith('user-1', 'notif-1');
+      expect(result).toEqual(expectedResponse);
+    });
+  });
+
+  describe('markAllAsRead', () => {
+    it('should mark all unread notifications as read', async () => {
+      const expectedResponse: BatchReadResponseDto = { updatedCount: 4 };
+      service.markAllAsRead.mockResolvedValue(expectedResponse);
+
+      const result = await controller.markAllAsRead('user-1');
+
+      expect(service.markAllAsRead).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(expectedResponse);
+    });
+  });
+
+  describe('dismissNotification', () => {
+    it('should dismiss notification for user', async () => {
+      service.dismissNotification.mockResolvedValue();
+
+      await controller.dismissNotification('user-1', 'notif-1');
+
+      expect(service.dismissNotification).toHaveBeenCalledWith(
+        'user-1',
+        'notif-1',
+      );
+    });
+  });
+
   describe('send', () => {
     it('should successfully dispatch a notification request and return SendNotificationResponseDto', async () => {
-      // Arrange
       const dto: SendNotificationRequestDto = {
         userIds: ['user-1'],
         channels: [NotificationChannel.PUSH],
@@ -71,10 +166,8 @@ describe('NotificationsController', () => {
 
       service.dispatch.mockResolvedValue();
 
-      // Act
       const result: SendNotificationResponseDto = await controller.send(dto);
 
-      // Assert
       expect(service.dispatch).toHaveBeenCalledWith(dto);
       expect(result).toEqual({
         success: true,
@@ -84,7 +177,6 @@ describe('NotificationsController', () => {
     });
 
     it('should propagate error when dispatch fails without duplicate local error handling', async () => {
-      // Arrange
       const dto: SendNotificationRequestDto = {
         userIds: ['user-1'],
         channels: [NotificationChannel.PUSH],
@@ -97,7 +189,6 @@ describe('NotificationsController', () => {
       const dispatchError = new Error('Pub/Sub queue unavailable');
       service.dispatch.mockRejectedValue(dispatchError);
 
-      // Act & Assert
       await expect(controller.send(dto)).rejects.toThrow(dispatchError);
       expect(service.dispatch).toHaveBeenCalledWith(dto);
     });

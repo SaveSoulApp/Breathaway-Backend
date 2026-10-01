@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Device } from '@prisma/client';
+import { Device, Prisma } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -12,10 +12,19 @@ import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 
-import { SendNotificationRequestDto } from './dto/request/send-notification.request.dto';
+import {
+  BatchReadResponseDto,
+  GetNotificationsRequestDto,
+  NotificationResponseDto,
+  PaginatedNotificationsResponseDto,
+  SendNotificationRequestDto,
+  UnreadCountResponseDto,
+} from './dto';
 import { EmailService } from './email/email.service';
 import { EmailType } from './enums/email-type.enum';
+import { NotificationCategory } from './enums/notification-category.enum';
 import { NotificationChannel } from './enums/notification-channel.enum';
+import { NotificationPriority } from './enums/notification-priority.enum';
 import { NotificationType } from './enums/notification-type.enum';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
@@ -125,7 +134,7 @@ export class NotificationsService extends BaseService {
       return;
     }
 
-    const channels = dto.channels as NotificationChannel[];
+    const channels = dto.channels ?? [NotificationChannel.PUSH];
     const promises: Promise<void>[] = [];
 
     // Fallback: auto-resolve recipient firstName if not explicitly provided in payload
@@ -176,9 +185,12 @@ export class NotificationsService extends BaseService {
       dto.userIds,
     );
 
-    // 1. Fetch devices if PUSH is requested
+    // 1. Fetch devices and dispatch if PUSH is requested
     let devices: Device[] = [];
     if (channels.includes(NotificationChannel.PUSH)) {
+      // Persist in-app notification record in DB only for push-bound communications
+      await this.persistNotifications(dto);
+
       const pushEnabledUserIds = dto.userIds.filter(
         (userId) => preferencesMap.get(userId)?.pushEnabled,
       );
@@ -267,6 +279,264 @@ export class NotificationsService extends BaseService {
 
     this.logger.event(LOG_EVENT.NOTIFICATION_SENT, {
       ...ctx,
+    });
+  }
+
+  /**
+   * Persists the notification record to PostgreSQL for each recipient.
+   * Only invoked when the notification is designated for the PUSH channel.
+   */
+  private async persistNotifications(
+    dto: SendNotificationRequestDto,
+  ): Promise<void> {
+    const ctx = {
+      notificationType: dto.type,
+      userCount: dto.userIds.length,
+    };
+
+    try {
+      const priority = dto.priority ?? NotificationPriority.NORMAL;
+      const title = dto.title ?? '';
+      const body = dto.body ?? '';
+      const link = dto.link ?? null;
+      const action =
+        (dto.payload?.action as string | undefined) ??
+        (link ? 'NAVIGATE' : null);
+      const data = (dto.payload ?? {}) as Prisma.InputJsonValue;
+
+      if (dto.userIds.length === 1) {
+        const userId = dto.userIds[0];
+        const record = await this.prisma.notification.create({
+          data: {
+            ...(dto.id ? { id: dto.id } : {}),
+            userId,
+            type: dto.type,
+            category: dto.category,
+            priority,
+            title,
+            body,
+            link,
+            action,
+            data,
+            isRead: false,
+            isDismissed: false,
+          },
+        });
+
+        // Enrich dto.id with the persisted record's ID so push notification payload carries it
+        dto.id = record.id;
+      } else {
+        await this.prisma.notification.createMany({
+          data: dto.userIds.map((userId) => ({
+            userId,
+            type: dto.type,
+            category: dto.category,
+            priority,
+            title,
+            body,
+            link,
+            action,
+            data,
+            isRead: false,
+            isDismissed: false,
+          })),
+        });
+      }
+
+      this.logger.debug('Notifications persisted to database', {
+        ...ctx,
+        step: 'persist_notifications',
+      });
+    } catch (error) {
+      this.logger.error('Failed to persist notifications to database', {
+        ...ctx,
+        step: 'persist_notifications',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches the authenticated user's notification inbox feed with cursor-based pagination.
+   */
+  async getUserNotifications(
+    userId: string,
+    query: GetNotificationsRequestDto,
+  ): Promise<PaginatedNotificationsResponseDto> {
+    const { limit = 20, cursor, category, unreadOnly } = query;
+
+    const where: Prisma.NotificationWhereInput = {
+      userId,
+      isDismissed: false,
+      ...(category ? { category } : {}),
+      ...(unreadOnly ? { isRead: false } : {}),
+    };
+
+    const [rows, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notification.count({
+        where: {
+          userId,
+          isRead: false,
+          isDismissed: false,
+        },
+      }),
+    ]);
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor =
+      hasMore && items.length > 0 ? items[items.length - 1].id : null;
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        userId: item.userId,
+        type: item.type as NotificationType,
+        category: item.category as NotificationCategory,
+        priority: item.priority as NotificationPriority,
+        title: item.title,
+        body: item.body,
+        action: item.action,
+        link: item.link,
+        data: item.data as Record<string, unknown> | null,
+        isRead: item.isRead,
+        readAt: item.readAt,
+        createdAt: item.createdAt,
+      })),
+      nextCursor,
+      hasMore,
+      unreadCount,
+    };
+  }
+
+  /**
+   * Returns the count of unread notifications for the given user.
+   */
+  async getUnreadCount(userId: string): Promise<UnreadCountResponseDto> {
+    const count = await this.prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+        isDismissed: false,
+      },
+    });
+
+    return { unreadCount: count };
+  }
+
+  /**
+   * Marks a specific notification as read by the user.
+   */
+  async markAsRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<NotificationResponseDto> {
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+        isDismissed: false,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Notification with ID "${notificationId}" was not found`,
+      );
+    }
+
+    if (existing.isRead) {
+      return {
+        id: existing.id,
+        userId: existing.userId,
+        type: existing.type as NotificationType,
+        category: existing.category as NotificationCategory,
+        priority: existing.priority as NotificationPriority,
+        title: existing.title,
+        body: existing.body,
+        action: existing.action,
+        link: existing.link,
+        data: existing.data as Record<string, unknown> | null,
+        isRead: existing.isRead,
+        readAt: existing.readAt,
+        createdAt: existing.createdAt,
+      };
+    }
+
+    const updated = await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        isRead: true,
+        readAt: new Date(),
+      },
+    });
+
+    return {
+      id: updated.id,
+      userId: updated.userId,
+      type: updated.type as NotificationType,
+      category: updated.category as NotificationCategory,
+      priority: updated.priority as NotificationPriority,
+      title: updated.title,
+      body: updated.body,
+      action: updated.action,
+      link: updated.link,
+      data: updated.data as Record<string, unknown> | null,
+      isRead: updated.isRead,
+      readAt: updated.readAt,
+      createdAt: updated.createdAt,
+    };
+  }
+
+  /**
+   * Marks all unread notifications as read for the given user.
+   */
+  async markAllAsRead(userId: string): Promise<BatchReadResponseDto> {
+    const result = await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        isRead: false,
+        isDismissed: false,
+      },
+      data: {
+        isRead: true,
+        readAt: new Date(),
+      },
+    });
+
+    return { updatedCount: result.count };
+  }
+
+  /**
+   * Dismisses a notification from the user's active inbox view.
+   */
+  async dismissNotification(
+    userId: string,
+    notificationId: string,
+  ): Promise<void> {
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Notification with ID "${notificationId}" was not found`,
+      );
+    }
+
+    await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { isDismissed: true },
     });
   }
 }

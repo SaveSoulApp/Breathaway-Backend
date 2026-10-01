@@ -118,7 +118,7 @@ export class IdentityWorkflowsService extends BaseService {
             title: 'Identity Claimed',
             body: `Your Instagram identity (${username}) has been successfully linked to your account.`,
             type: NotificationType.SYSTEM_ALERT,
-            category: NotificationCategory.SYSTEM,
+            category: NotificationCategory.SECURITY,
             priority: NotificationPriority.HIGH,
           })
           .catch((err) => {

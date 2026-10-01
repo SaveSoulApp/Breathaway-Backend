@@ -109,7 +109,7 @@ describe('NotificationEventsListener', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: NotificationType.DEVICE_ADDED,
-          category: NotificationCategory.SYSTEM,
+          category: NotificationCategory.SECURITY,
           priority: NotificationPriority.HIGH,
           channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
           userIds: ['user-1'],
