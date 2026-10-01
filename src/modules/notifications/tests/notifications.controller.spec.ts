@@ -4,19 +4,15 @@ import { ClsService } from 'nestjs-cls';
 
 import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
 import {
   BatchReadResponseDto,
   GetNotificationsRequestDto,
   NotificationResponseDto,
   PaginatedNotificationsResponseDto,
-  SendNotificationRequestDto,
-  SendNotificationResponseDto,
   UnreadCountResponseDto,
 } from '../dto';
 import { NotificationCategory } from '../enums/notification-category.enum';
-import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationPriority } from '../enums/notification-priority.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsController } from '../notifications.controller';
@@ -57,8 +53,6 @@ describe('NotificationsController', () => {
         { provide: LoggerService, useValue: logger },
       ],
     })
-      .overrideGuard(AdminBasicAuthGuard)
-      .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
@@ -150,47 +144,6 @@ describe('NotificationsController', () => {
         'user-1',
         'notif-1',
       );
-    });
-  });
-
-  describe('send', () => {
-    it('should successfully dispatch a notification request and return SendNotificationResponseDto', async () => {
-      const dto: SendNotificationRequestDto = {
-        userIds: ['user-1'],
-        channels: [NotificationChannel.PUSH],
-        title: 'Test Notification',
-        body: 'This is a test notification.',
-        type: NotificationType.SYSTEM_ALERT,
-        category: NotificationCategory.SYSTEM,
-      };
-
-      service.dispatch.mockResolvedValue();
-
-      const result: SendNotificationResponseDto = await controller.send(dto);
-
-      expect(service.dispatch).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({
-        success: true,
-        message: 'Notification dispatch requested for 1 users',
-        userCount: 1,
-      });
-    });
-
-    it('should propagate error when dispatch fails without duplicate local error handling', async () => {
-      const dto: SendNotificationRequestDto = {
-        userIds: ['user-1'],
-        channels: [NotificationChannel.PUSH],
-        title: 'Test Notification',
-        body: 'This is a test notification.',
-        type: NotificationType.SYSTEM_ALERT,
-        category: NotificationCategory.SYSTEM,
-      };
-
-      const dispatchError = new Error('Pub/Sub queue unavailable');
-      service.dispatch.mockRejectedValue(dispatchError);
-
-      await expect(controller.send(dto)).rejects.toThrow(dispatchError);
-      expect(service.dispatch).toHaveBeenCalledWith(dto);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Device, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -134,10 +134,51 @@ export class NotificationsService extends BaseService {
       return;
     }
 
+    // 1. Resolve recipient details & interpolate templates
+    await this.enrichRecipientProfile(dto);
+    this.interpolateContent(dto);
+
+    // 2. Fetch preferences for all users in bulk
+    const preferencesMap = await this.preferencesService.getPreferencesMany(
+      dto.userIds,
+    );
+
     const channels = dto.channels ?? [NotificationChannel.PUSH];
+
+    // 3. Persist notification in DB (Source of Truth) for push-bound communications
+    if (channels.includes(NotificationChannel.PUSH)) {
+      await this.persistNotifications(dto);
+    }
+
     const promises: Promise<void>[] = [];
 
-    // Fallback: auto-resolve recipient firstName if not explicitly provided in payload
+    // 4. Delegate to individual channel dispatchers
+    if (channels.includes(NotificationChannel.PUSH)) {
+      promises.push(this.sendPushNotification(dto, preferencesMap));
+    }
+
+    if (channels.includes(NotificationChannel.EMAIL)) {
+      promises.push(this.sendEmailNotification(dto, preferencesMap, ctx));
+    }
+
+    if (channels.includes(NotificationChannel.WHATSAPP)) {
+      promises.push(this.sendWhatsAppNotification(dto, preferencesMap));
+    }
+
+    // 5. Concurrently await all channel dispatches
+    await this.awaitChannelDispatches(promises, ctx);
+
+    this.logger.event(LOG_EVENT.NOTIFICATION_SENT, {
+      ...ctx,
+    });
+  }
+
+  /**
+   * Auto-resolves recipient firstName from UserProfile if not explicitly provided.
+   */
+  private async enrichRecipientProfile(
+    dto: SendNotificationRequestDto,
+  ): Promise<void> {
     if (!dto.payload?.name && dto.userIds?.length === 1) {
       try {
         const profile = await this.prisma.userProfile.findUnique({
@@ -154,22 +195,25 @@ export class NotificationsService extends BaseService {
         this.logger.warn(
           'Failed to auto-resolve user profile for notification',
           {
-            ...ctx,
+            notificationType: dto.type,
             step: 'resolve_profile',
             err: serializeError(err),
           },
         );
       }
     }
+  }
 
-    // Synchronize deep link between dto.link and dto.payload.link
+  /**
+   * Synchronizes deep links and interpolates title and body from push templates.
+   */
+  private interpolateContent(dto: SendNotificationRequestDto): void {
     if (!dto.link && typeof dto.payload?.link === 'string') {
       dto.link = dto.payload.link;
     } else if (dto.link && !dto.payload?.link) {
       dto.payload = { ...(dto.payload ?? {}), link: dto.link };
     }
 
-    // Interpolate title and body from push templates if missing
     const pushTemplateConfig = PUSH_TEMPLATE_MAP[dto.type];
     if (pushTemplateConfig) {
       if (!dto.title && pushTemplateConfig.title) {
@@ -179,86 +223,104 @@ export class NotificationsService extends BaseService {
         dto.body = pushTemplateConfig.body(dto.payload ?? {});
       }
     }
+  }
 
-    // Fetch preferences for all users in bulk
-    const preferencesMap = await this.preferencesService.getPreferencesMany(
-      dto.userIds,
+  /**
+   * Dispatches notifications via the PUSH channel:
+   * Persists record to DB, filters by preference, fetches devices, and sends via FCM.
+   */
+  private async sendPushNotification(
+    dto: SendNotificationRequestDto,
+    preferencesMap: Map<string, { pushEnabled?: boolean }>,
+  ): Promise<void> {
+    const pushEnabledUserIds = dto.userIds.filter(
+      (userId) => preferencesMap.get(userId)?.pushEnabled,
     );
 
-    // 1. Fetch devices and dispatch if PUSH is requested
-    let devices: Device[] = [];
-    if (channels.includes(NotificationChannel.PUSH)) {
-      // Persist in-app notification record in DB only for push-bound communications
-      await this.persistNotifications(dto);
+    if (pushEnabledUserIds.length > 0) {
+      const devices = await this.prisma.device.findMany({
+        where: {
+          userId: { in: pushEnabledUserIds },
+          isActive: true,
+        },
+      });
+      await this.fcmProvider.send(dto, devices);
+    }
+  }
 
-      const pushEnabledUserIds = dto.userIds.filter(
-        (userId) => preferencesMap.get(userId)?.pushEnabled,
-      );
+  /**
+   * Dispatches notifications via the EMAIL channel:
+   * Filters by preference, resolves email template, and sends via EmailService.
+   */
+  private async sendEmailNotification(
+    dto: SendNotificationRequestDto,
+    preferencesMap: Map<string, { emailEnabled?: boolean }>,
+    ctx: Record<string, unknown>,
+  ): Promise<void> {
+    const emailEnabledUserIds = dto.userIds.filter(
+      (userId) => preferencesMap.get(userId)?.emailEnabled,
+    );
 
-      if (pushEnabledUserIds.length > 0) {
-        devices = await this.prisma.device.findMany({
-          where: {
-            userId: { in: pushEnabledUserIds },
-            isActive: true,
-          },
-        });
-        promises.push(this.fcmProvider.send(dto, devices));
-      }
+    if (emailEnabledUserIds.length === 0) {
+      return;
     }
 
-    // 2. Route to Email service if requested — resolves template from NotificationType mapping
-    if (channels.includes(NotificationChannel.EMAIL)) {
-      const emailEnabledUserIds = dto.userIds.filter(
-        (userId) => preferencesMap.get(userId)?.emailEnabled,
-      );
-
-      if (emailEnabledUserIds.length > 0) {
-        const emailType = NOTIFICATION_TYPE_TO_EMAIL_TYPE[dto.type];
-        if (emailType) {
-          const appUrl = (
-            this.configService.get<string>('APP_URL') ??
-            'https://www.breathaway.app'
-          ).replace(/\/+$/, '');
-          const logoUrl =
-            this.configService.get<string>('EMAIL_LOGO_URL') ||
-            `${appUrl}/images/logo/breathaway-wordmark.png`;
-
-          promises.push(
-            this.emailService.send({
-              emailType,
-              userIds: emailEnabledUserIds,
-              templateData: {
-                ...(dto.payload ?? {}),
-                appUrl,
-                logoUrl,
-                currentYear: DateUtil.now().getFullYear(),
-              },
-              recipientData: dto.recipientData,
-            }),
-          );
-        } else {
-          this.logger.warn('No email template mapped, skipping email channel', {
-            ...ctx,
-            step: 'email_routing',
-          });
-        }
-      }
+    const emailType = NOTIFICATION_TYPE_TO_EMAIL_TYPE[dto.type];
+    if (!emailType) {
+      this.logger.warn('No email template mapped, skipping email channel', {
+        ...ctx,
+        step: 'email_routing',
+      });
+      return;
     }
 
-    // 3. Route to WhatsApp provider if requested
-    if (channels.includes(NotificationChannel.WHATSAPP)) {
-      const whatsappEnabledUserIds = dto.userIds.filter(
-        (userId) => preferencesMap.get(userId)?.whatsappEnabled,
-      );
+    const appUrl = (
+      this.configService.get<string>('APP_URL') ?? 'https://www.breathaway.app'
+    ).replace(/\/+$/, '');
+    const logoUrl =
+      this.configService.get<string>('EMAIL_LOGO_URL') ||
+      `${appUrl}/images/logo/breathaway-wordmark.png`;
 
-      if (whatsappEnabledUserIds.length > 0) {
-        // Clone the dto and override userIds with only the enabled ones
-        const whatsappDto = { ...dto, userIds: whatsappEnabledUserIds };
-        promises.push(this.whatsAppProvider.send(whatsappDto));
-      }
+    await this.emailService.send({
+      emailType,
+      userIds: emailEnabledUserIds,
+      templateData: {
+        ...(dto.payload ?? {}),
+        appUrl,
+        logoUrl,
+        currentYear: DateUtil.now().getFullYear(),
+      },
+      recipientData: dto.recipientData,
+    });
+  }
+
+  /**
+   * Dispatches notifications via the WHATSAPP channel:
+   * Filters by preference and sends via WhatsAppProviderService.
+   */
+  private async sendWhatsAppNotification(
+    dto: SendNotificationRequestDto,
+    preferencesMap: Map<string, { whatsappEnabled?: boolean }>,
+  ): Promise<void> {
+    const whatsappEnabledUserIds = dto.userIds.filter(
+      (userId) => preferencesMap.get(userId)?.whatsappEnabled,
+    );
+
+    if (whatsappEnabledUserIds.length === 0) {
+      return;
     }
 
-    // Await all provider responses concurrently
+    const whatsappDto = { ...dto, userIds: whatsappEnabledUserIds };
+    await this.whatsAppProvider.send(whatsappDto);
+  }
+
+  /**
+   * Concurrently awaits all channel promises with Promise.allSettled and logs errors.
+   */
+  private async awaitChannelDispatches(
+    promises: Promise<void>[],
+    ctx: Record<string, unknown>,
+  ): Promise<void> {
     const results = await Promise.allSettled(promises);
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
@@ -275,10 +337,6 @@ export class NotificationsService extends BaseService {
           providerIndex: index,
         });
       }
-    });
-
-    this.logger.event(LOG_EVENT.NOTIFICATION_SENT, {
-      ...ctx,
     });
   }
 

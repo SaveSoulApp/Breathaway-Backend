@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -12,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
@@ -21,31 +19,28 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
 import {
   BatchReadResponseDto,
   GetNotificationsRequestDto,
   NotificationResponseDto,
   PaginatedNotificationsResponseDto,
-  SendNotificationRequestDto,
-  SendNotificationResponseDto,
   UnreadCountResponseDto,
 } from './dto';
 import { NotificationsService } from './notifications.service';
 
 /**
- * HTTP controller for the /notifications domain.
+ * Client-facing HTTP controller for the /notifications domain.
  *
- * Exposes:
- * 1. Client-facing notification inbox endpoints for authenticated users (JWT guarded).
- * 2. Administrative multi-channel dispatch operations (HTTP Basic Auth guarded).
+ * Exposes in-app notification inbox feeds and read/dismiss mutations
+ * for authenticated mobile and web users (guarded by JWT at class level).
  */
 @ApiTags('Notifications')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @ApiStandardErrors()
 @Controller({
   path: 'notifications',
@@ -63,8 +58,6 @@ export class NotificationsController extends BaseController {
    * Fetches the current user's paginated notification inbox feed.
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get notification inbox feed',
     description:
@@ -86,8 +79,6 @@ export class NotificationsController extends BaseController {
    * Returns the count of unread notifications for badge rendering.
    */
   @Get('unread-count')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get unread notification count',
     description:
@@ -108,8 +99,6 @@ export class NotificationsController extends BaseController {
    * Marks a specific notification as read.
    */
   @Patch(':id/read')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Mark notification as read',
     description:
@@ -140,8 +129,6 @@ export class NotificationsController extends BaseController {
    * Marks all unread notifications as read for the current user.
    */
   @Post('read-all')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mark all notifications as read',
@@ -163,8 +150,6 @@ export class NotificationsController extends BaseController {
    * Dismisses a notification from the user's active inbox view.
    */
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Dismiss notification',
@@ -189,41 +174,5 @@ export class NotificationsController extends BaseController {
     @Param('id') id: string,
   ): Promise<void> {
     await this.notificationsService.dismissNotification(userId, id);
-  }
-
-  /**
-   * Dispatches a multi-channel notification (Push, Email, SMS) to target users.
-   *
-   * Queues the request via Google Cloud Pub/Sub for asynchronous processing and delivery.
-   */
-  @Post('send')
-  @UseGuards(AdminBasicAuthGuard)
-  @ApiBasicAuth()
-  @SkipClientIdentity()
-  @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOperation({
-    summary: 'Dispatch multi-channel notifications (Admin)',
-    description:
-      'Queues multi-channel notifications (Push, Email, SMS) for specified users via Pub/Sub. Requires HTTP Basic Auth with admin credentials.',
-  })
-  @ApiResponse({
-    status: HttpStatus.ACCEPTED,
-    description: 'Notification dispatch requested and queued successfully.',
-    type: SendNotificationResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid or missing admin Basic Auth credentials.',
-  })
-  async send(
-    @Body() dto: SendNotificationRequestDto,
-  ): Promise<SendNotificationResponseDto> {
-    await this.notificationsService.dispatch(dto);
-
-    return {
-      success: true,
-      message: `Notification dispatch requested for ${dto.userIds.length} users`,
-      userCount: dto.userIds.length,
-    };
   }
 }
