@@ -20,6 +20,7 @@ import { LoggerService } from '@core/logger';
 import { InstagramService } from '@modules/instagram/instagram.service';
 import { PaymentsReconciliationService } from '@modules/payments/payments.reconciliation';
 
+import { RotateInstagramTokenResponseDto } from './dto';
 import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
@@ -118,7 +119,9 @@ export class MaintenanceController extends BaseController {
    * Intended to be called monthly (1st of every month at midnight UTC) by
    * GCP Cloud Scheduler targeting the internal maintenance service.
    *
-   * @returns The Graph API refresh response payload.
+   * Note: The plaintext token is never returned to the caller to prevent secret exposure.
+   *
+   * @returns A confirmation payload indicating successful rotation.
    */
   @Post('rotate-instagram-token')
   @HttpCode(HttpStatus.OK)
@@ -128,8 +131,14 @@ export class MaintenanceController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Instagram access token refreshed successfully',
+    type: RotateInstagramTokenResponseDto,
   })
-  async rotateInstagramToken(): Promise<unknown> {
-    return this.instagramService.refreshSystemAccessToken();
+  async rotateInstagramToken(): Promise<RotateInstagramTokenResponseDto> {
+    await this.instagramService.refreshSystemAccessToken();
+    return {
+      success: true,
+      message:
+        'Instagram system access token rotated and persisted to Secret Manager successfully',
+    };
   }
 }

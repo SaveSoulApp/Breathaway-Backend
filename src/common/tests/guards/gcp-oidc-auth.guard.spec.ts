@@ -317,6 +317,38 @@ describe(GcpOidcAuthGuard.name, () => {
       );
     });
 
+    it('should throw UnauthorizedException when neither GCP_OIDC_ALLOWED_EMAILS nor GCP_PROJECT_ID is configured (fail-closed)', async () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'GCP_OIDC_AUDIENCE') return mockAudience;
+        return undefined;
+      });
+
+      const mockTicket = {
+        getPayload: jest.fn().mockReturnValue({
+          iss: 'https://accounts.google.com',
+          aud: mockAudience,
+          email: 'some-sa@other-project.iam.gserviceaccount.com',
+          email_verified: true,
+        }),
+      } as unknown as LoginTicket;
+
+      spyOnVerifyIdToken().mockResolvedValue(mockTicket);
+
+      const context = createMockExecutionContext({
+        headers: {
+          authorization: 'Bearer valid-token',
+        },
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException('Invalid OIDC token'),
+      );
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'OIDC verification failed',
+        expect.objectContaining({ step: 'authenticate' }),
+      );
+    });
+
     it('should return true and attach oidcPayload when token is valid and issued for authorized project', async () => {
       configService.get.mockImplementation((key: string) => {
         if (key === 'GCP_OIDC_AUDIENCE') return mockAudience;

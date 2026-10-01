@@ -134,15 +134,12 @@ describe('MaintenanceController', () => {
   });
 
   describe('rotateInstagramToken', () => {
-    it('should delegate to instagramService.refreshSystemAccessToken', async () => {
+    it('should trigger instagramService.refreshSystemAccessToken and return sanitized confirmation', async () => {
       // Arrange
-      const expectedResult = {
-        access_token: 'new-rotated-token',
+      instagramService.refreshSystemAccessToken.mockResolvedValue({
+        access_token: 'secret-token-that-must-not-be-leaked',
         expires_in: 5184000,
-      };
-      instagramService.refreshSystemAccessToken.mockResolvedValue(
-        expectedResult,
-      );
+      });
 
       // Act
       const result = await controller.rotateInstagramToken();
@@ -151,7 +148,12 @@ describe('MaintenanceController', () => {
       expect(instagramService.refreshSystemAccessToken).toHaveBeenCalledTimes(
         1,
       );
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual({
+        success: true,
+        message:
+          'Instagram system access token rotated and persisted to Secret Manager successfully',
+      });
+      expect(result).not.toHaveProperty('access_token');
     });
   });
 });

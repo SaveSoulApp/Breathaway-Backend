@@ -144,8 +144,13 @@ export class MaintenanceController {
   @Post('rotate-instagram-token')
   @SkipClientIdentity()
   @UseGuards(GcpOidcAuthGuard)
-  async rotateInstagramToken(): Promise<Record<string, unknown>> {
-    return this.instagramService.refreshSystemAccessToken();
+  async rotateInstagramToken(): Promise<RotateInstagramTokenResponseDto> {
+    await this.instagramService.refreshSystemAccessToken();
+    return {
+      success: true,
+      message:
+        'Instagram system access token rotated and persisted to Secret Manager successfully',
+    };
   }
 }
 ```

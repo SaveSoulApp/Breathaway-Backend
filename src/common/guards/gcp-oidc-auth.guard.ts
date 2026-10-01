@@ -141,6 +141,10 @@ export class GcpOidcAuthGuard implements CanActivate {
             `Confused deputy rejected: service account ${payload.email} does not belong to project ${expectedProjectId}`,
           );
         }
+      } else {
+        throw new Error(
+          'OIDC caller verification failed: neither GCP_OIDC_ALLOWED_EMAILS nor GCP_PROJECT_ID is configured.',
+        );
       }
 
       // Attach the payload to the request for downstream audit logging if needed
