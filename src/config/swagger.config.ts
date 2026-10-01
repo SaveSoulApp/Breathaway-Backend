@@ -92,20 +92,20 @@ function publicApiDocumentation(app: INestApplication): void {
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Request-ID',
+        name: 'x-request-id',
         in: 'header',
         description: 'A unique identifier for the request (UUID)',
       },
-      'X-Request-ID',
+      'x-request-id',
     )
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Timezone',
+        name: 'x-timezone',
         in: 'header',
         description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
-      'X-Timezone',
+      'x-timezone',
     )
     .addApiKey(
       {
@@ -182,8 +182,8 @@ function publicApiDocumentation(app: INestApplication): void {
   }
 
   applyGlobalSecurityToOperations(publicDoc, [
-    'X-Request-ID',
-    'X-Timezone',
+    'x-request-id',
+    'x-timezone',
     'x-api-key',
     'x-client-id',
     'x-device-id',
@@ -248,20 +248,20 @@ function adminApiDocumentation(app: INestApplication): void {
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Request-ID',
+        name: 'x-request-id',
         in: 'header',
         description: 'A unique identifier for the request (UUID)',
       },
-      'X-Request-ID',
+      'x-request-id',
     )
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Timezone',
+        name: 'x-timezone',
         in: 'header',
         description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
-      'X-Timezone',
+      'x-timezone',
     )
     .build();
 
@@ -295,7 +295,7 @@ function adminApiDocumentation(app: INestApplication): void {
     adminDoc.tags = adminDoc.tags.filter((tag) => tag.name !== 'Payments');
   }
 
-  applyGlobalSecurityToOperations(adminDoc, ['X-Request-ID', 'X-Timezone']);
+  applyGlobalSecurityToOperations(adminDoc, ['x-request-id', 'x-timezone']);
 
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {

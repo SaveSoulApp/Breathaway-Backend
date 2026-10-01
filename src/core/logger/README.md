@@ -62,7 +62,7 @@ Every log line emitted in GCP mode is a JSON object:
 | `message` | `string` | Pino `messageKey` | Human-readable log message |
 | `context` | `string` | `forContext()` | Class name (e.g., `LikesService`) |
 | `event` | `string` | `logger.event()` | Typed event name (e.g., `LIKE_CREATED`) |
-| `requestId` | `string` | CLS (auto) | UUID from `X-Request-ID` header |
+| `requestId` | `string` | CLS (auto) | UUID from `x-request-id` header |
 | `logging.googleapis.com/trace` | `string` | CLS (auto) | `projects/PROJECT_ID/traces/TRACE_ID` |
 | `logging.googleapis.com/spanId` | `string` | CLS (auto) | Span ID from `X-Cloud-Trace-Context` |
 | `logging.googleapis.com/trace_sampled` | `boolean` | CLS (auto) | Whether the trace is sampled |
@@ -162,7 +162,7 @@ cls.set('traceContext', req.headers['x-cloud-trace-context']); // "abc123/456;o=
 
 ### requestId Enforcement
 
-`RequestIdMiddleware` requires the `X-Request-ID` header on all normal HTTP routes (returns `401` if missing). Excluded for: `/pubsub/*`, Swagger docs, browser paths, internal job routes.
+`RequestIdMiddleware` requires the `x-request-id` header on all normal HTTP routes (returns `401` if missing). Excluded for: `/pubsub/*`, Swagger docs, browser paths, internal job routes.
 
 ---
 

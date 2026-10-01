@@ -9,7 +9,7 @@ import { NextFunction, Request, Response } from 'express';
 /**
  * Normalizes the client-provided timezone and attaches it to the request context.
  *
- * Extracts the `X-Timezone` header, defaulting to `UTC` if absent. This ensures
+ * Extracts the `x-timezone` header, defaulting to `UTC` if absent. This ensures
  * that downstream services and repositories can accurately process date-time logic
  * relative to the user's localized context.
  */

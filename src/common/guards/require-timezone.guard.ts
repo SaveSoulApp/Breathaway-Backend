@@ -7,7 +7,7 @@ import {
 import { Request } from 'express';
 
 /**
- * Guard that enforces the presence of the `X-Timezone` header on a request.
+ * Guard that enforces the presence of the `x-timezone` header on a request.
  * Useful for endpoints that perform sensitive date math (like expiration calculation)
  * where defaulting to UTC would cause silent bugs in local time calculation.
  */
