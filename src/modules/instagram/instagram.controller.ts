@@ -1,10 +1,13 @@
+import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { ApiStandardErrors } from '@common/decorators';
-import { Controller, Get, Query, UseGuards, HttpStatus } from '@nestjs/common';
-import { BaseController } from '@core/base';
 import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
+import { RefreshInstagramTokenRequestDto } from './dto';
 import { InstagramService } from './instagram.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Instagram')
 @ApiStandardErrors()
@@ -31,7 +34,7 @@ export class InstagramController extends BaseController {
    * Refreshes a caller-supplied Instagram user access token via the Graph API
    * and persists the new token to GCP Secret Manager.
    *
-   * @param token - The current long-lived user access token to refresh.
+   * @param query - The request query parameters containing the active token.
    * @returns The Graph API refresh response including the new access token and its expiry.
    * @throws {InstagramGraphApiException} When the Graph API rejects the token (e.g., token is invalid
    *   or already expired beyond refresh eligibility).
@@ -42,8 +45,10 @@ export class InstagramController extends BaseController {
     status: HttpStatus.OK,
     description: 'User access token refreshed successfully',
   })
-  async refresh(@Query('token') token: string): Promise<unknown> {
-    return this.instagramService.refreshAccessToken(token);
+  async refresh(
+    @Query() query: RefreshInstagramTokenRequestDto,
+  ): Promise<unknown> {
+    return this.instagramService.refreshAccessToken(query.token);
   }
 
   /**

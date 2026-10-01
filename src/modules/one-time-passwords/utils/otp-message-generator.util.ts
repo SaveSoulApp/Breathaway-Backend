@@ -83,7 +83,7 @@ export class OtpMessageGenerator {
     'Looking forward to using the app!',
     'Let me know once verified.',
     'Thank you!',
-    "Cant wait to try the app!",
+    'Cant wait to try the app!',
     'Many thanks!',
     'Much appreciated!',
     'Best wishes!',

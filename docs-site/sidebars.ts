@@ -80,6 +80,7 @@ const sidebars: SidebarsConfig = {
         'architecture/supabase-realtime',
         'architecture/logging',
         'architecture/bigquery-insights',
+        'architecture/maintenance-service',
       ],
     },
     {

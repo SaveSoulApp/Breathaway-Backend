@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: "PRD: Realtime Chat & Safety Moderation"
+title: 'PRD: Realtime Chat & Safety Moderation'
 description: Product Requirements Document for 1:1 real-time messaging, Supabase channel presence, media exchange, and safety controls.
 ---
 

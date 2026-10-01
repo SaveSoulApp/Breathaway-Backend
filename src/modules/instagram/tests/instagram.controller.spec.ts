@@ -51,13 +51,13 @@ describe('InstagramController', () => {
 
   describe('refresh', () => {
     it('should refresh access token', async () => {
-      const token = 'test-token';
+      const query = { token: 'test-token' };
       const mockResult = { access_token: 'new-token' };
       service.refreshAccessToken.mockResolvedValue(mockResult);
 
-      const result = await controller.refresh(token);
+      const result = await controller.refresh(query);
 
-      expect(service.refreshAccessToken).toHaveBeenCalledWith(token);
+      expect(service.refreshAccessToken).toHaveBeenCalledWith(query.token);
       expect(result).toEqual(mockResult);
     });
   });

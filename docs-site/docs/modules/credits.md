@@ -104,7 +104,7 @@ This allowed users to spend credits past their `expiresAt` timestamp until the b
 balance = Σ(CREDIT where expiresAt > now) − Σ(DEBIT where source ≠ EXPIRED)
 \`\`\`
 
-This closed the post-expiry spend window, but introduced **bundle-blindness**: it subtracts _all_ LIKE_USAGE debits from whatever active credits are left — without knowing _which bundle_ each debit was actually charged against.
+This closed the post-expiry spend window, but introduced **bundle-blindness**: it subtracts _all_ LIKE*USAGE debits from whatever active credits are left — without knowing \_which bundle* each debit was actually charged against.
 
 **Concrete failure case:**
 

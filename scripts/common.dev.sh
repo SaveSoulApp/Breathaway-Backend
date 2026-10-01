@@ -8,6 +8,10 @@ export PROJECT_ID="breathaway-dev"
 export REGION="asia-south1"
 export REPOSITORY="breathaway-backend"
 export SERVICE_NAME="backend-service"
+export BACKEND_SERVICE_ACCOUNT="backend-service@${PROJECT_ID}.iam.gserviceaccount.com"
+
+export MAINTENANCE_SERVICE_NAME="maintenance-service"
+export MAINTENANCE_SERVICE_ACCOUNT="maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Define the base URL for Artifact Registry (Without the tag)
 # The deploy.sh script will dynamically append :${GIT_COMMIT_HASH} to this.
@@ -29,6 +33,7 @@ export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'
 
 export META_VERIFY_TOKEN='my_meta_verification_token'
+export INSTAGRAM_SECRET_NAME='access-token-instagram'
 
 # Firebase Admin SDK Configuration
 export FIREBASE_PROJECT_ID='breathaway-dev-37fd5'
@@ -44,7 +49,7 @@ export OTP_RATE_LIMIT_TTL='120'
 export EMAIL_FROM_ADDRESS='no-reply@breathaway.app'
 export EMAIL_FROM_NAME='BreathAway'
 
-export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app'
+export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app,https://maintenance-service-at7g3x4m6q-el.a.run.app'
 
 # Mail provider
 export EMAIL_PROVIDER='brevo'
@@ -62,9 +67,17 @@ export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
 export CREDIT_EXPIRY_DAYS='90'
 export LIKE_EXPIRY_DAYS='90'
 
-# Cloud Run Autoscaling & Concurrency Limits
+# Cloud Run Resources & Concurrency Limits (Public API)
+export CPU='2'
+export MEMORY='2Gi'
 export MAX_INSTANCES='10'
 export CONCURRENCY='160'
+
+# Cloud Run Resources & Concurrency Limits (Internal Maintenance Service)
+export MAINTENANCE_CPU='2'
+export MAINTENANCE_MEMORY='2Gi'
+export MAINTENANCE_MAX_INSTANCES='5'
+export MAINTENANCE_CONCURRENCY='80'
 
 # Database Connection Pool Sizing & Timeouts
 export DB_POOL_MAX='4'

@@ -31,13 +31,13 @@ stateDiagram-v2
     Implemented --> Deprecated: Superseded / Retired
 ```
 
-| State | Definition | Actions Required |
-| :--- | :--- | :--- |
-| **`DRAFT`** | Initial proposal undergoing formulation | Author collecting requirements and problem definitions |
-| **`IN_REVIEW`** | Ready for cross-functional review | Engineering, QA, and Security review API shapes & edge cases |
-| **`APPROVED`** | Finalized and ready for development | Engineering breaks down tickets into modular sprint milestones |
-| **`IMPLEMENTED`**| Shipped to staging/production | Telemetry and metrics actively monitored against baseline targets |
-| **`DEPRECATED`** | Feature retired or superseded | Archived for historical context and audit trail |
+| State             | Definition                              | Actions Required                                                  |
+| :---------------- | :-------------------------------------- | :---------------------------------------------------------------- |
+| **`DRAFT`**       | Initial proposal undergoing formulation | Author collecting requirements and problem definitions            |
+| **`IN_REVIEW`**   | Ready for cross-functional review       | Engineering, QA, and Security review API shapes & edge cases      |
+| **`APPROVED`**    | Finalized and ready for development     | Engineering breaks down tickets into modular sprint milestones    |
+| **`IMPLEMENTED`** | Shipped to staging/production           | Telemetry and metrics actively monitored against baseline targets |
+| **`DEPRECATED`**  | Feature retired or superseded           | Archived for historical context and audit trail                   |
 
 ---
 

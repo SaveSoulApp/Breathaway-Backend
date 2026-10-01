@@ -164,10 +164,12 @@ Device tokens associated with the recipient user are fetched from the `Device` t
 ### Deep Linking & Payload Normalization
 
 Every outgoing push notification includes unified navigation metadata in its top-level `data` payload:
+
 - `link`: Normalized route (e.g., `/matches/01HM...`, `/credits`).
 - `route`: Alias for `link` for cross-client compatibility.
 
 Relative links are resolved against the `APP_URL` environment variable:
+
 - Absolute URLs (`https://...`) pass through unmodified.
 - Relative routes (e.g., `/matches/:id`) are appended to `${APP_URL}/app${link}`.
 
@@ -486,15 +488,15 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ## ⚙️ Configuration & Environment Variables
 
-| Variable                     | Type   | Description                                         | Example                      |
-| :--------------------------- | :----- | :-------------------------------------------------- | :--------------------------- |
-| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API | `xkeysib-••••••••••••`       |
-| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo         | `no-reply@breathaway.app`    |
-| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails             | `BreathAway`                 |
-| `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.com` |
+| Variable                     | Type   | Description                                         | Example                                       |
+| :--------------------------- | :----- | :-------------------------------------------------- | :-------------------------------------------- |
+| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API | `xkeysib-••••••••••••`                        |
+| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo         | `no-reply@breathaway.app`                     |
+| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails             | `BreathAway`                                  |
+| `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.com`                  |
 | `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                | `https://app.breathaway.com/icon-192x192.png` |
-| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.com/badge-72x72.png` |
-| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue      | `notifications-stream`       |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.com/badge-72x72.png`  |
+| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue      | `notifications-stream`                        |
 
 > [!CAUTION]
 > In production environments (Cloud Run), `BREVO_API_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control.

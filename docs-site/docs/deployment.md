@@ -33,38 +33,97 @@ The application is containerized using a multi-stage Docker build process locate
 
 ---
 
-## 🏗 GCP Infrastructure & Terraform
+## 🏗 Single-Artifact, Dual-Service Deployment
 
-Infrastructure is declared declaratively using **Terraform** inside the `/terraform` directory.
+To achieve **complete segregation of concerns and least-privilege security**, a single deployment builds **one container image artifact** and deploys it to **two distinct Cloud Run services**:
 
-Key modules managed by Terraform:
+```mermaid
+flowchart TD
+    BUILD["Cloud Build (Single Docker Artifact)<br/>backend-service:<git-commit>"]
 
-- **Cloud Run**: Runs stateless, containerized instances of the NestJS application.
-- **Cloud Scheduler (`scheduler.tf`)**: Automates cron execution of endpoints. For example, triggers the match resolution background loop or credit expiration checks by making authenticated HTTP requests to the Cloud Run API.
-- **Audit Logs (`audit-logs.tf`)**: Integrates Cloud Logging sinks to monitor security events.
+    BUILD -->|"Deploy (Public API)"| PUB["backend-service<br/>SA: backend-service<br/>Ingress: all (Unauthenticated)<br/>CPU: 2 | RAM: 2Gi | Conc: 160"]
+    BUILD -->|"Deploy (Internal Worker)"| MAINT["maintenance-service<br/>SA: maintenance-runner<br/>Ingress: all (No-Unauth / IAM)<br/>CPU: 2 | RAM: 2Gi | Conc: 80"]
+
+    CLIENTS["Mobile & Web Clients"] --> PUB
+    SCHEDULER["Cloud Scheduler (scheduler-invoker)"] --> MAINT
+```
+
+### Why Deploy Across Two Services?
+
+1. **IAM Privilege Segregation**:
+   - **`backend-service`**: Driven by `backend-service@<project>.iam.gserviceaccount.com`. Retains strictly read-only access to Secret Manager (`roles/secretmanager.secretAccessor`). Even if the public API suffers an exploit, the attacker cannot add or mutate secrets.
+   - **`maintenance-service`**: Driven by `maintenance-runner@<project>.iam.gserviceaccount.com`. Possesses elevated permissions to rotate secrets (`roles/secretmanager.secretVersionAdder` scoped to specific secrets like `access-token-instagram`).
+2. **Resource & Scaling Segregation**:
+   - **`backend-service`**: Scaled for high concurrency web traffic (`CONCURRENCY=160`, `MAX_INSTANCES=20`).
+   - **`maintenance-service`**: Configured with dedicated memory and lower concurrency (`CONCURRENCY=80`, `MAX_INSTANCES=5`), ensuring that intensive batch sweeps and memory-heavy cron loops never degrade user-facing API performance or trigger out-of-memory container crashes on public traffic.
+3. **Perimeter Authentication**:
+   - `backend-service` allows unauthenticated traffic (`--allow-unauthenticated`) for public mobile clients.
+   - `maintenance-service` disallows unauthenticated traffic (`--no-allow-unauthenticated`). Only caller identities with `roles/run.invoker` (Cloud Scheduler's `scheduler-invoker` service account) can reach the container.
 
 ---
 
 ## 🚢 Deployment Orchestration
 
-We release updates to Google Cloud using custom bash scripts triggered via root `pnpm` commands.
-
-### Deploy Command Reference
-
-Before executing, ensure you have authenticated with the Google Cloud CLI (`gcloud auth login`) and set up appropriate service account credentials.
+Releases to Google Cloud are managed by the unified deployment script [`scripts/deploy.sh`](file:///scripts/deploy.sh), triggered via root `pnpm` commands:
 
 ```bash
-# Deploy to Staging / Dev environment
+# Full deployment to Staging / Dev environment (both services)
 pnpm run deploy:dev
 
-# Deploy to Production environment
+# Full deployment to Production environment (both services)
 pnpm run deploy:prod
 ```
 
-These commands invoke the `./scripts/deploy.sh` script, which automates:
+### Advanced CLI Deployment Flags
 
-1. Docker image compilation and tag creation.
-2. Pushing the image to **GCP Artifact Registry**.
-3. Deploying the new container tag to **GCP Cloud Run**.
-4. Linking Secret Manager credentials.
-5. Executing database migration deploy hooks.
+[`scripts/deploy.sh`](file:///scripts/deploy.sh) supports targeted deployments to minimize revision rollouts:
+
+```bash
+# Deploy only the public backend service:
+./scripts/deploy.sh --env=dev --only-public
+
+# Deploy only the internal maintenance worker:
+./scripts/deploy.sh --env=dev --only-maintenance
+
+# Skip deploying maintenance service when updating backend:
+./scripts/deploy.sh --env=dev --no-maintenance
+
+# Force image rebuild even if the Git commit tag already exists in Artifact Registry:
+./scripts/deploy.sh --env=dev --force
+```
+
+### Configuration & Sizing Parameterization
+
+Environment variables and resource sizing are declared in [`scripts/common.dev.sh`](file:///scripts/common.dev.sh) and [`scripts/common.prod.sh`](file:///scripts/common.prod.sh):
+
+```bash
+# Public API Resource Sizing
+export CPU='2'
+export MEMORY='2Gi'
+export MAX_INSTANCES='20'
+export CONCURRENCY='160'
+
+# Maintenance Worker Resource Sizing (Can be adjusted independently)
+export MAINTENANCE_CPU='2'
+export MAINTENANCE_MEMORY='2Gi'
+export MAINTENANCE_MAX_INSTANCES='5'
+export MAINTENANCE_CONCURRENCY='80'
+
+# Service Accounts
+export BACKEND_SERVICE_ACCOUNT="backend-service@${PROJECT_ID}.iam.gserviceaccount.com"
+export MAINTENANCE_SERVICE_ACCOUNT="maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com"
+```
+
+---
+
+## 🏗 GCP Infrastructure & Terraform
+
+Infrastructure resources are managed declaratively using **Terraform** inside the `/terraform` directory:
+
+- **[`terraform/backend-iam.tf`](file:///terraform/backend-iam.tf)**: Defines `backend-service` service account and its read-only secret accessor, Cloud SQL, KMS, and Pub/Sub roles.
+- **[`terraform/scheduler.tf`](file:///terraform/scheduler.tf)**:
+  - Declares `scheduler-invoker` service account and binds `roles/run.invoker` to `maintenance-service`.
+  - Declares `maintenance-runner` service account and binds `roles/secretmanager.secretVersionAdder` for `access-token-instagram`.
+  - Defines all automated Cloud Scheduler jobs targeting `maintenance-service` with Google OIDC authentication.
+- **[`terraform/pubsub.tf`](file:///terraform/pubsub.tf)**: Configures event push subscriptions back to Cloud Run.
+- **[`terraform/audit-logs.tf`](file:///terraform/audit-logs.tf)**: Integrates Cloud Logging sinks to stream structured security and audit logs to BigQuery.

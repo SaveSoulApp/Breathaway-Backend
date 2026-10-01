@@ -22,13 +22,13 @@ graph TD
     PrismaService[NestJS PrismaService] --> PgBouncer
 ```
 
-| Component | Technology | Role |
-| :--- | :--- | :--- |
-| **Engine** | PostgreSQL 16 | Primary ACID relational database |
-| **Hosting** | GCP Cloud SQL | Managed database with automated backups and failover |
-| **ORM** | Prisma ORM v6 / v5 | Type-safe query builder, schema modeling, and migrations |
-| **Connection Pooling**| Cloud SQL Auth Proxy / PgBouncer | Manages connection limits under stateless autoscaling |
-| **Ledger Model** | Double-Entry Bookkeeping | Tamper-evident accounting for user credit balances |
+| Component              | Technology                       | Role                                                     |
+| :--------------------- | :------------------------------- | :------------------------------------------------------- |
+| **Engine**             | PostgreSQL 16                    | Primary ACID relational database                         |
+| **Hosting**            | GCP Cloud SQL                    | Managed database with automated backups and failover     |
+| **ORM**                | Prisma ORM v6 / v5               | Type-safe query builder, schema modeling, and migrations |
+| **Connection Pooling** | Cloud SQL Auth Proxy / PgBouncer | Manages connection limits under stateless autoscaling    |
+| **Ledger Model**       | Double-Entry Bookkeeping         | Tamper-evident accounting for user credit balances       |
 
 ---
 
@@ -48,6 +48,7 @@ Because the backend runs on GCP Cloud Run with autoscaling (0 to N instances), d
 ## 🛡 Prisma ORM Patterns & Best Practices
 
 ### 1. Dedicated Service Isolation
+
 Controllers **never** inject `PrismaService` directly. All database access must be encapsulated within domain Services or Repositories:
 
 ```typescript
@@ -68,6 +69,7 @@ export class UserService {
 ```
 
 ### 2. Preventing N+1 Query Problems
+
 Prisma provides fluent relational queries. Always use explicit `select` or `include` rather than querying related entities in iterative loops:
 
 ```typescript
@@ -84,6 +86,7 @@ const user = await this.prisma.user.findUnique({
 ```
 
 ### 3. Atomic Multi-Record Mutations ($transaction)
+
 For any operation modifying multiple dependent tables, use Prisma's `$transaction` API to maintain strict ACID invariants:
 
 ```typescript
@@ -109,6 +112,7 @@ await this.prisma.$transaction(async (tx) => {
 User credits (used for premium actions, super-likes, and profile boosts) are modeled as a **double-entry ledger** to ensure financial auditability and prevent balance drift.
 
 ### Core Data Models
+
 - **`CreditAccount`**: Represents a user's balance container (`AVAILABLE`, `ESCROW`, `LOCKED`).
 - **`CreditLedgerEntry`**: Immutable transaction log recording every debit (`DEBIT`) and credit (`CREDIT`) with signed amounts and operational metadata (`txType`, `idempotencyKey`).
 
