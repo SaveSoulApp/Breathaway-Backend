@@ -1,15 +1,21 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import { ClsService } from 'nestjs-cls';
+
+import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
+import { LoggerService } from '@core/logger';
+
 import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from '../application/exceptions';
-import axios from 'axios';
-import { LoggerService } from '@core/logger';
-import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
+import {
+  DEFAULT_INSTAGRAM_SECRET_NAME,
+  INSTAGRAM_SECRET_NAME_CONFIG_KEY,
+} from '../instagram.constants';
 import { InstagramService } from '../instagram.service';
-import { ClsService } from 'nestjs-cls';
 
 jest.mock('axios');
 
@@ -92,7 +98,7 @@ describe('InstagramService', () => {
         },
       );
       expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
-        'access-token-instagram',
+        DEFAULT_INSTAGRAM_SECRET_NAME,
         'new-token',
       );
       expect(result).toEqual(mockResponse.data);
@@ -163,9 +169,11 @@ describe('InstagramService', () => {
       const result = await service.refreshSystemAccessToken();
 
       expect(gcpSecretManager.getSecret).toHaveBeenCalledWith(
-        'access-token-instagram',
+        DEFAULT_INSTAGRAM_SECRET_NAME,
       );
-      expect(configService.get).not.toHaveBeenCalled();
+      expect(configService.get).not.toHaveBeenCalledWith(
+        'INSTAGRAM_ACCESS_TOKEN',
+      );
       expect(mockedAxios.get).toHaveBeenCalledWith(
         'https://graph.instagram.com/refresh_access_token',
         {
@@ -183,7 +191,12 @@ describe('InstagramService', () => {
         new Error('Secret not found'),
       );
       const mockConfigToken = 'env-token';
-      configService.get.mockReturnValueOnce(mockConfigToken);
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'INSTAGRAM_ACCESS_TOKEN') {
+          return mockConfigToken;
+        }
+        return undefined;
+      });
 
       const mockResponse = {
         data: {
@@ -195,7 +208,7 @@ describe('InstagramService', () => {
       const result = await service.refreshSystemAccessToken();
 
       expect(gcpSecretManager.getSecret).toHaveBeenCalledWith(
-        'access-token-instagram',
+        DEFAULT_INSTAGRAM_SECRET_NAME,
       );
       expect(configService.get).toHaveBeenCalledWith('INSTAGRAM_ACCESS_TOKEN');
       expect(mockedAxios.get).toHaveBeenCalledWith(
@@ -208,6 +221,32 @@ describe('InstagramService', () => {
         },
       );
       expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should use custom INSTAGRAM_SECRET_NAME from configService if configured', async () => {
+      const customSecretName = 'custom-instagram-secret';
+      configService.get.mockImplementation((key: string) => {
+        if (key === INSTAGRAM_SECRET_NAME_CONFIG_KEY) {
+          return customSecretName;
+        }
+        return undefined;
+      });
+
+      const mockResponse = {
+        data: {
+          access_token: 'new-token-custom',
+        },
+      };
+      gcpSecretManager.getSecret.mockResolvedValueOnce('stored-custom-token');
+      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+
+      await service.refreshSystemAccessToken();
+
+      expect(gcpSecretManager.getSecret).toHaveBeenCalledWith(customSecretName);
+      expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
+        customSecretName,
+        'new-token-custom',
+      );
     });
 
     it('should throw InternalServerErrorException if token is neither in Secret Manager nor configured in configService', async () => {

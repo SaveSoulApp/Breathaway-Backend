@@ -11,6 +11,10 @@ import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from './application/exceptions';
+import {
+  DEFAULT_INSTAGRAM_SECRET_NAME,
+  INSTAGRAM_SECRET_NAME_CONFIG_KEY,
+} from './instagram.constants';
 
 /**
  * Manages Instagram access token lifecycle by communicating directly with the
@@ -33,8 +37,20 @@ export class InstagramService extends BaseService {
   private readonly baseUrl = 'https://graph.instagram.com';
 
   /**
+   * Resolves the Secret Manager secret identifier for the Instagram access token.
+   *
+   * Prefers `INSTAGRAM_SECRET_NAME` from ConfigService; falls back to `DEFAULT_INSTAGRAM_SECRET_NAME`.
+   */
+  private get instagramSecretName(): string {
+    return (
+      this.configService.get<string>(INSTAGRAM_SECRET_NAME_CONFIG_KEY) ??
+      DEFAULT_INSTAGRAM_SECRET_NAME
+    );
+  }
+
+  /**
    * Exchanges a long-lived Instagram access token for a new one via the Graph API
-   * and writes the refreshed token to the `access-token-instagram` GCP secret.
+   * and writes the refreshed token to the configured GCP Secret Manager secret.
    *
    * Token persistence uses an upsert so the secret is created on first rotation
    * and overwritten on subsequent calls. The full Graph API response is returned
@@ -60,7 +76,7 @@ export class InstagramService extends BaseService {
       const newToken = data?.access_token;
       if (typeof newToken === 'string') {
         await this.gcpSecretManager.upsertSecret(
-          'access-token-instagram',
+          this.instagramSecretName,
           newToken,
         );
         process.env.INSTAGRAM_ACCESS_TOKEN = newToken;
@@ -110,7 +126,7 @@ export class InstagramService extends BaseService {
 
     try {
       accessToken = await this.gcpSecretManager.getSecret(
-        'access-token-instagram',
+        this.instagramSecretName,
       );
       this.logger.debug(
         'Retrieved system Instagram token from Secret Manager',

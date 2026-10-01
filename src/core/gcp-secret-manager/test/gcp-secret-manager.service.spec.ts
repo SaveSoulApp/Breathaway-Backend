@@ -1,4 +1,5 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
@@ -132,6 +133,64 @@ describe('GcpSecretManagerService', () => {
       await expect(service.getSecret('access-token-instagram')).rejects.toThrow(
         error,
       );
+    });
+
+    it('should use GCP_PROJECT_ID from ConfigService without calling client.getProjectId', async () => {
+      const mockConfigService = {
+        get: jest.fn().mockImplementation((key: string) => {
+          if (key === 'GCP_PROJECT_ID') return 'config-project-id';
+          return undefined;
+        }),
+      };
+
+      const testModule = await Test.createTestingModule({
+        providers: [
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: ConfigService, useValue: mockConfigService },
+          GcpSecretManagerService,
+          { provide: LoggerService, useValue: mockLogger },
+        ],
+      }).compile();
+
+      const svcWithConfig = testModule.get<GcpSecretManagerService>(
+        GcpSecretManagerService,
+      );
+
+      mockAccessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: Buffer.from('my-secret-token', 'utf8'),
+          },
+        },
+      ]);
+
+      const result = await svcWithConfig.getSecret('access-token-instagram');
+
+      expect(result).toBe('my-secret-token');
+      expect(mockConfigService.get).toHaveBeenCalledWith('GCP_PROJECT_ID');
+      expect(mockGetProjectId).not.toHaveBeenCalled();
+      expect(mockAccessSecretVersion).toHaveBeenCalledWith({
+        name: 'projects/config-project-id/secrets/access-token-instagram/versions/latest',
+      });
+    });
+
+    it('should cache projectId and invoke client.getProjectId only once across multiple operations', async () => {
+      mockGetProjectId.mockResolvedValue('test-project-123');
+      mockAccessSecretVersion.mockResolvedValue([
+        {
+          payload: {
+            data: Buffer.from('token-1', 'utf8'),
+          },
+        },
+      ]);
+      mockAddSecretVersion.mockResolvedValue([{}]);
+
+      await service.getSecret('secret-a');
+      await service.getSecret('secret-b');
+      await service.upsertSecret('secret-c', 'value-c');
+
+      expect(mockGetProjectId).toHaveBeenCalledTimes(1);
     });
   });
 

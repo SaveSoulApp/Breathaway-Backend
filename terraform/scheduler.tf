@@ -19,6 +19,12 @@ variable "maintenance_service_name" {
   default = "maintenance-service"
 }
 
+variable "instagram_secret_name" {
+  type        = string
+  description = "Secret Manager secret identifier for the Instagram access token"
+  default     = "access-token-instagram"
+}
+
 # Data block to get the deployed backend Cloud Run service details dynamically (like its URL)
 data "google_cloud_run_v2_service" "backend_service" {
   name     = var.service_name
@@ -52,7 +58,7 @@ resource "google_service_account" "maintenance_runner" {
 # 4. IAM: Grant maintenance-runner rights to add new versions strictly to the Instagram secret
 resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram_adder" {
   project   = var.project_id
-  secret_id = "access-token-instagram"
+  secret_id = var.instagram_secret_name
   role      = "roles/secretmanager.secretVersionAdder"
   member    = "serviceAccount:${google_service_account.maintenance_runner.email}"
 }
@@ -60,7 +66,7 @@ resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram
 # 5. IAM: Grant maintenance-runner rights to read the Instagram secret
 resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram_accessor" {
   project   = var.project_id
-  secret_id = "access-token-instagram"
+  secret_id = var.instagram_secret_name
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.maintenance_runner.email}"
 }

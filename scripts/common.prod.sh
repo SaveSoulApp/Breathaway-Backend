@@ -34,6 +34,7 @@ export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'
 
 export META_VERIFY_TOKEN='my_meta_verification_token'
+export INSTAGRAM_SECRET_NAME='access-token-instagram'
 
 # Firebase Admin SDK Configuration
 export FIREBASE_PROJECT_ID='breathaway-dev-37fd5'
