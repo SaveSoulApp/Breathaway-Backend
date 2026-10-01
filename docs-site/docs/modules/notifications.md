@@ -4,13 +4,18 @@ sidebar_position: 25
 
 # Notifications Module
 
-The `NotificationsModule` provides BreathAway's multi-channel notification infrastructure, orchestrating transactional emails (via Brevo), push notifications (via Firebase Cloud Messaging), and SMS/WhatsApp alerts. It features an event-driven Pub/Sub fan-out pipeline, dynamic Handlebars templating with layout inheritance, envelope-encrypted recipient email resolution, and strict user preference gatekeeping.
+The `NotificationsModule` provides BreathAway's multi-channel notification infrastructure, orchestrating transactional emails (via Brevo), push notifications (via Firebase Cloud Messaging), SMS/WhatsApp alerts, and a persistent **In-App Notification Center** backed by PostgreSQL. It features an event-driven Pub/Sub fan-out pipeline, dynamic Handlebars templating with layout inheritance, envelope-encrypted recipient email resolution, strict user preference gatekeeping, and multi-device in-app inbox synchronization.
 
 ---
 
 ## 📋 Purpose & Responsibilities
 
-- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo SMTP API), **Push** (Firebase Cloud Messaging), and **WhatsApp/SMS** without duplicating business logic.
+- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo SMTP API), **Push** (Firebase Cloud Messaging: iOS, Android, WebPush), and **WhatsApp/SMS** without duplicating business logic.
+- **In-App Notification Center & Durable Storage**: Persists push-targeted communications in PostgreSQL with polymorphic JSONB payloads, read/unread states, and dismissal tracking, powering real-time inbox feeds and badge counters across all user devices.
+- **Selective Push Channel Persistence**: Enforces a strict separation between transient delivery protocols (Email, WhatsApp) and persistent in-app notifications. Only communications routed through the `PUSH` channel are written to the database.
+- **Segregated Controller Architecture**: Separates public client inbox interactions (`NotificationsController` secured by `JwtAuthGuard`) from administrative dispatch endpoints (`NotificationsAdminController` secured by `AdminBasicAuthGuard`).
+- **Two-Phase Sequential Dispatch**: Guarantees database record creation before provider network transmission, eliminating the "push-to-open" race condition when mobile users tap notifications.
+- **Zero-Migration Classification Architecture**: Utilizes varchar-backed database columns with TypeScript enums for `NotificationType`, `NotificationCategory`, and `NotificationPriority`, enabling instant taxonomy additions without database DDL schema migrations.
 - **Asynchronous Pub/Sub Fan-Out**: Decouples API endpoints from downstream notification providers using Google Cloud Pub/Sub, ensuring sub-80ms client response times.
 - **Transactional Email Engine**: Pre-compiles and caches responsive HTML templates via Handlebars, applies brand styling and partials (`header.hbs`, `footer.hbs`), and executes personalized interpolations.
 - **Envelope-Encrypted Email Resolution**: Transparently decrypts user email addresses stored across encrypted `Identity` records using `IdentityCryptoService` (AES-256-GCM + Google Cloud KMS).
@@ -19,9 +24,9 @@ The `NotificationsModule` provides BreathAway's multi-channel notification infra
 
 ---
 
-## 🏗 Multi-Channel Architecture
+## 🏗 Multi-Channel & In-App Notification Architecture
 
-The following diagram illustrates how user actions trigger notifications, how events fan out through Cloud Pub/Sub, and how the `EmailService` resolves credentials and dispatches via Brevo.
+The following diagram illustrates how user actions trigger notifications via domain events, how events fan out through Cloud Pub/Sub, how the two-phase pipeline persists in-app records and fans out to provider adapters, and how client applications query the In-App Notification Center.
 
 ```mermaid
 flowchart TD
@@ -49,22 +54,33 @@ flowchart TD
         PUBSUB[("Topic: notifications-stream<br/>Event: NOTIFICATION_SEND_REQUESTED")]
     end
 
-    subgraph Consumer["Pub/Sub Consumer Pipeline"]
+    subgraph Consumer["Pub/Sub Consumer: processSendRequest()"]
         PROCESSOR["NotificationsService.processSendRequest()"]
-        FALLBACK["Fallback Profile Auto-Resolution<br/>(userProfile.firstName)"]
-        PREFS["PreferencesService.getPreferencesMany()<br/>(emailEnabled, pushEnabled, whatsappEnabled)"]
+        ENRICH["enrichRecipientProfile() & interpolateContent()"]
+        PREFS["PreferencesService.getPreferencesMany()"]
+
+        subgraph Phase_1["Phase 1: DB Persistence (Push Only)"]
+            PERSIST{"channels includes PUSH?"}
+            DB_WRITE[("Prisma: Notification Table<br/>(PostgreSQL Storage)")]
+            ATTACH_ID["dto.id = record.id<br/>(Prevents Push-to-Open Race)"]
+        end
+
+        subgraph Phase_2["Phase 2: Concurrent Fan-Out (allSettled)"]
+            SEND_PUSH["sendPushNotification()"]
+            SEND_EMAIL["sendEmailNotification()"]
+            SEND_WA["sendWhatsAppNotification()"]
+        end
     end
 
-    subgraph Channels["Provider Adapters"]
+    subgraph Providers["External Delivery Providers"]
         FCM["FcmProviderService<br/>(Firebase Cloud Messaging: iOS, Android, WebPush)"]
         BREVO["EmailService → BrevoEmailAdapter<br/>(Brevo v3 REST API)"]
         WA["WhatsAppProviderService<br/>(Twilio / WhatsApp API)"]
     end
 
-    subgraph Email_Resolution["Email Pipeline Details"]
-        AUTH_CRED[("AuthCredential & Identity DB")]
-        KMS["IdentityCryptoService<br/>(AES-256-GCM Decryption)"]
-        HBS["Handlebars Engine<br/>(layout.hbs + templates/*.hbs)"]
+    subgraph Client_Inbox["In-App Notification Center (Client Facing)"]
+        CLIENT["Mobile App / Web App"]
+        CTRL["NotificationsController<br/>(/v1/notifications) [JwtAuthGuard]"]
     end
 
     AUTH -->|USER_WELCOME_EVENT| BUS
@@ -80,18 +96,401 @@ flowchart TD
     RESOLVE --> DISPATCH
     DISPATCH --> PUBSUB
     PUBSUB --> PROCESSOR
-    PROCESSOR --> FALLBACK
-    FALLBACK --> PREFS
+    PROCESSOR --> ENRICH
+    ENRICH --> PREFS
+    PREFS --> PERSIST
 
-    PREFS -->|pushEnabled: true| FCM
-    PREFS -->|emailEnabled: true| BREVO
-    PREFS -->|whatsappEnabled: true| WA
+    PERSIST -->|Yes| DB_WRITE
+    DB_WRITE --> ATTACH_ID
+    ATTACH_ID --> SEND_PUSH
+    PERSIST -->|No / Done| SEND_EMAIL
+    PERSIST -->|No / Done| SEND_WA
 
-    BREVO --> AUTH_CRED
-    AUTH_CRED --> KMS
-    KMS --> HBS
-    HBS -->|HTML payload| BREVO
+    SEND_PUSH -->|pushEnabled: true| FCM
+    SEND_EMAIL -->|emailEnabled: true| BREVO
+    SEND_WA -->|whatsappEnabled: true| WA
+
+    CLIENT -->|GET /unread-count, GET /, PATCH /:id/read| CTRL
+    CTRL -->|Queries & Updates| DB_WRITE
 ```
+
+---
+
+## 📬 In-App Notification Center & Durable Storage
+
+### 1. The Durability Challenge: Account-Level vs. Device-Level Notifications
+
+Standard push notifications delivered via APNs or FCM are **device-bound and ephemeral**:
+
+- If a user dismisses a push notification banner on their phone, the notification is gone.
+- If a user installs the application on a second phone or logs in via the web app, device push history is not synchronized.
+- Critical messages (matches, credit updates, security alerts) require an audit log that users can reference inside the app.
+
+The **In-App Notification Center** solves this by establishing a durable, PostgreSQL-backed inbox for each user account. Whenever an alert is triggered, it is stored in the database, allowing clients to query unread badge counts, browse paginated inbox history, and synchronize read states across all registered devices.
+
+### 2. The Selective Push Persistence Rule
+
+> [!IMPORTANT]
+> **Database Persistence Policy**: Only notifications routed through the `PUSH` channel (`NotificationChannel.PUSH`) are persisted to the database.
+
+- **Why Not Email or WhatsApp?**
+  Emails (receipts, legal notices, onboarding summaries) and WhatsApp chats already possess native persistence within the recipient's external mail client or chat messenger. Duplicating every transactional email into the in-app notification center would cause inbox clutter and unnecessary database row expansion.
+- **Multi-Channel Combination**:
+  When a communication is dispatched across multiple channels (e.g., `channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL]` for a new match or security alert), the presence of `PUSH` triggers persistence. The user receives both an external email and an in-app notification record.
+
+### 3. Database Schema & Composite Indexes
+
+In-app notifications are stored in the `Notification` table in PostgreSQL:
+
+```prisma
+model Notification {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     String @db.VarChar(64)
+  category String @db.VarChar(32)
+  priority String @default("NORMAL") @db.VarChar(16)
+
+  title String
+  body  String
+
+  action String?
+  link   String?
+  data   Json?   @db.JsonB
+
+  isRead      Boolean   @default(false)
+  readAt      DateTime? @db.Timestamptz
+  isDismissed Boolean   @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead])
+  @@index([userId, category])
+}
+```
+
+#### Field Specifications
+
+| Field         | Type                  | Description                                                                                              |
+| :------------ | :-------------------- | :------------------------------------------------------------------------------------------------------- |
+| `id`          | `String` (ULID)       | Lexicographically sortable unique identifier generated via `ulid()`.                                     |
+| `userId`      | `String`              | Foreign key referencing `User(id)` with `onDelete: Cascade`.                                             |
+| `type`        | `String (VarChar 64)` | Actionable event type (e.g., `NEW_MATCH`, `CREDITS_PURCHASED`). Zero-migration string backed by TS enum. |
+| `category`    | `String (VarChar 32)` | Grouping identifier (e.g., `SOCIAL`, `SECURITY`, `BILLING`). Zero-migration string backed by TS enum.    |
+| `priority`    | `String (VarChar 16)` | Delivery priority (`LOW`, `NORMAL`, `HIGH`, `CRITICAL`). Default: `NORMAL`.                              |
+| `title`       | `String`              | Human-readable notification header.                                                                      |
+| `body`        | `String`              | Formatted notification text.                                                                             |
+| `action`      | `String?`             | Navigation intent indicator (e.g., `NAVIGATE`, `OPEN_MODAL`).                                            |
+| `link`        | `String?`             | Deep link route (e.g., `/matches/01HM...`, `/credits/history`).                                          |
+| `data`        | `Json? (JsonB)`       | Polymorphic metadata payload (e.g., `matchId`, `creditsAdded`, `avatarUrl`) for client UI hydration.     |
+| `isRead`      | `Boolean`             | `false` until explicitly marked as read by the client.                                                   |
+| `readAt`      | `DateTime?`           | Timestamp recording when the user opened or read the notification.                                       |
+| `isDismissed` | `Boolean`             | `true` when the user deletes or dismisses the notification from their inbox feed.                        |
+
+#### Performance & Indexing Strategy
+
+1. **`@@index([userId, createdAt(sort: Desc)])`**: Optimizes the primary inbox feed query (`getUserNotifications`). Ensures reverse-chronological sorting and cursor-based pagination execute without table scans.
+2. **`@@index([userId, isRead])`**: Powers the high-frequency badge count query (`getUnreadCount`), enabling constant-time evaluation of `isRead: false` and `isDismissed: false`.
+3. **`@@index([userId, category])`**: Optimizes filtered category tab queries (e.g., filtering inbox by `SOCIAL` or `BILLING`).
+
+---
+
+## 🏷️ Dynamic String-Backed Classification Architecture
+
+### Why Zero-Migration String Columns?
+
+Rather than creating PostgreSQL native enums (`CREATE TYPE notification_type AS ENUM (...)`), BreathAway stores `type`, `category`, and `priority` as `@db.VarChar(...)` strings.
+
+- **The Problem with Native Enums**: Adding or reordering values in PostgreSQL native enums requires executing DDL database migrations (`ALTER TYPE ... ADD VALUE`). In high-traffic production environments, DDL operations risk table locks, cannot run cleanly inside standard transaction blocks, and introduce deployment ordering friction between backend application code and Cloud SQL databases.
+- **The Solution**: String columns paired with strict TypeScript enums, `class-validator` decorators, and OpenAPI Swagger schemas. New notification types and categories can be introduced immediately in application code with zero downtime and zero database migrations.
+
+### 1. `NotificationType` Catalog (15 Types)
+
+| Type                    | Default Category | Description                                                                   | Primary Channels |
+| :---------------------- | :--------------- | :---------------------------------------------------------------------------- | :--------------- |
+| `WELCOME`               | `MARKETING`      | Onboarding welcome notification after account creation or email verification. | Email, Push      |
+| `LIKE_SENT`             | `SOCIAL`         | Confirmation to sender that their double-blind like was safely dispatched.    | Email, Push      |
+| `NEW_MATCH`             | `SOCIAL`         | Mutual match confirmation dispatched concurrently to both users.              | Email, Push      |
+| `NEW_MESSAGE`           | `SOCIAL`         | Alert notifying user of a new direct chat message.                            | Push             |
+| `LIKE_WITHDRAWN`        | `SOCIAL`         | Confirmation that sender cancelled a pending like.                            | Email            |
+| `LIKES_EXPIRED`         | `REMINDER`       | Batch alert when pending likes surpass the 90-day retention threshold.        | Email, Push      |
+| `CREDITS_PURCHASED`     | `BILLING`        | Receipt and ledger update confirmation for purchased credit bundles.          | Email, Push      |
+| `CREDITS_USED`          | `BILLING`        | Debit confirmation when credits are consumed for likes or connections.        | Email, Push      |
+| `BUNDLE_EXPIRY_WARNING` | `REMINDER`       | Proactive notice that time-limited credits will expire soon (2 or 7 days).    | Email, Push      |
+| `CREDIT_UPDATE`         | `BILLING`        | Administrative or system credit adjustments.                                  | Email, Push      |
+| `PAYMENT_COMPLETED`     | `BILLING`        | Invoice receipt after subscription renewal or one-time store checkout.        | Email            |
+| `IDENTITY_ADDED`        | `SECURITY`       | Security alert when a new contact method (phone, email, social) is linked.    | Email, Push      |
+| `IDENTITY_REMOVED`      | `SECURITY`       | Security alert when an existing contact method is unlinked or deleted.        | Email, Push      |
+| `DEVICE_ADDED`          | `SECURITY`       | Security alert when a new device registers an active push token.              | Email, Push      |
+| `SYSTEM_ALERT`          | `SYSTEM`         | Administrative broadcast or platform maintenance alert.                       | Email, Push      |
+
+### 2. `NotificationCategory` Catalog (7 Categories)
+
+Categories group notifications for user preference toggles, client inbox filtering tabs, and retention rules:
+
+```typescript
+export enum NotificationCategory {
+  SOCIAL = 'SOCIAL', // Likes, matches, chat messages, connection events
+  SECURITY = 'SECURITY', // Device additions, credential modifications, auth alerts
+  BILLING = 'BILLING', // Purchases, receipts, credit debits, subscriptions
+  REMINDER = 'REMINDER', // Like expiration, credit bundle expiration warnings
+  MARKETING = 'MARKETING', // Onboarding welcome, engagement campaigns, promotional offers
+  SYSTEM = 'SYSTEM', // Maintenance announcements, operational alerts
+  SUPPORT = 'SUPPORT', // Support ticket updates, resolution notifications
+}
+```
+
+### 3. `NotificationPriority` Catalog (4 Tiers)
+
+```typescript
+export enum NotificationPriority {
+  LOW = 'LOW', // Non-urgent background updates (e.g., marketing digests)
+  NORMAL = 'NORMAL', // Standard user notifications (e.g., like sent, credit used)
+  HIGH = 'HIGH', // Time-sensitive events (e.g., new match, bundle expiring soon)
+  CRITICAL = 'CRITICAL', // Urgent security alerts (e.g., new device added, password reset)
+}
+```
+
+---
+
+## 🛡️ Controller Architecture & API Reference
+
+To maintain clean security boundaries and eliminate redundant method-level guards, notification endpoints are segregated into two distinct controllers sharing the `/v1/notifications` route prefix.
+
+```
+src/modules/notifications/
+├── notifications.controller.ts        # Client-facing In-App Inbox API (JwtAuthGuard)
+└── notifications-admin.controller.ts  # Administrative & System Dispatch API (AdminBasicAuthGuard)
+```
+
+### 1. Client Inbox Controller (`NotificationsController`)
+
+- **Base Route**: `/api/v1/notifications`
+- **Security**: Class-level `@UseGuards(JwtAuthGuard)` and `@ApiBearerAuth()`.
+- **Target Audience**: Mobile apps (iOS/Android) and Web apps (PWA/Desktop).
+
+#### Endpoints Reference
+
+| Method   | Endpoint        | Description                                                  | Request Query / Body         | Response Status & Shape                        |
+| :------- | :-------------- | :----------------------------------------------------------- | :--------------------------- | :--------------------------------------------- |
+| `GET`    | `/`             | Paginated notification inbox feed sorted newest first.       | `GetNotificationsRequestDto` | `200 OK` → `PaginatedNotificationsResponseDto` |
+| `GET`    | `/unread-count` | Real-time unread badge count for tab bar / app icons.        | _None_                       | `200 OK` → `UnreadCountResponseDto`            |
+| `PATCH`  | `/:id/read`     | Marks a single notification as read. Idempotent.             | `id` (param: ULID)           | `200 OK` → `NotificationResponseDto`           |
+| `POST`   | `/read-all`     | Atomically marks all unread notifications as read.           | _None_                       | `200 OK` → `BatchReadResponseDto`              |
+| `DELETE` | `/:id`          | Soft-dismisses a notification from user's active inbox view. | `id` (param: ULID)           | `204 No Content`                               |
+
+#### Endpoint Details & Payloads
+
+##### `GET /api/v1/notifications`
+
+Fetches the current user's inbox with cursor-based pagination and optional category filtering:
+
+- **Query Parameters**:
+  - `limit` (optional, number, 1–100, default: `20`): Number of items per page.
+  - `cursor` (optional, string, ULID): Notification ID from the previous page's `nextCursor`.
+  - `category` (optional, enum: `NotificationCategory`): Filters by category (e.g. `SOCIAL`, `SECURITY`).
+  - `unreadOnly` (optional, boolean, default: `false`): If `true`, only returns unread notifications.
+
+- **Response Example (`200 OK`)**:
+  ```json
+  {
+    "items": [
+      {
+        "id": "01J9H2X8W5B47N0K6P8R9Q1Z2A",
+        "userId": "01J9H0X1A2B3C4D5E6F7G8H9J0",
+        "type": "NEW_MATCH",
+        "category": "SOCIAL",
+        "priority": "HIGH",
+        "title": "It's a Match! 💫",
+        "body": "You and Sarah liked each other!",
+        "action": "NAVIGATE",
+        "link": "/matches/01J9H2Z4...",
+        "data": {
+          "matchId": "01J9H2Z4...",
+          "name": "Sarah",
+          "chatUrl": "/matches/01J9H2Z4..."
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-10-01T12:00:00.000Z"
+      }
+    ],
+    "nextCursor": "01J9H2X8W5B47N0K6P8R9Q1Z2A",
+    "hasMore": false,
+    "unreadCount": 1
+  }
+  ```
+
+##### `GET /api/v1/notifications/unread-count`
+
+Used by mobile and web clients on app resume or websocket heartbeat to render badge counts:
+
+- **Response Example (`200 OK`)**:
+  ```json
+  {
+    "unreadCount": 3
+  }
+  ```
+
+##### `PATCH /api/v1/notifications/:id/read`
+
+Marks a specific notification as read. If the notification is already read, it returns the current record without executing an unnecessary database write:
+
+- **Response Example (`200 OK`)**:
+  ```json
+  {
+    "id": "01J9H2X8W5B47N0K6P8R9Q1Z2A",
+    "userId": "01J9H0X1A2B3C4D5E6F7G8H9J0",
+    "type": "NEW_MATCH",
+    "category": "SOCIAL",
+    "priority": "HIGH",
+    "title": "It's a Match! 💫",
+    "body": "You and Sarah liked each other!",
+    "action": "NAVIGATE",
+    "link": "/matches/01J9H2Z4...",
+    "data": { "matchId": "01J9H2Z4..." },
+    "isRead": true,
+    "readAt": "2026-10-01T12:05:30.123Z",
+    "createdAt": "2026-10-01T12:00:00.000Z"
+  }
+  ```
+
+##### `POST /api/v1/notifications/read-all`
+
+Atomically marks all active unread notifications (`isRead: false, isDismissed: false`) for the authenticated user as read:
+
+- **Response Example (`200 OK`)**:
+  ```json
+  {
+    "updatedCount": 5
+  }
+  ```
+
+##### `DELETE /api/v1/notifications/:id`
+
+Soft-dismisses the notification (`isDismissed: true`), excluding it from future inbox queries and unread calculations while maintaining ledger history:
+
+- **Response**: `204 No Content`
+
+---
+
+### 2. Administrative Dispatch Controller (`NotificationsAdminController`)
+
+- **Base Route**: `/api/v1/notifications`
+- **Security**: Class-level `@UseGuards(AdminBasicAuthGuard)` and `@ApiBasicAuth()`.
+- **Target Audience**: Internal administrative tooling, automated workflows, and backend system operators.
+
+#### Endpoint: `POST /api/v1/notifications/send`
+
+Queues a multi-channel notification for one or more users via Cloud Pub/Sub:
+
+- **Request Body (`SendNotificationRequestDto`)**:
+
+  ```json
+  {
+    "channels": ["PUSH", "EMAIL"],
+    "userIds": ["01J9H0X1A2B3C4D5E6F7G8H9J0"],
+    "type": "SYSTEM_ALERT",
+    "category": "SYSTEM",
+    "priority": "HIGH",
+    "title": "Scheduled Maintenance Notice",
+    "body": "BreathAway will undergo scheduled maintenance tonight at 02:00 UTC.",
+    "link": "/announcements/maintenance",
+    "payload": {
+      "alertTitle": "Scheduled Maintenance Notice"
+    }
+  }
+  ```
+
+- **Response (`202 Accepted`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Notification dispatch requested for 1 users",
+    "userCount": 1
+  }
+  ```
+
+---
+
+## ⚙️ Two-Phase Sequential Dispatch Pipeline
+
+The notification processing core inside `NotificationsService.processSendRequest` executes a two-phase pipeline designed for **data integrity, latency, and race-condition immunity**.
+
+```typescript
+// NotificationsService.processSendRequest (Conceptual Walkthrough)
+async processSendRequest(dto: SendNotificationRequestDto): Promise<void> {
+  // 1. Enrich recipient profile (fallback firstName resolution)
+  await this.enrichRecipientProfile(dto);
+  this.interpolateContent(dto);
+
+  // 2. Fetch user preferences in bulk
+  const preferencesMap = await this.preferencesService.getPreferencesMany(dto.userIds);
+  const channels = dto.channels ?? [NotificationChannel.PUSH];
+
+  // ─────────────────────────────────────────────────────────────
+  // Phase 1: Database Persistence (Sequential & Authoritative)
+  // ─────────────────────────────────────────────────────────────
+  if (channels.includes(NotificationChannel.PUSH)) {
+    await this.persistNotifications(dto);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Phase 2: Provider Fan-Out (Concurrent via Promise.allSettled)
+  // ─────────────────────────────────────────────────────────────
+  const promises: Promise<void>[] = [];
+
+  if (channels.includes(NotificationChannel.PUSH)) {
+    promises.push(this.sendPushNotification(dto, preferencesMap));
+  }
+  if (channels.includes(NotificationChannel.EMAIL)) {
+    promises.push(this.sendEmailNotification(dto, preferencesMap, ctx));
+  }
+  if (channels.includes(NotificationChannel.WHATSAPP)) {
+    promises.push(this.sendWhatsAppNotification(dto, preferencesMap));
+  }
+
+  await this.awaitChannelDispatches(promises, ctx);
+}
+```
+
+### 1. Eliminating the "Push-to-Open" Race Condition
+
+A common defect in mobile notification architectures occurs when push notifications are sent concurrently with or prior to database storage:
+
+1. FCM delivers the push alert to the client device in under 50ms.
+2. The user taps the notification banner immediately.
+3. The mobile application opens, routes to `/inbox`, and calls `GET /v1/notifications` or `PATCH /v1/notifications/:id/read`.
+4. If the database transaction has not completed, the notification does not exist in the user's inbox, causing a `404 Not Found` or empty screen.
+
+**The BreathAway Solution**:
+
+- **Phase 1** executes sequentially _before_ any provider dispatches.
+- In `persistNotifications`, when `userIds.length === 1`, the generated database record ID is assigned to `dto.id = record.id`.
+- The outgoing FCM payload receives this exact database ID. When the user taps the push notification, the database record is guaranteed to already exist in PostgreSQL.
+
+### 2. Resilient Concurrent Provider Fan-Out
+
+In **Phase 2**, downstream provider transmissions (`sendPushNotification`, `sendEmailNotification`, `sendWhatsAppNotification`) execute concurrently using `Promise.allSettled()`:
+
+- **Fault Isolation**: A transient SMTP failure or rate limit in Brevo will **never** block FCM push notification dispatch or WhatsApp delivery.
+- **Structured Error Logging**: Rejected promises are logged with structured context (`step: 'provider_dispatch'`, `providerIndex`, `serializeError`), allowing Cloud Logging alerting policies to track specific provider health without throwing unhandled exceptions to Pub/Sub.
+
+### 3. Lean Method Decomposition
+
+To ensure testability and high maintainability, `NotificationsService` divides dispatch mechanics into focused, single-responsibility methods:
+
+- `enrichRecipientProfile(dto)`: Resolves recipient `firstName` from `UserProfile` if omitted in the payload.
+- `interpolateContent(dto)`: Resolves title, body, and deep links from `PUSH_TEMPLATE_MAP`.
+- `persistNotifications(dto)`: Writes notifications to PostgreSQL (`create` for single users; `createMany` for batches).
+- `sendPushNotification(dto, preferencesMap)`: Filters by `pushEnabled`, queries active `Device` tokens, and calls `FcmProviderService`.
+- `sendEmailNotification(dto, preferencesMap, ctx)`: Filters by `emailEnabled`, resolves email template mapping, and delegates to `EmailService`.
+- `sendWhatsAppNotification(dto, preferencesMap)`: Filters by `whatsappEnabled` and delegates to `WhatsAppProviderService`.
+- `awaitChannelDispatches(promises, ctx)`: Concurrently awaits all channel promises with `Promise.allSettled`.
 
 ---
 
@@ -505,8 +904,14 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ## 🧪 Testing & Verification
 
-### Unit Testing Providers & Templates
+### Unit Testing Providers & In-App Workflows
 
+- **`NotificationsController`**: Tests user-scoped queries, pagination cursors, unread badge counters, and idempotent read/dismiss mutations.
+  - File: `src/modules/notifications/tests/notifications.controller.spec.ts`
+- **`NotificationsAdminController`**: Tests admin HTTP Basic Auth guard enforcement and payload dispatch to Pub/Sub.
+  - File: `src/modules/notifications/tests/notifications-admin.controller.spec.ts`
+- **`NotificationsService`**: Tests selective push persistence, fallback name resolution, provider fan-out with `Promise.allSettled`, and inbox pagination.
+  - File: `src/modules/notifications/tests/notifications.service.spec.ts`
 - **`BrevoEmailAdapter`**: Tested with mocked `axios.post` calls to verify payload serialization, authentication headers (`api-key`), timeout configurations, and error handling.
   - File: `src/modules/notifications/tests/brevo.email.adapter.spec.ts`
 - **`EmailService`**: Tested with mocked `PrismaService`, `IdentityCryptoService`, and `IEmailAdapter` to verify envelope decryption, Handlebars caching, and preference filtering.
@@ -518,10 +923,11 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ### Manual Verification via Postman / Swagger
 
-To trigger test notifications in staging:
+To trigger and verify in-app notifications in staging:
 
-1. Ensure the user has an `EMAIL` auth credential linked and verified.
-2. Ensure `emailEnabled: true` in user preferences (`GET /api/v1/preferences`).
-3. Trigger an action (e.g. `POST /api/v1/likes`, `POST /api/v1/identities`, `POST /api/v1/devices`).
-4. Check application logs in Google Cloud Logging for `LOG_EVENT.NOTIFICATION_SENT` and `step: "provider_dispatch"`.
-5. Verify email delivery in the Brevo Transactional Email dashboard.
+1. Send an authenticated request to `GET /api/v1/notifications/unread-count` with user JWT.
+2. Trigger an action that emits a push notification (e.g. `POST /api/v1/likes` or `POST /api/v1/devices`).
+3. Re-query `GET /api/v1/notifications/unread-count` to verify badge increment.
+4. Fetch inbox items via `GET /api/v1/notifications` and verify the newly stored notification payload.
+5. Mark the item as read via `PATCH /api/v1/notifications/:id/read` and verify `isRead: true` and `readAt` timestamp.
+6. Verify email delivery in the Brevo Transactional Email dashboard.
