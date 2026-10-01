@@ -30,10 +30,11 @@ export class PaginatedNotificationsResponseDto {
   @Expose()
   hasMore: boolean;
 
-  @ApiProperty({
-    description: 'Total unread notifications count for the authenticated user',
+  @ApiPropertyOptional({
+    description:
+      'Total unread notifications count for the authenticated user (returned on initial page load)',
     example: 3,
   })
   @Expose()
-  unreadCount: number;
+  unreadCount?: number;
 }

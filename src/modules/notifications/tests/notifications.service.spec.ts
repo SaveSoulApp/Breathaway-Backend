@@ -352,7 +352,7 @@ describe('NotificationsService', () => {
           isDismissed: false,
         },
         take: 11,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
       expect(result.items).toHaveLength(1);
       expect(result.hasMore).toBe(false);
@@ -406,6 +406,28 @@ describe('NotificationsService', () => {
       expect(result.items).toHaveLength(1);
       expect(result.hasMore).toBe(true);
       expect(result.nextCursor).toBe('notif-2');
+    });
+
+    it('should pass cursor and skip with compound orderBy and skip unreadCount when cursor is provided', async () => {
+      (prismaService.notification.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.getUserNotifications('user-1', {
+        cursor: 'notif-1',
+        limit: 10,
+      });
+
+      expect(prismaService.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          isDismissed: false,
+        },
+        take: 11,
+        cursor: { id: 'notif-1' },
+        skip: 1,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      });
+      expect(prismaService.notification.count).not.toHaveBeenCalled();
+      expect(result.unreadCount).toBeUndefined();
     });
   });
 
@@ -508,28 +530,27 @@ describe('NotificationsService', () => {
   });
 
   describe('dismissNotification', () => {
-    it('should set isDismissed to true', async () => {
-      (prismaService.notification.findFirst as jest.Mock).mockResolvedValue({
-        id: 'notif-1',
-        userId: 'user-1',
-      });
-      (prismaService.notification.update as jest.Mock).mockResolvedValue({
-        id: 'notif-1',
-        isDismissed: true,
+    it('should set isDismissed to true in a single updateMany operation', async () => {
+      (prismaService.notification.updateMany as jest.Mock).mockResolvedValue({
+        count: 1,
       });
 
       await service.dismissNotification('user-1', 'notif-1');
 
-      expect(prismaService.notification.update).toHaveBeenCalledWith({
-        where: { id: 'notif-1' },
+      expect(prismaService.notification.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'notif-1',
+          userId: 'user-1',
+          isDismissed: false,
+        },
         data: { isDismissed: true },
       });
     });
 
-    it('should throw NotFoundException if notification does not exist', async () => {
-      (prismaService.notification.findFirst as jest.Mock).mockResolvedValue(
-        null,
-      );
+    it('should throw NotFoundException if notification does not exist or is already dismissed', async () => {
+      (prismaService.notification.updateMany as jest.Mock).mockResolvedValue({
+        count: 0,
+      });
 
       await expect(
         service.dismissNotification('user-1', 'nonexistent-id'),

@@ -431,20 +431,24 @@ export class NotificationsService extends BaseService {
       ...(unreadOnly ? { isRead: false } : {}),
     };
 
+    const shouldFetchUnreadCount = !cursor;
+
     const [rows, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where,
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
-      this.prisma.notification.count({
-        where: {
-          userId,
-          isRead: false,
-          isDismissed: false,
-        },
-      }),
+      shouldFetchUnreadCount
+        ? this.prisma.notification.count({
+            where: {
+              userId,
+              isRead: false,
+              isDismissed: false,
+            },
+          })
+        : Promise.resolve(undefined),
     ]);
 
     const hasMore = rows.length > limit;
@@ -470,7 +474,7 @@ export class NotificationsService extends BaseService {
       })),
       nextCursor,
       hasMore,
-      unreadCount,
+      ...(unreadCount !== undefined ? { unreadCount } : {}),
     };
   }
 
@@ -579,22 +583,19 @@ export class NotificationsService extends BaseService {
     userId: string,
     notificationId: string,
   ): Promise<void> {
-    const existing = await this.prisma.notification.findFirst({
+    const result = await this.prisma.notification.updateMany({
       where: {
         id: notificationId,
         userId,
+        isDismissed: false,
       },
+      data: { isDismissed: true },
     });
 
-    if (!existing) {
+    if (result.count === 0) {
       throw new NotFoundException(
         `Notification with ID "${notificationId}" was not found`,
       );
     }
-
-    await this.prisma.notification.update({
-      where: { id: notificationId },
-      data: { isDismissed: true },
-    });
   }
 }
