@@ -20,11 +20,11 @@ Enforced globally by `ClientIdentityGuard` on all endpoints. It can be bypassed 
 
 Every standard client request must supply the following headers:
 
-| Header Name    | Type   | Description                                          | Example                                 |
-| :------------- | :----- | :--------------------------------------------------- | :-------------------------------------- |
-| `x-api-key`    | String | Valid API key matching `API_KEYS`                    | `ba_live_abcdefg1234`                   |
-| `x-client-id`  | String | Valid Client Identifier matching `CLIENT_IDS`        | `ba_ios_app`                            |
-| `x-device-id`  | String | Unique device identifier (for push / session audits) | `A12B34CD-56EF-...`                     |
+| Header Name    | Type   | Description                                                                                                                                                    | Example                                 |
+| :------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| `x-api-key`    | String | Valid API key matching `API_KEYS`                                                                                                                              | `ba_live_abcdefg1234`                   |
+| `x-client-id`  | String | Valid Client Identifier matching `CLIENT_IDS`                                                                                                                  | `ba_ios_app`                            |
+| `x-device-id`  | String | Unique device identifier (for push / session audits)                                                                                                           | `A12B34CD-56EF-...`                     |
 | `x-user-agent` | String | Must follow: `AppName/Version (Platform OS; Device)`. For web browsers, the standard `user-agent` header is automatically parsed if `x-user-agent` is omitted. | `BreathAway/1.0.0 (iOS 17.4; iPhone15)` |
 
 > [!NOTE]
@@ -56,6 +56,7 @@ Internal endpoints that are triggered exclusively by Google Cloud services—spe
 These routes apply `@SkipClientIdentity()` (since requests originate from Google infrastructure rather than mobile devices) and `@UseGuards(GcpOidcAuthGuard)`.
 
 ### How GCP OIDC Works
+
 1. Google Cloud infrastructure (Pub/Sub or Scheduler) acts on behalf of an IAM Service Account (`pubsub-invoker` or `scheduler-invoker`).
 2. Google generates a short-lived (~1 hour), cryptographically signed OpenID Connect ID token (JWT) where `aud` equals the Cloud Run service URL.
 3. The token is delivered in the `Authorization: Bearer <JWT>` header.

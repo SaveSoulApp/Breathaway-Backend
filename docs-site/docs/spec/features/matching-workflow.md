@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: "PRD: Matching & Discovery Engine"
+title: 'PRD: Matching & Discovery Engine'
 description: Product Requirements Document for profile discovery, swipe mechanics, and asynchronous mutual match resolution.
 ---
 
@@ -27,13 +27,13 @@ stateDiagram-v2
     Discovered --> Passed: Swipe Left
     Discovered --> Liked: Swipe Right
     Discovered --> SuperLiked: Swipe Up (Deducts 5 Credits)
-    
+
     Liked --> CheckingMutual: Async Trigger
     SuperLiked --> CheckingMutual: Instant Priority Notification
-    
+
     CheckingMutual --> Matched: Counterpart already Liked
     CheckingMutual --> PendingCounterpart: Counterpart has not yet Liked
-    
+
     Matched --> ConversationOpened: Supabase Channel Created
 ```
 
@@ -52,6 +52,7 @@ stateDiagram-v2
 ## 3. API Contract Specifications
 
 ### 3.1 Record a Like / Action
+
 - **Endpoint**: `POST /api/v1/likes`
 - **Guard**: `JwtAuthGuard`
 - **Request Body**:

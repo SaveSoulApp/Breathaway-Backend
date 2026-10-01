@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: "PRD: Credit Ledger & Monetization"
+title: 'PRD: Credit Ledger & Monetization'
 description: Product Requirements Document for the in-app credit economy, double-entry financial ledger, and microtransactions.
 ---
 
@@ -26,7 +26,7 @@ graph LR
     Purchaser[User Purchase / IAP Webhook] --> CreditSystem[Credits Service]
     CreditSystem --> LedgerEntry[(Immutable Ledger Log)]
     CreditSystem --> AccountBalance[(Credit Account Balance)]
-    
+
     SpendAction[Super-Like / Boost] --> CreditSystem
     AccountBalance -. Verified Available Balance .-> SpendAction
 ```
@@ -42,12 +42,12 @@ graph LR
 
 ## 3. Credit Consumption Matrix
 
-| Action | Cost (Credits) | Description | Refund Policy |
-| :--- | :--- | :--- | :--- |
-| **`SUPER_LIKE`** | 5 credits | Instantly highlights profile at top of recipient's deck | Non-refundable once sent |
-| **`BOOST`** | 20 credits | 30-minute 10x visibility multiplier in active geo-region | Refunded if system outage occurs |
-| **`UNDO_SWIPE`** | 3 credits | Reverts the last recorded `PASS` interaction | Non-refundable |
-| **`READ_RECEIPT`** | 2 credits | Unlocks delivery and read checkmarks on conversation | Persistent per chat |
+| Action             | Cost (Credits) | Description                                              | Refund Policy                    |
+| :----------------- | :------------- | :------------------------------------------------------- | :------------------------------- |
+| **`SUPER_LIKE`**   | 5 credits      | Instantly highlights profile at top of recipient's deck  | Non-refundable once sent         |
+| **`BOOST`**        | 20 credits     | 30-minute 10x visibility multiplier in active geo-region | Refunded if system outage occurs |
+| **`UNDO_SWIPE`**   | 3 credits      | Reverts the last recorded `PASS` interaction             | Non-refundable                   |
+| **`READ_RECEIPT`** | 2 credits      | Unlocks delivery and read checkmarks on conversation     | Persistent per chat              |
 
 ---
 

@@ -50,15 +50,19 @@ sequenceDiagram
 ## 🔑 1. Prerequisites & Firebase Setup
 
 ### Firebase Project Alignment
+
 The web app must initialize Firebase using the same project as the backend:
-* **Development**: `breathaway-dev-37fd5`
-* **Production**: `breathaway-prod` (configured via environment)
+
+- **Development**: `breathaway-dev-37fd5`
+- **Production**: `breathaway-prod` (configured via environment)
 
 > [!WARNING]
 > Web push tokens are bound to the specific Firebase Project ID that created them. If the web client uses a mismatched project, the backend will receive `messaging/mismatched-credential` or `messaging/invalid-registration-token` errors when dispatching.
 
 ### VAPID Key (Web Push Certificate)
+
 Obtain the public VAPID key (Key Pair) from the Firebase Console:
+
 1. Go to **Firebase Console** → Project Settings.
 2. Select the **Cloud Messaging** tab.
 3. Scroll down to **Web configuration** → **Web Push certificates**.
@@ -72,16 +76,20 @@ Create a `firebase-messaging-sw.js` file and place it in the public root directo
 
 ```javascript
 // public/firebase-messaging-sw.js
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+importScripts(
+  'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
+);
+importScripts(
+  'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js',
+);
 
 firebase.initializeApp({
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "breathaway-dev-37fd5.firebaseapp.com",
-  projectId: "breathaway-dev-37fd5",
-  storageBucket: "breathaway-dev-37fd5.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: 'YOUR_FIREBASE_API_KEY',
+  authDomain: 'breathaway-dev-37fd5.firebaseapp.com',
+  projectId: 'breathaway-dev-37fd5',
+  storageBucket: 'breathaway-dev-37fd5.appspot.com',
+  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+  appId: 'YOUR_APP_ID',
 });
 
 const messaging = firebase.messaging();
@@ -91,7 +99,10 @@ const messaging = firebase.messaging();
 // displays the system notification using the backend's webpush configuration (title, body, icon, badge).
 // When the notification is clicked, the browser automatically navigates to `fcmOptions.link`.
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background push message:', payload);
+  console.log(
+    '[firebase-messaging-sw.js] Received background push message:',
+    payload,
+  );
 });
 ```
 
@@ -103,16 +114,26 @@ Implement a client-side utility to prompt the user and obtain the push token:
 
 ```typescript
 // src/services/notifications.service.ts
-import { getMessaging, getToken, onMessage, MessagePayload } from 'firebase/messaging';
+import {
+  getMessaging,
+  getToken,
+  onMessage,
+  MessagePayload,
+} from 'firebase/messaging';
 import { firebaseApp } from '@/lib/firebase';
 
-const messaging = typeof window !== 'undefined' ? getMessaging(firebaseApp) : null;
+const messaging =
+  typeof window !== 'undefined' ? getMessaging(firebaseApp) : null;
 
 /**
  * Prompts user for notification permission and registers the device token with the backend.
  */
 export async function registerWebPushNotifications(): Promise<string | null> {
-  if (!('Notification' in window) || !('serviceWorker' in navigator) || !messaging) {
+  if (
+    !('Notification' in window) ||
+    !('serviceWorker' in navigator) ||
+    !messaging
+  ) {
     console.warn('Push notifications are not supported in this browser.');
     return null;
   }
@@ -127,7 +148,7 @@ export async function registerWebPushNotifications(): Promise<string | null> {
   try {
     // 2. Register service worker
     const serviceWorkerRegistration = await navigator.serviceWorker.register(
-      '/firebase-messaging-sw.js'
+      '/firebase-messaging-sw.js',
     );
 
     // 3. Obtain FCM Web Registration Token
@@ -158,6 +179,7 @@ export async function registerWebPushNotifications(): Promise<string | null> {
 The backend endpoint `POST /api/v1/devices` natively supports `platform: "web"`, tracks active tokens, and automatically dedupes records.
 
 ### Request Specification
+
 - **Method**: `POST`
 - **Path**: `/api/v1/devices`
 - **Auth**: `Bearer <USER_JWT_TOKEN>`
@@ -180,6 +202,7 @@ The backend endpoint `POST /api/v1/devices` natively supports `platform: "web"`,
   ```
 
 ### Client Implementation Example
+
 ```typescript
 /**
  * Synchronizes the FCM Web token with the BreathAway device management API.
@@ -270,25 +293,26 @@ export function NotificationListener() {
 ## 🗺 6. Payload Contract & Deep Link Routing
 
 The backend automatically enriches every push notification with navigation links in two places:
+
 1. `webpush.fcmOptions.link`: Full absolute HTTPS URL (e.g. `https://www.breathaway.app/app/matches/:matchId`). When a background notification is clicked, the browser opens or focuses this URL directly.
 2. `payload.data.link` & `payload.data.route`: Normalized relative route (e.g. `/matches/:matchId`, `/credits`). For foreground notifications, pass this to your router.
 
 ### Notification Route Catalog
 
-| Notification Type | Deep Link Route (`data.link`) | Background Tap URL | Included Data Fields |
-| :--- | :--- | :--- | :--- |
-| **`NEW_MESSAGE`** | `/matches/:matchId` | `https://www.breathaway.app/app/matches/:matchId` | `roomId`, `matchId`, `senderName`, `messagePreview` |
-| **`NEW_MATCH`** | `/matches/:matchId` | `https://www.breathaway.app/app/matches/:matchId` | `matchId`, `matchName` |
-| **`CREDIT_UPDATE`** | `/credits` | `https://www.breathaway.app/app/credits` | `balance` |
-| **`CREDITS_PURCHASED`** | `/credits` | `https://www.breathaway.app/app/credits` | `creditsAdded`, `creditBalance` |
-| **`CREDITS_USED`** | `/credits` | `https://www.breathaway.app/app/credits` | `creditsUsed`, `creditBalance` |
-| **`BUNDLE_EXPIRY_WARNING`**| `/credits` | `https://www.breathaway.app/app/credits` | `count`, `expiryDate`, `daysRemaining` |
-| **`LIKE_SENT`** | `/likes` | `https://www.breathaway.app/app/likes` | `targetMaskedValue`, `targetLabel` |
-| **`LIKE_WITHDRAWN`** | `/likes` | `https://www.breathaway.app/app/likes` | `targetMaskedValue` |
-| **`LIKES_EXPIRED`** | `/likes` | `https://www.breathaway.app/app/likes` | `count`, `expiryDate` |
-| **`WELCOME`** | `/explore` | `https://www.breathaway.app/app/explore` | `name` |
-| **`DEVICE_ADDED`** | `/settings/devices` | `https://www.breathaway.app/app/settings/devices` | `platform`, `deviceId` |
-| **`IDENTITY_ADDED` / `REMOVED`** | `/settings/identities` | `https://www.breathaway.app/app/settings/identities` | `identityType`, `maskedValue` |
+| Notification Type                | Deep Link Route (`data.link`) | Background Tap URL                                   | Included Data Fields                                |
+| :------------------------------- | :---------------------------- | :--------------------------------------------------- | :-------------------------------------------------- |
+| **`NEW_MESSAGE`**                | `/matches/:matchId`           | `https://www.breathaway.app/app/matches/:matchId`    | `roomId`, `matchId`, `senderName`, `messagePreview` |
+| **`NEW_MATCH`**                  | `/matches/:matchId`           | `https://www.breathaway.app/app/matches/:matchId`    | `matchId`, `matchName`                              |
+| **`CREDIT_UPDATE`**              | `/credits`                    | `https://www.breathaway.app/app/credits`             | `balance`                                           |
+| **`CREDITS_PURCHASED`**          | `/credits`                    | `https://www.breathaway.app/app/credits`             | `creditsAdded`, `creditBalance`                     |
+| **`CREDITS_USED`**               | `/credits`                    | `https://www.breathaway.app/app/credits`             | `creditsUsed`, `creditBalance`                      |
+| **`BUNDLE_EXPIRY_WARNING`**      | `/credits`                    | `https://www.breathaway.app/app/credits`             | `count`, `expiryDate`, `daysRemaining`              |
+| **`LIKE_SENT`**                  | `/likes`                      | `https://www.breathaway.app/app/likes`               | `targetMaskedValue`, `targetLabel`                  |
+| **`LIKE_WITHDRAWN`**             | `/likes`                      | `https://www.breathaway.app/app/likes`               | `targetMaskedValue`                                 |
+| **`LIKES_EXPIRED`**              | `/likes`                      | `https://www.breathaway.app/app/likes`               | `count`, `expiryDate`                               |
+| **`WELCOME`**                    | `/explore`                    | `https://www.breathaway.app/app/explore`             | `name`                                              |
+| **`DEVICE_ADDED`**               | `/settings/devices`           | `https://www.breathaway.app/app/settings/devices`    | `platform`, `deviceId`                              |
+| **`IDENTITY_ADDED` / `REMOVED`** | `/settings/identities`        | `https://www.breathaway.app/app/settings/identities` | `identityType`, `maskedValue`                       |
 
 ---
 

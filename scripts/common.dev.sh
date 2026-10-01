@@ -48,7 +48,7 @@ export OTP_RATE_LIMIT_TTL='120'
 export EMAIL_FROM_ADDRESS='no-reply@breathaway.app'
 export EMAIL_FROM_NAME='BreathAway'
 
-export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app'
+export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app,https://maintenance-service-at7g3x4m6q-el.a.run.app'
 
 # Mail provider
 export EMAIL_PROVIDER='brevo'

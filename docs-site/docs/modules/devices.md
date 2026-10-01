@@ -22,6 +22,7 @@ The `DevicesModule` manages FCM (Firebase Cloud Messaging) device tokens, tying 
 ### 1. Multi-Platform Support (`DevicePlatform`)
 
 BreathAway supports three target platforms defined in Prisma `DevicePlatform`:
+
 - `IOS`: Apple mobile devices (dispatched via APNs).
 - `ANDROID`: Android mobile devices (dispatched via FCM Android payload).
 - `WEB`: Modern desktop and mobile web browsers running Service Workers (dispatched via FCM WebPush).

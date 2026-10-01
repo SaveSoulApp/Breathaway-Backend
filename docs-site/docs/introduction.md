@@ -43,4 +43,3 @@ Our documentation is segregated into three dedicated hubs via the top navigation
 1. **[Modules](./modules/overview.md)**: In-depth technical documentation for all 25 NestJS domain and infrastructure modules (Authentication, Profiles, Matches, Credits, Notifications, etc.).
 2. **[Engineering](./architecture.md)**: System architecture, Cloud SQL database & Prisma ORM patterns, Supabase Realtime, GCP BigQuery, Cloud Logging, and deployment testing.
 3. **[Spec](./spec/overview.md)**: Product specifications, standardized PRD templates, and formal feature requirements.
-

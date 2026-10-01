@@ -7,6 +7,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Default values
 ENV="dev"
 FORCE_BUILD="false"
+DEPLOY_PUBLIC="true"
 DEPLOY_MAINTENANCE="true"
 
 # Helper logging functions
@@ -36,6 +37,16 @@ while [[ $# -gt 0 ]]; do
             DEPLOY_MAINTENANCE="false"
             shift
             ;;
+        --only-maintenance)
+            DEPLOY_PUBLIC="false"
+            DEPLOY_MAINTENANCE="true"
+            shift
+            ;;
+        --only-public)
+            DEPLOY_PUBLIC="true"
+            DEPLOY_MAINTENANCE="false"
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -43,6 +54,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --env=<dev|prod>, -e <dev|prod>   Target deployment environment (default: dev)"
             echo "  --force                           Force Docker image rebuild even if tag exists"
             echo "  --no-maintenance                  Skip deploying the internal maintenance-service"
+            echo "  --only-maintenance                Deploy only the internal maintenance-service"
+            echo "  --only-public                     Deploy only the public backend-service"
             echo "  --help, -h                        Show this help message"
             exit 0
             ;;
@@ -250,7 +263,7 @@ deploy_maintenance_service() {
     deploy_cloud_run_service \
         "${maint_service}" \
         "${maint_sa}" \
-        "internal" \
+        "all" \
         "false" \
         "${MAINTENANCE_CPU:-2}" \
         "${MAINTENANCE_MEMORY:-2Gi}" \
@@ -262,7 +275,9 @@ deploy_maintenance_service() {
 main() {
     print_status "Starting deployment for ${SERVICE_NAME} in environment [${ENV}] (Commit: ${GIT_COMMIT})"
     build_image
-    deploy_public_service
+    if [[ "${DEPLOY_PUBLIC}" == "true" ]]; then
+        deploy_public_service
+    fi
     if [[ "${DEPLOY_MAINTENANCE}" == "true" ]]; then
         deploy_maintenance_service
     fi

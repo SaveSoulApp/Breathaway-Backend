@@ -33,11 +33,13 @@ Standard queue systems (like Kafka, RabbitMQ, or Pub/Sub pull configurations) ty
 ## 🛡️ Webhook Security & OIDC Authentication
 
 ### The Vulnerability with Shared Query Secrets
-Previously, push endpoints relied on a shared static token passed as a query parameter (e.g. `POST /api/v1/pubsub/ingest?token=SECRET`). 
+
+Previously, push endpoints relied on a shared static token passed as a query parameter (e.g. `POST /api/v1/pubsub/ingest?token=SECRET`).
 
 Cloud Run front-end access logging automatically records the full requested URL (`httpRequest.requestUrl`) in plaintext into GCP Cloud Logging. This caused the shared secret to leak into log streams, BigQuery sinks, and trace dashboards.
 
 ### The Solution: Service Account OIDC ID Tokens
+
 GCP Pub/Sub natively supports signing short-lived Google OpenID Connect (OIDC) ID tokens on behalf of a designated IAM Service Account (`pubsub-invoker`). These tokens are delivered via the `Authorization: Bearer <JWT>` HTTP header:
 
 1. **Clean URLs**: The endpoint URL is clean (`/api/v1/pubsub/ingest`). Request headers are suppressed from Cloud Run access logs by default.
@@ -91,9 +93,11 @@ sequenceDiagram
 ## 🔒 Confused Deputy Defense in `GcpOidcAuthGuard`
 
 ### What is a Confused Deputy Attack in GCP?
+
 In Google Cloud, **any GCP user or project can request a Google-signed OIDC token with any arbitrary audience string**.
 
 If an attacker in an unrelated GCP project creates a Pub/Sub push subscription targeting our Cloud Run URL (`aud: https://backend-service-...run.app`), Google will happily sign that JWT:
+
 - `iss`: `https://accounts.google.com` (valid!)
 - `aud`: `https://backend-service-...run.app` (valid!)
 - `email`: `attacker-sa@foreign-project.iam.gserviceaccount.com`
@@ -101,6 +105,7 @@ If an attacker in an unrelated GCP project creates a Pub/Sub push subscription t
 If a guard only validates the Google signature, `iss`, and `aud`, **it would accept malicious requests from foreign GCP projects**.
 
 ### The 5-Point Validation Strategy
+
 [`GcpOidcAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/guards/gcp-oidc-auth.guard.ts) executes a 5-step verification process to prevent this vulnerability:
 
 ```mermaid
@@ -180,11 +185,14 @@ resource "google_pubsub_subscription" "push_subscriptions" {
 ## 🧠 Business Logic & Core Concepts
 
 ### 1. Inbound/Outbound Asymmetry
+
 Pub/Sub crosses the network boundary in two different ways:
+
 - **Outbound (Publishing)**: `PubSubPublisherService` pushes directly to GCP topics using the standard `@google-cloud/pubsub` SDK via Application Default Credentials.
 - **Inbound (Ingestion)**: Handled via standard HTTP push controller (`PubSubIngestionController`), enabling Cloud Run scale-to-zero.
 
 ### 2. Silent Failure for Unroutable Events
-The ingestion controller intentionally swallows unroutable messages (missing event type, no registered handler, bad base64 payload) with a warning log and returns `200 OK`. 
+
+The ingestion controller intentionally swallows unroutable messages (missing event type, no registered handler, bad base64 payload) with a warning log and returns `200 OK`.
 
 If it returned `4xx` or `5xx`, GCP Pub/Sub would assume delivery failed and retry the unroutable payload indefinitely, clogging the queue. Real handler errors throw exceptions, which correctly trigger Pub/Sub's retry backoff policy.
