@@ -1,5 +1,6 @@
-import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 import { Device } from '@prisma/client';
+
+import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 
 export interface INotificationProvider {
   /**
@@ -7,6 +8,11 @@ export interface INotificationProvider {
    *
    * @param payload The request DTO containing the message, metadata, and userIds
    * @param devices Optional resolved devices from Prisma (useful for FCM)
+   * @param userNotificationIdMap Optional map of userId -> notificationId for bulk dispatches
    */
-  send(payload: SendNotificationRequestDto, devices?: Device[]): Promise<void>;
+  send(
+    payload: SendNotificationRequestDto,
+    devices?: Device[],
+    userNotificationIdMap?: Map<string, string>,
+  ): Promise<void>;
 }

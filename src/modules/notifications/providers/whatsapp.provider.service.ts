@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Device } from '@prisma/client';
+
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { INotificationProvider } from './notification-provider.interface';
+
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
+import { INotificationProvider } from './notification-provider.interface';
 
 @Injectable()
 export class WhatsAppProviderService
@@ -13,7 +16,11 @@ export class WhatsAppProviderService
     super(loggerService);
   }
 
-  async send(payloadDto: SendNotificationRequestDto): Promise<void> {
+  async send(
+    payloadDto: SendNotificationRequestDto,
+    _devices?: Device[],
+    _userNotificationIdMap?: Map<string, string>,
+  ): Promise<void> {
     if (!payloadDto.userIds || payloadDto.userIds.length === 0) {
       return;
     }

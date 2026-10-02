@@ -160,16 +160,20 @@ export class NotificationsService extends BaseService {
       );
     }
 
+    let userNotificationIdMap: Map<string, string> | undefined;
+
     // 3. Persist notification in DB (Source of Truth) for push-bound communications
     if (shouldDispatchPush) {
-      await this.persistNotifications(dto);
+      userNotificationIdMap = await this.persistNotifications(dto);
     }
 
     const promises: Promise<void>[] = [];
 
     // 4. Delegate to individual channel dispatchers
     if (shouldDispatchPush) {
-      promises.push(this.sendPushNotification(dto, preferencesMap));
+      promises.push(
+        this.sendPushNotification(dto, preferencesMap, userNotificationIdMap),
+      );
     }
 
     if (channels.includes(NotificationChannel.EMAIL)) {
@@ -247,6 +251,7 @@ export class NotificationsService extends BaseService {
   private async sendPushNotification(
     dto: SendNotificationRequestDto,
     preferencesMap: Map<string, { pushEnabled?: boolean }>,
+    userNotificationIdMap?: Map<string, string>,
   ): Promise<void> {
     const pushEnabledUserIds = dto.userIds.filter(
       (userId) => preferencesMap.get(userId)?.pushEnabled,
@@ -259,7 +264,7 @@ export class NotificationsService extends BaseService {
           isActive: true,
         },
       });
-      await this.fcmProvider.send(dto, devices);
+      await this.fcmProvider.send(dto, devices, userNotificationIdMap);
     }
   }
 
@@ -358,14 +363,17 @@ export class NotificationsService extends BaseService {
   /**
    * Persists the notification record to PostgreSQL for each recipient.
    * Only invoked when the notification is designated for the PUSH channel.
+   * Returns a map of userId -> notificationId.
    */
   private async persistNotifications(
     dto: SendNotificationRequestDto,
-  ): Promise<void> {
+  ): Promise<Map<string, string>> {
     const ctx = {
       notificationType: dto.type,
       userCount: dto.userIds.length,
     };
+
+    const idMap = new Map<string, string>();
 
     try {
       const priority = dto.priority ?? NotificationPriority.NORMAL;
@@ -398,8 +406,9 @@ export class NotificationsService extends BaseService {
 
         // Enrich dto.id with the persisted record's ID so push notification payload carries it
         dto.id = record.id;
+        idMap.set(userId, record.id);
       } else {
-        await this.prisma.notification.createMany({
+        const records = await this.prisma.notification.createManyAndReturn({
           data: dto.userIds.map((userId) => ({
             userId,
             type: dto.type,
@@ -413,6 +422,11 @@ export class NotificationsService extends BaseService {
             isRead: false,
             isDismissed: false,
           })),
+          select: { id: true, userId: true },
+        });
+
+        records.forEach((record) => {
+          idMap.set(record.userId, record.id);
         });
       }
 
@@ -420,6 +434,8 @@ export class NotificationsService extends BaseService {
         ...ctx,
         step: 'persist_notifications',
       });
+
+      return idMap;
     } catch (error) {
       this.logger.error('Failed to persist notifications to database', {
         ...ctx,

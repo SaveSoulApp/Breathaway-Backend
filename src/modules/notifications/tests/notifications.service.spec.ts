@@ -59,6 +59,7 @@ describe('NotificationsService', () => {
       notification: {
         create: jest.fn(),
         createMany: jest.fn(),
+        createManyAndReturn: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
         findFirst: jest.fn(),
@@ -192,6 +193,7 @@ describe('NotificationsService', () => {
       expect(fcmProvider.send).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'notif-123' }),
         mockDevices,
+        expect.any(Map),
       );
       expect(emailService.send).not.toHaveBeenCalled();
       expect(whatsAppProvider.send).not.toHaveBeenCalled();
@@ -212,7 +214,9 @@ describe('NotificationsService', () => {
       await service.processSendRequest(dto);
 
       expect(prismaService.notification.create).not.toHaveBeenCalled();
-      expect(prismaService.notification.createMany).not.toHaveBeenCalled();
+      expect(
+        prismaService.notification.createManyAndReturn,
+      ).not.toHaveBeenCalled();
       expect(fcmProvider.send).not.toHaveBeenCalled();
     });
 
@@ -235,7 +239,9 @@ describe('NotificationsService', () => {
       await service.processSendRequest(dto);
 
       expect(prismaService.notification.create).not.toHaveBeenCalled();
-      expect(prismaService.notification.createMany).not.toHaveBeenCalled();
+      expect(
+        prismaService.notification.createManyAndReturn,
+      ).not.toHaveBeenCalled();
       expect(emailService.send).toHaveBeenCalled();
       expect(fcmProvider.send).not.toHaveBeenCalled();
     });
@@ -250,9 +256,12 @@ describe('NotificationsService', () => {
         category: NotificationCategory.SYSTEM,
       };
 
-      (prismaService.notification.createMany as jest.Mock).mockResolvedValue({
-        count: 2,
-      });
+      (
+        prismaService.notification.createManyAndReturn as jest.Mock
+      ).mockResolvedValue([
+        { id: 'notif-1', userId: 'user-1' },
+        { id: 'notif-2', userId: 'user-2' },
+      ]);
       (prismaService.device.findMany as jest.Mock).mockResolvedValue([]);
       fcmProvider.send.mockResolvedValue();
 
@@ -263,12 +272,23 @@ describe('NotificationsService', () => {
 
       await service.processSendRequest(dto);
 
-      expect(prismaService.notification.createMany).toHaveBeenCalledWith({
+      expect(
+        prismaService.notification.createManyAndReturn,
+      ).toHaveBeenCalledWith({
         data: expect.arrayContaining([
           expect.objectContaining({ userId: 'user-1' }),
           expect.objectContaining({ userId: 'user-2' }),
         ]),
+        select: { id: true, userId: true },
       });
+      expect(fcmProvider.send).toHaveBeenCalledWith(
+        dto,
+        [],
+        new Map([
+          ['user-1', 'notif-1'],
+          ['user-2', 'notif-2'],
+        ]),
+      );
     });
 
     it('should route to multiple providers if multiple channels are requested', async () => {
