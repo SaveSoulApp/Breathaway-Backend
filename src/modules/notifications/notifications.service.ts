@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Notification, Prisma } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -51,6 +51,7 @@ const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   [NotificationType.CREDITS_USED]: EmailType.CREDITS_USED,
   [NotificationType.DEVICE_ADDED]: EmailType.DEVICE_ADDED,
   [NotificationType.LIKE_WITHDRAWN]: EmailType.LIKE_WITHDRAWN,
+  [NotificationType.PAYMENT_COMPLETED]: EmailType.CREDITS_PURCHASED,
 };
 
 @Injectable()
@@ -145,15 +146,29 @@ export class NotificationsService extends BaseService {
 
     const channels = dto.channels ?? [NotificationChannel.PUSH];
 
+    const hasPushContent = Boolean(dto.title?.trim() || dto.body?.trim());
+    const shouldDispatchPush =
+      channels.includes(NotificationChannel.PUSH) && hasPushContent;
+
+    if (channels.includes(NotificationChannel.PUSH) && !hasPushContent) {
+      this.logger.warn(
+        'Push notification omitted: both title and body are empty',
+        {
+          ...ctx,
+          step: 'validate_content',
+        },
+      );
+    }
+
     // 3. Persist notification in DB (Source of Truth) for push-bound communications
-    if (channels.includes(NotificationChannel.PUSH)) {
+    if (shouldDispatchPush) {
       await this.persistNotifications(dto);
     }
 
     const promises: Promise<void>[] = [];
 
     // 4. Delegate to individual channel dispatchers
-    if (channels.includes(NotificationChannel.PUSH)) {
+    if (shouldDispatchPush) {
       promises.push(this.sendPushNotification(dto, preferencesMap));
     }
 
@@ -457,21 +472,7 @@ export class NotificationsService extends BaseService {
       hasMore && items.length > 0 ? items[items.length - 1].id : null;
 
     return {
-      items: items.map((item) => ({
-        id: item.id,
-        userId: item.userId,
-        type: item.type as NotificationType,
-        category: item.category as NotificationCategory,
-        priority: item.priority as NotificationPriority,
-        title: item.title,
-        body: item.body,
-        action: item.action,
-        link: item.link,
-        data: item.data as Record<string, unknown> | null,
-        isRead: item.isRead,
-        readAt: item.readAt,
-        createdAt: item.createdAt,
-      })),
+      items: items.map((item) => this.mapToNotificationResponseDto(item)),
       nextCursor,
       hasMore,
       ...(unreadCount !== undefined ? { unreadCount } : {}),
@@ -515,21 +516,7 @@ export class NotificationsService extends BaseService {
     }
 
     if (existing.isRead) {
-      return {
-        id: existing.id,
-        userId: existing.userId,
-        type: existing.type as NotificationType,
-        category: existing.category as NotificationCategory,
-        priority: existing.priority as NotificationPriority,
-        title: existing.title,
-        body: existing.body,
-        action: existing.action,
-        link: existing.link,
-        data: existing.data as Record<string, unknown> | null,
-        isRead: existing.isRead,
-        readAt: existing.readAt,
-        createdAt: existing.createdAt,
-      };
+      return this.mapToNotificationResponseDto(existing);
     }
 
     const updated = await this.prisma.notification.update({
@@ -540,20 +527,29 @@ export class NotificationsService extends BaseService {
       },
     });
 
+    return this.mapToNotificationResponseDto(updated);
+  }
+
+  /**
+   * Maps a raw Prisma Notification entity to its standardized client response DTO.
+   */
+  private mapToNotificationResponseDto(
+    item: Notification,
+  ): NotificationResponseDto {
     return {
-      id: updated.id,
-      userId: updated.userId,
-      type: updated.type as NotificationType,
-      category: updated.category as NotificationCategory,
-      priority: updated.priority as NotificationPriority,
-      title: updated.title,
-      body: updated.body,
-      action: updated.action,
-      link: updated.link,
-      data: updated.data as Record<string, unknown> | null,
-      isRead: updated.isRead,
-      readAt: updated.readAt,
-      createdAt: updated.createdAt,
+      id: item.id,
+      userId: item.userId,
+      type: item.type as NotificationType,
+      category: item.category as NotificationCategory,
+      priority: item.priority as NotificationPriority,
+      title: item.title,
+      body: item.body,
+      action: item.action,
+      link: item.link,
+      data: item.data as Record<string, unknown> | null,
+      isRead: item.isRead,
+      readAt: item.readAt,
+      createdAt: item.createdAt,
     };
   }
 

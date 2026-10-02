@@ -94,4 +94,10 @@ export const PUSH_TEMPLATE_MAP: Partial<
       'Your like to {{#if targetLabel}}{{targetLabel}}{{else}}{{targetMaskedValue}}{{/if}} has been withdrawn.',
     ),
   },
+  [NotificationType.PAYMENT_COMPLETED]: {
+    title: Handlebars.compile('Payment Successful! 💳'),
+    body: Handlebars.compile(
+      'Payment of {{currency}} {{amount}} was successful. {{creditsAdded}} credits added to your account.',
+    ),
+  },
 };

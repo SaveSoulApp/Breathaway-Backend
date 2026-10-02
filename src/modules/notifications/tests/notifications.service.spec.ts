@@ -197,6 +197,25 @@ describe('NotificationsService', () => {
       expect(whatsAppProvider.send).not.toHaveBeenCalled();
     });
 
+    it('should NOT persist to database or send push if both title and body are empty', async () => {
+      const dto: SendNotificationRequestDto = {
+        userIds: ['user-1'],
+        channels: [NotificationChannel.PUSH],
+        type: 'CUSTOM_EMPTY' as NotificationType,
+        category: NotificationCategory.SYSTEM,
+      };
+
+      const prefMap = new Map();
+      prefMap.set('user-1', { pushEnabled: true });
+      preferencesService.getPreferencesMany.mockResolvedValue(prefMap);
+
+      await service.processSendRequest(dto);
+
+      expect(prismaService.notification.create).not.toHaveBeenCalled();
+      expect(prismaService.notification.createMany).not.toHaveBeenCalled();
+      expect(fcmProvider.send).not.toHaveBeenCalled();
+    });
+
     it('should NOT persist to database if only EMAIL or WHATSAPP is requested', async () => {
       const dto: SendNotificationRequestDto = {
         userIds: ['user-1'],

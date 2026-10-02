@@ -28,7 +28,7 @@ import { NotificationsService } from './notifications.service';
  * Dedicated to administrative multi-channel dispatch (Push, Email, SMS).
  * Protected at class level with HTTP Basic Authentication (`AdminBasicAuthGuard`).
  */
-@ApiTags('Notifications (Admin)')
+@ApiTags('Admin - Notifications')
 @SkipClientIdentity()
 @ApiStandardErrors()
 @Controller({
