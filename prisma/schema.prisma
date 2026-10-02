@@ -90,6 +90,7 @@ model User {
   subscriptions UserSubscription[]
   transactions  Transaction[]
   paymentOrders PaymentOrder[]
+  notifications Notification[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
   /// Null for email-only users or social accounts that have no phone credential.
@@ -472,7 +473,7 @@ model PaymentOrder {
   gatewayCreatedAt DateTime? @db.Timestamptz
 
   createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt      @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@unique([gateway, gatewayOrderId])
   @@index([userId])
@@ -497,7 +498,7 @@ model PaymentGatewayRoute {
   maxAmount Int?
 
   createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt      @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@unique([countryCode, gateway])
   @@index([countryCode, enabled, priority])
@@ -690,4 +691,45 @@ model Message {
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   readAt    DateTime? @db.Timestamptz
+}
+
+// ──────────────────────────────────────────────
+// In-App Notifications
+// ──────────────────────────────────────────────
+
+model Notification {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Actionable event identifier (e.g. WELCOME, NEW_MATCH, LIKE_SENT, CREDIT_UPDATE).
+  /// Stored as a string to allow adding new notification types without running database DDL migrations.
+  type String @db.VarChar(64)
+
+  /// High-level grouping for preferences and inbox tabs (e.g. SOCIAL, SECURITY, BILLING, REMINDER, MARKETING, SYSTEM, SUPPORT).
+  /// Stored as a string to allow adding new categories without running database DDL migrations.
+  category String @db.VarChar(32)
+
+  /// Delivery urgency (e.g. LOW, NORMAL, HIGH, CRITICAL).
+  /// Stored as a string to allow adding new priority levels without running database DDL migrations.
+  priority String @default("NORMAL") @db.VarChar(16)
+
+  title String
+  body  String
+
+  action String?
+  link   String?
+  data   Json?   @db.JsonB
+
+  isRead      Boolean   @default(false)
+  readAt      DateTime? @db.Timestamptz
+  isDismissed Boolean   @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead])
+  @@index([userId, category])
 }

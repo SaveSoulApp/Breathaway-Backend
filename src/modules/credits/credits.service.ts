@@ -505,18 +505,17 @@ export class CreditsService extends BaseService {
     });
 
     if (dto.source === CreditSource.PURCHASE) {
-      void this.getBalance(dto.userId).then((balance) => {
-        this.eventEmitter.emit(
-          CREDITS_PURCHASED_EVENT,
-          new CreditsPurchasedEvent(
-            dto.userId,
-            dto.amount,
-            balance,
-            dto.referenceId,
-            ledger.expiresAt,
-          ),
-        );
-      });
+      const balance = await this.getBalance(dto.userId, client);
+      this.eventEmitter.emit(
+        CREDITS_PURCHASED_EVENT,
+        new CreditsPurchasedEvent(
+          dto.userId,
+          dto.amount,
+          balance,
+          dto.referenceId,
+          ledger.expiresAt,
+        ),
+      );
     }
 
     return ledger;
@@ -597,12 +596,11 @@ export class CreditsService extends BaseService {
     });
 
     if (ledger.source === CreditSource.LIKE_USAGE) {
-      void this.getBalance(dto.userId).then((balance) => {
-        this.eventEmitter.emit(
-          CREDITS_USED_EVENT,
-          new CreditsUsedEvent(dto.userId, Math.abs(dto.amount), balance),
-        );
-      });
+      const balance = await this.getBalance(dto.userId, client);
+      this.eventEmitter.emit(
+        CREDITS_USED_EVENT,
+        new CreditsUsedEvent(dto.userId, Math.abs(dto.amount), balance),
+      );
     }
 
     return ledger;

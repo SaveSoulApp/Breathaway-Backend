@@ -11,6 +11,7 @@ import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
 import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
 import { EmailService } from './email/email.service';
 import { NotificationEventsListener } from './listeners/notification-events.listener';
+import { NotificationsAdminController } from './notifications-admin.controller';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
@@ -18,7 +19,7 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
 
 @Module({
   imports: [FirebaseModule, PreferencesModule, IdentityCryptoModule],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, NotificationsAdminController],
   providers: [
     NotificationsService,
     NotificationEventsListener,

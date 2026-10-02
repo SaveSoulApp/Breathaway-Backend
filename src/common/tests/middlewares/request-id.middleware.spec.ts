@@ -48,7 +48,7 @@ describe(RequestIdMiddleware.name, () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should throw UnauthorizedException when X-Request-ID header is missing', () => {
+    it('should throw UnauthorizedException when x-request-id header is missing', () => {
       mockRequest.headers = {};
 
       expect(() =>
@@ -57,11 +57,11 @@ describe(RequestIdMiddleware.name, () => {
           mockResponse as Response,
           mockNext,
         ),
-      ).toThrow(new UnauthorizedException('X-Request-ID header is required'));
+      ).toThrow(new UnauthorizedException('x-request-id header is required'));
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should throw UnauthorizedException when X-Request-ID is not a string', () => {
+    it('should throw UnauthorizedException when x-request-id is not a string', () => {
       mockRequest.headers = {
         'x-request-id': ['array-value'] as unknown as string,
       };
@@ -73,7 +73,7 @@ describe(RequestIdMiddleware.name, () => {
           mockNext,
         ),
       ).toThrow(
-        new UnauthorizedException('X-Request-ID header must be a string'),
+        new UnauthorizedException('x-request-id header must be a string'),
       );
       expect(mockNext).not.toHaveBeenCalled();
     });

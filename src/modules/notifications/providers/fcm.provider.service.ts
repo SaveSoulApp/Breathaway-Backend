@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Device, DevicePlatform } from '@prisma/client';
 import * as admin from 'firebase-admin';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
@@ -41,6 +42,7 @@ export class FcmProviderService
   async send(
     payloadDto: SendNotificationRequestDto,
     devices?: Device[],
+    userNotificationIdMap?: Map<string, string>,
   ): Promise<void> {
     if (!devices || devices.length === 0) {
       this.logger.warn('No devices provided for FCM push notification', {
@@ -49,43 +51,54 @@ export class FcmProviderService
       return;
     }
 
-    const iosTokens: string[] = [];
-    const androidTokens: string[] = [];
-    const webTokens: string[] = [];
+    const groups = new Map<
+      string,
+      {
+        platform: DevicePlatform;
+        notificationId: string;
+        tokens: string[];
+      }
+    >();
 
     devices.forEach((device) => {
       if (device.token) {
-        if (device.platform === DevicePlatform.IOS) {
-          iosTokens.push(device.token);
-        } else if (device.platform === DevicePlatform.ANDROID) {
-          androidTokens.push(device.token);
-        } else if (device.platform === DevicePlatform.WEB) {
-          webTokens.push(device.token);
+        const resolvedId =
+          (device.userId && userNotificationIdMap?.get(device.userId)) ||
+          payloadDto.id ||
+          DateUtil.now().getTime().toString();
+        const key = `${device.platform}:::${resolvedId}`;
+        let group = groups.get(key);
+        if (!group) {
+          group = {
+            platform: device.platform,
+            notificationId: resolvedId,
+            tokens: [],
+          };
+          groups.set(key, group);
         }
+        group.tokens.push(device.token);
       }
     });
 
     this.logger.debug(
-      `Found ${iosTokens.length} iOS, ${androidTokens.length} Android, and ${webTokens.length} Web devices for FCM`,
+      `Partitioned ${devices.length} devices into ${groups.size} FCM dispatch groups`,
     );
 
     const promises: Promise<void>[] = [];
 
-    if (iosTokens.length > 0) {
-      const iosPayload = this.createIosPayload(payloadDto);
-      promises.push(this.sendToFcm(iosTokens, iosPayload, DevicePlatform.IOS));
-    }
+    for (const group of groups.values()) {
+      let payload: FcmPayload;
+      if (group.platform === DevicePlatform.IOS) {
+        payload = this.createIosPayload(payloadDto, group.notificationId);
+      } else if (group.platform === DevicePlatform.ANDROID) {
+        payload = this.createAndroidPayload(payloadDto, group.notificationId);
+      } else if (group.platform === DevicePlatform.WEB) {
+        payload = this.createWebPayload(payloadDto, group.notificationId);
+      } else {
+        continue;
+      }
 
-    if (androidTokens.length > 0) {
-      const androidPayload = this.createAndroidPayload(payloadDto);
-      promises.push(
-        this.sendToFcm(androidTokens, androidPayload, DevicePlatform.ANDROID),
-      );
-    }
-
-    if (webTokens.length > 0) {
-      const webPayload = this.createWebPayload(payloadDto);
-      promises.push(this.sendToFcm(webTokens, webPayload, DevicePlatform.WEB));
+      promises.push(this.sendToFcm(group.tokens, payload, group.platform));
     }
 
     const results = await Promise.allSettled(promises);
@@ -247,11 +260,17 @@ export class FcmProviderService
     }
   }
 
-  private createBasePayload(dto: SendNotificationRequestDto): FcmPayload {
+  private createBasePayload(
+    dto: SendNotificationRequestDto,
+    notificationId?: string,
+  ): FcmPayload {
     const link =
       dto.link ||
       (dto.payload?.link as string | undefined) ||
       (dto.payload?.chatUrl as string | undefined);
+
+    const resolvedId =
+      notificationId || dto.id || DateUtil.now().getTime().toString();
 
     return {
       notification: {
@@ -262,7 +281,7 @@ export class FcmProviderService
         type: dto.type,
         category: dto.category,
         payload: dto.payload || {},
-        id: dto.id || Date.now().toString(),
+        id: resolvedId,
         title: dto.title,
         body: dto.body,
         ...(link ? { link, route: link } : {}),
@@ -270,9 +289,12 @@ export class FcmProviderService
     };
   }
 
-  private createIosPayload(dto: SendNotificationRequestDto): FcmPayload {
+  private createIosPayload(
+    dto: SendNotificationRequestDto,
+    notificationId?: string,
+  ): FcmPayload {
     return {
-      ...this.createBasePayload(dto),
+      ...this.createBasePayload(dto, notificationId),
       apns: {
         payload: {
           aps: {
@@ -289,9 +311,12 @@ export class FcmProviderService
     };
   }
 
-  private createAndroidPayload(dto: SendNotificationRequestDto): FcmPayload {
+  private createAndroidPayload(
+    dto: SendNotificationRequestDto,
+    notificationId?: string,
+  ): FcmPayload {
     return {
-      ...this.createBasePayload(dto),
+      ...this.createBasePayload(dto, notificationId),
       android: {
         priority:
           dto.priority === NotificationPriority.HIGH ? 'high' : 'normal',
@@ -306,8 +331,11 @@ export class FcmProviderService
     };
   }
 
-  private createWebPayload(dto: SendNotificationRequestDto): FcmPayload {
-    const base = this.createBasePayload(dto);
+  private createWebPayload(
+    dto: SendNotificationRequestDto,
+    notificationId?: string,
+  ): FcmPayload {
+    const base = this.createBasePayload(dto, notificationId);
     const link = this.resolveWebLink(dto);
     const baseUrl = this.resolveBaseAppUrl();
 

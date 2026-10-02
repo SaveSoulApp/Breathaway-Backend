@@ -1,3 +1,9 @@
+/**
+ * Domain event types that can trigger customer-facing notifications.
+ *
+ * Stored as varchar strings in PostgreSQL to allow new notification types
+ * to be added in code without requiring database schema DDL migrations.
+ */
 export enum NotificationType {
   WELCOME = 'WELCOME',
   LIKE_SENT = 'LIKE_SENT',

@@ -40,10 +40,6 @@ import {
   MATCH_CREATED_EVENT,
   MatchCreatedEvent,
 } from '@modules/match-resolver/events';
-import {
-  PAYMENT_COMPLETED_EVENT,
-  PaymentCompletedEvent,
-} from '@modules/payments/events';
 
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
@@ -91,7 +87,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.DEVICE_ADDED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/devices',
         payload: {
@@ -250,7 +246,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.IDENTITY_ADDED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/identities',
         payload: {
@@ -281,7 +277,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.IDENTITY_REMOVED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.SECURITY,
         priority: NotificationPriority.HIGH,
         link: '/settings/identities',
         payload: {
@@ -336,7 +332,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.CREDITS_PURCHASED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.BILLING,
         link: '/credits',
         payload: {
           name,
@@ -367,7 +363,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.CREDITS_USED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.BILLING,
         link: '/credits',
         payload: {
           name,
@@ -395,7 +391,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.LIKES_EXPIRED,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.REMINDER,
         link: '/likes',
         payload: {
           name,
@@ -424,7 +420,7 @@ export class NotificationEventsListener extends BaseService {
         channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
         userIds: [event.userId],
         type: NotificationType.BUNDLE_EXPIRY_WARNING,
-        category: NotificationCategory.SYSTEM,
+        category: NotificationCategory.REMINDER,
         link: '/credits',
         payload: {
           name,
@@ -486,47 +482,6 @@ export class NotificationEventsListener extends BaseService {
         senderId: event.senderId,
         recipientId: event.recipientId,
         step: 'handle_chat_message_sent_event',
-        err: serializeError(err),
-      });
-    }
-  }
-
-  /**
-   * Dispatches a push notification and email when a web payment order is fulfilled.
-   *
-   * Triggered by `PAYMENT_COMPLETED_EVENT` emitted by `PaymentsService` after
-   * the atomic `$transaction` commits — decoupled from the domain service.
-   *
-   * Uses the existing `CREDITS_PURCHASED` notification type so the same email
-   * template and push payload is reused for both mobile (RevenueCat) and web
-   * (Razorpay) purchases. No new template is needed.
-   */
-  @OnEvent(PAYMENT_COMPLETED_EVENT, { async: true })
-  async handlePaymentCompleted(event: PaymentCompletedEvent): Promise<void> {
-    try {
-      const name = await this.resolveUserFirstName(event.userId);
-
-      await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
-        userIds: [event.userId],
-        type: NotificationType.PAYMENT_COMPLETED,
-        category: NotificationCategory.SYSTEM,
-        priority: NotificationPriority.HIGH,
-        link: '/credits',
-        payload: {
-          name,
-          creditsAdded: event.creditsGranted,
-          amount: event.amount / 100,
-          currency: event.currency,
-          orderId: event.orderId,
-          link: '/credits',
-        },
-      });
-    } catch (err) {
-      this.logger.error('Failed to dispatch PAYMENT_COMPLETED notification', {
-        userId: event.userId,
-        orderId: event.orderId,
-        step: 'handle_payment_completed_event',
         err: serializeError(err),
       });
     }

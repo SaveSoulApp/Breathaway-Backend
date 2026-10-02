@@ -249,6 +249,56 @@ describe('FcmProviderService', () => {
       );
     });
 
+    it('should assign individual notification IDs from userNotificationIdMap to device payloads during bulk dispatch', async () => {
+      const devices = [
+        {
+          id: 'dev-1',
+          userId: 'user-1',
+          token: 'token-ios-user1',
+          platform: DevicePlatform.IOS,
+          isActive: true,
+          deviceId: null,
+          appVersion: null,
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
+        },
+        {
+          id: 'dev-2',
+          userId: 'user-2',
+          token: 'token-ios-user2',
+          platform: DevicePlatform.IOS,
+          isActive: true,
+          deviceId: null,
+          appVersion: null,
+          createdAt: DateUtil.now(),
+          updatedAt: DateUtil.now(),
+        },
+      ];
+
+      const userNotificationIdMap = new Map([
+        ['user-1', 'notif-user-1'],
+        ['user-2', 'notif-user-2'],
+      ]);
+
+      mockMessaging.send.mockResolvedValue('msg-id');
+
+      await service.send(baseDto, devices, userNotificationIdMap);
+
+      expect(mockMessaging.send).toHaveBeenCalledTimes(2);
+
+      const user1Call = mockMessaging.send.mock.calls.find(
+        (c) => c[0].token === 'token-ios-user1',
+      );
+      expect(user1Call).toBeDefined();
+      expect(user1Call![0].data.id).toBe('notif-user-1');
+
+      const user2Call = mockMessaging.send.mock.calls.find(
+        (c) => c[0].token === 'token-ios-user2',
+      );
+      expect(user2Call).toBeDefined();
+      expect(user2Call![0].data.id).toBe('notif-user-2');
+    });
+
     it('should send webpush notification for single WEB device token with icon, badge, and fcmOptions.link', async () => {
       const devices = [
         {

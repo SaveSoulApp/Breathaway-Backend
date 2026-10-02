@@ -9,7 +9,7 @@ import { TimezoneMiddleware } from './timezone.middleware';
  *
  * Exclusion rationale:
  * - PubSub routes: Google Cloud Pub/Sub push subscriptions do not send app headers.
- * - Swagger routes: Browsers loading Swagger UI never send `X-Request-ID`.
+ * - Swagger routes: Browsers loading Swagger UI never send `x-request-id`.
  *   Each Swagger doc registers four addressable paths:
  *     1. /api/public          → Swagger UI HTML page
  *     2. /api/public/(.*)     → static assets under the path prefix

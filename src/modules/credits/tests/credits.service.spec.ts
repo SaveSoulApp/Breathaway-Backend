@@ -619,7 +619,7 @@ describe('CreditsService', () => {
       );
     });
 
-    it('should emit CREDITS_PURCHASED event without passing transaction client when called with tx', async () => {
+    it('should emit CREDITS_PURCHASED event passing transaction client when called with tx', async () => {
       const mockTx = {
         creditLedger: {
           create: jest.fn().mockResolvedValue(mockLedgerEntry),
@@ -631,9 +631,8 @@ describe('CreditsService', () => {
         .mockResolvedValue(20);
 
       await service.grantCredits(dto, mockTx);
-      await new Promise((resolve) => setImmediate(resolve));
 
-      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId, mockTx);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         CREDITS_PURCHASED_EVENT,
         expect.objectContaining({
@@ -709,7 +708,7 @@ describe('CreditsService', () => {
       );
     });
 
-    it('should emit CREDITS_USED event without passing transaction client when called with tx', async () => {
+    it('should emit CREDITS_USED event passing transaction client when called with tx', async () => {
       const mockTx = {
         creditLedger: {
           create: jest.fn().mockResolvedValue({
@@ -724,9 +723,8 @@ describe('CreditsService', () => {
         .mockResolvedValue(15);
 
       await service.consumeCredits(dto, mockTx);
-      await new Promise((resolve) => setImmediate(resolve));
 
-      expect(getBalanceSpy).toHaveBeenCalledWith(userId);
+      expect(getBalanceSpy).toHaveBeenCalledWith(userId, mockTx);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         CREDITS_USED_EVENT,
         expect.objectContaining({

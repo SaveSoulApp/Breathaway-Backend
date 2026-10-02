@@ -92,20 +92,20 @@ function publicApiDocumentation(app: INestApplication): void {
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Request-ID',
+        name: 'x-request-id',
         in: 'header',
         description: 'A unique identifier for the request (UUID)',
       },
-      'X-Request-ID',
+      'x-request-id',
     )
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Timezone',
+        name: 'x-timezone',
         in: 'header',
         description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
-      'X-Timezone',
+      'x-timezone',
     )
     .addApiKey(
       {
@@ -153,7 +153,10 @@ function publicApiDocumentation(app: INestApplication): void {
 
   // Deep sanitization: ensure no admin paths or admin tags leak into public OpenAPI spec
   Object.keys(publicDoc.paths).forEach((path) => {
-    if (path.toLowerCase().includes('/admin')) {
+    if (
+      path.toLowerCase().includes('/admin') ||
+      path.endsWith('/notifications/send')
+    ) {
       delete publicDoc.paths[path];
     } else {
       const pathItem = publicDoc.paths[path] as Record<string, unknown>;
@@ -182,8 +185,8 @@ function publicApiDocumentation(app: INestApplication): void {
   }
 
   applyGlobalSecurityToOperations(publicDoc, [
-    'X-Request-ID',
-    'X-Timezone',
+    'x-request-id',
+    'x-timezone',
     'x-api-key',
     'x-client-id',
     'x-device-id',
@@ -248,20 +251,20 @@ function adminApiDocumentation(app: INestApplication): void {
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Request-ID',
+        name: 'x-request-id',
         in: 'header',
         description: 'A unique identifier for the request (UUID)',
       },
-      'X-Request-ID',
+      'x-request-id',
     )
     .addApiKey(
       {
         type: 'apiKey',
-        name: 'X-Timezone',
+        name: 'x-timezone',
         in: 'header',
         description: 'The timezone of the client (e.g., Asia/Kolkata)',
       },
-      'X-Timezone',
+      'x-timezone',
     )
     .build();
 
@@ -269,9 +272,14 @@ function adminApiDocumentation(app: INestApplication): void {
     include: adminModules,
   });
 
-  // Deep sanitization: ensure public payment checkout endpoints and tags do not appear in admin OpenAPI spec
+  // Deep sanitization: ensure public payment checkout and notification inbox endpoints do not appear in admin OpenAPI spec
   Object.keys(adminDoc.paths).forEach((path) => {
     if (path.startsWith('/api/v1/payments') && !path.includes('/admin/')) {
+      delete adminDoc.paths[path];
+    } else if (
+      path.startsWith('/api/v1/notifications') &&
+      !path.endsWith('/notifications/send')
+    ) {
       delete adminDoc.paths[path];
     } else {
       const pathItem = adminDoc.paths[path] as Record<string, unknown>;
@@ -284,7 +292,9 @@ function adminApiDocumentation(app: INestApplication): void {
             Array.isArray((operation as { tags?: string[] }).tags)
           ) {
             const op = operation as { tags: string[] };
-            op.tags = op.tags.filter((tag) => tag !== 'Payments');
+            op.tags = op.tags.filter(
+              (tag) => tag !== 'Payments' && tag !== 'Notifications',
+            );
           }
         });
       }
@@ -292,10 +302,12 @@ function adminApiDocumentation(app: INestApplication): void {
   });
 
   if (adminDoc.tags) {
-    adminDoc.tags = adminDoc.tags.filter((tag) => tag.name !== 'Payments');
+    adminDoc.tags = adminDoc.tags.filter(
+      (tag) => tag.name !== 'Payments' && tag.name !== 'Notifications',
+    );
   }
 
-  applyGlobalSecurityToOperations(adminDoc, ['X-Request-ID', 'X-Timezone']);
+  applyGlobalSecurityToOperations(adminDoc, ['x-request-id', 'x-timezone']);
 
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {

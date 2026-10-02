@@ -99,8 +99,8 @@ Tests for request ID extraction middleware.
 
 - Request validation
   - Valid request ID acceptance
-  - Missing X-Request-ID header
-  - Non-string X-Request-ID header
+  - Missing x-request-id header
+  - Non-string x-request-id header
   - Request ID stored in request
 
 **Test Count:** 4 tests
