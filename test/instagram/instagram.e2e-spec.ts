@@ -8,7 +8,6 @@ import { InstagramModule } from '@modules/instagram/instagram.module';
 import {
   buildBasicAuthHeader,
   createAuthTestApp,
-  getDevLoginCredentials,
 } from '../helpers/app-test.helper';
 import { authedRequest } from '../helpers/request.helper';
 
@@ -39,8 +38,9 @@ describe('InstagramController (e2e)', () => {
     configService = app.get(ConfigService);
     gcpSecretManager = app.get(GcpSecretManagerService);
 
-    const { username, password } = getDevLoginCredentials(configService);
-    basicAuthHeader = buildBasicAuthHeader(username, password);
+    const adminUsername = configService.getOrThrow<string>('ADMIN_USERNAME');
+    const adminPassword = configService.getOrThrow<string>('ADMIN_PASSWORD');
+    basicAuthHeader = buildBasicAuthHeader(adminUsername, adminPassword);
   });
 
   afterAll(async () => {
@@ -52,7 +52,7 @@ describe('InstagramController (e2e)', () => {
   });
 
   describe('GET /api/v1/instagram/refresh-token', () => {
-    it('200 – refreshes access token and saves to secret manager', async () => {
+    it('200 – refreshes access token without saving to secret manager', async () => {
       const mockResponse = {
         data: { access_token: 'new-access-token', token_type: 'bearer' },
       };
@@ -74,10 +74,7 @@ describe('InstagramController (e2e)', () => {
           },
         },
       );
-      expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
-        'access-token-instagram',
-        'new-access-token',
-      );
+      expect(gcpSecretManager.upsertSecret).not.toHaveBeenCalled();
     });
 
     it('401 – unauthorized if basic auth missing', async () => {

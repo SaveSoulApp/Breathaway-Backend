@@ -20,11 +20,11 @@ The `InstagramModule` manages OAuth integrations and profile syncing with Instag
 
 ### 1. Secret Manager Upserts
 
-The service doesn't just read tokens. `refreshAccessToken` calls the Graph API to rotate the long-lived user token, and then dynamically writes the new token back to GCP Secret Manager (`access-token-instagram`) via an upsert. This keeps credential rotation centralized and auditable.
+The service decouples user token operations from system token management. `refreshAccessToken` calls the Graph API to rotate a user's long-lived access token and returns it directly to the caller without mutating system secrets. `refreshSystemAccessToken` handles platform-level rotation: it retrieves the system token, refreshes it via the Graph API, and dynamically writes the new token back to GCP Secret Manager (`access-token-instagram`) via an upsert. This protects the operational system token from being overwritten by user tokens.
 
 ### 2. System Token Delegation
 
-For automated cron jobs that need to interact with Instagram on behalf of the platform, `refreshSystemAccessToken` reads the current system token from environment configuration and delegates to the standard rotation method. This abstracts the credential source away from the cron jobs.
+For automated maintenance jobs that interact with Instagram on behalf of the platform, `refreshSystemAccessToken` reads the current system token from Secret Manager (with ConfigService fallback), rotates it via the Graph API, and updates Secret Manager. This abstracts the credential source away from the maintenance jobs.
 
 ---
 
@@ -32,7 +32,7 @@ For automated cron jobs that need to interact with Instagram on behalf of the pl
 
 ### Controller
 
-- **[InstagramController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/instagram/instagram.controller.ts)**: Exposes endpoints for initiating OAuth flow and receiving redirect callback hooks.
+- **[InstagramController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/instagram/instagram.controller.ts)**: Exposes internal administrative endpoints for user and system token refresh operations, protected by `AdminBasicAuthGuard`.
   - Route Prefix: `/api/v1/instagram`
 
 ### Service

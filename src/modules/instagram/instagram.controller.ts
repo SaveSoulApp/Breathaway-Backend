@@ -1,10 +1,15 @@
 import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBasicAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '@common/decorators';
-import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 
 import { RefreshInstagramTokenRequestDto } from './dto';
 import { InstagramService } from './instagram.service';
@@ -15,11 +20,12 @@ import { InstagramService } from './instagram.service';
   path: 'instagram',
   version: ['1'],
 })
-@UseGuards(BasicAuthGuard)
+@UseGuards(AdminBasicAuthGuard)
+@ApiBasicAuth()
 /**
  * Handles HTTP operations for Instagram access-token management under /instagram.
  *
- * All endpoints are restricted to internal callers via BasicAuthGuard — these routes
+ * All endpoints are restricted to internal administrators via AdminBasicAuthGuard — these routes
  * are not intended for end-user consumption.
  */
 export class InstagramController extends BaseController {
@@ -31,8 +37,10 @@ export class InstagramController extends BaseController {
   }
 
   /**
-   * Refreshes a caller-supplied Instagram user access token via the Graph API
-   * and persists the new token to GCP Secret Manager.
+   * Refreshes a caller-supplied Instagram user access token via the Graph API.
+   *
+   * The new token is returned directly to the caller and is not persisted to GCP
+   * Secret Manager, protecting system-level tokens from being overwritten.
    *
    * @param query - The request query parameters containing the active token.
    * @returns The Graph API refresh response including the new access token and its expiry.

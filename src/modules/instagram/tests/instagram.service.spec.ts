@@ -71,16 +71,19 @@ describe('InstagramService', () => {
     gcpSecretManager = module.get(GcpSecretManagerService);
   });
 
+  const originalEnvToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+
   afterEach(() => {
+    process.env.INSTAGRAM_ACCESS_TOKEN = originalEnvToken;
     jest.clearAllMocks();
   });
 
   describe('refreshAccessToken', () => {
-    it('should successfully refresh access token and update GCP secret', async () => {
-      const currentToken = 'old-token';
+    it('should successfully refresh user access token without updating GCP secret or process.env', async () => {
+      const currentToken = 'user-token';
       const mockResponse = {
         data: {
-          access_token: 'new-token',
+          access_token: 'new-user-token',
           expires_in: 5184000,
         },
       };
@@ -97,10 +100,8 @@ describe('InstagramService', () => {
           },
         },
       );
-      expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
-        DEFAULT_INSTAGRAM_SECRET_NAME,
-        'new-token',
-      );
+      expect(gcpSecretManager.upsertSecret).not.toHaveBeenCalled();
+      expect(process.env.INSTAGRAM_ACCESS_TOKEN).toBe(originalEnvToken);
       expect(result).toEqual(mockResponse.data);
     });
 
@@ -155,7 +156,7 @@ describe('InstagramService', () => {
   });
 
   describe('refreshSystemAccessToken', () => {
-    it('should refresh token using token retrieved from GCP Secret Manager', async () => {
+    it('should refresh token using token retrieved from GCP Secret Manager and persist new token to Secret Manager', async () => {
       const mockSecretToken = 'secret-manager-token';
       gcpSecretManager.getSecret.mockResolvedValueOnce(mockSecretToken);
 
@@ -183,10 +184,15 @@ describe('InstagramService', () => {
           },
         },
       );
+      expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
+        DEFAULT_INSTAGRAM_SECRET_NAME,
+        'new-refreshed-token',
+      );
+      expect(process.env.INSTAGRAM_ACCESS_TOKEN).toBe('new-refreshed-token');
       expect(result).toEqual(mockResponse.data);
     });
 
-    it('should fall back to configService if GCP Secret Manager fails to get secret', async () => {
+    it('should fall back to configService if GCP Secret Manager fails to get secret and persist to Secret Manager', async () => {
       gcpSecretManager.getSecret.mockRejectedValueOnce(
         new Error('Secret not found'),
       );
@@ -220,6 +226,28 @@ describe('InstagramService', () => {
           },
         },
       );
+      expect(gcpSecretManager.upsertSecret).toHaveBeenCalledWith(
+        DEFAULT_INSTAGRAM_SECRET_NAME,
+        'new-env-token',
+      );
+      expect(process.env.INSTAGRAM_ACCESS_TOKEN).toBe('new-env-token');
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should not update Secret Manager if refreshed system token is absent', async () => {
+      const mockSecretToken = 'secret-manager-token';
+      gcpSecretManager.getSecret.mockResolvedValueOnce(mockSecretToken);
+
+      const mockResponse = {
+        data: {
+          some_other_field: 'value',
+        },
+      };
+      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.refreshSystemAccessToken();
+
+      expect(gcpSecretManager.upsertSecret).not.toHaveBeenCalled();
       expect(result).toEqual(mockResponse.data);
     });
 

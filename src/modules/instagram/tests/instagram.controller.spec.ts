@@ -1,10 +1,12 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
 import { LoggerService } from '@core/logger';
-import { BasicAuthGuard } from '@common/guards/basic-auth.guard';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+
 import { InstagramController } from '../instagram.controller';
 import { InstagramService } from '../instagram.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('InstagramController', () => {
   let controller: InstagramController;
@@ -37,7 +39,7 @@ describe('InstagramController', () => {
         { provide: LoggerService, useValue: logger },
       ],
     })
-      .overrideGuard(BasicAuthGuard)
+      .overrideGuard(AdminBasicAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 
