@@ -2,6 +2,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
+import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
 
 import { SendNotificationRequestDto } from '../../dto/request/send-notification.request.dto';
@@ -248,6 +249,28 @@ describe('WhatsAppProviderService', () => {
           template: 'breathaway_new_match',
         }),
       );
+    });
+
+    it('should prune in-memory cache when size limit is reached', async () => {
+      const inMemoryMap = (
+        service as unknown as { inMemorySentKeys: Map<string, number> }
+      ).inMemorySentKeys;
+      const oldTimestamp = DateUtil.now().getTime() - 25 * 60 * 60 * 1000; // 25 hours ago (expired)
+
+      for (let i = 0; i < 5000; i++) {
+        inMemoryMap.set(`key-expired-${i}`, oldTimestamp);
+      }
+
+      expect(inMemoryMap.size).toBe(5000);
+
+      const isDup = await (
+        service as unknown as {
+          isDuplicateAndMark: (k: string) => Promise<boolean>;
+        }
+      ).isDuplicateAndMark('new-key');
+      expect(isDup).toBe(false);
+      expect(inMemoryMap.size).toBe(1);
+      expect(inMemoryMap.has('new-key')).toBe(true);
     });
   });
 });

@@ -29,6 +29,7 @@ export class WhatsAppProviderService
   extends BaseService
   implements INotificationProvider
 {
+  static readonly MAX_IN_MEMORY_KEYS = 5000;
   private readonly inMemorySentKeys = new Map<string, number>();
   private readonly DEDUP_TTL_SECONDS = 24 * 60 * 60; // 24 hours (1 day)
   private readonly DEDUP_TTL_MS = this.DEDUP_TTL_SECONDS * 1000;
@@ -191,7 +192,45 @@ export class WhatsAppProviderService
       return true;
     }
 
+    this.pruneInMemoryCache(now);
     this.inMemorySentKeys.set(key, now);
     return false;
+  }
+
+  /**
+   * Prunes expired keys and enforces a maximum size ceiling on the in-memory cache
+   * to prevent memory leaks in stateless containers when Redis is unreachable.
+   */
+  private pruneInMemoryCache(now: number): void {
+    if (
+      this.inMemorySentKeys.size < WhatsAppProviderService.MAX_IN_MEMORY_KEYS
+    ) {
+      return;
+    }
+
+    // 1. Evict all expired entries
+    const cutoff = now - this.DEDUP_TTL_MS;
+    for (const [k, timestamp] of this.inMemorySentKeys.entries()) {
+      if (timestamp <= cutoff) {
+        this.inMemorySentKeys.delete(k);
+      }
+    }
+
+    // 2. If still over capacity after expiry pruning, evict oldest 20% entries (FIFO)
+    if (
+      this.inMemorySentKeys.size >= WhatsAppProviderService.MAX_IN_MEMORY_KEYS
+    ) {
+      const keysToEvictCount = Math.floor(
+        WhatsAppProviderService.MAX_IN_MEMORY_KEYS * 0.2,
+      );
+      let evicted = 0;
+      for (const k of this.inMemorySentKeys.keys()) {
+        if (evicted >= keysToEvictCount) {
+          break;
+        }
+        this.inMemorySentKeys.delete(k);
+        evicted++;
+      }
+    }
   }
 }
