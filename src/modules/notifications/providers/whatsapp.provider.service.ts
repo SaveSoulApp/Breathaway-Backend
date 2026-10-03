@@ -90,68 +90,73 @@ export class WhatsAppProviderService
       return;
     }
 
-    for (const userId of payloadDto.userIds) {
-      const recipientContact = phoneContactsByUser.get(userId);
-      if (!recipientContact) {
-        continue;
-      }
+    const extraParams = templateConfig.buildPayload
+      ? templateConfig.buildPayload(payloadDto.payload ?? {})
+      : undefined;
 
-      const matchId =
-        (payloadDto.payload?.matchId as string | undefined) ||
-        (payloadDto.link?.startsWith('/matches/')
-          ? payloadDto.link.replace('/matches/', '')
-          : undefined);
+    const matchId =
+      (payloadDto.payload?.matchId as string | undefined) ||
+      (payloadDto.link?.startsWith('/matches/')
+        ? payloadDto.link.replace('/matches/', '')
+        : undefined);
 
-      if (matchId) {
-        const dedupKey = `whatsapp:match:${matchId}:${userId}`;
-        const isDuplicate = await this.isDuplicateAndMark(dedupKey);
-        if (isDuplicate) {
+    await Promise.allSettled(
+      payloadDto.userIds.map(async (userId) => {
+        const recipientContact = phoneContactsByUser.get(userId);
+        if (!recipientContact) {
+          return;
+        }
+
+        if (matchId) {
+          const dedupKey = `whatsapp:match:${matchId}:${userId}`;
+          const isDuplicate = await this.isDuplicateAndMark(dedupKey);
+          if (isDuplicate) {
+            this.logger.log(
+              'Duplicate WhatsApp match notification suppressed for user',
+              {
+                userId,
+                matchId,
+                step: 'dedup_check',
+              },
+            );
+            return;
+          }
+        }
+
+        try {
+          await this.whatsAppAdapter.send({
+            to: recipientContact.phoneDigits,
+            template: templateConfig.template,
+            language: templateConfig.language,
+            params: extraParams,
+          });
+
           this.logger.log(
-            'Duplicate WhatsApp match notification suppressed for user',
+            'WhatsApp notification sent successfully to recipient',
             {
               userId,
-              matchId,
-              step: 'dedup_check',
+              recipient: maskPhoneNumber(recipientContact.phoneDigits),
+              notificationType: payloadDto.type,
+              template: templateConfig.template,
+              step: 'dispatch_success',
             },
           );
-          continue;
+        } catch (err) {
+          // Log and swallow error so WhatsApp failures never block other channels or business transactions
+          this.logger.error(
+            'Failed to send WhatsApp notification to recipient',
+            {
+              userId,
+              recipient: maskPhoneNumber(recipientContact.phoneDigits),
+              notificationType: payloadDto.type,
+              template: templateConfig.template,
+              step: 'dispatch_failed',
+              err: serializeError(err),
+            },
+          );
         }
-      }
-
-      const extraParams = templateConfig.buildPayload
-        ? templateConfig.buildPayload(payloadDto.payload ?? {})
-        : undefined;
-
-      try {
-        await this.whatsAppAdapter.send({
-          to: recipientContact.phoneDigits,
-          template: templateConfig.template,
-          language: templateConfig.language,
-          params: extraParams,
-        });
-
-        this.logger.log(
-          'WhatsApp notification sent successfully to recipient',
-          {
-            userId,
-            recipient: maskPhoneNumber(recipientContact.phoneDigits),
-            notificationType: payloadDto.type,
-            template: templateConfig.template,
-            step: 'dispatch_success',
-          },
-        );
-      } catch (err) {
-        // Log and swallow error so WhatsApp failures never block other channels or business transactions
-        this.logger.error('Failed to send WhatsApp notification to recipient', {
-          userId,
-          recipient: maskPhoneNumber(recipientContact.phoneDigits),
-          notificationType: payloadDto.type,
-          template: templateConfig.template,
-          step: 'dispatch_failed',
-          err: serializeError(err),
-        });
-      }
-    }
+      }),
+    );
   }
 
   /**

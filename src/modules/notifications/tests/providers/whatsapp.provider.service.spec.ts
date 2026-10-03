@@ -181,6 +181,49 @@ describe('WhatsAppProviderService', () => {
       });
     });
 
+    it('should dispatch concurrently for multiple userIds', async () => {
+      const dto: SendNotificationRequestDto = {
+        userIds: ['user-1', 'user-2'],
+        type: NotificationType.WELCOME,
+        category: NotificationCategory.SYSTEM,
+      };
+
+      mockRecipientResolver.resolvePhoneNumbers.mockResolvedValueOnce(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              phoneDigits: '919876543210',
+              e164Formatted: '+919876543210',
+            },
+          ],
+          [
+            'user-2',
+            {
+              userId: 'user-2',
+              phoneDigits: '919876543211',
+              e164Formatted: '+919876543211',
+            },
+          ],
+        ]),
+      );
+
+      mockWhatsAppAdapter.send
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+
+      await service.send(dto);
+
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(2);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '919876543210' }),
+      );
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '919876543211' }),
+      );
+    });
+
     it('should suppress duplicate match notifications for the same match and user', async () => {
       const dto: SendNotificationRequestDto = {
         userIds: ['user-1'],
