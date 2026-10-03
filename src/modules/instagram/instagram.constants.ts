@@ -1,9 +1,8 @@
-/**
- * Configuration key used to retrieve the Instagram secret name from ConfigService.
- */
-export const INSTAGRAM_SECRET_NAME_CONFIG_KEY = 'INSTAGRAM_SECRET_NAME';
+import { GcpSecretName } from '@common/enums';
 
 /**
- * Default GCP Secret Manager secret identifier for the Instagram access token.
+ * GCP Secret Manager secret identifier for the Instagram access token.
+ * Aliases {@link GcpSecretName.INSTAGRAM_ACCESS_TOKEN}.
  */
-export const DEFAULT_INSTAGRAM_SECRET_NAME = 'access-token-instagram';
+export const DEFAULT_INSTAGRAM_SECRET_NAME =
+  GcpSecretName.INSTAGRAM_ACCESS_TOKEN;

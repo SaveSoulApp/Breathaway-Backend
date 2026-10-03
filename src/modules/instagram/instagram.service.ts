@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
+import { GcpSecretName } from '@common/enums';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
@@ -11,10 +12,6 @@ import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from './application/exceptions';
-import {
-  DEFAULT_INSTAGRAM_SECRET_NAME,
-  INSTAGRAM_SECRET_NAME_CONFIG_KEY,
-} from './instagram.constants';
 
 /**
  * Manages Instagram access token lifecycle by communicating directly with the
@@ -37,16 +34,9 @@ export class InstagramService extends BaseService {
   private readonly baseUrl = 'https://graph.instagram.com';
 
   /**
-   * Resolves the Secret Manager secret identifier for the Instagram access token.
-   *
-   * Prefers `INSTAGRAM_SECRET_NAME` from ConfigService; falls back to `DEFAULT_INSTAGRAM_SECRET_NAME`.
+   * Canonical Secret Manager secret identifier for the Instagram access token.
    */
-  private get instagramSecretName(): string {
-    return (
-      this.configService.get<string>(INSTAGRAM_SECRET_NAME_CONFIG_KEY) ??
-      DEFAULT_INSTAGRAM_SECRET_NAME
-    );
-  }
+  private readonly instagramSecretName = GcpSecretName.INSTAGRAM_ACCESS_TOKEN;
 
   /**
    * Exchanges a long-lived Instagram access token for a new one via the Graph API.

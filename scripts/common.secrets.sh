@@ -1,0 +1,64 @@
+#!/bin/bash
+# ==============================================================================
+# Centralized Secret Manager Secret Names & Cloud Run Mappings
+#
+# Serves as the single source of truth for secret identifiers across deployment scripts.
+# ==============================================================================
+
+# Canonical GCP Secret Manager secret identifiers (Enum-like definitions)
+export SECRET_CLIENT_IDS="client-ids"
+export SECRET_API_KEYS="api-keys"
+export SECRET_JWT_SECRET="jwt-secret"
+export SECRET_INSTAGRAM_ACCESS_TOKEN="access-token-instagram"
+export SECRET_DATABASE_URL="database-url"
+export SECRET_REDIS_URL="redis-url"
+export SECRET_GCP_SECRET_MASTER_KEYS="gcp-secret-master-keys"
+export SECRET_ACTIVE_MASTER_KEY_ID="active-master-key-id"
+export SECRET_HMAC_KEY_BASE64="hmac-key-base64"
+export SECRET_FIREBASE_CLIENT_EMAIL="firebase-client-email"
+export SECRET_FIREBASE_PRIVATE_KEY="firebase-private-key"
+export SECRET_KMS_KEY_NAMES="kms-key-names"
+export SECRET_KMS_ACTIVE_KEY_ID="kms-active-key-id"
+export SECRET_SUPABASE_URL="supabase-url"
+export SECRET_SUPABASE_SERVICE_ROLE_KEY="supabase-service-role-key"
+export SECRET_SUPABASE_JWT_PRIVATE_KEY="supabase-jwt-private-key"
+export SECRET_ADMIN_USERNAME="admin-username"
+export SECRET_ADMIN_PASSWORD="admin-password"
+export SECRET_SWAGGER_USERNAME="swagger-username"
+export SECRET_SWAGGER_PASSWORD="swagger-password"
+export SECRET_REVENUECAT_WEBHOOK_SECRET="revenuecat-webhook-secret"
+export SECRET_IPINFO_TOKEN="ipinfo-token"
+export SECRET_BREVO_API_KEY="brevo-api-key"
+export SECRET_RAZORPAY_KEY_ID="razorpay-key-id"
+export SECRET_RAZORPAY_KEY_SECRET="razorpay-key-secret"
+export SECRET_RAZORPAY_WEBHOOK_SECRET="razorpay-webhook-secret"
+
+# Cloud Run Secret Mappings (<ENV_VAR_NAME>=<SECRET_NAME>:latest)
+COMMON_SECRETS=(
+    "CLIENT_IDS=${SECRET_CLIENT_IDS}:latest"
+    "API_KEYS=${SECRET_API_KEYS}:latest"
+    "JWT_SECRET=${SECRET_JWT_SECRET}:latest"
+    "INSTAGRAM_ACCESS_TOKEN=${SECRET_INSTAGRAM_ACCESS_TOKEN}:latest"
+    "DATABASE_URL=${SECRET_DATABASE_URL}:latest"
+    "REDIS_URL=${SECRET_REDIS_URL}:latest"
+    "GCP_SECRET_MASTER_KEYS=${SECRET_GCP_SECRET_MASTER_KEYS}:latest"
+    "ACTIVE_MASTER_KEY_ID=${SECRET_ACTIVE_MASTER_KEY_ID}:latest"
+    "HMAC_KEY_BASE64=${SECRET_HMAC_KEY_BASE64}:latest"
+    "FIREBASE_CLIENT_EMAIL=${SECRET_FIREBASE_CLIENT_EMAIL}:latest"
+    "FIREBASE_PRIVATE_KEY=${SECRET_FIREBASE_PRIVATE_KEY}:latest"
+    "KMS_KEY_NAMES=${SECRET_KMS_KEY_NAMES}:latest"
+    "KMS_ACTIVE_KEY_ID=${SECRET_KMS_ACTIVE_KEY_ID}:latest"
+    "SUPABASE_URL=${SECRET_SUPABASE_URL}:latest"
+    "SUPABASE_SERVICE_ROLE_KEY=${SECRET_SUPABASE_SERVICE_ROLE_KEY}:latest"
+    "SUPABASE_JWT_PRIVATE_KEY=${SECRET_SUPABASE_JWT_PRIVATE_KEY}:latest"
+    "ADMIN_USERNAME=${SECRET_ADMIN_USERNAME}:latest"
+    "ADMIN_PASSWORD=${SECRET_ADMIN_PASSWORD}:latest"
+    "SWAGGER_USERNAME=${SECRET_SWAGGER_USERNAME}:latest"
+    "SWAGGER_PASSWORD=${SECRET_SWAGGER_PASSWORD}:latest"
+    "REVENUECAT_WEBHOOK_SECRET=${SECRET_REVENUECAT_WEBHOOK_SECRET}:latest"
+    "IPINFO_TOKEN=${SECRET_IPINFO_TOKEN}:latest"
+    "BREVO_API_KEY=${SECRET_BREVO_API_KEY}:latest"
+    "RAZORPAY_KEY_ID=${SECRET_RAZORPAY_KEY_ID}:latest"
+    "RAZORPAY_KEY_SECRET=${SECRET_RAZORPAY_KEY_SECRET}:latest"
+    "RAZORPAY_WEBHOOK_SECRET=${SECRET_RAZORPAY_WEBHOOK_SECRET}:latest"
+)

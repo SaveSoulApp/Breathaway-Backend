@@ -5,11 +5,13 @@ resource "google_service_account" "backend_service" {
   project      = var.project_id
 }
 
-# 1. Grant backend-service Secret Accessor at project level to mount application secrets at boot
-resource "google_project_iam_member" "backend_service_secrets_accessor" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.backend_service.email}"
+# 1. Grant backend-service Secret Accessor strictly on required secrets (Least Privilege)
+resource "google_secret_manager_secret_iam_member" "backend_service_secrets_accessor" {
+  for_each  = toset(local.backend_common_secrets)
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.backend_service.email}"
 }
 
 # 2. Grant backend-service Cloud SQL Client to allow connecting to Cloud SQL database
