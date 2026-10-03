@@ -1202,17 +1202,17 @@ export class AuthService extends BaseService {
           },
         });
 
-        for (const match of matches) {
-          const counterpartLikeId =
-            match.userOneId === userId ? match.likeTwoId : match.likeOneId;
-          await tx.like.update({
-            where: { id: counterpartLikeId },
+        if (matches.length > 0) {
+          const counterpartLikeIds = matches.map((m) =>
+            m.userOneId === userId ? m.likeTwoId : m.likeOneId,
+          );
+
+          await tx.like.updateMany({
+            where: { id: { in: counterpartLikeIds } },
             data: { status: LikeStatus.VOIDED },
           });
-        }
 
-        // Delete Match rows first so foreign keys on Like are freed
-        if (matches.length > 0) {
+          // Delete Match rows first so foreign keys on Like are freed
           await tx.match.deleteMany({
             where: {
               id: { in: matches.map((m) => m.id) },

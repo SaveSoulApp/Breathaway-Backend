@@ -1687,8 +1687,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       expect(firebaseService.deleteUser).toHaveBeenCalledWith(
         'firebase-uid-123',
       );
-      expect(txMock.like.update).toHaveBeenCalledWith({
-        where: { id: 'partner-like-1' },
+      expect(txMock.like.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['partner-like-1'] } },
         data: { status: LikeStatus.VOIDED },
       });
       expect(txMock.match.deleteMany).toHaveBeenCalled();
