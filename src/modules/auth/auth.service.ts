@@ -1143,6 +1143,8 @@ export class AuthService extends BaseService {
 
     // Step 1: Firebase Account Teardown
     try {
+      const deletedFirebaseUids = new Set<string>();
+
       if (phoneIdentity) {
         const decryptedPhone =
           await this.encryptionService.decryptPublicValue(phoneIdentity);
@@ -1150,19 +1152,23 @@ export class AuthService extends BaseService {
           await this.firebaseAdmin.getUserByPhoneNumber(decryptedPhone);
         if (firebaseUser) {
           await this.firebaseAdmin.deleteUser(firebaseUser.uid);
+          deletedFirebaseUids.add(firebaseUser.uid);
           this.logger.debug('Firebase user deleted by phone', {
             ...ctx,
             step: 'firebase_teardown',
             uid: firebaseUser.uid,
           });
         }
-      } else if (emailIdentity) {
+      }
+
+      if (emailIdentity) {
         const decryptedEmail =
           await this.encryptionService.decryptPublicValue(emailIdentity);
         const firebaseUser =
           await this.firebaseAdmin.getUserByEmail(decryptedEmail);
-        if (firebaseUser) {
+        if (firebaseUser && !deletedFirebaseUids.has(firebaseUser.uid)) {
           await this.firebaseAdmin.deleteUser(firebaseUser.uid);
+          deletedFirebaseUids.add(firebaseUser.uid);
           this.logger.debug('Firebase user deleted by email', {
             ...ctx,
             step: 'firebase_teardown',

@@ -1794,5 +1794,68 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         where: { id: userId },
       });
     });
+
+    it('should delete both phone and email Firebase user accounts when user has distinct credentials', async () => {
+      const multiCredUser = {
+        ...mockUser,
+        identities: [
+          ...mockUser.identities,
+          {
+            id: 'identity-email-1',
+            type: IdentityType.EMAIL,
+            publicValueHash: 'email-hash-64chars',
+            deletedAt: null,
+          },
+        ],
+      };
+
+      prisma.user.findUnique.mockResolvedValue(multiCredUser as any);
+      encryptionService.decryptPublicValue.mockImplementation(
+        async (identity: any) =>
+          identity.type === IdentityType.PHONE
+            ? '+919876543210'
+            : 'user@example.com',
+      );
+      firebaseService.getUserByPhoneNumber.mockResolvedValue({
+        uid: 'firebase-phone-uid',
+      } as any);
+      firebaseService.getUserByEmail.mockResolvedValue({
+        uid: 'firebase-email-uid',
+      } as any);
+      firebaseService.deleteUser.mockResolvedValue(undefined);
+
+      const txMock = {
+        match: {
+          findMany: jest.fn().mockResolvedValue([]),
+          deleteMany: jest.fn(),
+        },
+        like: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        transaction: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        block: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        identity: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        user: {
+          delete: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb: any) => cb(txMock));
+
+      await service.deleteAccount(userId, deleteDto);
+
+      expect(firebaseService.deleteUser).toHaveBeenCalledWith(
+        'firebase-phone-uid',
+      );
+      expect(firebaseService.deleteUser).toHaveBeenCalledWith(
+        'firebase-email-uid',
+      );
+    });
   });
 });
