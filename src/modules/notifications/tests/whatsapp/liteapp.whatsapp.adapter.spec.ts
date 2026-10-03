@@ -183,6 +183,55 @@ describe('LiteAppWhatsAppAdapter', () => {
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
     });
 
+    it('should retry once when receiving HTTP 429 with title-cased Retry-After header or header getter', async () => {
+      await setupModule({
+        LITEAPP_WHATSAPP_URL: 'https://dev.liteapp.store',
+        LITEAPP_WHATSAPP_KEY: 'test-secret-key',
+      });
+
+      const rateLimitErrorTitleCase = {
+        isAxiosError: true,
+        response: {
+          status: 429,
+          headers: { 'Retry-After': '0' },
+          data: { error: 'Too many requests' },
+        },
+      };
+
+      mockedAxios.post
+        .mockRejectedValueOnce(rateLimitErrorTitleCase)
+        .mockResolvedValueOnce({ status: 200, data: { success: true } });
+
+      await adapter.send({
+        to: '919876543210',
+        template: 'breathaway_new_match',
+      });
+
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+
+      const rateLimitErrorGetter = {
+        isAxiosError: true,
+        response: {
+          status: 429,
+          headers: {
+            get: (key: string) => (key === 'retry-after' ? '0' : undefined),
+          },
+          data: { error: 'Too many requests' },
+        },
+      };
+
+      mockedAxios.post
+        .mockRejectedValueOnce(rateLimitErrorGetter)
+        .mockResolvedValueOnce({ status: 200, data: { success: true } });
+
+      await adapter.send({
+        to: '919876543210',
+        template: 'breathaway_new_match',
+      });
+
+      expect(mockedAxios.post).toHaveBeenCalledTimes(4);
+    });
+
     it('should fail and not retry further when retry after 429 also fails', async () => {
       await setupModule({
         LITEAPP_WHATSAPP_URL: 'https://dev.liteapp.store',

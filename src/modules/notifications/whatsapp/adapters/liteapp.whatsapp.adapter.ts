@@ -127,20 +127,9 @@ export class LiteAppWhatsAppAdapter
     initialError: AxiosError,
     payload: WhatsAppSendPayload,
   ): Promise<void> {
-    const rawRetryAfter = (
-      initialError.response?.headers as Record<string, unknown> | undefined
-    )?.['retry-after'];
-    let retryAfterSec = 5;
-
-    if (
-      typeof rawRetryAfter === 'string' ||
-      typeof rawRetryAfter === 'number'
-    ) {
-      const parsed = parseInt(String(rawRetryAfter), 10);
-      if (!isNaN(parsed) && parsed >= 0) {
-        retryAfterSec = Math.min(parsed, 60); // Cap at 60s safety limit
-      }
-    }
+    const retryAfterSec = this.getRetryAfterSeconds(
+      initialError.response?.headers as Record<string, unknown> | undefined,
+    );
 
     this.logger.warn(
       'Rate limited (429) by LiteApp WhatsApp API, retrying once',
@@ -204,5 +193,34 @@ export class LiteAppWhatsAppAdapter
         error instanceof Error ? error.message : String(error)
       }`,
     );
+  }
+
+  /**
+   * Safely extracts and bounds retry delay from response headers.
+   * Handles Axios headers with .get() method or case variations ('retry-after', 'Retry-After').
+   */
+  private getRetryAfterSeconds(headers?: Record<string, unknown>): number {
+    if (!headers) {
+      return 5;
+    }
+
+    const rawRetryAfter =
+      (typeof (headers as { get?: (key: string) => unknown }).get === 'function'
+        ? (headers as { get: (key: string) => unknown }).get('retry-after')
+        : undefined) ??
+      headers['retry-after'] ??
+      headers['Retry-After'];
+
+    if (
+      typeof rawRetryAfter === 'string' ||
+      typeof rawRetryAfter === 'number'
+    ) {
+      const parsed = parseInt(String(rawRetryAfter), 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        return Math.min(parsed, 60); // Cap at 60s safety limit
+      }
+    }
+
+    return 5;
   }
 }
