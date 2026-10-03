@@ -1,16 +1,14 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { AuthCredentialType, Device, IdentityType } from '@prisma/client';
+import type { Device } from '@prisma/client';
 import Redis from 'ioredis';
-import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
+import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
 import {
   type IWhatsAppAdapter,
   WHATSAPP_ADAPTER_TOKEN,
@@ -20,7 +18,7 @@ import { INotificationProvider } from './notification-provider.interface';
 
 /**
  * Service responsible for orchestrating WhatsApp notification dispatch:
- * 1. Resolves recipient user phone numbers via encrypted Identity/AuthCredential records.
+ * 1. Resolves recipient user phone numbers via NotificationRecipientResolverService.
  * 2. Deduplicates event dispatches (e.g. per match per recipient) using Redis with in-memory fallback.
  * 3. Maps domain NotificationType to Meta template configurations.
  * 4. Dispatches messages via the configured IWhatsAppAdapter (LiteApp / Meta).
@@ -36,8 +34,7 @@ export class WhatsAppProviderService
 
   constructor(
     loggerService: LoggerService,
-    private readonly prisma: PrismaService,
-    private readonly identityCryptoService: IdentityCryptoService,
+    private readonly recipientResolver: NotificationRecipientResolverService,
     @Inject(WHATSAPP_ADAPTER_TOKEN)
     private readonly whatsAppAdapter: IWhatsAppAdapter,
     @Optional()
@@ -76,11 +73,10 @@ export class WhatsAppProviderService
       return;
     }
 
-    const phoneNumbersByUser = await this.resolveUserPhoneNumbers(
-      payloadDto.userIds,
-    );
+    const phoneContactsByUser =
+      await this.recipientResolver.resolvePhoneNumbers(payloadDto.userIds);
 
-    if (phoneNumbersByUser.size === 0) {
+    if (phoneContactsByUser.size === 0) {
       this.logger.debug(
         'No verified phone numbers found for recipients, skipping WhatsApp send',
         {
@@ -93,8 +89,8 @@ export class WhatsAppProviderService
     }
 
     for (const userId of payloadDto.userIds) {
-      const recipientPhone = phoneNumbersByUser.get(userId);
-      if (!recipientPhone) {
+      const recipientContact = phoneContactsByUser.get(userId);
+      if (!recipientContact) {
         continue;
       }
 
@@ -126,7 +122,7 @@ export class WhatsAppProviderService
 
       try {
         await this.whatsAppAdapter.send({
-          to: recipientPhone,
+          to: recipientContact.phoneDigits,
           template: templateConfig.template,
           language: templateConfig.language,
           params: extraParams,
@@ -152,130 +148,6 @@ export class WhatsAppProviderService
         });
       }
     }
-  }
-
-  /**
-   * Resolves and decrypts the primary verified phone numbers for the provided user IDs.
-   * Checks AuthCredential (type=PHONE) and fallback Identity (type=PHONE).
-   *
-   * @param userIds - List of user IDs.
-   * @returns Map of userId -> E.164 digits-only string without "+" (e.g. "919876543210").
-   */
-  private async resolveUserPhoneNumbers(
-    userIds: string[],
-  ): Promise<Map<string, string>> {
-    const phoneMap = new Map<string, string>();
-
-    // 1. Query via AuthCredential (type=PHONE)
-    const credentials = await this.prisma.authCredential.findMany({
-      where: {
-        userId: { in: userIds },
-        type: AuthCredentialType.PHONE,
-        deletedAt: null,
-      },
-      include: {
-        identity: {
-          select: {
-            publicValueCiphertext: true,
-            publicValueIv: true,
-            publicValueTag: true,
-            publicValueWrappedKey: true,
-            publicValueKeyId: true,
-          },
-        },
-      },
-    });
-
-    for (const cred of credentials) {
-      if (!cred.identity) continue;
-
-      try {
-        const rawPhone = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
-        const formatted = this.formatToDigitsOnlyE164(rawPhone);
-        if (formatted) {
-          phoneMap.set(cred.userId, formatted);
-        }
-      } catch (err) {
-        this.logger.warn('Failed to decrypt user phone from AuthCredential', {
-          userId: cred.userId,
-          step: 'decrypt_phone_credential',
-          err: serializeError(err),
-        });
-      }
-    }
-
-    // 2. Fallback: Query Identity records for any remaining users without a resolved phone
-    const remainingUserIds = userIds.filter((id) => !phoneMap.has(id));
-    if (remainingUserIds.length > 0) {
-      const identities = await this.prisma.identity.findMany({
-        where: {
-          userId: { in: remainingUserIds },
-          type: IdentityType.PHONE,
-          isVerified: true,
-          deletedAt: null,
-        },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          userId: true,
-          publicValueCiphertext: true,
-          publicValueIv: true,
-          publicValueTag: true,
-          publicValueWrappedKey: true,
-          publicValueKeyId: true,
-        },
-      });
-
-      for (const identity of identities) {
-        if (!identity.userId || phoneMap.has(identity.userId)) continue;
-
-        try {
-          const rawPhone = await this.identityCryptoService.decryptPublicValue({
-            publicValueCiphertext: identity.publicValueCiphertext,
-            publicValueIv: identity.publicValueIv,
-            publicValueTag: identity.publicValueTag,
-            publicValueWrappedKey: identity.publicValueWrappedKey,
-            publicValueKeyId: identity.publicValueKeyId,
-          });
-          const formatted = this.formatToDigitsOnlyE164(rawPhone);
-          if (formatted) {
-            phoneMap.set(identity.userId, formatted);
-          }
-        } catch (err) {
-          this.logger.warn('Failed to decrypt user phone from Identity', {
-            userId: identity.userId,
-            step: 'decrypt_phone_identity',
-            err: serializeError(err),
-          });
-        }
-      }
-    }
-
-    return phoneMap;
-  }
-
-  /**
-   * Normalizes a decrypted phone string into ITU-T E.164 digits-only format without "+".
-   * Example: "+91 98765 43210" or "919876543210" -> "919876543210".
-   */
-  private formatToDigitsOnlyE164(rawPhone: string | null): string | null {
-    if (!rawPhone || rawPhone.trim() === '') return null;
-
-    const trimmed = rawPhone.trim();
-
-    try {
-      const candidate = trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
-      const parsed = parsePhoneNumberWithError(candidate);
-      if (parsed.isValid()) {
-        return `${parsed.countryCallingCode}${parsed.nationalNumber}`;
-      }
-    } catch {
-      // libphonenumber parsing failed, fall back to pure digits sanitization
-    }
-
-    const digitsOnly = trimmed.replace(/\D/g, '');
-    return digitsOnly.length >= 7 ? digitsOnly : null;
   }
 
   /**

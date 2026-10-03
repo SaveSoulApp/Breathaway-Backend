@@ -17,6 +17,7 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
+import { NotificationRecipientResolverService } from './recipient/notification-recipient-resolver.service';
 import { LiteAppWhatsAppAdapter } from './whatsapp/adapters/liteapp.whatsapp.adapter';
 import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.interface';
 
@@ -79,7 +80,13 @@ import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.int
       },
     },
     EmailService,
+    NotificationRecipientResolverService,
   ],
-  exports: [NotificationsService, EmailService, WhatsAppProviderService],
+  exports: [
+    NotificationsService,
+    EmailService,
+    WhatsAppProviderService,
+    NotificationRecipientResolverService,
+  ],
 })
 export class NotificationsModule {}

@@ -6,9 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep, MockProxy } from 'jest-mock-extended';
 import { ClsService } from 'nestjs-cls';
 
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   EMAIL_ADAPTER_TOKEN,
   IEmailAdapter,
@@ -19,6 +17,7 @@ import {
   SendEmailOptions,
 } from '@modules/notifications/email/email.service';
 import { EmailType } from '@modules/notifications/enums/email-type.enum';
+import { NotificationRecipientResolverService } from '@modules/notifications/recipient/notification-recipient-resolver.service';
 
 // Mock fs to avoid actual file reads in unit tests
 jest.mock('fs');
@@ -26,33 +25,21 @@ const mockFs = fs as jest.Mocked<typeof fs>;
 
 describe('EmailService', () => {
   let service: EmailService;
-  let mockPrisma: DeepMockProxy<PrismaService>;
-  let mockIdentityCrypto: DeepMockProxy<IdentityCryptoService>;
+  let mockRecipientResolver: {
+    resolveEmails: jest.Mock;
+    resolvePhoneNumbers: jest.Mock;
+  };
   let mockAdapter: MockProxy<IEmailAdapter>;
   let mockLogger: MockProxy<LoggerService>;
 
   const STUB_TEMPLATE = '<p>Hello {{name}}</p>';
   const STUB_LAYOUT = '<!DOCTYPE html><html><body>{{{body}}}</body></html>';
 
-  const fakeIdentity1 = {
-    publicValueCiphertext: 'cipher-1',
-    publicValueIv: 'iv-1',
-    publicValueTag: 'tag-1',
-    publicValueWrappedKey: 'key-1',
-    publicValueKeyId: 'kid-1',
-  };
-
-  const fakeIdentity2 = {
-    publicValueCiphertext: 'cipher-2',
-    publicValueIv: 'iv-2',
-    publicValueTag: 'tag-2',
-    publicValueWrappedKey: 'key-2',
-    publicValueKeyId: 'kid-2',
-  };
-
   beforeEach(async () => {
-    mockPrisma = mockDeep<PrismaService>();
-    mockIdentityCrypto = mockDeep<IdentityCryptoService>();
+    mockRecipientResolver = {
+      resolveEmails: jest.fn(),
+      resolvePhoneNumbers: jest.fn(),
+    };
     mockAdapter = mockDeep<IEmailAdapter>();
     mockLogger = mockDeep<LoggerService>();
     const contextualLogger = {
@@ -83,8 +70,10 @@ describe('EmailService', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         EmailService,
         { provide: LoggerService, useValue: mockLogger },
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: IdentityCryptoService, useValue: mockIdentityCrypto },
+        {
+          provide: NotificationRecipientResolverService,
+          useValue: mockRecipientResolver,
+        },
         { provide: EMAIL_ADAPTER_TOKEN, useValue: mockAdapter },
       ],
     }).compile();
@@ -98,15 +87,23 @@ describe('EmailService', () => {
   });
 
   describe('send', () => {
-    it('should resolve and decrypt emails from DB and call adapter for each recipient', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: fakeIdentity1 },
-        { userId: 'user-2', identity: fakeIdentity2 },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockResolvedValueOnce('alice@example.com')
-        .mockResolvedValueOnce('bob@example.com');
+    it('should resolve and decrypt emails and call adapter for each recipient', async () => {
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+          [
+            'user-2',
+            { userId: 'user-2', email: 'bob@example.com', firstName: 'Bob' },
+          ],
+        ]),
+      );
 
       mockAdapter.send.mockResolvedValue(undefined);
 
@@ -122,14 +119,10 @@ describe('EmailService', () => {
 
       await service.send(options);
 
-      expect(mockPrisma.authCredential.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            userId: { in: ['user-1', 'user-2'] },
-          }),
-        }),
-      );
-      expect(mockIdentityCrypto.decryptPublicValue).toHaveBeenCalledTimes(2);
+      expect(mockRecipientResolver.resolveEmails).toHaveBeenCalledWith([
+        'user-1',
+        'user-2',
+      ]);
       expect(mockAdapter.send).toHaveBeenCalledTimes(2);
     });
 
@@ -140,15 +133,12 @@ describe('EmailService', () => {
         templateData: {},
       });
 
-      expect(mockPrisma.authCredential.findMany).not.toHaveBeenCalled();
-      expect(mockIdentityCrypto.decryptPublicValue).not.toHaveBeenCalled();
+      expect(mockRecipientResolver.resolveEmails).not.toHaveBeenCalled();
       expect(mockAdapter.send).not.toHaveBeenCalled();
     });
 
-    it('should skip sending if no valid email addresses are resolved or decrypted', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: null },
-      ] as never);
+    it('should skip sending if no valid email addresses are resolved', async () => {
+      mockRecipientResolver.resolveEmails.mockResolvedValue(new Map());
 
       await service.send({
         emailType: EmailType.WELCOME,
@@ -156,19 +146,21 @@ describe('EmailService', () => {
         templateData: { name: 'Ghost' },
       });
 
-      expect(mockIdentityCrypto.decryptPublicValue).not.toHaveBeenCalled();
+      expect(mockRecipientResolver.resolveEmails).toHaveBeenCalledWith([
+        'user-1',
+      ]);
       expect(mockAdapter.send).not.toHaveBeenCalled();
     });
 
-    it('should continue sending to remaining recipients if one decryption fails', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: fakeIdentity1 },
-        { userId: 'user-2', identity: fakeIdentity2 },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockRejectedValueOnce(new Error('KMS unwrap error'))
-        .mockResolvedValueOnce('bob@example.com');
+    it('should continue sending to remaining recipients if one user was not resolved', async () => {
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-2',
+            { userId: 'user-2', email: 'bob@example.com', firstName: 'Bob' },
+          ],
+        ]),
+      );
 
       mockAdapter.send.mockResolvedValue(undefined);
 
@@ -184,15 +176,27 @@ describe('EmailService', () => {
       );
     });
 
-    it('should deduplicate recipients if multiple credentials decrypt to the same email', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: fakeIdentity1 },
-        { userId: 'user-2', identity: fakeIdentity2 },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockResolvedValueOnce('ALICE@EXAMPLE.COM')
-        .mockResolvedValueOnce('alice@example.com');
+    it('should deduplicate recipients if multiple credentials resolve to the same email', async () => {
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+          [
+            'user-2',
+            {
+              userId: 'user-2',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+        ]),
+      );
 
       mockAdapter.send.mockResolvedValue(undefined);
 
@@ -209,14 +213,22 @@ describe('EmailService', () => {
     });
 
     it('should continue sending to remaining recipients if one adapter call fails', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: fakeIdentity1 },
-        { userId: 'user-2', identity: fakeIdentity2 },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockResolvedValueOnce('alice@example.com')
-        .mockResolvedValueOnce('bob@example.com');
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+          [
+            'user-2',
+            { userId: 'user-2', email: 'bob@example.com', firstName: 'Bob' },
+          ],
+        ]),
+      );
 
       mockAdapter.send
         .mockRejectedValueOnce(new Error('delivery failure'))
@@ -234,12 +246,17 @@ describe('EmailService', () => {
     });
 
     it('should render the subject using Handlebars with templateData', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        { userId: 'user-1', identity: fakeIdentity1 },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue.mockResolvedValueOnce(
-        'test@example.com',
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'test@example.com',
+              firstName: 'Mohit',
+            },
+          ],
+        ]),
       );
       mockAdapter.send.mockResolvedValue(undefined);
 
@@ -255,22 +272,22 @@ describe('EmailService', () => {
     });
 
     it('should personalize template data individually for each recipient in batch sends', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        {
-          userId: 'user-1',
-          identity: fakeIdentity1,
-          user: { profile: { firstName: 'Alice' } },
-        },
-        {
-          userId: 'user-2',
-          identity: fakeIdentity2,
-          user: { profile: { firstName: 'Bob' } },
-        },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockResolvedValueOnce('alice@example.com')
-        .mockResolvedValueOnce('bob@example.com');
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+          [
+            'user-2',
+            { userId: 'user-2', email: 'bob@example.com', firstName: 'Bob' },
+          ],
+        ]),
+      );
       mockAdapter.send.mockResolvedValue(undefined);
 
       await service.send({
@@ -303,22 +320,22 @@ describe('EmailService', () => {
     });
 
     it('should support per-recipient custom template overrides via recipientData', async () => {
-      mockPrisma.authCredential.findMany.mockResolvedValue([
-        {
-          userId: 'user-1',
-          identity: fakeIdentity1,
-          user: { profile: { firstName: 'Alice' } },
-        },
-        {
-          userId: 'user-2',
-          identity: fakeIdentity2,
-          user: { profile: { firstName: 'Bob' } },
-        },
-      ] as never);
-
-      mockIdentityCrypto.decryptPublicValue
-        .mockResolvedValueOnce('alice@example.com')
-        .mockResolvedValueOnce('bob@example.com');
+      mockRecipientResolver.resolveEmails.mockResolvedValue(
+        new Map([
+          [
+            'user-1',
+            {
+              userId: 'user-1',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+            },
+          ],
+          [
+            'user-2',
+            { userId: 'user-2', email: 'bob@example.com', firstName: 'Bob' },
+          ],
+        ]),
+      );
       mockAdapter.send.mockResolvedValue(undefined);
 
       await service.send({
