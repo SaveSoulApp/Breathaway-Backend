@@ -68,7 +68,7 @@ sequenceDiagram
     alt Success (First thread)
         DB -->> Resolver: Match created successfully
         Resolver ->> Events: emit(MATCH_CREATED_EVENT, MatchCreatedEvent)
-        Events ->> Listener: @OnEvent: Multi-channel dispatch (Push/Email)
+        Events ->> Listener: @OnEvent: Multi-channel dispatch (Push/Email/WhatsApp to both users)
     else P2002 Unique Constraint Violation (Second concurrent thread)
         DB -->> Resolver: P2002 Error (Match already exists)
         Note over Resolver: Catches & swallows P2002 error

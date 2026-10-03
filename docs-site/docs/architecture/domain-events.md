@@ -79,7 +79,7 @@ flowchart TD
     subgraph DeliveryChannels["Multi-Channel Delivery"]
         FCM["Firebase Cloud Messaging (Push)"]
         BREVO["Brevo SMTP API (Transactional Email)"]
-        WA["WhatsApp / SMS Adapter"]
+        WA["WhatsApp Adapter (LiteApp / Meta API)"]
     end
 
     AUTH -->|USER_WELCOME_EVENT| BUS
@@ -107,19 +107,19 @@ flowchart TD
 
 All domain events are strongly typed classes accompanied by exported string constants:
 
-| Module                    | Event Constant                                               | Event Class                 | Emitted When                                               |
-| :------------------------ | :----------------------------------------------------------- | :-------------------------- | :--------------------------------------------------------- |
-| **Auth**                  | `USER_WELCOME_EVENT` (`'user.welcome'`)                      | `UserWelcomeEvent`          | A new user signs up or links their first verified email    |
-| **Auth** / **Identities** | `IDENTITY_ADDED_EVENT` (`'identity.added'`)                  | `IdentityAddedEvent`        | A new contact method (email, phone) is added to an account |
-| **Identities**            | `IDENTITY_REMOVED_EVENT` (`'identity.removed'`)              | `IdentityRemovedEvent`      | An identity method is deleted/unlinked                     |
-| **Devices**               | `DEVICE_ADDED_EVENT` (`'device.added'`)                      | `DeviceAddedEvent`          | A new device token is registered for an account            |
-| **Likes**                 | `LIKE_SENT_EVENT` (`'like.sent'`)                            | `LikeSentEvent`             | A user sends a like to a contact                           |
-| **Likes**                 | `LIKE_WITHDRAWN_EVENT` (`'like.withdrawn'`)                  | `LikeWithdrawnEvent`        | A user cancels or deletes a pending like                   |
-| **Match Resolver**        | `MATCH_CREATED_EVENT` (`'match.created'`)                    | `MatchCreatedEvent`         | A mutual like is resolved into an active `Match`           |
-| **Credits**               | `CREDITS_PURCHASED_EVENT` (`'credits.purchased'`)            | `CreditsPurchasedEvent`     | A user purchases or receives a credit bundle               |
-| **Credits**               | `CREDITS_USED_EVENT` (`'credits.used'`)                      | `CreditsUsedEvent`          | Credits are debited from the user's ledger                 |
-| **Credits**               | `CREDIT_BUNDLE_EXPIRING_EVENT` (`'credits.bundle-expiring'`) | `CreditBundleExpiringEvent` | Cron identifies credit bundles nearing expiry (7d / 2d)    |
-| **Maintenance**           | `LIKES_EXPIRED_EVENT` (`'likes.expired'`)                    | `LikesExpiredEvent`         | Nightly cron voids pending likes older than 90 days        |
+| Module                    | Event Constant                                               | Event Class                 | Emitted When                                                                            |
+| :------------------------ | :----------------------------------------------------------- | :-------------------------- | :-------------------------------------------------------------------------------------- |
+| **Auth**                  | `USER_WELCOME_EVENT` (`'user.welcome'`)                      | `UserWelcomeEvent`          | A new user signs up or links their first verified email                                 |
+| **Auth** / **Identities** | `IDENTITY_ADDED_EVENT` (`'identity.added'`)                  | `IdentityAddedEvent`        | A new contact method (email, phone) is added to an account                              |
+| **Identities**            | `IDENTITY_REMOVED_EVENT` (`'identity.removed'`)              | `IdentityRemovedEvent`      | An identity method is deleted/unlinked                                                  |
+| **Devices**               | `DEVICE_ADDED_EVENT` (`'device.added'`)                      | `DeviceAddedEvent`          | A new device token is registered for an account                                         |
+| **Likes**                 | `LIKE_SENT_EVENT` (`'like.sent'`)                            | `LikeSentEvent`             | A user sends a like to a contact                                                        |
+| **Likes**                 | `LIKE_WITHDRAWN_EVENT` (`'like.withdrawn'`)                  | `LikeWithdrawnEvent`        | A user cancels or deletes a pending like                                                |
+| **Match Resolver**        | `MATCH_CREATED_EVENT` (`'match.created'`)                    | `MatchCreatedEvent`         | A mutual like is resolved into an active `Match` (Push, Email & WhatsApp to both users) |
+| **Credits**               | `CREDITS_PURCHASED_EVENT` (`'credits.purchased'`)            | `CreditsPurchasedEvent`     | A user purchases or receives a credit bundle                                            |
+| **Credits**               | `CREDITS_USED_EVENT` (`'credits.used'`)                      | `CreditsUsedEvent`          | Credits are debited from the user's ledger                                              |
+| **Credits**               | `CREDIT_BUNDLE_EXPIRING_EVENT` (`'credits.bundle-expiring'`) | `CreditBundleExpiringEvent` | Cron identifies credit bundles nearing expiry (7d / 2d)                                 |
+| **Maintenance**           | `LIKES_EXPIRED_EVENT` (`'likes.expired'`)                    | `LikesExpiredEvent`         | Nightly cron voids pending likes older than 90 days                                     |
 
 ---
 
