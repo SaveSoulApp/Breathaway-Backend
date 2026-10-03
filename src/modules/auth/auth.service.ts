@@ -1103,7 +1103,9 @@ export class AuthService extends BaseService {
     userId: string,
     dto: DeleteAccountRequestDto,
   ): Promise<void> {
-    const ctx = { userId, reason: dto.reason };
+    const sanitizedReason =
+      dto.reason?.replace(/[\r\n\t]+/g, ' ').trim() || undefined;
+    const ctx = { userId, ...(sanitizedReason && { reason: sanitizedReason }) };
     this.logger.log('Account deletion pipeline started', {
       ...ctx,
       step: 'init',
@@ -1350,7 +1352,7 @@ export class AuthService extends BaseService {
     this.emitAuditLog({
       actionType: AuditActionType.ACCOUNT_DELETED,
       userId: userId,
-      ...(dto.reason && { metadata: { reason: dto.reason } }),
+      ...(sanitizedReason && { metadata: { reason: sanitizedReason } }),
     });
 
     this.logger.event(LOG_EVENT.ACCOUNT_DELETED, {
