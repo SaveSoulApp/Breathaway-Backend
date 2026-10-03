@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
 import { BaseAuditExcludeDto } from '@common/dto';
@@ -7,22 +7,35 @@ import { BaseAuditExcludeDto } from '@common/dto';
  * Embedded profile snapshot of the blocked user; flattened from the nested Prisma profile join.
  */
 class BlockedUserDto {
-  @ApiProperty({
-    description: 'The unique identifier (ULID) of the blocked user',
+  @ApiPropertyOptional({
+    description:
+      'The unique identifier (ULID) of the blocked user, or null if deleted',
+    nullable: true,
   })
   @Expose()
-  id: string;
+  id: string | null;
 
-  @ApiProperty({ description: 'First name of the blocked user' })
+  @ApiPropertyOptional({
+    description: 'First name of the blocked user',
+    nullable: true,
+  })
   @Expose()
-  firstName: string;
+  firstName: string | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Last name of the blocked user, if available',
     required: false,
+    nullable: true,
   })
   @Expose()
-  lastName?: string;
+  lastName?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Indicates whether the blocked user has deleted their account',
+    example: false,
+  })
+  @Expose()
+  isDeleted?: boolean;
 }
 
 /**

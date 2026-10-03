@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { AuthCredentialType, IdentityType, User } from '@prisma/client';
+import {
+  AuthCredentialType,
+  IdentityType,
+  LikeStatus,
+  User,
+} from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -14,6 +19,7 @@ import {
   IDENTITY_ADDED_EVENT,
   IdentityAddedEvent,
 } from '@modules/identities/events';
+import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -34,6 +40,7 @@ import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
+  DeleteAccountRequestDto,
   DevLoginRequestDto,
   SocialAuthRequestDto,
 } from './dto';
@@ -1068,5 +1075,288 @@ export class AuthService extends BaseService {
       userId: userId,
     });
     return { message: 'Signout successful' };
+  }
+
+  /**
+   * Permanently deletes a user's account and associated data ("Right to be Forgotten").
+   *
+   * Orchestrates the complete teardown pipeline:
+   * 1. Validates user existence and retrieves linked identities and credentials.
+   * 2. Decrypts primary phone/email and deletes the user record from Firebase Authentication.
+   * 3. Executes an atomic Prisma transaction to:
+   *    - Terminate active matches and mark counterpart likes as VOIDED.
+   *    - Delete Match records to avoid FK restrict violations on Like.
+   *    - Mark all outbound sent likes as DELETED.
+   *    - Mark all inbound pending likes targeting this user's identities as VOIDED.
+   *    - Backfill userPhoneHash on Transaction records and detach userId to null.
+   *    - Backfill blockedPhoneHash on Block records where blockedUserId = userId and detach blockedUserId to null.
+   *    - Detach user identities (userId = null, isVerified = false, deletedAt = now) so phone/email can be reclaimed cleanly on future re-registration.
+   *    - Hard-delete the User record, cascading UserProfile, Device, AuthCredential, Notification, CreditLedger, UserSubscription, etc.
+   * 4. Dispatches the USER_DELETED_EVENT to purge Supabase chat rooms and message history.
+   * 5. Emits an ACCOUNT_DELETED audit log event and records a structured audit metric.
+   *
+   * @param userId - ULID of the authenticated user to delete.
+   * @param dto - Container for confirmation phrase and optional deletion reason.
+   * @throws {UserNotFoundException} When the user record cannot be found.
+   */
+  async deleteAccount(
+    userId: string,
+    dto: DeleteAccountRequestDto,
+  ): Promise<void> {
+    const sanitizedReason =
+      dto.reason?.replace(/[\r\n\t]+/g, ' ').trim() || undefined;
+    const ctx = { userId, ...(sanitizedReason && { reason: sanitizedReason }) };
+    this.logger.log('Account deletion pipeline started', {
+      ...ctx,
+      step: 'init',
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identities: true,
+        authCredentials: true,
+      },
+    });
+
+    if (!user || user.deletedAt) {
+      this.logger.warn(
+        'Account deletion failed: user not found or already deleted',
+        {
+          ...ctx,
+          step: 'user_lookup',
+        },
+      );
+      throw new UserNotFoundException();
+    }
+
+    // Identify primary phone credential and identity
+    const phoneCred = user.authCredentials.find(
+      (c) => c.type === AuthCredentialType.PHONE && c.deletedAt === null,
+    );
+    const phoneIdentity = user.identities.find(
+      (i) => i.type === IdentityType.PHONE && i.deletedAt === null,
+    );
+
+    // Identify primary email credential and identity if no phone
+    const emailIdentity = user.identities.find(
+      (i) => i.type === IdentityType.EMAIL && i.deletedAt === null,
+    );
+
+    // Step 1: Firebase Account Teardown
+    try {
+      const deletedFirebaseUids = new Set<string>();
+
+      if (phoneIdentity) {
+        const decryptedPhone =
+          await this.encryptionService.decryptPublicValue(phoneIdentity);
+        const firebaseUser =
+          await this.firebaseAdmin.getUserByPhoneNumber(decryptedPhone);
+        if (firebaseUser) {
+          await this.firebaseAdmin.deleteUser(firebaseUser.uid);
+          deletedFirebaseUids.add(firebaseUser.uid);
+          this.logger.debug('Firebase user deleted by phone', {
+            ...ctx,
+            step: 'firebase_teardown',
+            uid: firebaseUser.uid,
+          });
+        }
+      }
+
+      if (emailIdentity) {
+        const decryptedEmail =
+          await this.encryptionService.decryptPublicValue(emailIdentity);
+        const firebaseUser =
+          await this.firebaseAdmin.getUserByEmail(decryptedEmail);
+        if (firebaseUser && !deletedFirebaseUids.has(firebaseUser.uid)) {
+          await this.firebaseAdmin.deleteUser(firebaseUser.uid);
+          deletedFirebaseUids.add(firebaseUser.uid);
+          this.logger.debug('Firebase user deleted by email', {
+            ...ctx,
+            step: 'firebase_teardown',
+            uid: firebaseUser.uid,
+          });
+        }
+      }
+    } catch (firebaseErr) {
+      // Do not block database account deletion if Firebase deletion encounters an issue
+      this.logger.warn(
+        'Failed to delete user in Firebase Admin, continuing DB deletion',
+        {
+          ...ctx,
+          step: 'firebase_teardown',
+          err: serializeError(firebaseErr),
+        },
+      );
+    }
+
+    // Step 2: Atomic Database Deletion
+    const now = DateUtil.now();
+    const primaryPhoneHash = phoneCred?.valueHash ?? null;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // 1. Dissolve active matches and void counterpart likes
+        const matches = await tx.match.findMany({
+          where: {
+            OR: [{ userOneId: userId }, { userTwoId: userId }],
+          },
+          select: {
+            id: true,
+            likeOneId: true,
+            likeTwoId: true,
+            userOneId: true,
+            userTwoId: true,
+          },
+        });
+
+        if (matches.length > 0) {
+          const counterpartLikeIds = matches.map((m) =>
+            m.userOneId === userId ? m.likeTwoId : m.likeOneId,
+          );
+
+          await tx.like.updateMany({
+            where: { id: { in: counterpartLikeIds } },
+            data: { status: LikeStatus.VOIDED },
+          });
+
+          // Delete Match rows first so foreign keys on Like are freed
+          await tx.match.deleteMany({
+            where: {
+              id: { in: matches.map((m) => m.id) },
+            },
+          });
+          this.logger.debug('Dissolved and deleted active matches', {
+            ...ctx,
+            step: 'delete_matches',
+            count: matches.length,
+          });
+        }
+
+        // 2. Void all outbound likes sent by this user
+        await tx.like.updateMany({
+          where: { senderUserId: userId },
+          data: {
+            status: LikeStatus.DELETED,
+            deletedAt: now,
+          },
+        });
+        this.logger.debug('Marked outbound likes as deleted', {
+          ...ctx,
+          step: 'delete_outbound_likes',
+        });
+
+        // 3. Void all inbound pending likes targeting this user's identities
+        const userIdentityIds = user.identities.map((i) => i.id);
+        if (userIdentityIds.length > 0) {
+          await tx.like.updateMany({
+            where: {
+              targetIdentityId: { in: userIdentityIds },
+              status: LikeStatus.PENDING,
+            },
+            data: {
+              status: LikeStatus.VOIDED,
+            },
+          });
+          this.logger.debug('Voided inbound pending likes', {
+            ...ctx,
+            step: 'void_inbound_likes',
+          });
+        }
+
+        // 4. Update transactions: stamp userPhoneHash and detach userId
+        if (primaryPhoneHash) {
+          await tx.transaction.updateMany({
+            where: { userId },
+            data: {
+              userPhoneHash: primaryPhoneHash,
+              userId: null,
+            },
+          });
+        } else {
+          await tx.transaction.updateMany({
+            where: { userId },
+            data: { userId: null },
+          });
+        }
+        this.logger.debug(
+          'Detached user from transactions with phone hash preserved',
+          {
+            ...ctx,
+            step: 'detach_transactions',
+          },
+        );
+
+        // 5. Update blocks: stamp blockedPhoneHash and detach blockedUserId
+        if (primaryPhoneHash) {
+          await tx.block.updateMany({
+            where: { blockedUserId: userId },
+            data: {
+              blockedPhoneHash: primaryPhoneHash,
+              blockedUserId: null,
+            },
+          });
+        } else {
+          await tx.block.updateMany({
+            where: { blockedUserId: userId },
+            data: { blockedUserId: null },
+          });
+        }
+        this.logger.debug(
+          'Detached user from blocks with phone hash preserved',
+          {
+            ...ctx,
+            step: 'detach_blocks',
+          },
+        );
+
+        // 6. Detach identities (revert to ghost identities so phone/email can be reclaimed cleanly)
+        if (userIdentityIds.length > 0) {
+          await tx.identity.updateMany({
+            where: { id: { in: userIdentityIds } },
+            data: {
+              userId: null,
+              isVerified: false,
+              deletedAt: now,
+            },
+          });
+          this.logger.debug('Detached identities to reclaimable ghost state', {
+            ...ctx,
+            step: 'detach_identities',
+            count: userIdentityIds.length,
+          });
+        }
+
+        // 7. Hard-delete the User record (cascading UserProfile, Devices, AuthCredentials, Notifications)
+        await tx.user.delete({
+          where: { id: userId },
+        });
+        this.logger.debug('User record and cascaded entities hard-deleted', {
+          ...ctx,
+          step: 'delete_user',
+        });
+      });
+    } catch (dbError) {
+      this.logger.error('Database account deletion transaction failed', {
+        ...ctx,
+        step: 'db_transaction',
+        err: serializeError(dbError),
+      });
+      throw dbError;
+    }
+
+    // Step 3: Supabase Realtime & External Teardown
+    this.eventEmitter.emit(USER_DELETED_EVENT, new UserDeletedEvent(userId));
+
+    // Step 4: Audit & Telemetry
+    this.emitAuditLog({
+      actionType: AuditActionType.ACCOUNT_DELETED,
+      userId: userId,
+      ...(sanitizedReason && { metadata: { reason: sanitizedReason } }),
+    });
+
+    this.logger.event(LOG_EVENT.ACCOUNT_DELETED, {
+      ...ctx,
+    });
   }
 }

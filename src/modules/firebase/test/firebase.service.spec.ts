@@ -27,6 +27,9 @@ describe('FirebaseService', () => {
   const mockAuth = {
     verifyIdToken: jest.fn(),
     getUser: jest.fn(),
+    getUserByPhoneNumber: jest.fn(),
+    getUserByEmail: jest.fn(),
+    deleteUser: jest.fn(),
   };
 
   const mockMessaging = {
@@ -285,6 +288,75 @@ describe('FirebaseService', () => {
       await expect(
         service.validateFirebaseToken('test-uid', 'token'),
       ).rejects.toThrow(customError);
+    });
+  });
+
+  describe('getUserByPhoneNumber', () => {
+    it('should return user record if user exists', async () => {
+      const mockRecord = { uid: 'phone-uid' } as admin.auth.UserRecord;
+      mockAuth.getUserByPhoneNumber.mockResolvedValue(mockRecord);
+
+      const result = await service.getUserByPhoneNumber('+919876543210');
+      expect(result).toBe(mockRecord);
+      expect(mockAuth.getUserByPhoneNumber).toHaveBeenCalledWith(
+        '+919876543210',
+      );
+    });
+
+    it('should return null if user is not found in firebase', async () => {
+      mockAuth.getUserByPhoneNumber.mockRejectedValue({
+        code: 'auth/user-not-found',
+      });
+
+      const result = await service.getUserByPhoneNumber('+919876543210');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getUserByEmail', () => {
+    it('should return user record if user exists', async () => {
+      const mockRecord = { uid: 'email-uid' } as admin.auth.UserRecord;
+      mockAuth.getUserByEmail.mockResolvedValue(mockRecord);
+
+      const result = await service.getUserByEmail('user@example.com');
+      expect(result).toBe(mockRecord);
+      expect(mockAuth.getUserByEmail).toHaveBeenCalledWith('user@example.com');
+    });
+
+    it('should return null if email is not found in firebase', async () => {
+      mockAuth.getUserByEmail.mockRejectedValue({
+        code: 'auth/user-not-found',
+      });
+
+      const result = await service.getUserByEmail('user@example.com');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('should successfully delete user from firebase', async () => {
+      mockAuth.deleteUser.mockResolvedValue(undefined);
+
+      await expect(service.deleteUser('test-uid')).resolves.not.toThrow();
+      expect(mockAuth.deleteUser).toHaveBeenCalledWith('test-uid');
+    });
+
+    it('should silently handle auth/user-not-found error', async () => {
+      mockAuth.deleteUser.mockRejectedValue({
+        code: 'auth/user-not-found',
+      });
+
+      await expect(service.deleteUser('test-uid')).resolves.not.toThrow();
+    });
+
+    it('should throw error on unexpected failure', async () => {
+      mockAuth.deleteUser.mockRejectedValue(
+        new Error('Firebase network error'),
+      );
+
+      await expect(service.deleteUser('test-uid')).rejects.toThrow(
+        'Firebase network error',
+      );
     });
   });
 });

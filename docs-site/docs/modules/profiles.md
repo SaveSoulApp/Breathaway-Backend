@@ -27,9 +27,12 @@ The database records for `UserProfile` track the following parameters:
 
 ## 🧠 Business Logic & Core Concepts
 
-### 1. Cascading Account Soft-Deletion
+### 1. Cascading Account Soft-Deletion (Deprecated)
 
-The `ProfilesService.deleteProfile` method manages account deletion. Instead of just removing the profile row, it executes a single, atomic Prisma transaction that:
+> [!NOTE]
+> **Deprecated Endpoint**: `ProfilesService.deleteProfile` (`DELETE /api/v1/profiles`) performs a partial soft-deletion. For statutory GDPR "Right to be Forgotten" account teardown, all clients should use the comprehensive `DELETE /api/v1/auth/me` endpoint documented in the [Authentication Module](auth.md#account-deletion).
+
+The legacy `ProfilesService.deleteProfile` method executes a single, atomic Prisma transaction that:
 
 - Soft-deletes the core `User` record (`deletedAt` stamped).
 - Soft-deletes all associated `Identity` and `AuthCredential` rows.

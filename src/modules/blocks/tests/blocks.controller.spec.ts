@@ -21,6 +21,7 @@ describe('BlocksController', () => {
       id: 'blocked-user-id',
       firstName: 'John',
       lastName: 'Doe',
+      isDeleted: false,
     },
   };
 

@@ -4,7 +4,12 @@ jest.mock('nanoid', () => ({
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthCredentialType, IdentityType, User } from '@prisma/client';
+import {
+  AuthCredentialType,
+  IdentityType,
+  LikeStatus,
+  User,
+} from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -16,6 +21,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { IDENTITY_ADDED_EVENT } from '@modules/identities/events';
+import { USER_DELETED_EVENT } from '@modules/profiles/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
@@ -38,6 +44,7 @@ import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
+  DeleteAccountRequestDto,
   DevLoginRequestDto,
   SocialAuthRequestDto,
   SocialAuthType,
@@ -1545,6 +1552,310 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       );
       expect(result).toEqual({ message: 'Signout successful' });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    let service: AuthService;
+    let prisma: MockPrismaService;
+    let firebaseService: jest.Mocked<FirebaseService>;
+    let encryptionService: jest.Mocked<IdentityCryptoService>;
+    let eventEmitter: { emit: jest.Mock };
+
+    const userId = 'user-delete-123';
+    const deleteDto: DeleteAccountRequestDto = {
+      confirmation: 'DELETE_MY_ACCOUNT',
+      reason: 'No longer needed',
+    };
+
+    const mockUser = {
+      id: userId,
+      createdAt: new Date(),
+      deletedAt: null,
+      countryCode: 'IN',
+      identities: [
+        {
+          id: 'identity-phone-1',
+          type: IdentityType.PHONE,
+          publicValueHash: 'phone-hash-64chars',
+          publicValueCiphertext: 'cipher',
+          publicValueIv: 'iv',
+          publicValueTag: 'tag',
+          publicValueWrappedKey: 'wrappedKey',
+          publicValueKeyId: 'keyId',
+          deletedAt: null,
+        },
+      ],
+      authCredentials: [
+        {
+          id: 'cred-phone-1',
+          type: AuthCredentialType.PHONE,
+          valueHash: 'phone-hash-64chars',
+          deletedAt: null,
+        },
+      ],
+    };
+
+    beforeEach(async () => {
+      prisma = createPrismaMock();
+      eventEmitter = { emit: jest.fn() };
+
+      firebaseService = {
+        getUserByPhoneNumber: jest.fn(),
+        getUserByEmail: jest.fn(),
+        deleteUser: jest.fn(),
+      } as unknown as jest.Mocked<FirebaseService>;
+
+      encryptionService = {
+        decryptPublicValue: jest.fn(),
+      } as unknown as jest.Mocked<IdentityCryptoService>;
+
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: IdentityCryptoService, useValue: encryptionService },
+          { provide: AuthTokenService, useValue: {} },
+          { provide: FirebaseService, useValue: firebaseService },
+          { provide: PubSubPublisherService, useValue: {} },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: eventEmitter },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should successfully execute the complete account deletion pipeline', async () => {
+      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      encryptionService.decryptPublicValue.mockResolvedValue('+919876543210');
+      firebaseService.getUserByPhoneNumber.mockResolvedValue({
+        uid: 'firebase-uid-123',
+      } as any);
+      firebaseService.deleteUser.mockResolvedValue(undefined);
+
+      const mockMatches = [
+        {
+          id: 'match-1',
+          userOneId: userId,
+          userTwoId: 'partner-id',
+          likeOneId: 'my-like-1',
+          likeTwoId: 'partner-like-1',
+        },
+      ];
+
+      const txMock = {
+        match: {
+          findMany: jest.fn().mockResolvedValue(mockMatches),
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        like: {
+          update: jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        transaction: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        block: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        identity: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        user: {
+          delete: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb: any) => cb(txMock));
+
+      await service.deleteAccount(userId, deleteDto);
+
+      expect(firebaseService.deleteUser).toHaveBeenCalledWith(
+        'firebase-uid-123',
+      );
+      expect(txMock.like.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['partner-like-1'] } },
+        data: { status: LikeStatus.VOIDED },
+      });
+      expect(txMock.match.deleteMany).toHaveBeenCalled();
+      expect(txMock.like.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { senderUserId: userId },
+          data: expect.objectContaining({ status: LikeStatus.DELETED }),
+        }),
+      );
+      expect(txMock.transaction.updateMany).toHaveBeenCalledWith({
+        where: { userId },
+        data: {
+          userPhoneHash: 'phone-hash-64chars',
+          userId: null,
+        },
+      });
+      expect(txMock.block.updateMany).toHaveBeenCalledWith({
+        where: { blockedUserId: userId },
+        data: {
+          blockedPhoneHash: 'phone-hash-64chars',
+          blockedUserId: null,
+        },
+      });
+      expect(txMock.identity.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: null,
+            isVerified: false,
+          }),
+        }),
+      );
+      expect(txMock.user.delete).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        USER_DELETED_EVENT,
+        expect.objectContaining({ userId }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        AUDIT_LOG_EVENT,
+        expect.objectContaining({
+          actionType: AuditActionType.ACCOUNT_DELETED,
+          userId,
+        }),
+      );
+    });
+
+    it('should throw UserNotFoundException if user does not exist', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteAccount(userId, deleteDto)).rejects.toThrow(
+        UserNotFoundException,
+      );
+    });
+
+    it('should throw UserNotFoundException if user is already deleted', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        deletedAt: new Date(),
+      } as any);
+
+      await expect(service.deleteAccount(userId, deleteDto)).rejects.toThrow(
+        UserNotFoundException,
+      );
+    });
+
+    it('should continue DB deletion even if Firebase lookup throws an error', async () => {
+      prisma.user.findUnique.mockResolvedValue(mockUser as any);
+      encryptionService.decryptPublicValue.mockResolvedValue('+919876543210');
+      firebaseService.getUserByPhoneNumber.mockRejectedValue(
+        new Error('Firebase network failure'),
+      );
+
+      const txMock = {
+        match: {
+          findMany: jest.fn().mockResolvedValue([]),
+          deleteMany: jest.fn(),
+        },
+        like: {
+          update: jest.fn(),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        transaction: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        block: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        identity: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        user: {
+          delete: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb: any) => cb(txMock));
+
+      await expect(
+        service.deleteAccount(userId, deleteDto),
+      ).resolves.not.toThrow();
+      expect(txMock.user.delete).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
+    });
+
+    it('should delete both phone and email Firebase user accounts when user has distinct credentials', async () => {
+      const multiCredUser = {
+        ...mockUser,
+        identities: [
+          ...mockUser.identities,
+          {
+            id: 'identity-email-1',
+            type: IdentityType.EMAIL,
+            publicValueHash: 'email-hash-64chars',
+            deletedAt: null,
+          },
+        ],
+      };
+
+      prisma.user.findUnique.mockResolvedValue(multiCredUser as any);
+      encryptionService.decryptPublicValue.mockImplementation(
+        async (identity: any) =>
+          identity.type === IdentityType.PHONE
+            ? '+919876543210'
+            : 'user@example.com',
+      );
+      firebaseService.getUserByPhoneNumber.mockResolvedValue({
+        uid: 'firebase-phone-uid',
+      } as any);
+      firebaseService.getUserByEmail.mockResolvedValue({
+        uid: 'firebase-email-uid',
+      } as any);
+      firebaseService.deleteUser.mockResolvedValue(undefined);
+
+      const txMock = {
+        match: {
+          findMany: jest.fn().mockResolvedValue([]),
+          deleteMany: jest.fn(),
+        },
+        like: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        transaction: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        block: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        identity: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        user: {
+          delete: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb: any) => cb(txMock));
+
+      await service.deleteAccount(userId, deleteDto);
+
+      expect(firebaseService.deleteUser).toHaveBeenCalledWith(
+        'firebase-phone-uid',
+      );
+      expect(firebaseService.deleteUser).toHaveBeenCalledWith(
+        'firebase-email-uid',
+      );
     });
   });
 });

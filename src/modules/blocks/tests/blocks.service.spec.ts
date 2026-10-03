@@ -36,6 +36,7 @@ describe('BlocksService', () => {
     id: blockId,
     blockerUserId: userId,
     blockedUserId,
+    blockedPhoneHash: null,
     createdAt: DateUtil.now(),
     deletedAt: null as Date | null,
     blocked: {
@@ -54,6 +55,7 @@ describe('BlocksService', () => {
       id: blockedUserId,
       firstName: 'John',
       lastName: 'Doe',
+      isDeleted: false,
     },
   };
 
@@ -185,6 +187,7 @@ describe('BlocksService', () => {
         data: {
           blockerUserId: userId,
           blockedUserId,
+          blockedPhoneHash: null,
         },
         select: {
           id: true,
@@ -201,6 +204,33 @@ describe('BlocksService', () => {
             },
           },
         },
+      });
+      expect(result).toEqual(mockResponseData);
+    });
+
+    it('should create new block and populate blockedPhoneHash when blocked user has phone', async () => {
+      // Arrange
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+      prisma.authCredential.findFirst.mockResolvedValue({
+        valueHash: 'mock-phone-hash-64',
+      } as any);
+      prisma.block.findUnique.mockResolvedValue(null);
+      prisma.block.create.mockResolvedValue({
+        ...mockBlockData,
+        blockedPhoneHash: 'mock-phone-hash-64',
+      });
+
+      // Act
+      const result = await service.create(userId, createDto);
+
+      // Assert
+      expect(prisma.block.create).toHaveBeenCalledWith({
+        data: {
+          blockerUserId: userId,
+          blockedUserId,
+          blockedPhoneHash: 'mock-phone-hash-64',
+        },
+        select: expect.any(Object),
       });
       expect(result).toEqual(mockResponseData);
     });
@@ -242,6 +272,26 @@ describe('BlocksService', () => {
         },
       });
       expect(result).toEqual([mockResponseData]);
+    });
+
+    it('should serialize block response with isDeleted: true and friendly name when blocked user is deleted', async () => {
+      // Arrange
+      const deletedUserBlock = {
+        ...mockBlockData,
+        blocked: null,
+      };
+      prisma.block.findMany.mockResolvedValue([deletedUserBlock]);
+
+      // Act
+      const result = await service.findAllForUser(userId, 1, 50);
+
+      // Assert
+      expect(result[0].blockedUser).toEqual({
+        id: null,
+        firstName: 'Deleted User',
+        lastName: null,
+        isDeleted: true,
+      });
     });
   });
 

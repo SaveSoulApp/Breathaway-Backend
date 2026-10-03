@@ -177,9 +177,11 @@ export class ChatsService extends BaseService {
       });
 
       blockedUserIds = new Set(
-        activeBlocks.map((b) =>
-          b.blockerUserId === userId ? b.blockedUserId : b.blockerUserId,
-        ),
+        activeBlocks
+          .map((b) =>
+            b.blockerUserId === userId ? b.blockedUserId : b.blockerUserId,
+          )
+          .filter((id): id is string => Boolean(id)),
       );
     } catch (err: unknown) {
       this.logger.error('Failed to fetch active blocks for user rooms', {

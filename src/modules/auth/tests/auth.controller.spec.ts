@@ -37,6 +37,7 @@ describe('AuthController', () => {
       devLogin: jest.fn(),
       addSecondaryAuth: jest.fn(),
       signout: jest.fn(),
+      deleteAccount: jest.fn(),
     };
 
     const loggerServiceMock = {
@@ -190,6 +191,17 @@ describe('AuthController', () => {
 
       expect(service.signout).toHaveBeenCalledWith('user-id-123');
       expect(result).toEqual(mockSignoutResponse);
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('should invoke authService.deleteAccount with userId and dto', async () => {
+      const dto = { confirmation: 'DELETE_MY_ACCOUNT', reason: 'Leaving' };
+      service.deleteAccount.mockResolvedValue(undefined);
+
+      await controller.deleteAccount('user-id-123', dto);
+
+      expect(service.deleteAccount).toHaveBeenCalledWith('user-id-123', dto);
     });
   });
 });

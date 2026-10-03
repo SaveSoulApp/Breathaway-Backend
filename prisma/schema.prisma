@@ -253,8 +253,10 @@ model Block {
   blockerUserId String
   blocker       User   @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
 
-  blockedUserId String
-  blocked       User   @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  blockedUserId String?
+  blocked       User?   @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: SetNull)
+
+  blockedPhoneHash String? @db.Char(64)
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   deletedAt DateTime? @db.Timestamptz
@@ -262,6 +264,8 @@ model Block {
   @@unique([blockerUserId, blockedUserId])
   // Composite index: findAllForUser queries blockerUserId + deletedAt IS NULL, orders by createdAt
   @@index([blockerUserId, deletedAt, createdAt])
+  @@index([blockerUserId, blockedPhoneHash, deletedAt])
+  @@index([blockedPhoneHash, deletedAt])
 }
 
 model Device {
@@ -369,6 +373,10 @@ model Transaction {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  /// Deterministic HMAC-SHA-256 hash of the purchasing user's phone number.
+  /// Populated at purchase time and preserved when userId becomes null on account deletion.
+  userPhoneHash String? @db.Char(64)
+
   gateway              PaymentGateway
   /// The gateway's own transaction identifier (RevenueCat `transaction_id`).
   /// Unique per gateway — this pair is the idempotency guard for redelivered webhooks.
@@ -413,6 +421,7 @@ model Transaction {
 
   @@unique([gateway, gatewayTransactionId])
   @@index([userId])
+  @@index([userPhoneHash])
   @@index([gateway, gatewayEventId])
   @@index([status])
   @@index([occurredAt])

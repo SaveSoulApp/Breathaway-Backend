@@ -26,6 +26,7 @@ const USER_ID = '01JQ8ZC5X9T7VBN3KDME4RGWFA';
 const mockTransaction: Transaction = {
   id: 'txn-id-123',
   userId: USER_ID,
+  userPhoneHash: null,
   gateway: PaymentGateway.REVENUECAT,
   gatewayTransactionId: 'test_1788885960147_51a83d84',
   gatewayEventId: 'A18A73FC-D21F-453B-9869-DBA6CA8A6E9C',
@@ -160,6 +161,23 @@ describe('TransactionsService', () => {
         data: { rawPayload: unknown };
       };
       expect(created.data.rawPayload).toBe(Prisma.DbNull);
+    });
+
+    it('uses provided userPhoneHash without querying authCredential', async () => {
+      prisma.transaction.create.mockResolvedValue(mockTransaction as never);
+      prisma.authCredential.findFirst.mockClear();
+
+      await service.record(
+        buildDto({
+          userPhoneHash: 'provided-phone-hash-64chars',
+        }),
+      );
+
+      expect(prisma.authCredential.findFirst).not.toHaveBeenCalled();
+      const created = prisma.transaction.create.mock.calls[0][0] as {
+        data: { userPhoneHash: string };
+      };
+      expect(created.data.userPhoneHash).toBe('provided-phone-hash-64chars');
     });
 
     it('emits a purchase audit event for an attributed transaction', async () => {
