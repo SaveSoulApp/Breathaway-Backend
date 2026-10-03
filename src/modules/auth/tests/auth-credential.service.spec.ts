@@ -87,6 +87,7 @@ describe('AuthCredentialService', () => {
           create: jest.fn().mockResolvedValue({ id: 'identity-new-1' }),
         },
         authCredential: { create: jest.fn().mockResolvedValue({}) },
+        block: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       };
 
       prisma.$transaction.mockImplementation(async (callback) =>
@@ -125,6 +126,16 @@ describe('AuthCredentialService', () => {
           isPrimary: true,
           identityId: 'identity-new-1',
         }),
+      });
+      expect(mockTx.block.updateMany).toHaveBeenCalledWith({
+        where: {
+          blockedPhoneHash: 'hash-123',
+          blockedUserId: null,
+          deletedAt: null,
+        },
+        data: {
+          blockedUserId: 'user-new-1',
+        },
       });
       expect(mockLogger.event).toHaveBeenCalledWith(
         LOG_EVENT.USER_PROVISIONED,

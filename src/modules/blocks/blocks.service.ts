@@ -1,18 +1,20 @@
 import { Injectable } from '@nestjs/common';
+import { AuthCredentialType } from '@prisma/client';
+
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { CreateBlockDto } from './dto';
 
 import {
-  SelfBlockException,
-  BlockTargetNotFoundException,
   AlreadyBlockedException,
   BlockNotFoundException,
+  BlockTargetNotFoundException,
+  SelfBlockException,
 } from './application/exceptions';
+import { CreateBlockDto } from './dto';
 
 /** Internal Prisma result shape used as a typed intermediary before mapping to the response DTO. */
 interface BlockWithProfile {
@@ -24,7 +26,7 @@ interface BlockWithProfile {
       firstName: string | null;
       lastName: string | null;
     } | null;
-  };
+  } | null;
 }
 
 /**
@@ -79,7 +81,18 @@ export class BlocksService extends BaseService {
       throw new BlockTargetNotFoundException();
     }
 
-    // 3. Check for existing block
+    // 3. Fetch blocked user's phone hash for anti-evasion persistence
+    const blockedUserPhone = await this.prisma.authCredential.findFirst({
+      where: {
+        userId: blockedUserId,
+        type: AuthCredentialType.PHONE,
+        deletedAt: null,
+      },
+      select: { valueHash: true },
+    });
+    const blockedPhoneHash = blockedUserPhone?.valueHash ?? null;
+
+    // 4. Check for existing block
     const existingBlock = await this.prisma.block.findUnique({
       where: {
         blockerUserId_blockedUserId: {
@@ -106,6 +119,7 @@ export class BlocksService extends BaseService {
           data: {
             deletedAt: null,
             createdAt: DateUtil.now(), // Resetting createdAt makes it a "new" block in terms of history/sorting
+            ...(blockedPhoneHash && { blockedPhoneHash }),
           },
           select: {
             id: true,
@@ -146,13 +160,14 @@ export class BlocksService extends BaseService {
       return this.mapToResponseDto(reactivatedBlock);
     }
 
-    // 4. Create new block
+    // 5. Create new block
     let newBlock;
     try {
       newBlock = await this.prisma.block.create({
         data: {
           blockerUserId,
           blockedUserId,
+          blockedPhoneHash,
         },
         select: {
           id: true,
@@ -362,9 +377,9 @@ export class BlocksService extends BaseService {
       id: block.id,
       createdAt: block.createdAt,
       blockedUser: {
-        id: block.blocked.id,
-        firstName: block.blocked.profile?.firstName,
-        lastName: block.blocked.profile?.lastName,
+        id: block.blocked?.id ?? '',
+        firstName: block.blocked?.profile?.firstName ?? null,
+        lastName: block.blocked?.profile?.lastName ?? null,
       },
     };
   }

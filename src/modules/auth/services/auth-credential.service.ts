@@ -195,6 +195,26 @@ export class AuthCredentialService extends BaseService {
           userId: newUser.id,
         });
 
+        // Re-link any active blocks targeted at this phone number to prevent block evasion
+        const blockClient = tx.block ?? this.prisma.block;
+        if (isPhoneAuthMethod(authMethod) && blockClient?.updateMany) {
+          await blockClient.updateMany({
+            where: {
+              blockedPhoneHash: publicValueData.publicValueHash,
+              blockedUserId: null,
+              deletedAt: null,
+            },
+            data: {
+              blockedUserId: newUser.id,
+            },
+          });
+          this.logger.debug('Re-linked active blocks for returning phone', {
+            ...ctx,
+            step: 'relink_blocks',
+            userId: newUser.id,
+          });
+        }
+
         return newUser;
       });
     } catch (err) {

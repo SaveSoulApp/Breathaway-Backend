@@ -198,7 +198,12 @@ export class ProfilesController extends BaseController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete profile' })
+  @ApiOperation({
+    summary: 'Delete profile (Deprecated)',
+    description:
+      'Soft-deletes the authenticated user profile. Deprecated: Use DELETE /api/v1/auth/me for GDPR/right-to-be-forgotten full account deletion.',
+    deprecated: true,
+  })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'Profile deleted successfully',
@@ -210,6 +215,7 @@ export class ProfilesController extends BaseController {
   /**
    * Soft-deletes the authenticated user's account and all associated data.
    *
+   * @deprecated Use DELETE /api/v1/auth/me instead for full account deletion.
    * This is a non-reversible, cascading operation — identities, auth
    * credentials, and devices are also deactivated in the same transaction.
    * Returns 204 No Content on success.

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   GoneException,
   HttpCode,
   HttpStatus,
@@ -15,16 +16,19 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
 import { AuthService } from './auth.service';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
+  DeleteAccountRequestDto,
   DevLoginRequestDto,
   UserAuthResponseDto,
 } from './dto';
@@ -244,5 +248,31 @@ export class AuthController extends BaseController {
   @HttpCode(HttpStatus.NO_CONTENT)
   signout(@CurrentUserId() userId: string) {
     return this.authService.signout(userId);
+  }
+
+  /**
+   * Permanently deletes the authenticated user's account and all associated data ("Right to be Forgotten").
+   *
+   * Cascading teardown includes dissolving active matches, voiding likes, detaching identities,
+   * deactivating devices, and deleting the Firebase Authentication user record.
+   *
+   * @param userId - Unique identifier of the authenticated user, extracted from the JWT.
+   * @param dto - Explicit confirmation phrase and optional feedback reason.
+   */
+  @Delete('me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiStandardErrors()
+  @ApiOperation({ summary: 'Delete user account (Right to be forgotten)' })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'User account and associated data successfully deleted',
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAccount(
+    @CurrentUserId() userId: string,
+    @Body() dto: DeleteAccountRequestDto,
+  ): Promise<void> {
+    await this.authService.deleteAccount(userId, dto);
   }
 }

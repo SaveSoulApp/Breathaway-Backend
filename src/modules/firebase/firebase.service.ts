@@ -114,6 +114,85 @@ export class FirebaseService extends BaseService implements OnModuleDestroy {
   }
 
   /**
+   * Fetches a Firebase UserRecord by phone number in E.164 format.
+   * Returns null if no user is registered with this phone number.
+   *
+   * @param phoneNumber - E.164 formatted phone number (e.g. +919876543210).
+   * @returns The UserRecord or null if not found.
+   */
+  async getUserByPhoneNumber(
+    phoneNumber: string,
+  ): Promise<admin.auth.UserRecord | null> {
+    try {
+      return await this.firebaseApp.auth().getUserByPhoneNumber(phoneNumber);
+    } catch (error) {
+      const err = error as { code?: string; errorInfo?: { code?: string } };
+      const errorCode = err.code ?? err.errorInfo?.code;
+      if (errorCode === 'auth/user-not-found') {
+        return null;
+      }
+      this.logger.error('Failed to fetch Firebase user by phone number', {
+        step: 'get_user_by_phone',
+        err: serializeError(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetches a Firebase UserRecord by email address.
+   * Returns null if no user is registered with this email.
+   *
+   * @param email - Normalized email address.
+   * @returns The UserRecord or null if not found.
+   */
+  async getUserByEmail(email: string): Promise<admin.auth.UserRecord | null> {
+    try {
+      return await this.firebaseApp.auth().getUserByEmail(email);
+    } catch (error) {
+      const err = error as { code?: string; errorInfo?: { code?: string } };
+      const errorCode = err.code ?? err.errorInfo?.code;
+      if (errorCode === 'auth/user-not-found') {
+        return null;
+      }
+      this.logger.error('Failed to fetch Firebase user by email', {
+        step: 'get_user_by_email',
+        err: serializeError(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Deletes a user account from Firebase Authentication.
+   * Silently succeeds if the user does not exist in Firebase.
+   *
+   * @param uid - The Firebase UID of the user to delete.
+   */
+  async deleteUser(uid: string): Promise<void> {
+    try {
+      await this.firebaseApp.auth().deleteUser(uid);
+      this.logger.log('Firebase user deleted', { uid, step: 'delete_user' });
+    } catch (error) {
+      const err = error as { code?: string; errorInfo?: { code?: string } };
+      const errorCode = err.code ?? err.errorInfo?.code;
+      if (errorCode === 'auth/user-not-found') {
+        this.logger.debug('Firebase user already not found for deletion', {
+          uid,
+          step: 'delete_user',
+        });
+        return;
+      }
+      this.logger.error('Failed to delete Firebase user', {
+        uid,
+        step: 'delete_user',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Verifies a Firebase ID token and asserts that its `uid` claim matches the
    * supplied UID, preventing token-substitution attacks.
    *

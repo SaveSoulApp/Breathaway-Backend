@@ -26,6 +26,7 @@ const USER_ID = '01JQ8ZC5X9T7VBN3KDME4RGWFA';
 const mockTransaction: Transaction = {
   id: 'txn-id-123',
   userId: USER_ID,
+  userPhoneHash: null,
   gateway: PaymentGateway.REVENUECAT,
   gatewayTransactionId: 'test_1788885960147_51a83d84',
   gatewayEventId: 'A18A73FC-D21F-453B-9869-DBA6CA8A6E9C',

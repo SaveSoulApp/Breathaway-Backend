@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentGateway, Prisma, Transaction } from '@prisma/client';
+import {
+  AuthCredentialType,
+  PaymentGateway,
+  Prisma,
+  Transaction,
+} from '@prisma/client';
 
 import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
@@ -85,9 +90,24 @@ export class TransactionsService extends BaseService {
 
     let transaction: Transaction;
     try {
+      let userPhoneHash: string | null = null;
+      if (dto.userId) {
+        const authClient = client.authCredential ?? this.prisma.authCredential;
+        const phoneCred = await authClient?.findFirst?.({
+          where: {
+            userId: dto.userId,
+            type: AuthCredentialType.PHONE,
+            deletedAt: null,
+          },
+          select: { valueHash: true },
+        });
+        userPhoneHash = phoneCred?.valueHash ?? null;
+      }
+
       transaction = await client.transaction.create({
         data: {
           userId: dto.userId ?? null,
+          userPhoneHash,
           gateway: dto.gateway,
           gatewayTransactionId: dto.gatewayTransactionId,
           gatewayEventId: dto.gatewayEventId ?? null,
