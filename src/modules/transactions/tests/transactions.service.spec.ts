@@ -165,7 +165,7 @@ describe('TransactionsService', () => {
 
     it('uses provided userPhoneHash without querying authCredential', async () => {
       prisma.transaction.create.mockResolvedValue(mockTransaction as never);
-      prisma.authCredential.findFirst = jest.fn();
+      prisma.authCredential.findFirst.mockClear();
 
       await service.record(
         buildDto({
