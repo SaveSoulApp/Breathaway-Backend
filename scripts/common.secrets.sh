@@ -32,6 +32,7 @@ export SECRET_BREVO_API_KEY="brevo-api-key"
 export SECRET_RAZORPAY_KEY_ID="razorpay-key-id"
 export SECRET_RAZORPAY_KEY_SECRET="razorpay-key-secret"
 export SECRET_RAZORPAY_WEBHOOK_SECRET="razorpay-webhook-secret"
+export SECRET_LITEAPP_WHATSAPP_KEY="liteapp-whatsapp-key"
 
 # Cloud Run Secret Mappings (<ENV_VAR_NAME>=<SECRET_NAME>:latest)
 COMMON_SECRETS=(
@@ -61,4 +62,5 @@ COMMON_SECRETS=(
     "RAZORPAY_KEY_ID=${SECRET_RAZORPAY_KEY_ID}:latest"
     "RAZORPAY_KEY_SECRET=${SECRET_RAZORPAY_KEY_SECRET}:latest"
     "RAZORPAY_WEBHOOK_SECRET=${SECRET_RAZORPAY_WEBHOOK_SECRET}:latest"
+    "LITEAPP_WHATSAPP_KEY=${SECRET_LITEAPP_WHATSAPP_KEY}:latest"
 )

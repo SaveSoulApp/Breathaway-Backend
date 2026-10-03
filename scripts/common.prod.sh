@@ -58,6 +58,10 @@ export MAILGUN_API_KEY='some-api-key'
 export MAILGUN_DOMAIN='domain@domaincom'
 export SENDGRID_API_KEY='SG.some-api-key'
 
+# WhatsApp provider configuration
+export WHATSAPP_PROVIDER='liteapp'
+export LITEAPP_WHATSAPP_URL='https://liteapp.store'
+
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
 export SWAGGER_ENABLED='false'

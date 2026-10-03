@@ -84,6 +84,12 @@ source "${ENV_CONFIG_FILE}"
 : "${IMAGE_BASE_URL:?Variable IMAGE_BASE_URL is not set}"
 : "${SERVICE_NAME:?Variable SERVICE_NAME is not set}"
 : "${REGION:?Variable REGION is not set}"
+: "${WHATSAPP_PROVIDER:?Variable WHATSAPP_PROVIDER is not set}"
+: "${LITEAPP_WHATSAPP_URL:?Variable LITEAPP_WHATSAPP_URL is not set}"
+
+if [[ ! "${LITEAPP_WHATSAPP_URL}" =~ ^https?:// ]]; then
+    print_error "LITEAPP_WHATSAPP_URL must be a valid HTTP/HTTPS URL: ${LITEAPP_WHATSAPP_URL}"
+fi
 
 # Bind image tag to Git Commit Hash
 GIT_COMMIT=$(git rev-parse --short HEAD)
@@ -124,6 +130,8 @@ build_env_vars_string() {
         "MAILGUN_API_KEY=${MAILGUN_API_KEY}"
         "MAILGUN_DOMAIN=${MAILGUN_DOMAIN}"
         "SENDGRID_API_KEY=${SENDGRID_API_KEY}"
+        "WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER}"
+        "LITEAPP_WHATSAPP_URL=${LITEAPP_WHATSAPP_URL}"
         "SWAGGER_ENABLED=${swagger_enabled}"
         "GCP_OIDC_AUDIENCE=${GCP_OIDC_AUDIENCE}"
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"

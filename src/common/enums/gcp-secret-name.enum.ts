@@ -28,4 +28,5 @@ export enum GcpSecretName {
   RAZORPAY_KEY_ID = 'razorpay-key-id',
   RAZORPAY_KEY_SECRET = 'razorpay-key-secret',
   RAZORPAY_WEBHOOK_SECRET = 'razorpay-webhook-secret',
+  LITEAPP_WHATSAPP_KEY = 'liteapp-whatsapp-key',
 }

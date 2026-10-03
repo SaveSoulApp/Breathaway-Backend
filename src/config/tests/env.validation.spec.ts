@@ -71,6 +71,10 @@ describe('envValidationSchema', () => {
       expect(value.EMAIL_FROM_ADDRESS).toBe('no-reply@breathaway.app');
       expect(value.EMAIL_FROM_NAME).toBe('BreathAway');
 
+      // WhatsApp defaults
+      expect(value.WHATSAPP_PROVIDER).toBe('liteapp');
+      expect(value.LITEAPP_WHATSAPP_URL).toBe('https://dev.liteapp.store');
+
       // Swagger defaults
       expect(value.SWAGGER_ENABLED).toBe('true');
     });
@@ -174,6 +178,28 @@ describe('envValidationSchema', () => {
 
       expect(error).toBeDefined();
       expect(error?.message).toContain('"EMAIL_PROVIDER" must be one of');
+    });
+
+    it('should fail when WHATSAPP_PROVIDER is unsupported', () => {
+      const { error } = envValidationSchema.validate(
+        { ...baseValidEnv, WHATSAPP_PROVIDER: 'unsupported' },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.message).toContain('"WHATSAPP_PROVIDER" must be one of');
+    });
+
+    it('should fail when LITEAPP_WHATSAPP_URL is not a valid URI', () => {
+      const { error } = envValidationSchema.validate(
+        { ...baseValidEnv, LITEAPP_WHATSAPP_URL: 'invalid-uri' },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.message).toContain(
+        '"LITEAPP_WHATSAPP_URL" must be a valid uri',
+      );
     });
 
     it('should fail when EMAIL_FROM_ADDRESS is not a valid email', () => {

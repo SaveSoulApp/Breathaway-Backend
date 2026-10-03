@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
@@ -16,6 +17,8 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { FcmProviderService } from './providers/fcm.provider.service';
 import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
+import { LiteAppWhatsAppAdapter } from './whatsapp/adapters/liteapp.whatsapp.adapter';
+import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.interface';
 
 @Module({
   imports: [FirebaseModule, PreferencesModule, IdentityCryptoModule],
@@ -25,6 +28,31 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
     NotificationEventsListener,
     FcmProviderService,
     WhatsAppProviderService,
+    // WhatsApp adapter concrete implementations
+    LiteAppWhatsAppAdapter,
+    // Factory provider: selects the active WhatsApp adapter at runtime
+    {
+      provide: WHATSAPP_ADAPTER_TOKEN,
+      inject: [ConfigService, LiteAppWhatsAppAdapter],
+      useFactory: (config: ConfigService, liteApp: LiteAppWhatsAppAdapter) => {
+        const provider = config.get<string>('WHATSAPP_PROVIDER') ?? 'liteapp';
+        if (provider === 'liteapp') return liteApp;
+        return liteApp;
+      },
+    },
+    // Optional Redis client for distributed deduplication
+    {
+      provide: 'REDIS_CLIENT',
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (!redisUrl) return null;
+        return new Redis(redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+        });
+      },
+    },
     // Email adapter concrete implementations
     SendGridEmailAdapter,
     MailgunEmailAdapter,
@@ -52,6 +80,6 @@ import { WhatsAppProviderService } from './providers/whatsapp.provider.service';
     },
     EmailService,
   ],
-  exports: [NotificationsService, EmailService],
+  exports: [NotificationsService, EmailService, WhatsAppProviderService],
 })
 export class NotificationsModule {}

@@ -175,7 +175,7 @@ export class AuthService extends BaseService {
       userId: user.id,
     });
 
-    if (authMethod.isVerified && isEmailAuthMethod(authMethod.method)) {
+    if (authMethod.isVerified) {
       this.eventEmitter.emit(USER_WELCOME_EVENT, new UserWelcomeEvent(user.id));
     }
 
@@ -387,12 +387,7 @@ export class AuthService extends BaseService {
         isNewUser: true,
       });
 
-      if (isEmailAuthMethod(authMethod.method)) {
-        this.eventEmitter.emit(
-          USER_WELCOME_EVENT,
-          new UserWelcomeEvent(user.id),
-        );
-      }
+      this.eventEmitter.emit(USER_WELCOME_EVENT, new UserWelcomeEvent(user.id));
 
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
