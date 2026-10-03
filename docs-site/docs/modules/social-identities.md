@@ -25,13 +25,17 @@ The `verifyInstagramIdentity` method interacts with the Graph API purely to read
 
 If the Meta API returns an error response, the service extracts the error message but explicitly avoids logging the entire JSON payload. This is a deliberate design choice to prevent leaking PII (like Instagram usernames returned in error bodies) into the system logs.
 
+### 3. Input Validation & Parameter Sanitization
+
+To protect against SSRF and Graph API path/query parameter injection, `instagramId` is strictly validated to numeric strings (5–30 digits) via `VerifyInstagramRequestDto` and explicitly URL-encoded with `encodeURIComponent` when assembling Graph API requests.
+
 ---
 
 ## 🛠 File & Class Definitions
 
 ### Controller
 
-- **[SocialIdentitiesController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/social-identities/social-identities.controller.ts)**: Handles registration of social link credentials.
+- **[SocialIdentitiesController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/social-identities/social-identities.controller.ts)**: Handles social identity verification workflows for internal administrators, protected by `AdminBasicAuthGuard`.
   - Route Prefix: `/api/v1/social-identities`
 
 ### Service

@@ -4,7 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 
-import { createAuthTestApp } from '../helpers/app-test.helper';
+import {
+  buildBasicAuthHeader,
+  createAuthTestApp,
+} from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 import { authedRequest } from '../helpers/request.helper';
 
@@ -13,6 +16,7 @@ describe('SocialIdentitiesController (e2e)', () => {
   let prisma: PrismaService;
   let configService: ConfigService;
   let originalFetch: typeof global.fetch;
+  let basicAuthHeader: string;
 
   const allCreatedUserIds: string[] = [];
 
@@ -23,6 +27,10 @@ describe('SocialIdentitiesController (e2e)', () => {
     app = context.app;
     prisma = context.prisma;
     configService = app.get(ConfigService);
+
+    const adminUser = configService.getOrThrow<string>('ADMIN_USERNAME');
+    const adminPass = configService.getOrThrow<string>('ADMIN_PASSWORD');
+    basicAuthHeader = buildBasicAuthHeader(adminUser, adminPass);
   });
 
   afterAll(async () => {
@@ -32,12 +40,12 @@ describe('SocialIdentitiesController (e2e)', () => {
   });
 
   describe('POST /api/v1/social-identities/verify/instagram', () => {
-    it('should verify a valid instagram identity', async () => {
+    it('should verify a valid instagram identity with admin credentials', async () => {
       // Mock global fetch for success
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          id: 'test_ig_123',
+          id: '17841400000000000',
           name: 'Test User',
           username: 'testuser',
           profile_pic: 'https://example.com/pic.jpg',
@@ -50,11 +58,12 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .send({ instagramId: 'test_ig_123' });
+        .set('authorization', basicAuthHeader)
+        .send({ instagramId: '17841400000000000' });
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({
-        id: 'test_ig_123',
+        id: '17841400000000000',
         name: 'Test User',
         username: 'testuser',
         profilePic: 'https://example.com/pic.jpg',
@@ -64,6 +73,26 @@ describe('SocialIdentitiesController (e2e)', () => {
         isBusinessFollowUser: false,
         platform: 'instagram',
       });
+    });
+
+    it('should reject unauthorized requests when admin basic auth is missing (401)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/social-identities/verify/instagram')
+        .send({ instagramId: '17841400000000000' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject non-numeric or parameter injection instagramId (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/social-identities/verify/instagram')
+        .set('authorization', basicAuthHeader)
+        .send({ instagramId: 'foo?bar=1' });
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain(
+        'instagramId must be a numeric string',
+      );
     });
 
     it('should handle Instagram API errors gracefully', async () => {
@@ -80,7 +109,8 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .send({ instagramId: 'invalid_ig_id' });
+        .set('authorization', basicAuthHeader)
+        .send({ instagramId: '999999999' });
 
       expect(res.status).toBe(400);
       expect(res.body.detail).toContain('Instagram API Error: Invalid user id');
@@ -97,7 +127,8 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .send({ instagramId: 'test_ig_123' });
+        .set('authorization', basicAuthHeader)
+        .send({ instagramId: '17841400000000000' });
 
       expect(res.status).toBe(500);
       expect(res.body.detail).toBe(
@@ -111,6 +142,7 @@ describe('SocialIdentitiesController (e2e)', () => {
     it('should reject invalid payload without instagramId (400)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
+        .set('authorization', basicAuthHeader)
         .send({});
 
       expect(res.status).toBe(400);

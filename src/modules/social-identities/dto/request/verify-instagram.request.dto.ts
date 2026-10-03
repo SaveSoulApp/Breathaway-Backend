@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export class VerifyInstagramRequestDto {
   @ApiProperty({
@@ -8,5 +8,8 @@ export class VerifyInstagramRequestDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{5,30}$/, {
+    message: 'instagramId must be a numeric string',
+  })
   instagramId: string;
 }

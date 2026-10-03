@@ -73,7 +73,7 @@ export class SocialidentitiesService extends BaseService {
     }
     this.logger.debug('Config check passed', { ...ctx, step: 'config_check' });
 
-    const url = `https://graph.instagram.com/${instagramId}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
+    const url = `https://graph.instagram.com/${encodeURIComponent(instagramId)}?fields=id,name,username,profile_pic,is_verified_user,follower_count,is_user_follow_business,is_business_follow_user&access_token=${accessToken}`;
 
     try {
       this.logger.debug('Calling Instagram Graph API', {

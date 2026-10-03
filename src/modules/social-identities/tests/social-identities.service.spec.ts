@@ -161,9 +161,31 @@ describe('SocialidentitiesService', () => {
         platform: 'instagram',
       });
 
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('https://graph.instagram.com/123?fields='),
+      );
+
       expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Calling Instagram Graph API',
         expect.objectContaining({ instagramId: '123' }),
+      );
+    });
+
+    it('should URL-encode instagramId when constructing the Graph API request URL', async () => {
+      configService.get.mockReturnValue('valid-token');
+
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({ id: '123' }),
+      };
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+
+      await service.verifyInstagramIdentity(null, '123?extra=param');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'https://graph.instagram.com/123%3Fextra%3Dparam?fields=',
+        ),
       );
     });
   });
