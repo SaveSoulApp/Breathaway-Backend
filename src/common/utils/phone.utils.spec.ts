@@ -1,4 +1,4 @@
-import { extractCountryCodeFromPhone } from './phone.utils';
+import { extractCountryCodeFromPhone, maskPhoneNumber } from './phone.utils';
 
 describe('extractCountryCodeFromPhone', () => {
   describe('valid E.164 numbers — correct country resolved', () => {
@@ -27,5 +27,21 @@ describe('extractCountryCodeFromPhone', () => {
     ])('returns null for %s', (input) => {
       expect(extractCountryCodeFromPhone(input)).toBeNull();
     });
+  });
+});
+
+describe('maskPhoneNumber', () => {
+  it('masks standard international and digits-only phone numbers', () => {
+    expect(maskPhoneNumber('+919876543210')).toBe('+91****3210');
+    expect(maskPhoneNumber('919876543210')).toBe('91****3210');
+    expect(maskPhoneNumber('+14155552671')).toBe('+14****2671');
+  });
+
+  it('masks short numbers safely', () => {
+    expect(maskPhoneNumber('12345')).toBe('****');
+    expect(maskPhoneNumber('123456')).toBe('****');
+    expect(maskPhoneNumber('')).toBe('***');
+    expect(maskPhoneNumber(null)).toBe('***');
+    expect(maskPhoneNumber(undefined)).toBe('***');
   });
 });

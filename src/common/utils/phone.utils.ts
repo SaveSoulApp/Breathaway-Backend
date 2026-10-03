@@ -37,3 +37,32 @@ export function extractCountryCodeFromPhone(e164Phone: string): string | null {
     return null;
   }
 }
+
+/**
+ * Masks a phone number for safe structured logging and PII protection.
+ * Preserves country/area prefix and the last 3-4 digits while obfuscating the rest.
+ *
+ * @param phone - Raw or formatted phone number string.
+ * @returns Masked phone representation (e.g. `"+91****3210"` or `"91****3210"`).
+ *
+ * @example
+ * maskPhoneNumber('+919876543210'); // → '+91****3210'
+ * maskPhoneNumber('919876543210');  // → '91****3210'
+ * maskPhoneNumber('1234');          // → '****'
+ * maskPhoneNumber(null);            // → '***'
+ */
+export function maskPhoneNumber(phone?: string | null): string {
+  if (!phone || phone.trim() === '') {
+    return '***';
+  }
+
+  const trimmed = phone.trim();
+  if (trimmed.length <= 6) {
+    return '****';
+  }
+
+  const prefixLength = trimmed.startsWith('+') ? 3 : 2;
+  const suffixLength = 4;
+
+  return `${trimmed.slice(0, prefixLength)}****${trimmed.slice(-suffixLength)}`;
+}

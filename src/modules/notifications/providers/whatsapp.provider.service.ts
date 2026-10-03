@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { maskPhoneNumber } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -132,6 +133,7 @@ export class WhatsAppProviderService
           'WhatsApp notification sent successfully to recipient',
           {
             userId,
+            recipient: maskPhoneNumber(recipientContact.phoneDigits),
             notificationType: payloadDto.type,
             template: templateConfig.template,
             step: 'dispatch_success',
@@ -141,6 +143,7 @@ export class WhatsAppProviderService
         // Log and swallow error so WhatsApp failures never block other channels or business transactions
         this.logger.error('Failed to send WhatsApp notification to recipient', {
           userId,
+          recipient: maskPhoneNumber(recipientContact.phoneDigits),
           notificationType: payloadDto.type,
           template: templateConfig.template,
           step: 'dispatch_failed',

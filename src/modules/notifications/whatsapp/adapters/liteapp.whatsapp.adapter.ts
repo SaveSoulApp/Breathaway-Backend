@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 
 import { serializeError } from '@common/utils/error.utils';
+import { maskPhoneNumber } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -55,7 +56,11 @@ export class LiteAppWhatsAppAdapter
     if (!this.apiKey) {
       this.logger.error(
         'Cannot send WhatsApp message: LITEAPP_WHATSAPP_KEY is not configured',
-        { to: payload.to, template: payload.template, step: 'send' },
+        {
+          recipient: maskPhoneNumber(payload.to),
+          template: payload.template,
+          step: 'send',
+        },
       );
       throw new Error(
         '[LiteApp] Cannot send WhatsApp message: LITEAPP_WHATSAPP_KEY is not configured',
@@ -89,7 +94,7 @@ export class LiteAppWhatsAppAdapter
       await this.executePost(endpoint, requestBody, headers);
 
       this.logger.log('WhatsApp message sent successfully via LiteApp', {
-        to: payload.to,
+        recipient: maskPhoneNumber(payload.to),
         template: payload.template,
         step: 'send_complete',
       });
@@ -134,7 +139,7 @@ export class LiteAppWhatsAppAdapter
     this.logger.warn(
       'Rate limited (429) by LiteApp WhatsApp API, retrying once',
       {
-        to: payload.to,
+        recipient: maskPhoneNumber(payload.to),
         template: payload.template,
         retryAfterSec,
         step: 'rate_limit_retry',
@@ -149,14 +154,14 @@ export class LiteAppWhatsAppAdapter
       this.logger.log(
         'WhatsApp message sent successfully via LiteApp on retry',
         {
-          to: payload.to,
+          recipient: maskPhoneNumber(payload.to),
           template: payload.template,
           step: 'send_retry_complete',
         },
       );
     } catch (retryError) {
       this.logger.error('WhatsApp send failed after 429 rate limit retry', {
-        to: payload.to,
+        recipient: maskPhoneNumber(payload.to),
         template: payload.template,
         step: 'send_retry_failed',
         err: serializeError(retryError),
@@ -180,7 +185,7 @@ export class LiteAppWhatsAppAdapter
       : undefined;
 
     this.logger.error('LiteApp WhatsApp message delivery failed', {
-      to: payload.to,
+      recipient: maskPhoneNumber(payload.to),
       template: payload.template,
       status,
       responseData,
