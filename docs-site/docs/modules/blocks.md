@@ -52,3 +52,11 @@ When a user decides to unblock another profile, the block record is not permanen
 - **Logical Soft-Delete**: The record's `deletedAt` field is set to the current timestamp.
 - **Moderation History**: Soft-deleting block records preserves a full audit trail of blocking activities, which is critical for support teams to analyze harassment patterns or report loops.
 - **Access Restored**: An unblocked user immediately regains normal platform visibility, allowing them to appear in search pools and send likes again.
+
+### 4. Account Deletion & Anti-Evasion Protection
+
+To prevent malicious actors from circumventing blocks by deleting their account and recreating a new profile with the same phone number:
+
+- **Keyed HMAC-SHA-256 Storage**: When User A blocks User B, `BlocksService.create` looks up User B's primary phone credential and persists its keyed HMAC-SHA-256 hash in `blockedPhoneHash`.
+- **Nullable Blocked User on Deletion**: When User B deletes their account, the foreign key `blockedUserId` is set to `null` (`onDelete: SetNull`), but the block record and `blockedPhoneHash` remain preserved.
+- **Automatic Re-Linking on Re-Registration**: When that phone number is re-registered on the platform, `AuthCredentialService.createUserWithCredential` checks for unattached blocks matching `blockedPhoneHash` and automatically sets `blockedUserId = newUser.id`. The block is re-established seamlessly with zero leak of moderation metadata.
