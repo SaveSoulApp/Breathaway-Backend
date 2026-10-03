@@ -37,6 +37,21 @@ export class RecordTransactionRequestDto {
   @IsOptional()
   userId?: string;
 
+  /**
+   * Optional HMAC-SHA-256 hash of the customer's phone number.
+   * If omitted, TransactionsService will auto-resolve it from the user's phone credential.
+   */
+  @ApiPropertyOptional({
+    description:
+      'HMAC-SHA-256 hash of the customer phone number; auto-resolved if omitted',
+    maxLength: 64,
+    minLength: 64,
+  })
+  @IsString()
+  @Length(64, 64)
+  @IsOptional()
+  userPhoneHash?: string;
+
   @ApiProperty({ enum: PaymentGateway, description: 'Originating gateway' })
   @IsEnum(PaymentGateway)
   gateway: PaymentGateway;

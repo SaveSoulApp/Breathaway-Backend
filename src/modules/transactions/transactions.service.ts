@@ -90,8 +90,8 @@ export class TransactionsService extends BaseService {
 
     let transaction: Transaction;
     try {
-      let userPhoneHash: string | null = null;
-      if (dto.userId) {
+      let userPhoneHash: string | null = dto.userPhoneHash ?? null;
+      if (!userPhoneHash && dto.userId) {
         const authClient = client.authCredential ?? this.prisma.authCredential;
         const phoneCred = await authClient?.findFirst?.({
           where: {

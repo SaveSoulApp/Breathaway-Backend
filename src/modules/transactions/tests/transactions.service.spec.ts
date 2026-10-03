@@ -163,6 +163,23 @@ describe('TransactionsService', () => {
       expect(created.data.rawPayload).toBe(Prisma.DbNull);
     });
 
+    it('uses provided userPhoneHash without querying authCredential', async () => {
+      prisma.transaction.create.mockResolvedValue(mockTransaction as never);
+      prisma.authCredential.findFirst = jest.fn();
+
+      await service.record(
+        buildDto({
+          userPhoneHash: 'provided-phone-hash-64chars',
+        }),
+      );
+
+      expect(prisma.authCredential.findFirst).not.toHaveBeenCalled();
+      const created = prisma.transaction.create.mock.calls[0][0] as {
+        data: { userPhoneHash: string };
+      };
+      expect(created.data.userPhoneHash).toBe('provided-phone-hash-64chars');
+    });
+
     it('emits a purchase audit event for an attributed transaction', async () => {
       prisma.transaction.create.mockResolvedValue(mockTransaction as never);
 
