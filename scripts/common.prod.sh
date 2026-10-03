@@ -28,7 +28,7 @@ export DEPLOYMENT_ENV='gcp'
 export APP_NAME="BreathAway"
 export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'
 export MIN_APP_VERSION="1.0.0"
-export CORS_ORIGINS='["https://breathaway.com","https://www.breathaway.com"]'
+export CORS_ORIGINS='["https://breathaway.app","https://www.breathaway.app"]'
 
 export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'

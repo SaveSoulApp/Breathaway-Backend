@@ -892,9 +892,9 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API | `xkeysib-••••••••••••`                        |
 | `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo         | `no-reply@breathaway.app`                     |
 | `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails             | `BreathAway`                                  |
-| `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.com`                  |
-| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                | `https://app.breathaway.com/icon-192x192.png` |
-| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.com/badge-72x72.png`  |
+| `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.app`                  |
+| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                | `https://app.breathaway.app/icon-192x192.png` |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.app/badge-72x72.png`  |
 | `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue      | `notifications-stream`                        |
 
 > [!CAUTION]

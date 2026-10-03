@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { ConfigService, registerAs } from '@nestjs/config';
 
@@ -36,6 +36,8 @@ export const DEFAULT_CORS_ALLOWED_HEADERS = [
  * Encapsulates strongly-typed CORS configuration, validation, and parsing logic for incoming HTTP requests.
  */
 export class CorsConfig {
+  private static readonly logger = new Logger(CorsConfig.name);
+
   readonly allowedOrigins: string[];
   readonly methods: string[];
   readonly allowedHeaders: string[];
@@ -56,7 +58,14 @@ export class CorsConfig {
     this.methods = options?.methods ?? DEFAULT_CORS_METHODS;
     this.allowedHeaders =
       options?.allowedHeaders ?? DEFAULT_CORS_ALLOWED_HEADERS;
-    this.credentials = options?.credentials ?? true;
+
+    const hasWildcard = this.allowedOrigins.includes('*');
+    if (hasWildcard && options?.credentials === true) {
+      CorsConfig.logger.warn(
+        "Wildcard origin '*' cannot be used with credentials enabled. Forcing credentials to false to prevent insecure origin reflection (CWE-942).",
+      );
+    }
+    this.credentials = hasWildcard ? false : (options?.credentials ?? true);
     this.optionsSuccessStatus = options?.optionsSuccessStatus ?? 204;
   }
 
@@ -97,14 +106,22 @@ export class CorsConfig {
 
   /**
    * Converts the configuration instance into NestJS/Express CorsOptions.
-   * If a wildcard '*' is present in allowedOrigins, origin is mapped to true to reflect request origin with credentials.
+   *
+   * Security constraints (OWASP A05:2021 / CWE-942):
+   * - Never returns `origin: true` (which would cause Express CORS middleware to dynamically echo arbitrary request origins).
+   * - If a wildcard '*' is present in allowedOrigins:
+   *   - `origin` is set to the literal wildcard string `'*'`.
+   *   - `credentials` is strictly forced to `false` (browsers prohibit wildcard with credentials,
+   *     and Express CORS middleware will omit Access-Control-Allow-Credentials).
    */
   toCorsOptions(): CorsOptions {
+    const hasWildcard = this.allowedOrigins.includes('*');
+
     return {
-      origin: this.allowedOrigins.includes('*') ? true : this.allowedOrigins,
+      origin: hasWildcard ? '*' : this.allowedOrigins,
       methods: this.methods,
       allowedHeaders: this.allowedHeaders,
-      credentials: this.credentials,
+      credentials: hasWildcard ? false : this.credentials,
       optionsSuccessStatus: this.optionsSuccessStatus,
     };
   }
