@@ -221,6 +221,11 @@ describe('NotificationEventsListener', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: NotificationType.NEW_MATCH,
+          channels: [
+            NotificationChannel.PUSH,
+            NotificationChannel.EMAIL,
+            NotificationChannel.WHATSAPP,
+          ],
           userIds: ['user-1'],
           payload: expect.objectContaining({
             name: 'Alice',
@@ -234,6 +239,11 @@ describe('NotificationEventsListener', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: NotificationType.NEW_MATCH,
+          channels: [
+            NotificationChannel.PUSH,
+            NotificationChannel.EMAIL,
+            NotificationChannel.WHATSAPP,
+          ],
           userIds: ['user-2'],
           payload: expect.objectContaining({
             name: 'Bob',
@@ -316,7 +326,7 @@ describe('NotificationEventsListener', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: NotificationType.WELCOME,
-          channels: [NotificationChannel.EMAIL],
+          channels: [NotificationChannel.EMAIL, NotificationChannel.WHATSAPP],
           userIds: ['user-1'],
           payload: expect.objectContaining({
             name: 'Diana',

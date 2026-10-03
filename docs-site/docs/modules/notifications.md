@@ -10,7 +10,7 @@ The `NotificationsModule` provides BreathAway's multi-channel notification infra
 
 ## 📋 Purpose & Responsibilities
 
-- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo SMTP API), **Push** (Firebase Cloud Messaging: iOS, Android, WebPush), and **WhatsApp/SMS** without duplicating business logic.
+- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo / Mailgun / SendGrid SMTP API), **Push** (Firebase Cloud Messaging: iOS, Android, WebPush), and **WhatsApp** (LiteApp / Meta Cloud API) without duplicating business logic.
 - **In-App Notification Center & Durable Storage**: Persists push-targeted communications in PostgreSQL with polymorphic JSONB payloads, read/unread states, and dismissal tracking, powering real-time inbox feeds and badge counters across all user devices.
 - **Selective Push Channel Persistence**: Enforces a strict separation between transient delivery protocols (Email, WhatsApp) and persistent in-app notifications. Only communications routed through the `PUSH` channel are written to the database.
 - **Segregated Controller Architecture**: Separates public client inbox interactions (`NotificationsController` secured by `JwtAuthGuard`) from administrative dispatch endpoints (`NotificationsAdminController` secured by `AdminBasicAuthGuard`).
@@ -18,7 +18,8 @@ The `NotificationsModule` provides BreathAway's multi-channel notification infra
 - **Zero-Migration Classification Architecture**: Utilizes varchar-backed database columns with TypeScript enums for `NotificationType`, `NotificationCategory`, and `NotificationPriority`, enabling instant taxonomy additions without database DDL schema migrations.
 - **Asynchronous Pub/Sub Fan-Out**: Decouples API endpoints from downstream notification providers using Google Cloud Pub/Sub, ensuring sub-80ms client response times.
 - **Transactional Email Engine**: Pre-compiles and caches responsive HTML templates via Handlebars, applies brand styling and partials (`header.hbs`, `footer.hbs`), and executes personalized interpolations.
-- **Envelope-Encrypted Email Resolution**: Transparently decrypts user email addresses stored across encrypted `Identity` records using `IdentityCryptoService` (AES-256-GCM + Google Cloud KMS).
+- **Decoupled Recipient Identity Resolution**: Encapsulates envelope-encrypted identity unwrapping and contact standardization (ITU-T E.164 phone normalization, lowercase trimmed emails) inside a dedicated `NotificationRecipientResolverService`, keeping delivery providers lean and isolated from direct database queries.
+- **WhatsApp Alert Infrastructure**: Connects to the LiteApp gateway with pluggable adapter patterns (`IWhatsAppAdapter`), rate-limiting 429 exponential retry, Redis-backed 24-hour event deduplication, and bilingual Meta approved template mapping.
 - **Preference Gatekeeping**: Enforces granular user privacy settings (`pushEnabled`, `emailEnabled`, `whatsappEnabled`) via `PreferencesService` before dispatching to provider networks.
 - **Double-Blind & PII Protection**: Guarantees zero leak of sensitive user identities during social notifications (e.g., likes remain secret until mutual matches are confirmed; security alerts mask identifiers).
 
@@ -72,10 +73,16 @@ flowchart TD
         end
     end
 
-    subgraph Providers["External Delivery Providers"]
+    subgraph Identity_Layer["Identity & Cryptographic Resolution"]
+        RESOLVER["NotificationRecipientResolverService<br/>(AuthCredential & Identity Fallback Decryption)"]
+    end
+
+    subgraph Providers["External Delivery Providers & Adapters"]
         FCM["FcmProviderService<br/>(Firebase Cloud Messaging: iOS, Android, WebPush)"]
-        BREVO["EmailService → BrevoEmailAdapter<br/>(Brevo v3 REST API)"]
-        WA["WhatsAppProviderService<br/>(Twilio / WhatsApp API)"]
+        EMAIL_SVC["EmailService<br/>(Handlebars Layout & Caching)"]
+        BREVO["BrevoEmailAdapter / Mailgun / SendGrid<br/>(IEmailAdapter)"]
+        WA_SVC["WhatsAppProviderService<br/>(Redis 24h Dedup & Template Registry)"]
+        LITEAPP["LiteAppWhatsAppAdapter<br/>(IWhatsAppAdapter: LiteApp / Meta API)"]
     end
 
     subgraph Client_Inbox["In-App Notification Center (Client Facing)"]
@@ -107,8 +114,13 @@ flowchart TD
     PERSIST -->|No / Done| SEND_WA
 
     SEND_PUSH -->|pushEnabled: true| FCM
-    SEND_EMAIL -->|emailEnabled: true| BREVO
-    SEND_WA -->|whatsappEnabled: true| WA
+    SEND_EMAIL -->|emailEnabled: true| EMAIL_SVC
+    EMAIL_SVC --> RESOLVER
+    EMAIL_SVC --> BREVO
+
+    SEND_WA -->|whatsappEnabled: true| WA_SVC
+    WA_SVC --> RESOLVER
+    WA_SVC --> LITEAPP
 
     CLIENT -->|GET /unread-count, GET /, PATCH /:id/read| CTRL
     CTRL -->|Queries & Updates| DB_WRITE
@@ -515,14 +527,15 @@ src/modules/notifications/templates/
   {{#if (gt creditsUsed 1)}}credits{{else}}credit{{/if}}
   ```
 
-### 2. Envelope-Encrypted Email Resolution
+### 2. Envelope-Encrypted Email Resolution via Recipient Resolver
 
-BreathAway enforces zero-plaintext storage of Personally Identifiable Information (PII). The `User` table contains no email column. Instead:
+BreathAway enforces zero-plaintext storage of Personally Identifiable Information (PII). The `User` table contains no email column. Rather than performing database queries and KMS operations directly, `EmailService` delegates recipient identity and profile resolution to the dedicated `NotificationRecipientResolverService`:
 
-1. `EmailService.send()` queries `AuthCredential` records where `type = AuthCredentialType.EMAIL` and `deletedAt IS NULL`.
-2. It fetches the attached `Identity` record containing `publicValueCiphertext`, `publicValueIv`, `publicValueTag`, and `publicValueWrappedKey`.
-3. It passes these fields to `IdentityCryptoService.decryptPublicValue()`, decrypting the ciphertext via AES-256-GCM and GCP Cloud KMS.
-4. Emails are de-duplicated and normalized to lowercase before dispatching.
+1. `EmailService.send()` calls `this.recipientResolver.resolveEmails(userIds)`.
+2. The resolver queries `AuthCredential` records (`type = AuthCredentialType.EMAIL`, `deletedAt IS NULL`) with fallback to verified `Identity` records.
+3. Decrypts the attached envelope ciphertext via `IdentityCryptoService.decryptPublicValue()` (AES-256-GCM + Google Cloud KMS).
+4. Returns a `Map<string, ResolvedEmailContact>` with trimmed lowercase emails and profile `firstName`.
+5. `EmailService` deduplicates by recipient email address to avoid sending multiple identical emails to the same destination.
 
 ### 3. Provider Adapter (`BrevoEmailAdapter`)
 
@@ -574,6 +587,179 @@ Relative links are resolved against the `APP_URL` environment variable:
 
 > [!TIP]
 > For a full client-side implementation guide (service workers, VAPID key setup, token synchronization, and foreground toast handling), consult the [Web Push Integration Guide](../api/web-push.md).
+
+---
+
+## 💬 WhatsApp Delivery Infrastructure (LiteApp Integration)
+
+BreathAway integrates WhatsApp messaging to deliver real-time, high-visibility alerts (e.g. mutual matches and new account logins). Rather than connecting directly to Meta Cloud API during initial rollout, BreathAway routes messages through **LiteApp**, which hosts a shared WhatsApp business number.
+
+### 1. Pluggable Transport Adapter Pattern
+
+To isolate delivery mechanics and enable a zero-downtime transition to Meta's native Cloud API in the future, the provider adheres strictly to the Adapter Pattern:
+
+```
+src/modules/notifications/whatsapp/
+├── adapters/
+│   ├── whatsapp-adapter.interface.ts   # IWhatsAppAdapter contract & WHATSAPP_ADAPTER_TOKEN
+│   └── liteapp.whatsapp.adapter.ts     # Concrete LiteApp HTTP client
+└── whatsapp-template.registry.ts       # Meta approved template mappings
+```
+
+```typescript
+export interface WhatsAppSendPayload {
+  to: string; // Recipient phone number in E.164 digits without "+" (e.g. "919876543210")
+  template: string; // Meta-approved template name
+  language?: string; // Language code (default: 'en')
+  params?: Record<string, unknown>; // Optional template variables
+}
+
+export interface IWhatsAppAdapter {
+  send(payload: WhatsAppSendPayload): Promise<void>;
+}
+```
+
+At runtime, `NotificationsModule` uses NestJS factory injection to bind `WHATSAPP_ADAPTER_TOKEN` based on the `WHATSAPP_PROVIDER` environment variable:
+
+- When `WHATSAPP_PROVIDER === 'liteapp'` (default), `LiteAppWhatsAppAdapter` is injected.
+- Future providers (e.g., native Meta Cloud API) implement `IWhatsAppAdapter` without touching `WhatsAppProviderService` or domain event logic.
+
+### 2. LiteApp HTTP API Contract
+
+The `LiteAppWhatsAppAdapter` communicates with LiteApp via standard JSON over HTTP:
+
+- **Endpoint**: `POST ${LITEAPP_WHATSAPP_URL}/api/routes/plugins/whatsapp/send`
+  - Development / Staging: `https://dev.liteapp.store`
+  - Production: `https://liteapp.store`
+- **Headers**:
+  - `Authorization: Bearer ${LITEAPP_WHATSAPP_KEY}`
+  - `Content-Type: application/json`
+- **Payload Example**:
+  ```json
+  {
+    "to": "919876543210",
+    "template": "breathaway_new_match",
+    "language": "en"
+  }
+  ```
+
+### 3. Rate-Limiting & Backoff Retry Policy
+
+To avoid duplicate notifications while maintaining resilience against upstream provider throttling, `LiteAppWhatsAppAdapter` enforces a strict response handling policy:
+
+| Response Status                    | Action                             | Rationale                                                                                                                               |
+| :--------------------------------- | :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **`200 OK`**                       | **Success — Never retry**          | Message successfully accepted by WhatsApp gateway. Retrying causes duplicate recipient messages.                                        |
+| **`429 Too Many Requests`**        | **Retry Once after `Retry-After`** | Parses the upstream `Retry-After` header (in seconds, default: 2s) and retries the HTTP call exactly once.                              |
+| **`4xx` / `5xx` / Network Errors** | **Log & Do Not Retry**             | Template errors, invalid destination numbers, or transient 500s are logged with structured context (`step: 'liteapp_dispatch_failed'`). |
+
+### 4. Distributed Event Deduplication via Redis
+
+To guarantee that a user never receives duplicate WhatsApp messages for the same business event (e.g., if a domain event re-fires or a Pub/Sub consumer retries a message), `WhatsAppProviderService` utilizes a distributed Redis deduplication lock with in-memory TTL map fallback:
+
+- **Deduplication Key Pattern**:
+  - Mutual Matches: `whatsapp:match:{matchId}:{userId}`
+- **TTL Window**: `86,400 seconds` (24 hours / 1 day).
+- **Atomic Acquisition**:
+  ```typescript
+  const result = await redisClient.set(key, '1', 'EX', 86400, 'NX');
+  const isDuplicate = result !== 'OK';
+  ```
+- **Fallback**: If Redis is unavailable or unconfigured, an in-memory `Map<string, number>` tracks event dispatches with identical TTL pruning using `DateUtil.now()`.
+
+### 5. Meta Template Registry Catalog
+
+All WhatsApp templates must be approved by Meta before dispatch. Template configurations are declared in `WHATSAPP_TEMPLATE_MAP`:
+
+| Event / Notification Type | Meta Template Name          | Target Recipients                                  | Language | Button / Deep Link                         | Description                                                                                                       |
+| :------------------------ | :-------------------------- | :------------------------------------------------- | :------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| `NEW_MATCH`               | `breathaway_new_match`      | **Both matched users** (`userOneId` & `userTwoId`) | `en`     | Opens `https://breathaway.app/app/matches` | "You have a new match on BreathAway! Someone you liked has liked you back. Tap below to see who it is and say hi" |
+| `WELCOME`                 | `breathaway_new_user_login` | New account holder                                 | `en`     | Opens onboarding portal                    | Welcome alert upon initial verified login / registration                                                          |
+| `LIKE_SENT`               | `breathaway_like_sent`      | Like sender                                        | `en`     | Deep link with `buttonUrlVariable`         | Confirmation that secret like was safely dispatched                                                               |
+
+> [!IMPORTANT]
+> **Mutual Match WhatsApp Policy**: When a match is created, the alert is sent concurrently to **both** `userOneId` and `userTwoId`. Neither user is excluded, ensuring immediate re-engagement on mobile channels.
+
+---
+
+## 🔐 Recipient Identity Resolution Architecture (NotificationRecipientResolverService)
+
+BreathAway enforces end-to-end cryptographic envelope encryption for all sensitive user contact data (email addresses and phone numbers). The `User` database entity contains no plaintext or hashed contact fields.
+
+To eliminate code duplication, enforce the Single Responsibility Principle (SRP), and shield delivery providers (`EmailService`, `WhatsAppProviderService`) from database queries and cryptographic internals, the resolution logic is encapsulated in `NotificationRecipientResolverService`.
+
+### 1. Architectural Motivation & Decoupling
+
+Prior to this architecture, individual channel providers independently queried `AuthCredential` and `Identity` tables, handled Prisma relation includes, and called `IdentityCryptoService.decryptPublicValue()`. This violated clean modular boundaries:
+
+- **Leaky Abstractions**: Email and WhatsApp services were tightly coupled to database schema details (`AuthCredentialType`, `publicValueCiphertext`, `publicValueIv`, `publicValueTag`, etc.).
+- **Code Duplication**: Phone standardization (E.164 parsing) and envelope decryption were implemented multiple times.
+- **Resilience Friction**: A single corrupted credential could throw an exception and interrupt batch processing for other users.
+
+With `NotificationRecipientResolverService`:
+
+```
+Domain Feature (e.g. EmailService, WhatsAppProviderService)
+                │
+                ▼ (Clean Interface: userIds[])
+NotificationRecipientResolverService
+  ├── PrismaService (AuthCredential & Identity queries)
+  ├── IdentityCryptoService (AES-256-GCM + Google Cloud KMS)
+  └── libphonenumber-js (ITU-T E.164 formatting & validation)
+```
+
+Both `EmailService` and `WhatsAppProviderService` are now lean consumers that receive strongly-typed, decrypted contacts without touching Prisma or cryptography.
+
+### 2. Standardized Contact Contracts
+
+The resolver outputs strongly-typed data contracts defined in `src/modules/notifications/recipient/interfaces/resolved-contact.interface.ts`:
+
+```typescript
+export interface ResolvedEmailContact {
+  userId: string;
+  email: string; // Trimmed, lowercased email address
+  firstName?: string; // Recipient's display name from UserProfile
+}
+
+export interface ResolvedPhoneContact {
+  userId: string;
+  phoneDigits: string; // E.164 digits-only without "+" (e.g. "919876543210" for LiteApp/Meta)
+  e164Formatted: string; // Full E.164 with "+" (e.g. "+919876543210")
+  firstName?: string; // Recipient's display name from UserProfile
+}
+```
+
+### 3. Resolution Hierarchy & Fallback Logic
+
+When resolving contacts for an array of user IDs, the resolver executes a two-tier resolution strategy:
+
+1. **Primary: `AuthCredential` Table**:
+   - Queries active credentials (`type: EMAIL` or `type: PHONE`, `deletedAt: null`).
+   - Includes user profile (`user.profile.firstName`) and linked `Identity` encryption envelope.
+   - Decrypts `publicValueCiphertext` via `IdentityCryptoService.decryptPublicValue()`.
+2. **Fallback: `Identity` Table**:
+   - For any user IDs not resolved via `AuthCredential` (e.g., users who linked an additional verified identity), queries `Identity` records (`type: EMAIL` or `type: PHONE`, `isVerified: true`, `deletedAt: null`).
+   - Ordered by `createdAt ASC` to select the primary verified contact method.
+   - Decrypts ciphertext and populates contact records.
+
+### 4. International Phone Normalization (ITU-T E.164)
+
+WhatsApp gateways require strict ITU-T E.164 digits-only formatting (e.g., `919876543210` with country code, without spaces, dashes, or the leading `+`). The resolver utilizes `libphonenumber-js`:
+
+- Trims raw decrypted phone strings.
+- Validates international country calling codes and national number length.
+- Standardizes into two formats:
+  - `phoneDigits`: `${countryCallingCode}${nationalNumber}` (e.g., `919876543210`).
+  - `e164Formatted`: `+${countryCallingCode}${nationalNumber}` (e.g., `+919876543210`).
+- If library parsing fails on legacy records, falls back to regex digit sanitization (`\D` stripping) with minimum length verification ($\ge 7$ digits).
+
+### 5. Resilient Error Isolation
+
+If a single user's credential has corrupted ciphertext, an expired KMS data key, or an invalid phone number:
+
+- The error is logged with structured context (`step: 'decrypt_email_credential'` or `'decrypt_phone_credential'`, `userId`, `serializeError`).
+- The resolver does **not** throw. It skips the faulty user and continues resolving contacts for remaining users in the batch.
+- Batch dispatches (such as mutual matches or credit purchase receipts) are never dropped due to a single bad record.
 
 ---
 
@@ -887,18 +1073,22 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ## ⚙️ Configuration & Environment Variables
 
-| Variable                     | Type   | Description                                         | Example                                       |
-| :--------------------------- | :----- | :-------------------------------------------------- | :-------------------------------------------- |
-| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API | `xkeysib-••••••••••••`                        |
-| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo         | `no-reply@breathaway.app`                     |
-| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails             | `BreathAway`                                  |
-| `APP_URL`                    | String | Base frontend or universal deep-link URL            | `https://app.breathaway.app`                  |
-| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                | `https://app.breathaway.app/icon-192x192.png` |
-| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                 | `https://app.breathaway.app/badge-72x72.png`  |
-| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue      | `notifications-stream`                        |
+| Variable                     | Type   | Description                                                          | Example                                               |
+| :--------------------------- | :----- | :------------------------------------------------------------------- | :---------------------------------------------------- |
+| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager) | `xkeysib-••••••••••••`                                |
+| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo                          | `no-reply@breathaway.app`                             |
+| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                          |
+| `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                             |
+| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://dev.liteapp.store` / `https://liteapp.store` |
+| `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                              |
+| `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication   | `redis://default:••••@10.0.0.5:6379`                  |
+| `APP_URL`                    | String | Base frontend or universal deep-link URL                             | `https://app.breathaway.app`                          |
+| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                                 | `https://app.breathaway.app/icon-192x192.png`         |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                                  | `https://app.breathaway.app/badge-72x72.png`          |
+| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                                |
 
 > [!CAUTION]
-> In production environments (Cloud Run), `BREVO_API_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control.
+> In production environments (Cloud Run), `BREVO_API_KEY` and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/common.secrets.sh`.
 
 ---
 
@@ -906,6 +1096,14 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ### Unit Testing Providers & In-App Workflows
 
+- **`NotificationRecipientResolverService`**: Tests identity decryption, AuthCredential resolution, verified Identity fallbacks, phone normalization (E.164 digits-only & standard), and resilient error handling for individual decryption failures.
+  - File: `src/modules/notifications/tests/recipient/notification-recipient-resolver.service.spec.ts`
+- **`LiteAppWhatsAppAdapter`**: Tests missing key/phone validations, successful 200 non-retry sends, HTTP 429 rate limit backoff retry honoring `Retry-After`, and non-retry error handling.
+  - File: `src/modules/notifications/tests/whatsapp/liteapp.whatsapp.adapter.spec.ts`
+- **`WhatsAppProviderService`**: Tests phone resolution delegation to `NotificationRecipientResolverService`, Redis 24h deduplication lock, and fault-isolated error handling.
+  - File: `src/modules/notifications/tests/providers/whatsapp.provider.service.spec.ts`
+- **`EmailService`**: Tests delegation to `NotificationRecipientResolverService`, Handlebars template compilation, partial registration, batch personalized rendering, and email deduplication.
+  - File: `src/modules/notifications/tests/email.service.spec.ts`
 - **`NotificationsController`**: Tests user-scoped queries, pagination cursors, unread badge counters, and idempotent read/dismiss mutations.
   - File: `src/modules/notifications/tests/notifications.controller.spec.ts`
 - **`NotificationsAdminController`**: Tests admin HTTP Basic Auth guard enforcement and payload dispatch to Pub/Sub.
@@ -914,20 +1112,19 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
   - File: `src/modules/notifications/tests/notifications.service.spec.ts`
 - **`BrevoEmailAdapter`**: Tested with mocked `axios.post` calls to verify payload serialization, authentication headers (`api-key`), timeout configurations, and error handling.
   - File: `src/modules/notifications/tests/brevo.email.adapter.spec.ts`
-- **`EmailService`**: Tested with mocked `PrismaService`, `IdentityCryptoService`, and `IEmailAdapter` to verify envelope decryption, Handlebars caching, and preference filtering.
-  - File: `src/modules/notifications/tests/email.service.spec.ts`
 - **Full Test Suite Execution**:
   ```bash
-  pnpm test src/modules/notifications
+  npm test src/modules/notifications
   ```
 
 ### Manual Verification via Postman / Swagger
 
-To trigger and verify in-app notifications in staging:
+To trigger and verify notifications in staging:
 
 1. Send an authenticated request to `GET /api/v1/notifications/unread-count` with user JWT.
-2. Trigger an action that emits a push notification (e.g. `POST /api/v1/likes` or `POST /api/v1/devices`).
-3. Re-query `GET /api/v1/notifications/unread-count` to verify badge increment.
-4. Fetch inbox items via `GET /api/v1/notifications` and verify the newly stored notification payload.
-5. Mark the item as read via `PATCH /api/v1/notifications/:id/read` and verify `isRead: true` and `readAt` timestamp.
-6. Verify email delivery in the Brevo Transactional Email dashboard.
+2. Trigger a mutual match between two test accounts (e.g. `POST /api/v1/likes`).
+3. Re-query `GET /api/v1/notifications/unread-count` to verify badge increment for both users.
+4. Verify that WhatsApp messages are received on both test phone numbers with the `breathaway_new_match` template.
+5. Fetch inbox items via `GET /api/v1/notifications` and verify the newly stored notification payload.
+6. Mark the item as read via `PATCH /api/v1/notifications/:id/read` and verify `isRead: true` and `readAt` timestamp.
+7. Verify email delivery in the Brevo Transactional Email dashboard.

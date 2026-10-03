@@ -2,14 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { AuthCredentialType } from '@prisma/client';
 import * as Handlebars from 'handlebars';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 import { EmailType } from '@modules/notifications/enums/email-type.enum';
 
 import {
@@ -18,6 +15,7 @@ import {
   type IEmailAdapter,
 } from './adapters/email-adapter.interface';
 import { EMAIL_TEMPLATE_MAP } from './email-template.registry';
+import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
 
 export interface SendEmailOptions {
   /** The type of email — drives template and subject selection */
@@ -51,8 +49,7 @@ export class EmailService extends BaseService implements OnModuleInit {
 
   constructor(
     loggerService: LoggerService,
-    private readonly prisma: PrismaService,
-    private readonly identityCryptoService: IdentityCryptoService,
+    private readonly recipientResolver: NotificationRecipientResolverService,
     @Inject(EMAIL_ADAPTER_TOKEN)
     private readonly emailAdapter: IEmailAdapter,
   ) {
@@ -104,66 +101,9 @@ export class EmailService extends BaseService implements OnModuleInit {
       return;
     }
 
-    // Resolve email addresses via AuthCredential (type=EMAIL).
-    // The User model has no email field — emails are envelope-encrypted in the
-    // linked Identity record. We query the ciphertext fields and decrypt via IdentityCryptoService.
-    const credentials = await this.prisma.authCredential.findMany({
-      where: {
-        userId: { in: userIds },
-        type: AuthCredentialType.EMAIL,
-        deletedAt: null,
-      },
-      include: {
-        identity: {
-          select: {
-            publicValueCiphertext: true,
-            publicValueIv: true,
-            publicValueTag: true,
-            publicValueWrappedKey: true,
-            publicValueKeyId: true,
-          },
-        },
-        user: {
-          select: {
-            profile: {
-              select: {
-                firstName: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const decryptedResults = await Promise.allSettled(
-      credentials.map(async (cred) => {
-        if (!cred.identity) {
-          return null;
-        }
-
-        try {
-          const email = await this.identityCryptoService.decryptPublicValue(
-            cred.identity,
-          );
-          if (email && email.trim() !== '') {
-            return {
-              userId: cred.userId,
-              email: email.trim().toLowerCase(),
-              firstName: cred.user?.profile?.firstName,
-            };
-          }
-          return null;
-        } catch (err) {
-          this.logger.error('Failed to decrypt user email address', {
-            ...ctx,
-            userId: cred.userId,
-            step: 'decrypt_email',
-            err: serializeError(err),
-          });
-          return null;
-        }
-      }),
-    );
+    // Resolve email addresses and recipient profiles via NotificationRecipientResolverService
+    const contactsByUserId =
+      await this.recipientResolver.resolveEmails(userIds);
 
     // Deduplicate by recipient email to avoid sending multiple messages to the same address
     const recipientByEmail = new Map<
@@ -171,12 +111,12 @@ export class EmailService extends BaseService implements OnModuleInit {
       { userId: string; firstName?: string }
     >();
 
-    for (const res of decryptedResults) {
-      if (res.status === 'fulfilled' && res.value) {
-        const { email, userId, firstName } = res.value;
-        if (!recipientByEmail.has(email)) {
-          recipientByEmail.set(email, { userId, firstName });
-        }
+    for (const contact of contactsByUserId.values()) {
+      if (!recipientByEmail.has(contact.email)) {
+        recipientByEmail.set(contact.email, {
+          userId: contact.userId,
+          firstName: contact.firstName,
+        });
       }
     }
 

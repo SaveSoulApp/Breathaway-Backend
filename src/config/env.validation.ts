@@ -84,6 +84,11 @@ export const envValidationSchema = Joi.object({
   MAILGUN_DOMAIN: Joi.string().optional(),
   SENDGRID_API_KEY: Joi.string().optional(),
 
+  // WhatsApp Notifications Provider & Credentials
+  WHATSAPP_PROVIDER: Joi.string().valid('liteapp', 'meta').default('liteapp'),
+  LITEAPP_WHATSAPP_URL: Joi.string().uri().default('https://dev.liteapp.store'),
+  LITEAPP_WHATSAPP_KEY: Joi.string().optional(),
+
   // Swagger Documentation Access Control
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('true'),
 

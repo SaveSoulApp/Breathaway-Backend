@@ -32,6 +32,7 @@ locals {
     razorpay_key_id           = "razorpay-key-id"
     razorpay_key_secret       = "razorpay-key-secret"
     razorpay_webhook_secret   = "razorpay-webhook-secret"
+    liteapp_whatsapp_key      = "liteapp-whatsapp-key"
   }
 
   # List of all secrets required by the backend service at runtime (mirrors COMMON_SECRETS)

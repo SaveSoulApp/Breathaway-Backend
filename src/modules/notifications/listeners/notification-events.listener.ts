@@ -195,7 +195,11 @@ export class NotificationEventsListener extends BaseService {
 
       // Dispatch for User One
       await this.notificationsService.dispatch({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        channels: [
+          NotificationChannel.PUSH,
+          NotificationChannel.EMAIL,
+          NotificationChannel.WHATSAPP,
+        ],
         userIds: [event.userOneId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
@@ -212,7 +216,11 @@ export class NotificationEventsListener extends BaseService {
 
       // Dispatch for User Two
       await this.notificationsService.dispatch({
-        channels: [NotificationChannel.PUSH, NotificationChannel.EMAIL],
+        channels: [
+          NotificationChannel.PUSH,
+          NotificationChannel.EMAIL,
+          NotificationChannel.WHATSAPP,
+        ],
         userIds: [event.userTwoId],
         type: NotificationType.NEW_MATCH,
         category: NotificationCategory.SOCIAL,
@@ -304,7 +312,7 @@ export class NotificationEventsListener extends BaseService {
       const name = await this.resolveUserFirstName(event.userId);
 
       await this.notificationsService.dispatch({
-        channels: [NotificationChannel.EMAIL],
+        channels: [NotificationChannel.EMAIL, NotificationChannel.WHATSAPP],
         userIds: [event.userId],
         type: NotificationType.WELCOME,
         category: NotificationCategory.SYSTEM,
