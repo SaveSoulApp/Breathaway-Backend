@@ -373,13 +373,15 @@ export class BlocksService extends BaseService {
 
   // Flattens the nested Prisma profile join into the flat BlockedUser shape.
   private mapToResponseDto(block: BlockWithProfile) {
+    const isDeleted = !block.blocked;
     return {
       id: block.id,
       createdAt: block.createdAt,
       blockedUser: {
-        id: block.blocked?.id ?? '',
-        firstName: block.blocked?.profile?.firstName ?? null,
+        id: block.blocked?.id ?? null,
+        firstName: block.blocked?.profile?.firstName ?? 'Deleted User',
         lastName: block.blocked?.profile?.lastName ?? null,
+        isDeleted,
       },
     };
   }

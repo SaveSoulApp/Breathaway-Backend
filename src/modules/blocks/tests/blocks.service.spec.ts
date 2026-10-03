@@ -55,6 +55,7 @@ describe('BlocksService', () => {
       id: blockedUserId,
       firstName: 'John',
       lastName: 'Doe',
+      isDeleted: false,
     },
   };
 
@@ -271,6 +272,26 @@ describe('BlocksService', () => {
         },
       });
       expect(result).toEqual([mockResponseData]);
+    });
+
+    it('should serialize block response with isDeleted: true and friendly name when blocked user is deleted', async () => {
+      // Arrange
+      const deletedUserBlock = {
+        ...mockBlockData,
+        blocked: null,
+      };
+      prisma.block.findMany.mockResolvedValue([deletedUserBlock]);
+
+      // Act
+      const result = await service.findAllForUser(userId, 1, 50);
+
+      // Assert
+      expect(result[0].blockedUser).toEqual({
+        id: null,
+        firstName: 'Deleted User',
+        lastName: null,
+        isDeleted: true,
+      });
     });
   });
 
