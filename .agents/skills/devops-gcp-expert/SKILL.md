@@ -78,19 +78,24 @@ tasks (e.g., "just review this Dockerfile").
   manually via console/gcloud, so the schedule, target, and service account are version
   controlled together.
 
-### 5. Secret Manager
+### 5. Secret Manager & Secret Lifecycle (Multi-Layer Synchronization)
 
-- All secrets (DB connection strings, Firebase service account JSON, third-party API keys)
+- All secrets (DB connection strings, Firebase service account credentials, third-party API keys)
   are stored in GCP Secret Manager, referenced by Cloud Run as secret environment variables or
   mounted volumes — never baked into the Docker image or committed to the repo.
-- Secrets are provisioned via Terraform (`google_secret_manager_secret` +
-  `google_secret_manager_secret_version`), with the secret _value_ itself never committed to
-  the Terraform repo — see `references/terraform-standards.md` for the pattern of declaring
-  the secret resource in Terraform while injecting the value out-of-band (CI secret, `tfvars`
-  excluded from VCS, or manual `gcloud` population post-apply).
+- **Cross-Layer Synchronization Protocol**: Whenever adding, modifying, or deprecating a secret,
+  changes MUST touch all three code layers simultaneously:
+  1. **TypeScript**: `src/common/enums/gcp-secret-name.enum.ts` (`GcpSecretName` enum) + `index.ts`.
+  2. **Terraform**: `terraform/secrets.tf` (`local.secret_names`) + `terraform/backend-iam.tf`
+     (`google_secret_manager_secret_iam_member` per-secret least-privilege binding).
+  3. **Deployment Scripts**: `scripts/common.secrets.sh` (`export SECRET_<NAME>=...` and
+     `COMMON_SECRETS=(...)` container mapping array), consumed by `scripts/deploy.sh`.
 - Grant secret access narrowly: each Cloud Run service's runtime service account gets
-  `roles/secretmanager.secretAccessor` only on the specific secrets it needs, not project-wide
-  access.
+  `roles/secretmanager.secretAccessor` only on the specific secrets it needs (via `terraform/backend-iam.tf`),
+  never project-wide access.
+- **Deprecation/Deletion Order**: Update application code first, remove from `scripts/common.secrets.sh`
+  and `terraform/secrets.tf`, deploy successfully, and only then disable/destroy secret versions in GCP
+  to prevent breaking running instances.
 
 ### 6. Terraform
 
@@ -139,6 +144,11 @@ When doing a full infrastructure/deployment review, verify all of the following:
 - [ ] No secret values committed to the repo or Terraform state in plaintext history
 - [ ] Each service's runtime SA has `secretAccessor` only on the secrets it actually needs
 - [ ] Secret rotation strategy exists for long-lived credentials (DB password, API keys)
+- [ ] Any added, renamed, or deprecated secret is synchronized across all 3 layers:
+  - TypeScript: `src/common/enums/gcp-secret-name.enum.ts` (`GcpSecretName` enum)
+  - Terraform: `terraform/secrets.tf` (`local.secret_names`) + `terraform/backend-iam.tf`
+  - Deployment: `scripts/common.secrets.sh` (`export SECRET_*` + `COMMON_SECRETS` array)
+- [ ] Cloud Run secret mounts (`--update-secrets`) match IAM `google_secret_manager_secret_iam_member` permissions
 
 **Cloud Scheduler**
 

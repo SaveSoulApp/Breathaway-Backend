@@ -1,10 +1,13 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
 import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+
+import { VerifyInstagramRequestDto } from '../dto';
 import { SocialIdentitiesController } from '../social-identities.controller';
 import { SocialidentitiesService } from '../social-identities.service';
-import { VerifyInstagramRequestDto } from '../dto';
-import { ClsService } from 'nestjs-cls';
 
 describe('SocialIdentitiesController', () => {
   let controller: SocialIdentitiesController;
@@ -35,7 +38,10 @@ describe('SocialIdentitiesController', () => {
         { provide: SocialidentitiesService, useValue: mockService },
         { provide: LoggerService, useValue: logger },
       ],
-    }).compile();
+    })
+      .overrideGuard(AdminBasicAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     controller = module.get<SocialIdentitiesController>(
       SocialIdentitiesController,

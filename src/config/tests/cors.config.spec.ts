@@ -1,6 +1,14 @@
 import { INestApplication } from '@nestjs/common';
+import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+const cors: (
+  options?: CorsOptions,
+) => (
+  req: unknown,
+  res: unknown,
+  next: (err?: unknown) => void,
+) => void = require('cors');
 
 import {
   CORS_CONFIG_KEY,
@@ -11,6 +19,44 @@ import {
   DEFAULT_CORS_METHODS,
   DEFAULT_CORS_ORIGINS,
 } from '../cors.config';
+
+interface MockResponse {
+  headers: Record<string, string>;
+  setHeader: (key: string, value: string) => void;
+  getHeader: (key: string) => string | undefined;
+}
+
+function createMockResponse(): MockResponse {
+  const headers: Record<string, string> = {};
+  return {
+    headers,
+    setHeader(key: string, value: string) {
+      headers[key.toLowerCase()] = value;
+    },
+    getHeader(key: string) {
+      return headers[key.toLowerCase()];
+    },
+  };
+}
+
+function executeCorsMiddleware(
+  options: CorsOptions,
+  reqHeaders: Record<string, string | undefined>,
+): { res: MockResponse; nextCalled: boolean } {
+  const middleware = cors(options);
+  const req = {
+    headers: reqHeaders,
+    method: 'GET',
+  };
+  const res = createMockResponse();
+  let nextCalled = false;
+
+  middleware(req as never, res as never, () => {
+    nextCalled = true;
+  });
+
+  return { res, nextCalled };
+}
 
 describe('CorsConfig', () => {
   const originalEnv = process.env.CORS_ORIGINS;
@@ -96,12 +142,25 @@ describe('CorsConfig', () => {
       expect(options.optionsSuccessStatus).toBe(204);
     });
 
-    it('should map origin to true when wildcard is included in allowedOrigins', () => {
+    it('should disallow credentials and set origin to literal wildcard when wildcard is included in allowedOrigins', () => {
       const config = new CorsConfig({
         allowedOrigins: ['*'],
       });
+      expect(config.credentials).toBe(false);
       const options = config.toCorsOptions();
-      expect(options.origin).toBe(true);
+      expect(options.origin).toBe('*');
+      expect(options.credentials).toBe(false);
+    });
+
+    it('should force credentials to false even if credentials: true was explicitly passed when wildcard is present', () => {
+      const config = new CorsConfig({
+        allowedOrigins: ['*'],
+        credentials: true,
+      });
+      expect(config.credentials).toBe(false);
+      const options = config.toCorsOptions();
+      expect(options.origin).toBe('*');
+      expect(options.credentials).toBe(false);
     });
   });
 
@@ -192,7 +251,7 @@ describe('CorsConfig', () => {
       );
     });
 
-    it('should handle wildcard origins properly by passing origin: true', () => {
+    it('should handle wildcard origins securely by setting origin: "*" and credentials: false', () => {
       const cors = new CorsConfig({
         allowedOrigins: ['*'],
       });
@@ -205,9 +264,67 @@ describe('CorsConfig', () => {
 
       expect(mockApp.enableCors).toHaveBeenCalledWith(
         expect.objectContaining({
-          origin: true,
+          origin: '*',
+          credentials: false,
         }),
       );
+    });
+  });
+
+  describe('HTTP response verification (OWASP A05:2021 / CWE-942)', () => {
+    it('should not echo origin or return Access-Control-Allow-Credentials: true when CORS_ORIGINS is ["*"] and Origin is https://evil.com', () => {
+      const corsConfig = CorsConfig.fromEnv('["*"]');
+      const { res, nextCalled } = executeCorsMiddleware(
+        corsConfig.toCorsOptions(),
+        { origin: 'https://evil.com' },
+      );
+
+      expect(nextCalled).toBe(true);
+      // Crucial security verifications:
+      // 1. Origin must NOT be echoed as 'https://evil.com' (must be literal wildcard '*')
+      expect(res.getHeader('access-control-allow-origin')).toBe('*');
+      // 2. Credentials must NOT be allowed
+      expect(res.getHeader('access-control-allow-credentials')).toBeUndefined();
+    });
+
+    it('should reflect allowed origin with credentials: true when origin matches allowlist and block untrusted origin', () => {
+      const corsConfig = CorsConfig.fromEnv('["https://dev.breathaway.app"]');
+      const corsOptions = corsConfig.toCorsOptions();
+
+      // Legitimate origin
+      const { res: allowedRes, nextCalled: allowedNext } =
+        executeCorsMiddleware(corsOptions, {
+          origin: 'https://dev.breathaway.app',
+        });
+
+      expect(allowedNext).toBe(true);
+      expect(allowedRes.getHeader('access-control-allow-origin')).toBe(
+        'https://dev.breathaway.app',
+      );
+      expect(allowedRes.getHeader('access-control-allow-credentials')).toBe(
+        'true',
+      );
+
+      // Untrusted origin
+      const { res: evilRes, nextCalled: evilNext } = executeCorsMiddleware(
+        corsOptions,
+        { origin: 'https://evil.com' },
+      );
+
+      expect(evilNext).toBe(true);
+      // Untrusted origin is not allowed in Access-Control-Allow-Origin
+      expect(evilRes.getHeader('access-control-allow-origin')).toBeUndefined();
+    });
+
+    it('should allow requests without Origin header (e.g. React Native mobile clients)', () => {
+      const corsConfig = CorsConfig.fromEnv('["https://dev.breathaway.app"]');
+      const { res, nextCalled } = executeCorsMiddleware(
+        corsConfig.toCorsOptions(),
+        {},
+      );
+
+      expect(nextCalled).toBe(true);
+      expect(res.getHeader('access-control-allow-origin')).toBeUndefined();
     });
   });
 });

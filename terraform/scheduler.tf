@@ -58,7 +58,7 @@ resource "google_service_account" "maintenance_runner" {
 # 4. IAM: Grant maintenance-runner rights to add new versions strictly to the Instagram secret
 resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram_adder" {
   project   = var.project_id
-  secret_id = var.instagram_secret_name
+  secret_id = local.secret_names.instagram_access_token
   role      = "roles/secretmanager.secretVersionAdder"
   member    = "serviceAccount:${google_service_account.maintenance_runner.email}"
 }
@@ -66,7 +66,7 @@ resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram
 # 5. IAM: Grant maintenance-runner rights to read the Instagram secret
 resource "google_secret_manager_secret_iam_member" "maintenance_runner_instagram_accessor" {
   project   = var.project_id
-  secret_id = var.instagram_secret_name
+  secret_id = local.secret_names.instagram_access_token
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.maintenance_runner.email}"
 }

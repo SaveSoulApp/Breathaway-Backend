@@ -1,22 +1,33 @@
-import { Body, Controller, HttpStatus, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
+import { Body, Controller, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  ApiBasicAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
 import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentitiesService } from './social-identities.service';
 
 @ApiTags('Social Identities')
+@ApiStandardErrors()
+@ApiBasicAuth()
 @Controller({
   path: 'social-identities',
   version: ['1'],
 })
+@UseGuards(AdminBasicAuthGuard)
 /**
  * Handles HTTP operations for the /social-identities resource.
  *
- * Endpoints are intentionally public (no JWT guard) so that identity
- * verification can be performed at the pre-onboarding stage, before a user
- * account token is issued.
+ * Endpoints are restricted to internal administrators via AdminBasicAuthGuard
+ * for identity verification workflows.
  */
 export class SocialIdentitiesController extends BaseController {
   constructor(

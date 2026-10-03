@@ -28,13 +28,12 @@ export DEPLOYMENT_ENV='gcp'
 export APP_NAME="BreathAway"
 export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'
 export MIN_APP_VERSION="1.0.0"
-export CORS_ORIGINS='["https://breathaway.com","https://www.breathaway.com"]'
+export CORS_ORIGINS='["https://breathaway.app","https://www.breathaway.app"]'
 
 export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'
 
 export META_VERIFY_TOKEN='my_meta_verification_token'
-export INSTAGRAM_SECRET_NAME='access-token-instagram'
 
 # Firebase Admin SDK Configuration
 export FIREBASE_PROJECT_ID='breathaway-dev-37fd5'

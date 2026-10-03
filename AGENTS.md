@@ -12,7 +12,43 @@ These guidelines define the core architectural, coding, and workflow standards f
 
 ---
 
-## 2. Notification Architecture: Domain Events (Decoupled)
+## 2. GCP Secret Management Lifecycle (Cross-Layer Synchronization)
+
+Every secret managed in Google Cloud Secret Manager requires coordinated synchronization across three code layers whenever a secret is **added**, **renamed**, or **deprecated/removed**. Missing any single layer leads to container boot failures (`SECRETS_ACCESS_CHECK_FAILED`) or runtime configuration errors.
+
+### Mandatory Synchronization Protocol
+
+1. **TypeScript Layer (`src/common/enums/`)**:
+   - Declare the canonical secret identifier in [`GcpSecretName`](src/common/enums/gcp-secret-name.enum.ts).
+   - Re-export via `src/common/enums/index.ts`.
+   - Access secrets at runtime via NestJS `ConfigService` (environment variables mounted by Cloud Run) or type-safely via `GcpSecretName` when interacting directly with `GcpSecretManagerService`.
+   - Never hardcode raw secret name strings in business logic.
+
+2. **Terraform Infrastructure Layer (`terraform/`)**:
+   - Register the secret in `local.secret_names` in [`terraform/secrets.tf`](terraform/secrets.tf).
+   - `local.backend_common_secrets = values(local.secret_names)` automatically synchronizes IAM bindings.
+   - Verify [`terraform/backend-iam.tf`](terraform/backend-iam.tf) grants `roles/secretmanager.secretAccessor` on the secret to `backend-service` via `google_secret_manager_secret_iam_member` (scoped per-secret least privilege).
+   - If the secret requires rotation or write capabilities (e.g., maintenance runner), update [`terraform/scheduler.tf`](terraform/scheduler.tf).
+
+3. **Bash Deployment Layer (`scripts/`)**:
+   - Declare `export SECRET_<NAME>="<canonical-secret-id>"` in [`scripts/common.secrets.sh`](scripts/common.secrets.sh).
+   - Add the container mapping into `COMMON_SECRETS=(...)` array in [`scripts/common.secrets.sh`](scripts/common.secrets.sh):
+     ```bash
+     "<CONTAINER_ENV_VAR_NAME>=${SECRET_<NAME>}:latest"
+     ```
+   - [`scripts/deploy.sh`](scripts/deploy.sh) sources this array and automatically mounts secrets via `gcloud run deploy --update-secrets`.
+   - Never declare duplicate secret strings or arrays in `common.dev.sh`, `common.prod.sh`, or `deploy.sh`.
+
+4. **Deprecation / Deletion Protocol**:
+   - When removing or deprecating a secret:
+     1. Remove usages in application code and `GcpSecretName`.
+     2. Remove mapping in `scripts/common.secrets.sh` (`COMMON_SECRETS`).
+     3. Remove from `terraform/secrets.tf` (`local.secret_names`).
+     4. Only after deployment succeeds, delete or disable the secret versions in GCP Secret Manager to avoid breaking in-flight revisions.
+
+---
+
+## 3. Notification Architecture: Domain Events (Decoupled)
 
 To maintain clean modular boundaries and prevent cross-cutting leakage, domain feature services must **never** be coupled to notification delivery mechanics.
 
@@ -35,7 +71,7 @@ For full step-by-step implementation patterns and checklists, consult the `notif
 
 ---
 
-## 3. Code Organization & Import Conventions
+## 4. Code Organization & Import Conventions
 
 Adhere strictly to the four-group import order, alphabetized within each group, with a blank line separating groups:
 
@@ -60,7 +96,7 @@ import { CreateUserRequestDto } from './dto/request/create-user.request.dto';
 
 ---
 
-## 4. DTO Architecture & Validation
+## 5. DTO Architecture & Validation
 
 - Request DTOs: `src/modules/<feature>/dto/request/<entity>.request.dto.ts`
 - Response DTOs: `src/modules/<feature>/dto/response/<entity>.response.dto.ts`
@@ -69,7 +105,7 @@ import { CreateUserRequestDto } from './dto/request/create-user.request.dto';
 
 ---
 
-## 5. Testing Conventions
+## 6. Testing Conventions
 
 - Every new feature, service, or event handler must include corresponding unit tests (`*.spec.ts`).
 - Follow the AAA (Arrange, Act, Assert) structure.

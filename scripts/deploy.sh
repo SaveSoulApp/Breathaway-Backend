@@ -90,34 +90,12 @@ GIT_COMMIT=$(git rev-parse --short HEAD)
 IMAGE_TAG_WITH_COMMIT="${IMAGE_BASE_URL}:${GIT_COMMIT}"
 
 # Shared runtime secrets across services
-COMMON_SECRETS=(
-    "CLIENT_IDS=client-ids:latest"
-    "API_KEYS=api-keys:latest"
-    "JWT_SECRET=jwt-secret:latest"
-    "INSTAGRAM_ACCESS_TOKEN=${INSTAGRAM_SECRET_NAME:-access-token-instagram}:latest"
-    "DATABASE_URL=database-url:latest"
-    "REDIS_URL=redis-url:latest"
-    "GCP_SECRET_MASTER_KEYS=gcp-secret-master-keys:latest"
-    "ACTIVE_MASTER_KEY_ID=active-master-key-id:latest"
-    "HMAC_KEY_BASE64=hmac-key-base64:latest"
-    "FIREBASE_CLIENT_EMAIL=firebase-client-email:latest"
-    "FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
-    "KMS_KEY_NAMES=kms-key-names:latest"
-    "KMS_ACTIVE_KEY_ID=kms-active-key-id:latest"
-    "SUPABASE_URL=supabase-url:latest"
-    "SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest"
-    "SUPABASE_JWT_PRIVATE_KEY=supabase-jwt-private-key:latest"
-    "ADMIN_USERNAME=admin-username:latest"
-    "ADMIN_PASSWORD=admin-password:latest"
-    "SWAGGER_USERNAME=swagger-username:latest"
-    "SWAGGER_PASSWORD=swagger-password:latest"
-    "REVENUECAT_WEBHOOK_SECRET=revenuecat-webhook-secret:latest"
-    "IPINFO_TOKEN=ipinfo-token:latest"
-    "BREVO_API_KEY=brevo-api-key:latest"
-    "RAZORPAY_KEY_ID=razorpay-key-id:latest"
-    "RAZORPAY_KEY_SECRET=razorpay-key-secret:latest"
-    "RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest"
-)
+SECRETS_CONFIG_FILE="${SCRIPT_DIR}/common.secrets.sh"
+if [[ ! -f "${SECRETS_CONFIG_FILE}" ]]; then
+    print_error "Secrets configuration not found at ${SECRETS_CONFIG_FILE}"
+fi
+
+source "${SECRETS_CONFIG_FILE}"
 
 # Helper function to generate serialized environment variable string (^~^VAR1=VAL1~VAR2=VAL2)
 build_env_vars_string() {
@@ -135,7 +113,6 @@ build_env_vars_string() {
         "GCP_PROJECT_ID=${GCP_PROJECT_ID}"
         "GCP_BUCKET_NAME=${GCP_BUCKET_NAME}"
         "META_VERIFY_TOKEN=${META_VERIFY_TOKEN}"
-        "INSTAGRAM_SECRET_NAME=${INSTAGRAM_SECRET_NAME:-access-token-instagram}"
         "FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}"
         "JWT_EXPIRES_IN=${JWT_EXPIRES_IN}"
         "JWT_AUDIENCE=${JWT_AUDIENCE}"

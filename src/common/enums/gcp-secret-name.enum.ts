@@ -1,0 +1,31 @@
+/**
+ * Canonical Google Cloud Secret Manager secret identifiers used across the application.
+ */
+export enum GcpSecretName {
+  CLIENT_IDS = 'client-ids',
+  API_KEYS = 'api-keys',
+  JWT_SECRET = 'jwt-secret',
+  INSTAGRAM_ACCESS_TOKEN = 'access-token-instagram',
+  DATABASE_URL = 'database-url',
+  REDIS_URL = 'redis-url',
+  GCP_SECRET_MASTER_KEYS = 'gcp-secret-master-keys',
+  ACTIVE_MASTER_KEY_ID = 'active-master-key-id',
+  HMAC_KEY_BASE64 = 'hmac-key-base64',
+  FIREBASE_CLIENT_EMAIL = 'firebase-client-email',
+  FIREBASE_PRIVATE_KEY = 'firebase-private-key',
+  KMS_KEY_NAMES = 'kms-key-names',
+  KMS_ACTIVE_KEY_ID = 'kms-active-key-id',
+  SUPABASE_URL = 'supabase-url',
+  SUPABASE_SERVICE_ROLE_KEY = 'supabase-service-role-key',
+  SUPABASE_JWT_PRIVATE_KEY = 'supabase-jwt-private-key',
+  ADMIN_USERNAME = 'admin-username',
+  ADMIN_PASSWORD = 'admin-password',
+  SWAGGER_USERNAME = 'swagger-username',
+  SWAGGER_PASSWORD = 'swagger-password',
+  REVENUECAT_WEBHOOK_SECRET = 'revenuecat-webhook-secret',
+  IPINFO_TOKEN = 'ipinfo-token',
+  BREVO_API_KEY = 'brevo-api-key',
+  RAZORPAY_KEY_ID = 'razorpay-key-id',
+  RAZORPAY_KEY_SECRET = 'razorpay-key-secret',
+  RAZORPAY_WEBHOOK_SECRET = 'razorpay-webhook-secret',
+}
