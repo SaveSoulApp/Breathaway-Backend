@@ -37,6 +37,8 @@ npx prisma migrate dev --name <descriptive-name>
 
 **Never use deep relative imports** (`../../..`). Any path crossing module boundaries uses absolute imports from `src/`.
 
+**Synchronize secrets across all three layers.** Whenever introducing, renaming, or deprecating a secret in GCP Secret Manager, you must synchronize `src/common/enums/gcp-secret-name.enum.ts` (`GcpSecretName` enum), `terraform/secrets.tf` (`local.secret_names`), and `scripts/common.secrets.sh` (`COMMON_SECRETS` array) to prevent deployment failures.
+
 ---
 
 ## File Scaffold Order
