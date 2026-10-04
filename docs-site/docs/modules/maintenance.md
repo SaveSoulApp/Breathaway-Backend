@@ -19,6 +19,7 @@ For complete architectural details on privilege segregation, dual Cloud Run serv
 - **Credit Expiry Warnings**: Dispatches advance warning notifications to users whose credit bundles are nearing expiration.
 - **Payment Reconciliation**: Reconciles stale `PENDING` payment orders against external gateways (Razorpay) to resolve missed webhooks.
 - **Dormant Data Cleanup**: Bulk-voids stale interactions (like `PENDING` likes older than 90 days) to prevent dormant swipes from triggering matches unexpectedly.
+- **User Session Retention Cleanup**: Prunes expired and revoked `UserSession` records older than 7 days in chunked non-blocking batches to prevent unbounded table growth.
 
 ---
 
@@ -33,13 +34,14 @@ All scheduled maintenance endpoints are housed under `/api/v1/internal/jobs/*` a
 
 ## 🛠 Endpoints & Schedulers
 
-| HTTP Endpoint                                       | Triggered By                       |      Schedule      | Backing Service Handler                          |
-| :-------------------------------------------------- | :--------------------------------- | :----------------: | :----------------------------------------------- |
-| `POST /api/v1/internal/jobs/rotate-instagram-token` | `rotate-instagram-token-job`       |  `0 0 1 * * UTC`   | `InstagramService.refreshSystemAccessToken()`    |
-| `POST /api/v1/internal/jobs/expire-bundles`         | `expire-credit-bundles-job`        |  `0 0 * * * UTC`   | `MaintenanceService.expireCreditBundles()`       |
-| `POST /api/v1/internal/jobs/warn-expiring-bundles`  | `warn-expiring-credit-bundles-job` |  `0 10 * * * UTC`  | `MaintenanceService.warnExpiringCreditBundles()` |
-| `POST /api/v1/internal/jobs/reconcile-payments`     | `reconcile-payments-job`           | `*/30 * * * * UTC` | `PaymentsService.reconcilePendingOrders()`       |
-| `POST /api/v1/maintenance/void-pending-likes`       | Manual / Internal Admin            |     On-Demand      | `MaintenanceService.voidPendingLikes()`          |
+| HTTP Endpoint                                       | Triggered By                        |      Schedule      | Backing Service Handler                          |
+| :-------------------------------------------------- | :---------------------------------- | :----------------: | :----------------------------------------------- |
+| `POST /api/v1/internal/jobs/rotate-instagram-token` | `rotate-instagram-token-job`        |  `0 0 1 * * UTC`   | `InstagramService.refreshSystemAccessToken()`    |
+| `POST /api/v1/internal/jobs/expire-bundles`         | `expire-credit-bundles-job`         |  `0 0 * * * UTC`   | `MaintenanceService.expireCreditBundles()`       |
+| `POST /api/v1/internal/jobs/warn-expiring-bundles`  | `warn-expiring-credit-bundles-job`  |  `0 10 * * * UTC`  | `MaintenanceService.warnExpiringCreditBundles()` |
+| `POST /api/v1/internal/jobs/reconcile-payments`     | `reconcile-payments-job`            | `*/30 * * * * UTC` | `PaymentsService.reconcilePendingOrders()`       |
+| `POST /api/v1/internal/jobs/purge-expired-sessions` | `purge-expired-user-sessions-job`   |  `0 3 * * 0 UTC`   | `MaintenanceService.purgeExpiredUserSessions()`  |
+| `POST /api/v1/maintenance/void-pending-likes`       | Manual / Internal Admin             |     On-Demand      | `MaintenanceService.voidPendingLikes()`          |
 
 ---
 
@@ -65,6 +67,32 @@ The `warnExpiringCreditBundles` job targets credits expiring in exactly 6 to 7 d
 ### 4. Bulk Voiding
 
 The `voidPendingLikes` method updates all `PENDING` likes older than 90 days to `VOIDED` in a single query (`updateMany`). This is highly optimized compared to fetching records into memory and updating them individually, while still retaining the voided likes for audit purposes.
+
+### 5. Scheduled User Session Retention Cleanup
+
+With 15-minute access token lifetimes, every active user generates approximately 4 `UserSession` records per active hour (~96 rows/day). Over months across active users, the `UserSession` table would grow by millions of records, degrading B-Tree index lookup speed on `jti` and `userId`.
+
+The `purge-expired-sessions` job resolves this via a weekly automated cleanup routine:
+
+1. **7-Day Audit Horizon**: Sessions are not deleted immediately upon expiry. A 7-day retention grace period (`expiresAt < NOW() - 7 days`) is retained to preserve forensic audit trails for security investigations, suspicious login audits, and client session debugging.
+2. **Chunked Deletion Mechanics (5,000 Rows/Batch)**: Issuing a monolithic `DELETE` across hundreds of thousands of rows would cause PostgreSQL exclusive row locks, balloon write-ahead logs (WAL), and starve live login transactions. Instead, `MaintenanceService.purgeExpiredUserSessions` executes iterative deletions:
+   ```typescript
+   while (hasMore) {
+     const expiredSessions = await this.prisma.userSession.findMany({
+       where: { expiresAt: { lt: cutoffDate } },
+       select: { id: true },
+       take: 5000,
+     });
+     if (expiredSessions.length === 0) break;
+
+     const ids = expiredSessions.map((s) => s.id);
+     await this.prisma.userSession.deleteMany({
+       where: { id: { in: ids } },
+     });
+     if (expiredSessions.length < 5000) hasMore = false;
+   }
+   ```
+3. **HTTP 204 No Content Response Contract**: The endpoint returns `204 No Content` to conform with RESTful standards for execution endpoints that require no response body.
 
 ---
 

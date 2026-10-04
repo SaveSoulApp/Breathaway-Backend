@@ -12,6 +12,8 @@ The `AuthModule` is the gateway for user onboarding, logins, session handling, a
 
 - **User Signup (`/signup`)**: Validates Firebase credentials, checks for existing accounts, and registers new user records.
 - **User Signin (`/signin`)**: Exchanges validated Firebase ID tokens for internal JWT sessions.
+- **Token Refresh (`/refresh`)**: Refreshes short-lived access tokens using cryptographically signed refresh tokens with automated Refresh Token Rotation (RTR).
+- **Targeted Signout (`/signout`)**: Securely terminates active sessions—either targeted to a specific device family or globally across all devices.
 - **Social Integration (`/social-signin`)**: Authenticates users using external credentials (e.g. Instagram OAuth).
 - **Secondary Credentials (`/add-secondary`)**: Allows users to attach a secondary email or phone number to their primary profile.
 - **Developer Login (`/dev-login`)**: Simplifies local manual testing by bypassing full Firebase integrations if configured.
@@ -35,6 +37,72 @@ When users interact with social profiles (e.g., liking someone's Instagram handl
 - When the target person eventually registers using that social platform (e.g., Instagram OAuth), `AuthService` detects the existing ghost identity.
 - The service **claims** the identity by assigning it to the new user.
 - A `PubSubEvent.IDENTITY_CLAIMED` is published to the `IDENTITY_WORKFLOWS` topic, triggering asynchronous match resolution for any likes that were pending against that handle.
+
+### 3. Session Lifecycle & Refresh Token Rotation (RTR)
+
+BreathAway implements a dual-token architecture designed to balance low API latency with strict device security:
+
+- **Access Token**: Short-lived (15 minutes by default via `JWT_EXPIRES_IN`), signed JWT used in the `Authorization: Bearer <token>` header to authenticate API requests. Because it is short-lived, compromised access tokens have an inherently limited window of misuse.
+- **Refresh Token**: Long-lived (14 days by default via `JWT_REFRESH_EXPIRES_IN`), signed JWT with a dedicated audience (`${JWT_AUDIENCE}:refresh`) used exclusively at `/api/v1/auth/refresh` to obtain a fresh token pair.
+
+#### The `UserSession` Entity
+
+Every issued refresh token is persisted in PostgreSQL as a `UserSession` record:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **`id`** | String (ULID) | Primary key identifier for the session record. |
+| **`userId`** | String | Foreign key referencing the authenticating user (`User`). Cascades on account deletion. |
+| **`jti`** | String (`@unique`) | Unique JWT ID (32-character nanoid) embedded in the refresh token claims. Acts as an O(1) indexed lookup key. |
+| **`tokenHash`** | String (`@unique @db.Char(64)`) | SHA-256 hash of the issued refresh token string. Protects against offline database compromise. |
+| **`familyId`** | String (`@@index`) | Lineage identifier (24-character nanoid) shared across all tokens generated in a continuous rotation chain on a single device. |
+| **`deviceId`** | String? | Hardware or installation identifier passed via client headers (`x-device-id`). |
+| **`userAgent`** | String? | Client application and OS string recorded from `x-user-agent` or standard `user-agent`. |
+| **`ipAddress`** | String? | Client IP address recorded from proxy forwarding headers (`x-forwarded-for`, `x-real-ip`). |
+| **`expiresAt`** | DateTime (`@@index`) | Expiration timestamp matching the token's JWT `exp` claim. |
+| **`revokedAt`** | DateTime? | Timestamp marking when this session was rotated, signed out, or invalidated. |
+
+### 4. Token Families (`familyId`) & Breach Containment (RFC 6819)
+
+A fundamental challenge with refresh tokens in mobile environments is token leakage (e.g. device compromise, man-in-the-middle, or malware). If an attacker steals a long-lived refresh token, they could maintain persistent access undetected.
+
+To neutralize this threat, BreathAway implements **Token Family Tracking** with automatic breach containment according to **RFC 6819 §5.2.2.3**:
+
+1. **Lineage Invariant**: When a user logs in, a unique `familyId` is minted. Every subsequent call to `/api/v1/auth/refresh` consumes the current refresh token, marks it revoked (`revokedAt = now()`), and issues a new refresh token carrying the **same** `familyId`.
+2. **Replay Detection**: If an attacker intercepts an already-rotated token (e.g., Token A) and attempts to use it at `/refresh`, the server looks up Token A by its `jti` and detects that `revokedAt !== null`.
+3. **Instant Breach Containment**: Presenting an already-revoked refresh token proves that token leakage or replay has occurred. The server immediately revokes **every token in that entire lineage**:
+   ```typescript
+   await tx.userSession.updateMany({
+     where: { familyId: session.familyId, revokedAt: null },
+     data: { revokedAt: DateUtil.now() },
+   });
+   ```
+   Both the legitimate user and the attacker are immediately disconnected from that session lineage, forcing re-authentication and protecting the user's account.
+
+### 5. Targeted Device Signout vs. Global Logout
+
+The `POST /api/v1/auth/signout` endpoint enables flexible session termination:
+
+- **Targeted Single-Device Signout**: When the client supplies its current `refreshToken` in the request body (`SignoutRequestDto`), `AuthTokenService` decodes the token's `familyId` and invalidates only the sessions sharing that specific `familyId`. The user's other active devices (e.g. iPad, secondary phone, web) remain uninterrupted.
+- **Global Logout**: If the endpoint is called without a `refreshToken`, `AuthTokenService` invalidates **all** active sessions belonging to the user (`where: { userId, revokedAt: null }`), instantaneously terminating all logged-in devices across the platform.
+
+### 6. Standardized Response Contract (`UserAuthResponseDto`)
+
+All authentication endpoints (`/signup`, `/signin`, `/social-signin`, `/dev-login`, `/refresh`) return a strictly standardized, pure `camelCase` response model:
+
+```json
+{
+  "userId": "01KY9DY8M1GARMFEHXFJBZ08RM",
+  "tokenType": "Bearer",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 900,
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshTokenExpiresAt": "2026-10-18T09:30:55.328Z"
+}
+```
+
+> [!NOTE]
+> All legacy `snake_case` properties (such as `user_id`, `expires_in`, and `refresh_token_expires_at`) have been deprecated and eliminated across all authentication response DTOs, ensuring strict property naming consistency across the frontend and backend.
 
 ---
 
@@ -78,12 +146,16 @@ flowchart TD
 
 ### Services
 
-- **[AuthService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.service.ts)**: Contains logic to verify Firebase tokens, find users by identity, and issue JWT tokens.
+- **[AuthService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.service.ts)**: Orchestrates user authentication flows, Firebase ID token verification, social profile claiming, account deletion teardown, and delegates token lifecycle operations.
+- **[AuthTokenService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/services/auth-token.service.ts)**: Handles access token signing, refresh token rotation (RTR), SHA-256 token hashing, `familyId` lineage tracking, atomic CAS session transitions, and targeted/global signouts.
+- **[AuthCredentialService](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/services/auth-credential.service.ts)**: Encapsulates user credential creation, primary/secondary credential associations, OTP-based verification workflows, and anti-evasion block re-linking.
 - **[JwtModule](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/jwt.module.ts)**: Dedicated JWT configuration provider.
 
 ---
 
-## 🔄 Authentication Request Flow
+## 🔄 Authentication Request Flows
+
+### 1. User Signin & Token Issuance Flow
 
 ```mermaid
 sequenceDiagram
@@ -91,6 +163,7 @@ sequenceDiagram
     actor Client as Mobile Client
     participant AuthC as AuthController
     participant AuthS as AuthService
+    participant TokenS as AuthTokenService
     participant Firebase as FirebaseService
     participant Prisma as PrismaService
 
@@ -108,11 +181,60 @@ sequenceDiagram
     Prisma -->> AuthS: Credential / User record
     deactivate Prisma
 
-    Note over AuthS: Generates JWT payload containing user ID
-    AuthS -->> AuthC: JWT Access & Refresh tokens
+    AuthS ->> TokenS: generateAuthResponse(user, { deviceId, userAgent, ipAddress })
+    activate TokenS
+    Note over TokenS: Signs Access Token (15m)<br/>Signs Refresh Token (14d, familyId)<br/>Computes SHA-256 tokenHash
+    TokenS ->> Prisma: Insert UserSession (jti, tokenHash, familyId, expiresAt, deviceId, ipAddress)
+    TokenS -->> AuthS: UserAuthResponseDto
+    deactivate TokenS
+
+    AuthS -->> AuthC: UserAuthResponseDto
     deactivate AuthS
     AuthC -->> Client: 200 OK (UserAuthResponseDto)
     deactivate AuthC
+```
+
+### 2. Refresh Token Rotation (RTR) Flow & Breach Containment
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Mobile Client
+    participant AuthC as AuthController
+    participant TokenS as AuthTokenService
+    participant Prisma as PrismaService ($transaction)
+
+    Client ->> AuthC: POST /api/v1/auth/refresh { "refreshToken": "..." }
+    activate AuthC
+    AuthC ->> TokenS: refreshToken(dto, metadata)
+    activate TokenS
+
+    TokenS ->> TokenS: 1. Cryptographically verify JWT signature & audience (JWT_AUDIENCE:refresh)
+    TokenS ->> TokenS: 2. Extract claims: sub, jti, familyId, token_type
+
+    TokenS ->> Prisma: Query UserSession by jti
+    activate Prisma
+    Prisma -->> TokenS: UserSession record
+    deactivate Prisma
+
+    alt Token Already Revoked (revokedAt != null)
+        Note over TokenS, Prisma: 🚨 BREACH DETECTED (RFC 6819 §5.2.2.3)<br/>Replayed or stolen refresh token presented!
+        TokenS ->> Prisma: UPDATE UserSession SET revokedAt = now() WHERE familyId = session.familyId AND revokedAt IS NULL
+        TokenS -->> AuthC: 401 Unauthorized ("Token reuse detected; session family terminated")
+        AuthC -->> Client: 401 Unauthorized
+    else Token Active and Valid
+        rect rgb(240, 248, 255)
+            Note over TokenS, Prisma: Atomic Rotation in $transaction (Compare-and-Swap)
+            TokenS ->> Prisma: CAS Update: updateMany({ id: session.id, revokedAt: null }, { revokedAt: now() })
+            Note over TokenS, Prisma: If count == 0, concurrent race occurred -> revoke family & abort
+            TokenS ->> TokenS: Sign new Access Token & new Refresh Token (same familyId)
+            TokenS ->> Prisma: Insert new UserSession (new jti, new tokenHash, same familyId)
+        end
+        TokenS -->> AuthC: Return fresh UserAuthResponseDto
+        deactivate TokenS
+        AuthC -->> Client: 200 OK (UserAuthResponseDto)
+        deactivate AuthC
+    end
 ```
 
 ---
