@@ -58,7 +58,8 @@ export const envValidationSchema = Joi.object({
   META_VERIFY_TOKEN: Joi.string().optional(),
 
   // Authentication & Security
-  JWT_EXPIRES_IN: Joi.string().default('30d'),
+  JWT_EXPIRES_IN: Joi.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   JWT_AUDIENCE: Joi.string().default('breathaway-mobile-app'),
   JWT_ISSUER: Joi.string().default('https://breathaway.app'),
   OTP_TTL: Joi.number().integer().positive().default(300),

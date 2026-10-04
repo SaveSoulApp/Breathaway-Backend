@@ -21,6 +21,7 @@ describe('MaintenanceController', () => {
       expireCreditBundles: jest.fn(),
       expireSubscriptions: jest.fn(),
       warnExpiringCreditBundles: jest.fn(),
+      purgeExpiredUserSessions: jest.fn(),
     };
 
     const mockReconciliationService = {
@@ -154,6 +155,22 @@ describe('MaintenanceController', () => {
           'Instagram system access token rotated and persisted to Secret Manager successfully',
       });
       expect(result).not.toHaveProperty('access_token');
+    });
+  });
+
+  describe('purgeExpiredSessions', () => {
+    it('should invoke maintenanceService.purgeExpiredUserSessions', async () => {
+      // Arrange
+      service.purgeExpiredUserSessions.mockResolvedValue({
+        deletedCount: 15,
+        cutoffDate: '2026-09-27T00:00:00.000Z',
+      });
+
+      // Act
+      await controller.purgeExpiredSessions();
+
+      // Assert
+      expect(service.purgeExpiredUserSessions).toHaveBeenCalledTimes(1);
     });
   });
 });

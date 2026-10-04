@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import { extractClientIp } from '@common/utils/request.utils';
 import { AppValidationPipe } from '@core/pipes';
 
 import { AppController } from './app.controller';
@@ -67,8 +68,32 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
         mount: true,
         setup: (cls, req: Request) => {
           cls.set('requestStart', Date.now());
-          cls.set('ipAddress', req.ip);
-          cls.set('userAgent', req.headers['x-user-agent']);
+
+          // Extract public client IP (GCP Cloud Load Balancer / reverse proxy aware)
+          cls.set('ipAddress', extractClientIp(req));
+
+          // Extract user agent prioritizing x-user-agent with standard user-agent fallback
+          const userAgent =
+            req.headers['x-user-agent'] || req.headers['user-agent'];
+          cls.set(
+            'userAgent',
+            typeof userAgent === 'string'
+              ? userAgent.trim()
+              : Array.isArray(userAgent) && userAgent.length > 0
+                ? userAgent[0]?.trim()
+                : undefined,
+          );
+
+          // Extract device identifier
+          const deviceId = req.headers['x-device-id'];
+          cls.set(
+            'deviceId',
+            typeof deviceId === 'string'
+              ? deviceId.trim()
+              : Array.isArray(deviceId) && deviceId.length > 0
+                ? deviceId[0]?.trim()
+                : undefined,
+          );
 
           const requestId = req.headers['x-request-id'] || randomUUID();
           cls.set('requestId', requestId);
@@ -82,23 +107,27 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     }),
     //Rate limiting for the entire application
     ThrottlerModule.forRootAsync({
-      useFactory: () => [
-        {
-          name: 'short',
-          ttl: seconds(1),
-          limit: 5,
-        },
-        {
-          name: 'medium',
-          ttl: seconds(10),
-          limit: 20,
-        },
-        {
-          name: 'long',
-          ttl: seconds(60),
-          limit: 50,
-        },
-      ],
+      useFactory: () => ({
+        getTracker: (req: Record<string, unknown>) =>
+          extractClientIp(req) || '127.0.0.1',
+        throttlers: [
+          {
+            name: 'short',
+            ttl: seconds(1),
+            limit: 5,
+          },
+          {
+            name: 'medium',
+            ttl: seconds(10),
+            limit: 20,
+          },
+          {
+            name: 'long',
+            ttl: seconds(60),
+            limit: 50,
+          },
+        ],
+      }),
     }),
 
     //Core Modules

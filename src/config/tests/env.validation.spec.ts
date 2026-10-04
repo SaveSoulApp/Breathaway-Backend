@@ -52,7 +52,8 @@ describe('envValidationSchema', () => {
       expect(value.AUDIT_PUBSUB_TOPIC).toBe('audit-logs-topic');
 
       // Auth & Security defaults
-      expect(value.JWT_EXPIRES_IN).toBe('30d');
+      expect(value.JWT_EXPIRES_IN).toBe('15m');
+      expect(value.JWT_REFRESH_EXPIRES_IN).toBe('14d');
       expect(value.JWT_AUDIENCE).toBe('breathaway-mobile-app');
       expect(value.JWT_ISSUER).toBe('https://breathaway.app');
       expect(value.OTP_TTL).toBe(300);

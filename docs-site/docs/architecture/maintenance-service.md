@@ -174,6 +174,77 @@ All cron jobs are managed declaratively in [`terraform/scheduler.tf`](file:///te
 | **`expire-credit-bundles-job`**        |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
 | **`warn-expiring-credit-bundles-job`** |  `0 10 * * *`  |   UTC    | `/api/v1/internal/jobs/warn-expiring-bundles`  | Scans credit bundles expiring in exactly 6 to 7 days daily at 10 AM, dispatching advance warning domain events to users.                             |
 | **`reconcile-payments-job`**           | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
+| **`purge-expired-user-sessions-job`**  |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.             |
+
+---
+
+## 🗄️ User Session Table Retention & Purge Architecture
+
+### 1. Scale Analysis & The Unbounded Growth Trap
+
+In the dual-token model, access tokens expire every 15 minutes, prompting active mobile clients to call `/api/v1/auth/refresh`. Under normal usage:
+
+- An actively interacting user triggers approximately **4 token rotations per hour**.
+- A daily active user generates **~96 `UserSession` records per day**.
+- Across an initial cohort of **10,000 daily active users**, the system generates **~960,000 records daily** (~6.7 million rows per week).
+- Without a rigorous automated data hygiene policy, the table would rapidly scale to tens of millions of rows within months.
+
+### 2. Database Index Impact & Performance Degradation
+
+The `UserSession` table maintains multiple mission-critical indexes:
+- `@@unique([jti])`: Looked up on every single token refresh.
+- `@@unique([tokenHash])`: Prevents duplicate hash collisions.
+- `@@index([userId])`: Queried on global signout and account deletion.
+- `@@index([familyId])`: Scanned during RTR breach containment to revoke lineages.
+- `@@index([expiresAt])`: Scanned by the retention purge job.
+
+If expired sessions accumulate without bound:
+1. **B-Tree Depth & Buffer Pool Thrashing**: As index sizes swell, B-Tree leaf pages no longer fit into PostgreSQL's `shared_buffers` in RAM. Every authentication and refresh query begins requiring physical disk I/O, degrading API latency.
+2. **Vacuum & Dead Tuple Overhead**: Accumulating millions of dead tuples stresses PostgreSQL's autovacuum daemon, increasing disk write amplification and table bloat on Cloud SQL.
+
+### 3. Chunked Deletion Mechanics vs. Table-Level Lock Starvation
+
+Issuing a naive monolithic deletion query:
+```sql
+-- ❌ Critical Anti-Pattern: Monolithic Delete
+DELETE FROM "UserSession" WHERE "expiresAt" < NOW() - INTERVAL '7 days';
+```
+across millions of rows is hazardous in production:
+- It acquires exclusive row-level write locks across millions of tuples, stalling concurrent `INSERT INTO "UserSession"` statements triggered by live logging-in users.
+- It balloons PostgreSQL's Write-Ahead Log (WAL), causing extreme replication lag on Cloud SQL read replicas.
+- It risks timing out the HTTP connection to Cloud Scheduler (maximum 30-minute timeout).
+
+#### The Non-Blocking Chunked Architecture
+
+`MaintenanceService.purgeExpiredUserSessions` mitigates this via index-only cursor chunking:
+
+```typescript
+while (hasMore) {
+  // 1. Fetch only primary keys for the next batch using the expiresAt index
+  const expiredSessions = await this.prisma.userSession.findMany({
+    where: { expiresAt: { lt: cutoffDate } },
+    select: { id: true },
+    take: 5000,
+  });
+
+  if (expiredSessions.length === 0) break;
+
+  // 2. Delete the discrete batch by primary key IDs
+  const ids = expiredSessions.map((session) => session.id);
+  await this.prisma.userSession.deleteMany({
+    where: { id: { in: ids } },
+  });
+
+  // 3. Terminate when fewer than 5,000 rows were fetched
+  if (expiredSessions.length < 5000) {
+    hasMore = false;
+  }
+}
+```
+
+- **Lock Release**: By breaking deletions into discrete 5,000-row transactions, PostgreSQL releases row locks between iterations, permitting live user traffic to interleave with zero latency degradation.
+- **7-Day Audit Horizon**: Sessions are only purged after a 7-day retention grace period (`expiresAt < NOW() - 7 days`), preserving sufficient historical data for security audits, forensic investigations, and suspicious device tracing.
+- **HTTP 204 No Content Contract**: The endpoint returns `204 No Content`, signaling clean job completion without allocating unnecessary HTTP payload buffers.
 
 ---
 

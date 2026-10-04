@@ -16,6 +16,12 @@ import { SubscriptionsService } from '@modules/subscriptions/services/subscripti
 /** Number of users processed per Pub/Sub batch message. Tunable via env. */
 const DEFAULT_EXPIRY_BATCH_SIZE = 100;
 
+/** Default retention period in days for expired user sessions before purging. */
+const DEFAULT_USER_SESSION_RETENTION_DAYS = 7;
+
+/** Maximum number of expired session rows deleted per chunk to prevent long-running table locks. */
+const DEFAULT_USER_SESSION_CLEANUP_BATCH_SIZE = 5000;
+
 /**
  * Implements scheduled data-hygiene operations that keep the database clean
  * and consistent with business rules that cannot be enforced at write time.
@@ -26,6 +32,8 @@ const DEFAULT_EXPIRY_BATCH_SIZE = 100;
 @Injectable()
 export class MaintenanceService extends BaseService {
   private readonly expiryBatchSize: number;
+  private readonly sessionCleanupBatchSize: number;
+  private readonly sessionRetentionDays: number;
 
   constructor(
     logger: LoggerService,
@@ -39,6 +47,12 @@ export class MaintenanceService extends BaseService {
     this.expiryBatchSize =
       this.configService.get<number>('CREDIT_EXPIRY_BATCH_SIZE') ??
       DEFAULT_EXPIRY_BATCH_SIZE;
+    this.sessionCleanupBatchSize =
+      this.configService.get<number>('USER_SESSION_CLEANUP_BATCH_SIZE') ??
+      DEFAULT_USER_SESSION_CLEANUP_BATCH_SIZE;
+    this.sessionRetentionDays =
+      this.configService.get<number>('USER_SESSION_RETENTION_DAYS') ??
+      DEFAULT_USER_SESSION_RETENTION_DAYS;
   }
 
   /**
@@ -263,6 +277,86 @@ export class MaintenanceService extends BaseService {
       this.logger.error('Credit expiry warning fan-out failed', {
         ...ctx,
         step: 'fan_out',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Purges expired and stale user session records older than the retention threshold.
+   *
+   * Executes chunked deletion using index-optimized lookups (`expiresAt < cutoffDate`)
+   * to prevent database lock contention and memory exhaustion on high-volume tables.
+   *
+   * @param retentionDays - Optional custom retention period in days (defaults to 7 days).
+   * @returns Summary of purged records and the cutoff timestamp.
+   */
+  async purgeExpiredUserSessions(
+    retentionDays?: number,
+  ): Promise<{ deletedCount: number; cutoffDate: string }> {
+    const daysToRetain = retentionDays ?? this.sessionRetentionDays;
+    const cutoffDate = DateUtil.subtractDays(DateUtil.now(), daysToRetain);
+    const ctx = {
+      step: 'init',
+      retentionDays: daysToRetain,
+      cutoffDate: cutoffDate.toISOString(),
+      batchSize: this.sessionCleanupBatchSize,
+    };
+
+    let totalDeleted = 0;
+    let iteration = 0;
+    let hasMore = true;
+
+    this.logger.log('User session retention cleanup started', ctx);
+
+    try {
+      while (hasMore) {
+        iteration++;
+        const expiredSessions = await this.prisma.userSession.findMany({
+          where: { expiresAt: { lt: cutoffDate } },
+          select: { id: true },
+          take: this.sessionCleanupBatchSize,
+        });
+
+        if (expiredSessions.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const ids = expiredSessions.map((session) => session.id);
+        const deleteResult = await this.prisma.userSession.deleteMany({
+          where: { id: { in: ids } },
+        });
+
+        totalDeleted += deleteResult.count;
+
+        this.logger.debug('Purged chunk of expired user sessions', {
+          step: 'batch_deleted',
+          iteration,
+          batchCount: deleteResult.count,
+          totalDeletedSoFar: totalDeleted,
+        });
+
+        if (expiredSessions.length < this.sessionCleanupBatchSize) {
+          hasMore = false;
+        }
+      }
+
+      this.logger.log('User session retention cleanup completed', {
+        step: 'complete',
+        totalDeleted,
+        iterations: iteration,
+        cutoffDate: cutoffDate.toISOString(),
+      });
+
+      return {
+        deletedCount: totalDeleted,
+        cutoffDate: cutoffDate.toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('User session retention cleanup failed', {
+        step: 'purge_sessions',
         err: serializeError(error),
       });
       throw error;

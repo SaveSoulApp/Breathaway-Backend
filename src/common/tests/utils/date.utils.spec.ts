@@ -56,4 +56,24 @@ describe('Date Utils', () => {
       expect(result.toISOString()).toBe(expectedDate.toISOString());
     });
   });
+
+  describe('DateUtil.subtractDays', () => {
+    it('should correctly subtract a specified number of days from a given date', () => {
+      const initialDate = DateUtil.parse('2023-01-08T12:00:00Z');
+      const expectedDate = DateUtil.parse('2023-01-01T12:00:00Z'); // 7 days earlier
+
+      const result = DateUtil.subtractDays(initialDate, 7);
+
+      expect(result.toISOString()).toBe(expectedDate.toISOString());
+    });
+
+    it('should correctly handle negative days when subtracting', () => {
+      const initialDate = DateUtil.parse('2023-01-01T12:00:00Z');
+      const expectedDate = DateUtil.parse('2023-01-08T12:00:00Z'); // 7 days later
+
+      const result = DateUtil.subtractDays(initialDate, -7);
+
+      expect(result.toISOString()).toBe(expectedDate.toISOString());
+    });
+  });
 });

@@ -42,6 +42,7 @@ import {
   AuthSignupRequestDto,
   DeleteAccountRequestDto,
   DevLoginRequestDto,
+  RefreshTokenRequestDto,
   SocialAuthRequestDto,
 } from './dto';
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
@@ -91,7 +92,7 @@ export class AuthService extends BaseService {
    *   (only PHONE and EMAIL are accepted).
    * @throws {ConflictException} When registration is pending verification for the same credential.
    */
-  async signup(dto: AuthSignupRequestDto) {
+  async signup(dto: AuthSignupRequestDto, metadata?: Record<string, unknown>) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Signup started', { ...ctx, step: 'init' });
 
@@ -174,7 +175,10 @@ export class AuthService extends BaseService {
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
-      metadata: { method: authMethod.method },
+      ...(typeof metadata?.ipAddress === 'string' && {
+        ipAddress: metadata.ipAddress,
+      }),
+      metadata: { method: authMethod.method, ...(metadata && metadata) },
     });
 
     this.logger.event(LOG_EVENT.USER_REGISTERED, {
@@ -204,7 +208,7 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the account exists but has not completed OTP verification.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signin(dto: AuthSigninRequestDto) {
+  async signin(dto: AuthSigninRequestDto, metadata?: Record<string, unknown>) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Signin started', { ...ctx, step: 'init' });
 
@@ -318,6 +322,7 @@ export class AuthService extends BaseService {
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
+      ...(metadata && metadata),
     });
   }
 
@@ -333,7 +338,10 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the credential belongs to an existing unverified account.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signInOrSignUp(dto: AuthSigninRequestDto) {
+  async signInOrSignUp(
+    dto: AuthSigninRequestDto,
+    metadata?: Record<string, unknown>,
+  ) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Sign-in or sign-up started', { ...ctx, step: 'init' });
 
@@ -385,7 +393,14 @@ export class AuthService extends BaseService {
       this.emitAuditLog({
         actionType: AuditActionType.USER_REGISTERED,
         userId: user.id,
-        metadata: { method: authMethod.method },
+        ...(typeof metadata?.ipAddress === 'string' && {
+          ipAddress: metadata.ipAddress,
+        }),
+        metadata: {
+          method: authMethod.method,
+          isNewUser: true,
+          ...(metadata && metadata),
+        },
       });
 
       this.logger.event(LOG_EVENT.USER_REGISTERED, {
@@ -400,6 +415,7 @@ export class AuthService extends BaseService {
         authMethod: authMethod.method,
         publicValueHash: normalizedHash,
         isNewUser: true,
+        ...(metadata && metadata),
       });
     }
 
@@ -474,6 +490,7 @@ export class AuthService extends BaseService {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
       isNewUser: false,
+      ...(metadata && metadata),
     });
   }
 
@@ -712,6 +729,7 @@ export class AuthService extends BaseService {
     userId: string,
     dto: AddSecondaryAuthRequestDto,
     authType: AuthMethod.PHONE | AuthMethod.EMAIL,
+    metadata?: Record<string, unknown>,
   ) {
     const ctx: Record<string, unknown> = { userId, authType };
     this.logger.log('Add secondary auth started', { ...ctx, step: 'init' });
@@ -990,6 +1008,7 @@ export class AuthService extends BaseService {
       authMethod: authType,
       publicValueHash: publicValueData.publicValueHash,
       isSecondaryAuth: true,
+      ...(metadata && metadata),
     });
   }
 
@@ -1004,7 +1023,7 @@ export class AuthService extends BaseService {
    * @returns The user's ID and a signed JWT access token.
    * @throws {NotFoundException} When no credential matches the provided identifier.
    */
-  async devLogin(dto: DevLoginRequestDto) {
+  async devLogin(dto: DevLoginRequestDto, metadata?: Record<string, unknown>) {
     const rawValue = dto.identifier.trim();
     const isEmail = rawValue.includes('@');
     const value = isEmail ? sanitizeEmail(rawValue) : rawValue;
@@ -1038,6 +1057,7 @@ export class AuthService extends BaseService {
     return this.authTokenService.generateAuthResponse(credential.user, {
       authMethod: 'DEV_LOGIN',
       publicValueHash: valueHash,
+      ...(metadata && metadata),
     });
   }
 
@@ -1059,17 +1079,29 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Records a user logout event and emits a USER_LOGOUT audit log.
+   * Refreshes access and refresh tokens using Refresh Token Rotation (RTR).
    *
-   * JWT tokens are stateless and are not actively invalidated — callers must discard
-   * the token client-side. Token revocation (e.g., via a denylist) can be layered on here.
+   * @param dto - Container for the refresh token string.
+   * @param metadata - Optional request context metadata.
+   * @returns Rotated token pair with updated expiration timestamps.
+   */
+  async refresh(
+    dto: RefreshTokenRequestDto,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.authTokenService.refreshToken(dto, metadata);
+  }
+
+  /**
+   * Records a user logout event, terminates active refresh token sessions, and emits a USER_LOGOUT audit log.
    *
    * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
+   * @param refreshToken - Optional refresh token string to target specific session revocation.
    * @returns A confirmation message object.
    */
-  signout(userId: string) {
+  async signout(userId: string, refreshToken?: string) {
     this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
-    // Token revocation can be implemented later
+    await this.authTokenService.revokeSession(userId, refreshToken);
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,

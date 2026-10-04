@@ -37,15 +37,244 @@ Every standard client request must supply the following headers:
 
 ## 🔑 2. User Session Authentication (JWT)
 
-Endpoints that require a logged-in user session are decorated with `JwtAuthGuard` (e.g. `@UseGuards(JwtAuthGuard)`).
+Endpoints that require an authenticated user session are decorated with `JwtAuthGuard` (e.g. `@UseGuards(JwtAuthGuard)`).
 
 ### Bearer Token Header
 
-To access protected routes, request the access token from the login flow and include it in the `Authorization` header:
+To access protected routes, client applications must provide the access token in the standard HTTP `Authorization` header:
 
 ```http
 Authorization: Bearer <your_jwt_access_token>
 ```
+
+---
+
+### 🛡️ Dual-Token Architecture & Security Rationale
+
+To balance low latency (stateless authentication) with high security (instant revocability), BreathAway enforces an RFC 6749 and RFC 6819 compliant dual-token architecture:
+
+1. **Access Token (Short-Lived)**:
+   - **Lifespan**: Configured via `JWT_EXPIRES_IN` (Default: `15m`).
+   - **Storage**: In-memory (RAM / secure mobile keystore).
+   - **Verification**: Fully stateless verification via `JwtStrategy` using public/symmetric cryptographic signature verification. No database queries are performed per authenticated request, keeping endpoint latency under 10ms.
+   - **Audience**: Verified against `JWT_AUDIENCE` (e.g. `breathaway-api`).
+
+2. **Refresh Token (Long-Lived, Single-Use)**:
+   - **Lifespan**: Configured via `JWT_REFRESH_EXPIRES_IN` (Default: `14d`).
+   - **Storage**: Hardware-backed secure storage (iOS Keychain, Android EncryptedSharedPreferences).
+   - **Endpoint**: Exclusively accepted at `POST /api/v1/auth/refresh`.
+   - **Audience**: Strictly locked to `${JWT_AUDIENCE}:refresh` (e.g. `breathaway-api:refresh`).
+
+> [!IMPORTANT]
+> **Audience Separation Defense**: Access tokens and refresh tokens use mutually exclusive `aud` claims. If a client attempts to present a refresh token to an API route protected by `JwtAuthGuard`, or an access token to `/api/v1/auth/refresh`, the token is rejected at the cryptographic verification step before any database queries execute.
+
+---
+
+### 🧩 Token Claims & Cryptographic Lineage
+
+Refresh tokens contain structured claims that link the token to an explicit session lineage:
+
+```json
+{
+  "sub": "01KY9DY8M1GARMFEHXFJBZ08RM",
+  "aud": "breathaway-api:refresh",
+  "iss": "breathaway-auth",
+  "jti": "UEdjtynJEB9APUfBlM5IguFsuM5ZWjgp",
+  "familyId": "pulOGDHQMRxSKELeDqDp0zzK",
+  "token_type": "refresh",
+  "iat": 1728034255,
+  "exp": 1729243855
+}
+```
+
+- **`sub` (Subject)**: The authenticating user's ULID.
+- **`jti` (JWT ID)**: A cryptographically random 32-character string (`nanoid(32)`). Indexed uniquely in PostgreSQL (`UserSession.jti`) to enable $O(1)$ session lookups.
+- **`familyId`**: A 24-character lineage identifier (`nanoid(24)`). Generated upon initial authentication and preserved across subsequent rotations on that device.
+- **`token_type`**: Must be explicitly set to `'refresh'`. Any token lacking this claim is immediately rejected.
+
+---
+
+### 🔒 Cryptographic Token Hashing (`tokenHash`)
+
+To prevent offline database compromise from resulting in session takeover, **plaintext refresh tokens are never persisted in the database**:
+
+1. When a refresh token is issued, `AuthTokenService` generates the signed JWT string.
+2. The server calculates an unsalted SHA-256 digest of the complete token string:
+   ```typescript
+   const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+   ```
+3. Only this 64-character hexadecimal digest is stored in `UserSession.tokenHash`.
+
+**Threat Model Impact**: If an adversary gains unauthorized read access to database backups or read replicas via SQL injection, they cannot use the stored `tokenHash` values to authenticate or rotate tokens. Only the legitimate client holding the raw, signed JWT can present the credential.
+
+---
+
+### ⚔️ RFC 6819 §5.2.2.3: Refresh Token Rotation & Breach Containment
+
+Refresh Token Rotation (RTR) guarantees that **every refresh token is strictly single-use**. Whenever a refresh token is exchanged, it is immediately invalidated and replaced with a newly issued token.
+
+#### Threat Scenario & Automatic Breach Containment
+
+If an attacker intercepts a user's refresh token (Token 1):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Victim as Legitimate Client
+    actor Attacker as Malicious Actor
+    participant Auth as AuthTokenService / PostgreSQL
+
+    Note over Victim, Auth: 1. Normal Rotation
+    Victim ->> Auth: POST /refresh with Token 1 (familyId: F1)
+    Auth ->> Auth: Invalidate Token 1 (revokedAt = now())
+    Auth -->> Victim: Issue Token 2 (familyId: F1)
+
+    Note over Attacker, Auth: 2. Stolen Token Replay Attempt
+    Attacker ->> Auth: POST /refresh with Token 1 (familyId: F1)
+    Auth ->> Auth: Query UserSession by jti (Token 1)
+    Note over Auth: 🚨 Replay Detected! Token 1 is already revoked!
+
+    rect rgb(255, 235, 235)
+        Note over Auth: Breach Containment Protocol Triggered
+        Auth ->> Auth: UPDATE UserSession SET revokedAt = now() WHERE familyId = F1
+    end
+
+    Auth -->> Attacker: 401 Unauthorized (Breach detected; family terminated)
+
+    Note over Victim, Auth: 3. Legitimate Client Locked Out for Safety
+    Victim ->> Auth: POST /refresh with Token 2 (familyId: F1)
+    Auth -->> Victim: 401 Unauthorized (Family was revoked due to breach)
+    Note over Victim: App securely clears local keystore and prompts for fresh login
+```
+
+By invalidating the entire `familyId` lineage, the backend neutralizes the attacker's persistence and alerts the user to re-authenticate with their primary credentials.
+
+---
+
+### ⚡ Race Condition Defense: Atomic Compare-and-Swap (CAS)
+
+In mobile environments, when a short-lived access token expires after 15 minutes, multiple asynchronous HTTP requests (e.g. fetching user profile, unread notification count, and new messages) may fail with `401 Unauthorized` at the exact same millisecond.
+
+If the mobile client fires multiple parallel `/refresh` requests carrying the same refresh token, a naive check-then-act implementation (`findUnique` followed by `update`) creates a critical race condition:
+
+1. Request A reads Token 1 (`revokedAt: null`).
+2. Request B reads Token 1 (`revokedAt: null`).
+3. Request A updates Token 1 (`revokedAt: now()`) and succeeds.
+4. Request B attempts to rotate Token 1, detects `revokedAt !== null`, and incorrectly flags Request A as an attacker replay, terminating the user's active session!
+
+#### The Prisma Atomic CAS Implementation
+
+`AuthTokenService` executes the token revocation using an atomic **Compare-and-Swap (CAS)** pattern wrapped in a Prisma `$transaction`:
+
+```typescript
+return this.prisma.$transaction(async (tx) => {
+  // Atomic CAS: Only update if revokedAt is STILL null at the instant of execution
+  const updateResult = await tx.userSession.updateMany({
+    where: { id: session.id, revokedAt: null },
+    data: { revokedAt: DateUtil.now() },
+  });
+
+  if (updateResult.count === 0) {
+    // Another concurrent request already revoked this token!
+    // Trigger breach containment on the lineage.
+    await tx.userSession.updateMany({
+      where: { familyId: session.familyId, revokedAt: null },
+      data: { revokedAt: DateUtil.now() },
+    });
+    throw new UnauthorizedException(
+      'Revoked refresh token reuse detected. All sessions in this lineage have been terminated.',
+    );
+  }
+
+  // Issue rotated token pair with the same familyId within the same transaction
+  return this.generateAuthResponse(
+    user,
+    { ...metadata, familyId: session.familyId, isRefresh: true },
+    tx,
+  );
+});
+```
+
+#### Mobile Client Concurrency Standard
+
+While the backend is completely concurrency-safe via CAS, client applications (iOS and Android) must implement a **refresh mutex/queue lock** in their HTTP network interceptor:
+
+1. When a 401 response is intercepted, acquire a local refresh lock.
+2. Queue any subsequent 401 requests while the refresh call is in flight.
+3. Perform a single `POST /api/v1/auth/refresh` call.
+4. Update local storage with the new access and refresh token pair.
+5. Replay all queued requests with the updated `Authorization: Bearer <new_token>` header, then release the lock.
+
+---
+
+### ⏱️ Brute-Force Defense: Multi-Tiered Rate Limiting (@nestjs/throttler)
+
+While cryptographic verification and RFC 6819 Token Family tracking safeguard against replayed credentials, public authentication APIs are prime targets for automated attacks:
+
+- **Refresh Token Endpoints (`/refresh`)**: Vulnerable to signature brute-forcing or denial-of-service (DoS) attempts aimed at exhausting database transaction pools with rapid token rotation requests.
+- **Sign-In & Onboarding Endpoints (`/signin`, `/signup`, `/signin-or-signup`, `/add-phone`, `/add-email`)**: Vulnerable to credential stuffing, SMS/OTP pumping fraud, and high-frequency bot account creation.
+
+BreathAway guards these critical attack surfaces using `@nestjs/throttler` with a tiered defense strategy.
+
+#### Reverse Proxy & Google Cloud Run IP Resolution
+
+In serverless Google Cloud Run deployments fronted by Google Cloud Load Balancing (GCLB), the default Express client IP resolution (`req.ip`) evaluates to an internal Google infrastructure IP. Under default settings, **every mobile client worldwide would share the exact same rate-limiting counter**, causing false-positive 429 lockouts.
+
+To enforce per-client rate isolation:
+
+1. **Express Trust Proxy**: Configured via `app.set('trust proxy', true)` in [`main.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/main.ts).
+2. **Deterministic IP Resolution (`extractClientIp`)**: Provided in [`request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
+   ```typescript
+   export function extractClientIp(req: Request): string | undefined {
+     const forwarded = req.headers['x-forwarded-for'];
+     if (typeof forwarded === 'string' && forwarded.length > 0) {
+       return forwarded.split(',')[0].trim();
+     }
+     if (Array.isArray(forwarded) && forwarded.length > 0) {
+       return forwarded[0].split(',')[0].trim();
+     }
+     return (
+       (req.headers['x-real-ip'] as string) ||
+       req.ip ||
+       req.socket?.remoteAddress
+     );
+   }
+   ```
+   This guarantees that the client's genuine public IP address (the leftmost entry in `x-forwarded-for`) governs their individual rate limit bucket.
+
+#### Multi-Tier Throttling Profiles
+
+Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
+
+| Policy Constant               | Target Endpoints                                                                                                                                                       | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection                                                                                                                    |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
+| **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/auth/dev-login`                                                                                                                                          |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+
+#### Error Response Contract (`429 Too Many Requests`)
+
+When a client breaches any of the configured throttler thresholds, the NestJS `ThrottlerGuard` immediately halts processing before controller or database execution, returning standard HTTP 429:
+
+```json
+{
+  "statusCode": 429,
+  "message": "ThrottlerException: Too Many Requests"
+}
+```
+
+---
+
+### 🧹 Session Retention & Storage Lifecycle
+
+Because access tokens expire in 15 minutes, an active user generates approximately 4 `UserSession` records per active hour (~96 records/day). Over months across thousands of users, the table accumulates millions of rows, degrading B-tree index performance on `jti` and `userId`.
+
+BreathAway executes an automated, chunked retention cleanup job:
+
+- **Schedule**: Weekly (`0 3 * * 0 UTC`) via Cloud Scheduler invoking `POST /api/v1/internal/jobs/purge-expired-sessions`.
+- **Grace Period**: Purges sessions where `expiresAt < NOW() - INTERVAL '7 days'`, retaining a 7-day audit horizon for forensics.
+- **Batching**: Iteratively deletes in chunks of 5,000 rows to avoid PostgreSQL lock escalation and WAL buffer exhaustion.
+- **Documentation**: See [Maintenance Module](/modules/maintenance#5-scheduled-user-session-retention-cleanup) for execution details.
 
 ---
 

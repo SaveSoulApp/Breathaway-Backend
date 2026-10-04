@@ -11,13 +11,21 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
-import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import {
+  ApiStandardErrors,
+  ClientIp,
+  CurrentUserId,
+  DeviceId,
+  UserAgent,
+} from '@common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
@@ -25,11 +33,18 @@ import { LoggerService } from '@core/logger';
 
 import { AuthService } from './auth.service';
 import {
+  AUTH_DEV_LOGIN_THROTTLE,
+  AUTH_REFRESH_THROTTLE,
+  AUTH_STRICT_THROTTLE,
+} from './constants';
+import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
   DeleteAccountRequestDto,
   DevLoginRequestDto,
+  RefreshTokenRequestDto,
+  SignoutRequestDto,
   UserAuthResponseDto,
 } from './dto';
 import { AuthMethod } from './utils/auth-method.utils';
@@ -66,16 +81,30 @@ export class AuthController extends BaseController {
    *   or when the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signup')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign up a new user' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'User successfully signed up',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many registration requests; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.CREATED)
-  signup(@Body() dto: AuthSignupRequestDto) {
-    return this.authService.signup(dto);
+  signup(
+    @Body() dto: AuthSignupRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signup(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -90,16 +119,30 @@ export class AuthController extends BaseController {
    * @throws {ConflictException} When the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signin')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign in an existing user' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully signed in',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many sign-in attempts; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signin(@Body() dto: AuthSigninRequestDto) {
-    return this.authService.signin(dto);
+  signin(
+    @Body() dto: AuthSigninRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signin(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -113,16 +156,30 @@ export class AuthController extends BaseController {
    * @throws {ConflictException} When the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signin-or-signup')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign in or sign up depending on user existence' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully authenticated',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many authentication attempts; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signinOrSignup(@Body() dto: AuthSigninRequestDto) {
-    return this.authService.signInOrSignUp(dto);
+  signinOrSignup(
+    @Body() dto: AuthSigninRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signInOrSignUp(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -154,6 +211,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When no user exists with the provided developer credential.
    */
   @Post('dev-login')
+  @Throttle(AUTH_DEV_LOGIN_THROTTLE)
   @UseGuards(BasicAuthGuard)
   @ApiStandardErrors()
   @ApiOperation({ summary: 'Developer login for testing purposes' })
@@ -162,10 +220,23 @@ export class AuthController extends BaseController {
     description: 'Dev user successfully authenticated',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many dev-login attempts; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  devLogin(@Body() dto: DevLoginRequestDto) {
-    return this.authService.devLogin(dto);
+  devLogin(
+    @Body() dto: DevLoginRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.devLogin(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -181,6 +252,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When the current user record cannot be found.
    */
   @Patch('add-phone')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
@@ -190,13 +262,24 @@ export class AuthController extends BaseController {
     description: 'Phone number added successfully',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many credential update attempts; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
   addPhone(
     @CurrentUserId() userId: string,
     @Body() dto: AddSecondaryAuthRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
   ) {
-    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE);
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -212,6 +295,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When the current user record cannot be found.
    */
   @Patch('add-email')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
@@ -221,33 +305,84 @@ export class AuthController extends BaseController {
     description: 'Email added successfully',
     type: UserAuthResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many credential update attempts; rate limit exceeded',
+  })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
   addEmail(
     @CurrentUserId() userId: string,
     @Body() dto: AddSecondaryAuthRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
   ) {
-    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL);
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
-   * Logs out the authenticated user and emits an audit log event.
+   * Refreshes access and refresh tokens using Refresh Token Rotation (RTR).
+   *
+   * @param dto - Container for the signed JWT refresh token.
+   * @returns Rotated access and refresh tokens with expiration metadata.
+   */
+  @Post('refresh')
+  @Throttle(AUTH_REFRESH_THROTTLE)
+  @ApiOperation({ summary: 'Refresh access and refresh tokens' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Tokens successfully refreshed',
+    type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many refresh attempts; rate limit exceeded',
+  })
+  @SerializeExpose(UserAuthResponseDto)
+  @HttpCode(HttpStatus.OK)
+  refresh(
+    @Body() dto: RefreshTokenRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.refresh(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
+  }
+
+  /**
+   * Logs out the authenticated user, revokes active refresh token sessions, and emits an audit log event.
    *
    * @param userId - Unique identifier of the authenticated user, extracted from the JWT.
+   * @param dto - Optional container specifying a single refresh token to revoke.
    * @returns An object confirming successful sign-out.
    */
   @Post('signout')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
+  @ApiBody({
+    type: SignoutRequestDto,
+    required: false,
+    description:
+      'Optional refresh token to revoke a specific session lineage. If omitted, all active sessions for the user are terminated.',
+  })
   @ApiOperation({ summary: 'Sign out the current user' })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'User successfully signed out',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  signout(@CurrentUserId() userId: string) {
-    return this.authService.signout(userId);
+  signout(@CurrentUserId() userId: string, @Body() dto?: SignoutRequestDto) {
+    return this.authService.signout(userId, dto?.refreshToken);
   }
 
   /**

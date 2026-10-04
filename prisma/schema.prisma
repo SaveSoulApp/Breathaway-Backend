@@ -91,6 +91,7 @@ model User {
   transactions  Transaction[]
   paymentOrders PaymentOrder[]
   notifications Notification[]
+  sessions      UserSession[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
   /// Null for email-only users or social accounts that have no phone credential.
@@ -285,6 +286,35 @@ model Device {
   updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@index([userId])
+}
+
+model UserSession {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Unique JWT ID of the active refresh token
+  jti String @unique
+
+  /// SHA-256 hash of the issued refresh token string
+  tokenHash String @unique @db.Char(64)
+
+  /// Shared family identifier for rotation lineages (triggers reuse detection upon breach)
+  familyId String
+
+  deviceId  String?
+  userAgent String?
+  ipAddress String?
+
+  expiresAt DateTime  @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
 }
 
 model CreditLedger {

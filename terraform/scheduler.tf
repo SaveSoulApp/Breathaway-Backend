@@ -194,3 +194,30 @@ resource "google_cloud_scheduler_job" "reconcile_payments_job" {
     }
   }
 }
+
+# 14. Create the Purge Expired User Sessions Job (Runs weekly on Sunday at 03:00 AM UTC)
+resource "google_cloud_scheduler_job" "purge_expired_user_sessions_job" {
+  name        = "purge-expired-user-sessions-job"
+  description = "Weekly cleanup of expired user sessions older than 7 days retention via Maintenance Service"
+  schedule    = "0 3 * * 0"
+  time_zone   = "UTC"
+  region      = var.region
+  project     = var.project_id
+
+  retry_config {
+    retry_count          = 3
+    min_backoff_duration = "10s"
+    max_backoff_duration = "300s"
+    max_doublings        = 2
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/purge-expired-sessions"
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_invoker.email
+      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
+    }
+  }
+}

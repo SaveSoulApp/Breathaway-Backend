@@ -216,8 +216,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
 
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'signed-access-token',
-          user_id: mockUser.id,
+          accessToken: 'signed-access-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -314,8 +314,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       );
       expect(result).toEqual({
-        access_token: 'signed-access-token',
-        user_id: mockUser.id,
+        accessToken: 'signed-access-token',
+        userId: mockUser.id,
       });
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -697,8 +697,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
 
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'signed-access-token',
-          user_id: mockUser.id,
+          accessToken: 'signed-access-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -871,8 +871,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
 
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'signed-access-token',
-          user_id: mockUser.id,
+          accessToken: 'signed-access-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -930,8 +930,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       const result = await service.signin(dto);
 
       expect(result).toEqual({
-        access_token: 'signed-access-token',
-        user_id: mockUser.id,
+        accessToken: 'signed-access-token',
+        userId: mockUser.id,
       });
       expect(prisma.identity.update).not.toHaveBeenCalled();
     });
@@ -977,8 +977,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         { userId: mockUser.id },
       );
       expect(result).toEqual({
-        access_token: 'signed-access-token',
-        user_id: mockUser.id,
+        accessToken: 'signed-access-token',
+        userId: mockUser.id,
       });
     });
 
@@ -1057,8 +1057,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
 
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'signed-access-token',
-          user_id: mockUser.id,
+          accessToken: 'signed-access-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -1203,8 +1203,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       } as unknown as jest.Mocked<PubSubPublisherService>;
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'social-jwt-token',
-          user_id: mockUser.id,
+          accessToken: 'social-jwt-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -1275,8 +1275,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         },
       );
       expect(result).toEqual({
-        access_token: 'social-jwt-token',
-        user_id: mockUser.id,
+        accessToken: 'social-jwt-token',
+        userId: mockUser.id,
       });
     });
 
@@ -1322,8 +1322,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         },
       );
       expect(result).toEqual({
-        access_token: 'social-jwt-token',
-        user_id: mockUser.id,
+        accessToken: 'social-jwt-token',
+        userId: mockUser.id,
       });
     });
 
@@ -1406,8 +1406,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       } as unknown as jest.Mocked<IdentityCryptoService>;
       authTokenService = {
         generateAuthResponse: jest.fn().mockReturnValue({
-          access_token: 'dev-jwt-token',
-          user_id: mockUser.id,
+          accessToken: 'dev-jwt-token',
+          userId: mockUser.id,
         }),
       } as unknown as jest.Mocked<AuthTokenService>;
 
@@ -1463,8 +1463,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         },
       );
       expect(result).toEqual({
-        access_token: 'dev-jwt-token',
-        user_id: mockUser.id,
+        accessToken: 'dev-jwt-token',
+        userId: mockUser.id,
       });
     });
 
@@ -1491,8 +1491,8 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         },
       );
       expect(result).toEqual({
-        access_token: 'dev-jwt-token',
-        user_id: mockUser.id,
+        accessToken: 'dev-jwt-token',
+        userId: mockUser.id,
       });
     });
 
@@ -1504,14 +1504,45 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         UserNotFoundException,
       );
     });
+
+    it('should forward request metadata to generateAuthResponse', async () => {
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      prisma.authCredential.findFirst.mockResolvedValue({
+        id: 'cred-1',
+        valueHash: 'hash-dev@breathaway.test-EMAIL',
+        user: mockUser,
+      } as any);
+
+      await service.devLogin(dto, {
+        ipAddress: '192.168.1.1',
+        userAgent: 'DevAgent/1.0',
+        deviceId: 'dev-device-1',
+      });
+
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: 'DEV_LOGIN',
+          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          ipAddress: '192.168.1.1',
+          userAgent: 'DevAgent/1.0',
+          deviceId: 'dev-device-1',
+        },
+      );
+    });
   });
 
   describe('signout', () => {
     let service: AuthService;
     let eventEmitter: { emit: jest.Mock };
+    let authTokenService: { revokeSession: jest.Mock };
 
     beforeEach(async () => {
       eventEmitter = { emit: jest.fn() };
+      authTokenService = {
+        revokeSession: jest.fn().mockResolvedValue(undefined),
+      };
       const loggerMock = {
         forContext: jest.fn().mockReturnValue({
           log: jest.fn(),
@@ -1528,7 +1559,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           AuthService,
           { provide: PrismaService, useValue: createPrismaMock() },
           { provide: IdentityCryptoService, useValue: {} },
-          { provide: AuthTokenService, useValue: {} },
+          { provide: AuthTokenService, useValue: authTokenService },
           { provide: FirebaseService, useValue: {} },
           { provide: PubSubPublisherService, useValue: {} },
           { provide: AuthCredentialService, useValue: {} },
@@ -1541,9 +1572,13 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       service = module.get<AuthService>(AuthService);
     });
 
-    it('should emit audit log and return confirmation message', () => {
-      const result = service.signout('user-signout-123');
+    it('should emit audit log, revoke session, and return confirmation message', async () => {
+      const result = await service.signout('user-signout-123');
 
+      expect(authTokenService.revokeSession).toHaveBeenCalledWith(
+        'user-signout-123',
+        undefined,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         AUDIT_LOG_EVENT,
         expect.objectContaining({
@@ -1552,6 +1587,77 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       );
       expect(result).toEqual({ message: 'Signout successful' });
+    });
+  });
+
+  describe('refresh', () => {
+    let service: AuthService;
+    let authTokenService: { refreshToken: jest.Mock };
+
+    beforeEach(async () => {
+      authTokenService = { refreshToken: jest.fn() };
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: createPrismaMock() },
+          { provide: IdentityCryptoService, useValue: {} },
+          { provide: AuthTokenService, useValue: authTokenService },
+          { provide: FirebaseService, useValue: {} },
+          { provide: PubSubPublisherService, useValue: {} },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should delegate to authTokenService.refreshToken', async () => {
+      const dto = { refreshToken: 'mock-token' };
+      const mockResult = {
+        userId: 'user-1',
+        tokenType: 'Bearer',
+        accessToken: 'access-1',
+        expiresIn: 900,
+        refreshToken: 'refresh-1',
+        refreshTokenExpiresAt: '2026-10-18T00:00:00.000Z',
+      };
+      authTokenService.refreshToken.mockResolvedValue(mockResult);
+
+      const result = await service.refresh(dto);
+
+      expect(authTokenService.refreshToken).toHaveBeenCalledWith(
+        dto,
+        undefined,
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should forward request metadata to authTokenService.refreshToken', async () => {
+      const dto = { refreshToken: 'mock-token' };
+      const metadata = {
+        ipAddress: '203.0.113.10',
+        userAgent: 'MobileApp/1.0',
+        deviceId: 'device-999',
+      };
+      authTokenService.refreshToken.mockResolvedValue({} as any);
+
+      await service.refresh(dto, metadata);
+
+      expect(authTokenService.refreshToken).toHaveBeenCalledWith(dto, metadata);
     });
   });
 

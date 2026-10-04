@@ -105,6 +105,59 @@ await this.prisma.$transaction(async (tx) => {
 });
 ```
 
+### 4. Atomic Compare-and-Swap (CAS) for Session Concurrency
+
+To defend against concurrent refresh token rotation races without acquiring heavy table-level write locks, the backend executes atomic Compare-and-Swap (CAS) queries directly via Prisma's `updateMany`:
+
+```typescript
+const updateResult = await tx.userSession.updateMany({
+  where: { id: session.id, revokedAt: null },
+  data: { revokedAt: DateUtil.now() },
+});
+```
+
+Because `updateMany` in PostgreSQL evaluates `WHERE id = ... AND revokedAt IS NULL` atomically within the row lock of the write, only the first transaction succeeds (`count === 1`). Any concurrent runner receives `count === 0` and is safely diverted to breach containment.
+
+---
+
+## 🔑 User Session Storage & Index Strategy
+
+Active authentication sessions are tracked in the `UserSession` model to support Refresh Token Rotation (RTR), device auditing, and token family breach containment.
+
+### Schema & Index Layout
+
+```prisma
+model UserSession {
+  id        String   @id @default(ulid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jti       String   @unique
+  tokenHash String   @unique @db.Char(64)
+  familyId  String
+  deviceId  String?
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+```
+
+### Index Purpose & Query Path Matrix
+
+| Index | Type | Hot-Path Query Purpose |
+| :--- | :--- | :--- |
+| `jti` | B-Tree (`@unique`) | $O(1)$ token lookup during `/api/v1/auth/refresh`. |
+| `tokenHash` | B-Tree (`@unique`) | Prevents duplicate hash collisions; enables forensic hash verification. |
+| `[userId]` | B-Tree (`@@index`) | Enables instant revocation of all user sessions during global signout or account deletion (`onDelete: Cascade`). |
+| `[familyId]` | B-Tree (`@@index`) | Accelerates targeted single-device signouts and instant lineage invalidation during RFC 6819 token reuse breach containment. |
+| `[expiresAt]` | B-Tree (`@@index`) | Powers index-only scans for the weekly Cloud Scheduler data hygiene job (`POST /api/v1/internal/jobs/purge-expired-sessions`). |
+
 ---
 
 ## 💰 Double-Entry Credit Ledger Architecture
