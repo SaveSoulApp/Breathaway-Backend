@@ -18,6 +18,7 @@ import { AuthTokenService } from '../services/auth-token.service';
 
 describe('AuthTokenService', () => {
   let service: AuthTokenService;
+  let clsService: { get: jest.Mock };
   let jwtService: { sign: jest.Mock; verify: jest.Mock; decode: jest.Mock };
   let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
@@ -51,6 +52,7 @@ describe('AuthTokenService', () => {
   };
 
   beforeEach(async () => {
+    clsService = { get: jest.fn() };
     jwtService = {
       sign: jest.fn().mockReturnValue('mock-jwt-token'),
       verify: jest.fn(),
@@ -87,7 +89,7 @@ describe('AuthTokenService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthTokenService,
-        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: ClsService, useValue: clsService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
@@ -167,6 +169,29 @@ describe('AuthTokenService', () => {
         }),
       );
     });
+
+    it('should fallback to CLS context for ipAddress, userAgent, and deviceId when not in metadata', async () => {
+      // Arrange
+      clsService.get.mockImplementation((key: string) => {
+        if (key === 'ipAddress') return '198.51.100.5';
+        if (key === 'userAgent') return 'CustomAgent/2.0';
+        if (key === 'deviceId') return 'cls-device-id';
+        return undefined;
+      });
+
+      // Act
+      await service.generateAuthResponse(mockUser);
+
+      // Assert
+      expect(prisma.userSession.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-auth-123',
+          ipAddress: '198.51.100.5',
+          userAgent: 'CustomAgent/2.0',
+          deviceId: 'cls-device-id',
+        }),
+      });
+    });
   });
 
   describe('refreshToken', () => {
@@ -203,6 +228,42 @@ describe('AuthTokenService', () => {
       expect(prisma.userSession.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           familyId: 'family-1',
+        }),
+      });
+    });
+
+    it('should forward request metadata and retain deviceId on token rotation', async () => {
+      // Arrange
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'valid-jti',
+        familyId: 'family-1',
+        token_type: 'refresh',
+      });
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        userId: 'user-auth-123',
+        jti: 'valid-jti',
+        familyId: 'family-1',
+        deviceId: 'original-device',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+
+      // Act
+      await service.refreshToken(
+        { refreshToken: 'valid-refresh-token' },
+        { ipAddress: '10.0.0.1', userAgent: 'NewAgent/1.0' },
+      );
+
+      // Assert
+      expect(prisma.userSession.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          familyId: 'family-1',
+          deviceId: 'original-device',
+          ipAddress: '10.0.0.1',
+          userAgent: 'NewAgent/1.0',
         }),
       });
     });

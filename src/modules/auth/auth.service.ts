@@ -92,7 +92,7 @@ export class AuthService extends BaseService {
    *   (only PHONE and EMAIL are accepted).
    * @throws {ConflictException} When registration is pending verification for the same credential.
    */
-  async signup(dto: AuthSignupRequestDto) {
+  async signup(dto: AuthSignupRequestDto, metadata?: Record<string, unknown>) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Signup started', { ...ctx, step: 'init' });
 
@@ -175,7 +175,10 @@ export class AuthService extends BaseService {
     this.emitAuditLog({
       actionType: AuditActionType.USER_REGISTERED,
       userId: user.id,
-      metadata: { method: authMethod.method },
+      ...(typeof metadata?.ipAddress === 'string' && {
+        ipAddress: metadata.ipAddress,
+      }),
+      metadata: { method: authMethod.method, ...(metadata && metadata) },
     });
 
     this.logger.event(LOG_EVENT.USER_REGISTERED, {
@@ -205,7 +208,7 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the account exists but has not completed OTP verification.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signin(dto: AuthSigninRequestDto) {
+  async signin(dto: AuthSigninRequestDto, metadata?: Record<string, unknown>) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Signin started', { ...ctx, step: 'init' });
 
@@ -319,6 +322,7 @@ export class AuthService extends BaseService {
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
+      ...(metadata && metadata),
     });
   }
 
@@ -334,7 +338,10 @@ export class AuthService extends BaseService {
    * @throws {UnauthorizedException} When the credential belongs to an existing unverified account.
    * @throws {ConflictException} When the credential represents an unsupported auth method.
    */
-  async signInOrSignUp(dto: AuthSigninRequestDto) {
+  async signInOrSignUp(
+    dto: AuthSigninRequestDto,
+    metadata?: Record<string, unknown>,
+  ) {
     const ctx: Record<string, unknown> = { uid: dto.uid };
     this.logger.log('Sign-in or sign-up started', { ...ctx, step: 'init' });
 
@@ -386,7 +393,14 @@ export class AuthService extends BaseService {
       this.emitAuditLog({
         actionType: AuditActionType.USER_REGISTERED,
         userId: user.id,
-        metadata: { method: authMethod.method },
+        ...(typeof metadata?.ipAddress === 'string' && {
+          ipAddress: metadata.ipAddress,
+        }),
+        metadata: {
+          method: authMethod.method,
+          isNewUser: true,
+          ...(metadata && metadata),
+        },
       });
 
       this.logger.event(LOG_EVENT.USER_REGISTERED, {
@@ -401,6 +415,7 @@ export class AuthService extends BaseService {
         authMethod: authMethod.method,
         publicValueHash: normalizedHash,
         isNewUser: true,
+        ...(metadata && metadata),
       });
     }
 
@@ -475,6 +490,7 @@ export class AuthService extends BaseService {
       authMethod: authMethod.method,
       publicValueHash: valueHash,
       isNewUser: false,
+      ...(metadata && metadata),
     });
   }
 
@@ -713,6 +729,7 @@ export class AuthService extends BaseService {
     userId: string,
     dto: AddSecondaryAuthRequestDto,
     authType: AuthMethod.PHONE | AuthMethod.EMAIL,
+    metadata?: Record<string, unknown>,
   ) {
     const ctx: Record<string, unknown> = { userId, authType };
     this.logger.log('Add secondary auth started', { ...ctx, step: 'init' });
@@ -991,6 +1008,7 @@ export class AuthService extends BaseService {
       authMethod: authType,
       publicValueHash: publicValueData.publicValueHash,
       isSecondaryAuth: true,
+      ...(metadata && metadata),
     });
   }
 
@@ -1005,7 +1023,7 @@ export class AuthService extends BaseService {
    * @returns The user's ID and a signed JWT access token.
    * @throws {NotFoundException} When no credential matches the provided identifier.
    */
-  async devLogin(dto: DevLoginRequestDto) {
+  async devLogin(dto: DevLoginRequestDto, metadata?: Record<string, unknown>) {
     const rawValue = dto.identifier.trim();
     const isEmail = rawValue.includes('@');
     const value = isEmail ? sanitizeEmail(rawValue) : rawValue;
@@ -1039,6 +1057,7 @@ export class AuthService extends BaseService {
     return this.authTokenService.generateAuthResponse(credential.user, {
       authMethod: 'DEV_LOGIN',
       publicValueHash: valueHash,
+      ...(metadata && metadata),
     });
   }
 

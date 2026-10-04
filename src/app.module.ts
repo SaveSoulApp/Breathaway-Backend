@@ -67,8 +67,39 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
         mount: true,
         setup: (cls, req: Request) => {
           cls.set('requestStart', Date.now());
-          cls.set('ipAddress', req.ip);
-          cls.set('userAgent', req.headers['x-user-agent']);
+
+          // Extract public client IP (GCP Cloud Load Balancer / reverse proxy aware)
+          const forwarded = req.headers['x-forwarded-for'];
+          let clientIp: string | undefined;
+          if (typeof forwarded === 'string' && forwarded.length > 0) {
+            clientIp = forwarded.split(',')[0].trim();
+          } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+            clientIp = forwarded[0].split(',')[0].trim();
+          }
+          cls.set('ipAddress', clientIp || req.ip || req.socket?.remoteAddress);
+
+          // Extract user agent prioritizing x-user-agent with standard user-agent fallback
+          const userAgent =
+            req.headers['x-user-agent'] || req.headers['user-agent'];
+          cls.set(
+            'userAgent',
+            typeof userAgent === 'string'
+              ? userAgent.trim()
+              : Array.isArray(userAgent) && userAgent.length > 0
+                ? userAgent[0]?.trim()
+                : undefined,
+          );
+
+          // Extract device identifier
+          const deviceId = req.headers['x-device-id'];
+          cls.set(
+            'deviceId',
+            typeof deviceId === 'string'
+              ? deviceId.trim()
+              : Array.isArray(deviceId) && deviceId.length > 0
+                ? deviceId[0]?.trim()
+                : undefined,
+          );
 
           const requestId = req.headers['x-request-id'] || randomUUID();
           cls.set('requestId', requestId);

@@ -18,7 +18,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import {
+  ApiStandardErrors,
+  ClientIp,
+  CurrentUserId,
+  DeviceId,
+  UserAgent,
+} from '@common/decorators';
 import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
@@ -77,8 +83,17 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.CREATED)
-  signup(@Body() dto: AuthSignupRequestDto) {
-    return this.authService.signup(dto);
+  signup(
+    @Body() dto: AuthSignupRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signup(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -101,8 +116,17 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signin(@Body() dto: AuthSigninRequestDto) {
-    return this.authService.signin(dto);
+  signin(
+    @Body() dto: AuthSigninRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signin(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -124,8 +148,17 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  signinOrSignup(@Body() dto: AuthSigninRequestDto) {
-    return this.authService.signInOrSignUp(dto);
+  signinOrSignup(
+    @Body() dto: AuthSigninRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.signInOrSignUp(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -167,8 +200,17 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  devLogin(@Body() dto: DevLoginRequestDto) {
-    return this.authService.devLogin(dto);
+  devLogin(
+    @Body() dto: DevLoginRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.devLogin(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -198,8 +240,15 @@ export class AuthController extends BaseController {
   addPhone(
     @CurrentUserId() userId: string,
     @Body() dto: AddSecondaryAuthRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
   ) {
-    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE);
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.PHONE, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -229,8 +278,15 @@ export class AuthController extends BaseController {
   addEmail(
     @CurrentUserId() userId: string,
     @Body() dto: AddSecondaryAuthRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
   ) {
-    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL);
+    return this.authService.addSecondaryAuth(userId, dto, AuthMethod.EMAIL, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**
@@ -248,8 +304,17 @@ export class AuthController extends BaseController {
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
-  refresh(@Body() dto: RefreshTokenRequestDto) {
-    return this.authService.refresh(dto);
+  refresh(
+    @Body() dto: RefreshTokenRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.refresh(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 
   /**

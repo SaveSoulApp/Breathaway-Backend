@@ -77,62 +77,102 @@ describe('AuthController', () => {
   });
 
   describe('signup', () => {
-    it('should sign up a user and return the response', async () => {
+    it('should sign up a user and forward request metadata', async () => {
       const dto: AuthSignupRequestDto = {
         uid: 'uid-123',
         uidToken: 'token-123',
       };
       service.signup.mockResolvedValue(mockSignupResponse);
 
-      const result = await controller.signup(dto);
+      const result = await controller.signup(
+        dto,
+        '203.0.113.1',
+        'BreathAway/1.0.0 (iOS 17.0; iPhone15)',
+        'device-uuid-1',
+      );
 
-      expect(service.signup).toHaveBeenCalledWith(dto);
+      expect(service.signup).toHaveBeenCalledWith(dto, {
+        ipAddress: '203.0.113.1',
+        userAgent: 'BreathAway/1.0.0 (iOS 17.0; iPhone15)',
+        deviceId: 'device-uuid-1',
+      });
       expect(result).toEqual(mockSignupResponse);
     });
   });
 
   describe('signin', () => {
-    it('should sign in a user and return the credentials', async () => {
+    it('should sign in a user and forward request metadata', async () => {
       const dto: AuthSigninRequestDto = {
         uid: 'uid-123',
         uidToken: 'token-123',
       };
       service.signin.mockResolvedValue(mockSigninResponse);
 
-      const result = await controller.signin(dto);
+      const result = await controller.signin(
+        dto,
+        '203.0.113.2',
+        'Mozilla/5.0',
+        'device-uuid-2',
+      );
 
-      expect(service.signin).toHaveBeenCalledWith(dto);
+      expect(service.signin).toHaveBeenCalledWith(dto, {
+        ipAddress: '203.0.113.2',
+        userAgent: 'Mozilla/5.0',
+        deviceId: 'device-uuid-2',
+      });
       expect(result).toEqual(mockSigninResponse);
     });
   });
 
   describe('addPhone', () => {
-    it('should add a secondary phone credential', async () => {
+    it('should add a secondary phone credential with metadata', async () => {
       const dto = { uid: 'uid-phone-123', uidToken: 'token-phone-123' };
       service.addSecondaryAuth.mockResolvedValue(mockSigninResponse);
 
-      const result = await controller.addPhone('user-id-123', dto);
+      const result = await controller.addPhone(
+        'user-id-123',
+        dto,
+        '203.0.113.3',
+        'TestAgent',
+        'device-uuid-3',
+      );
 
       expect(service.addSecondaryAuth).toHaveBeenCalledWith(
         'user-id-123',
         dto,
         'phone',
+        {
+          ipAddress: '203.0.113.3',
+          userAgent: 'TestAgent',
+          deviceId: 'device-uuid-3',
+        },
       );
       expect(result).toEqual(mockSigninResponse);
     });
   });
 
   describe('addEmail', () => {
-    it('should add a secondary email credential', async () => {
+    it('should add a secondary email credential with metadata', async () => {
       const dto = { uid: 'uid-email-123', uidToken: 'token-email-123' };
       service.addSecondaryAuth.mockResolvedValue(mockSigninResponse);
 
-      const result = await controller.addEmail('user-id-123', dto);
+      const result = await controller.addEmail(
+        'user-id-123',
+        dto,
+        '203.0.113.4',
+        'TestAgent',
+        'device-uuid-4',
+      );
 
       expect(service.addSecondaryAuth).toHaveBeenCalledWith(
         'user-id-123',
         dto,
         'password',
+        {
+          ipAddress: '203.0.113.4',
+          userAgent: 'TestAgent',
+          deviceId: 'device-uuid-4',
+        },
       );
       expect(result).toEqual(mockSigninResponse);
     });
@@ -145,22 +185,31 @@ describe('AuthController', () => {
   });
 
   describe('signinOrSignup', () => {
-    it('should invoke authService.signInOrSignUp and return result', async () => {
+    it('should invoke authService.signInOrSignUp with metadata and return result', async () => {
       const dto: AuthSigninRequestDto = {
         uid: 'uid-123',
         uidToken: 'token-123',
       };
       service.signInOrSignUp.mockResolvedValue(mockSigninResponse);
 
-      const result = await controller.signinOrSignup(dto);
+      const result = await controller.signinOrSignup(
+        dto,
+        '203.0.113.5',
+        'TestAgent',
+        'device-uuid-5',
+      );
 
-      expect(service.signInOrSignUp).toHaveBeenCalledWith(dto);
+      expect(service.signInOrSignUp).toHaveBeenCalledWith(dto, {
+        ipAddress: '203.0.113.5',
+        userAgent: 'TestAgent',
+        deviceId: 'device-uuid-5',
+      });
       expect(result).toEqual(mockSigninResponse);
     });
   });
 
   describe('devLogin', () => {
-    it('should invoke authService.devLogin with developer credentials', async () => {
+    it('should invoke authService.devLogin with developer credentials and metadata', async () => {
       const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
       const mockDevResponse = {
         ...mockSigninResponse,
@@ -168,23 +217,41 @@ describe('AuthController', () => {
       };
       service.devLogin.mockResolvedValue(mockDevResponse);
 
-      const result = await controller.devLogin(dto);
+      const result = await controller.devLogin(
+        dto,
+        '127.0.0.1',
+        'DevClient',
+        'device-dev-1',
+      );
 
-      expect(service.devLogin).toHaveBeenCalledWith(dto);
+      expect(service.devLogin).toHaveBeenCalledWith(dto, {
+        ipAddress: '127.0.0.1',
+        userAgent: 'DevClient',
+        deviceId: 'device-dev-1',
+      });
       expect(result).toEqual(mockDevResponse);
     });
   });
 
   describe('refresh', () => {
-    it('should refresh tokens and return the rotated credentials', async () => {
+    it('should refresh tokens with metadata and return the rotated credentials', async () => {
       const dto: RefreshTokenRequestDto = {
         refreshToken: 'valid-refresh-token',
       };
       service.refresh.mockResolvedValue(mockSigninResponse);
 
-      const result = await controller.refresh(dto);
+      const result = await controller.refresh(
+        dto,
+        '203.0.113.6',
+        'RefreshAgent',
+        'device-refresh-1',
+      );
 
-      expect(service.refresh).toHaveBeenCalledWith(dto);
+      expect(service.refresh).toHaveBeenCalledWith(dto, {
+        ipAddress: '203.0.113.6',
+        userAgent: 'RefreshAgent',
+        deviceId: 'device-refresh-1',
+      });
       expect(result).toEqual(mockSigninResponse);
     });
   });

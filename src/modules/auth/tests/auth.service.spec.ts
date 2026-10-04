@@ -1504,6 +1504,33 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         UserNotFoundException,
       );
     });
+
+    it('should forward request metadata to generateAuthResponse', async () => {
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      prisma.authCredential.findFirst.mockResolvedValue({
+        id: 'cred-1',
+        valueHash: 'hash-dev@breathaway.test-EMAIL',
+        user: mockUser,
+      } as any);
+
+      await service.devLogin(dto, {
+        ipAddress: '192.168.1.1',
+        userAgent: 'DevAgent/1.0',
+        deviceId: 'dev-device-1',
+      });
+
+      expect(authTokenService.generateAuthResponse).toHaveBeenCalledWith(
+        mockUser,
+        {
+          authMethod: 'DEV_LOGIN',
+          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          ipAddress: '192.168.1.1',
+          userAgent: 'DevAgent/1.0',
+          deviceId: 'dev-device-1',
+        },
+      );
+    });
   });
 
   describe('signout', () => {
@@ -1618,6 +1645,20 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         undefined,
       );
       expect(result).toEqual(mockResult);
+    });
+
+    it('should forward request metadata to authTokenService.refreshToken', async () => {
+      const dto = { refreshToken: 'mock-token' };
+      const metadata = {
+        ipAddress: '203.0.113.10',
+        userAgent: 'MobileApp/1.0',
+        deviceId: 'device-999',
+      };
+      authTokenService.refreshToken.mockResolvedValue({} as any);
+
+      await service.refresh(dto, metadata);
+
+      expect(authTokenService.refreshToken).toHaveBeenCalledWith(dto, metadata);
     });
   });
 

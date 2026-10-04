@@ -109,6 +109,16 @@ export class AuthTokenService extends BaseService {
 
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
 
+    const deviceId =
+      (metadata?.deviceId as string | undefined) ??
+      this.cls?.get<string>('deviceId');
+    const userAgent =
+      (metadata?.userAgent as string | undefined) ??
+      this.cls?.get<string>('userAgent');
+    const ipAddress =
+      (metadata?.ipAddress as string | undefined) ??
+      this.cls?.get<string>('ipAddress');
+
     // 3. Persist session in PostgreSQL
     const prismaClient = tx ?? this.prisma;
     await prismaClient.userSession.create({
@@ -118,9 +128,9 @@ export class AuthTokenService extends BaseService {
         tokenHash,
         familyId,
         expiresAt: refreshTokenExpiresAt,
-        deviceId: metadata?.deviceId as string | undefined,
-        userAgent: metadata?.userAgent as string | undefined,
-        ipAddress: metadata?.ipAddress as string | undefined,
+        deviceId,
+        userAgent,
+        ipAddress,
       },
     });
 
@@ -134,6 +144,7 @@ export class AuthTokenService extends BaseService {
       this.emitAuditLog({
         actionType: AuditActionType.USER_LOGIN,
         userId: user.id,
+        ...(ipAddress && { ipAddress }),
         ...(metadata && { metadata }),
       });
     }
@@ -275,7 +286,8 @@ export class AuthTokenService extends BaseService {
         {
           ...metadata,
           familyId: session.familyId,
-          deviceId: session.deviceId,
+          deviceId:
+            (metadata?.deviceId as string | undefined) ?? session.deviceId,
           isRefresh: true,
         },
         tx,
