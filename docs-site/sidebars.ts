@@ -1,7 +1,7 @@
 import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
-  // Modules Tab Sidebar - Detailed documentation for all 25 domain and infrastructure modules
+  // Modules Tab Sidebar - Detailed documentation for domain and infrastructure modules
   modulesSidebar: [
     'modules/overview',
     {

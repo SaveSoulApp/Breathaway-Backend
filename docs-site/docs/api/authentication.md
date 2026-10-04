@@ -251,7 +251,7 @@ Rather than a single coarse window, BreathAway configures three concurrent time 
 | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
 | **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
 | **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
-| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/auth/dev-login`                                                                                                                                          |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login`                                                                                                                                         |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
 
 #### Error Response Contract (`429 Too Many Requests`)
 
@@ -356,7 +356,7 @@ sequenceDiagram
 
 ## 🛠️ 4. Administrative & Developer Authentication (Google OIDC + GCP IAM)
 
-Administrative APIs (`/api/v1/admin/*`, `/api/v1/notifications/*`, `/api/v1/reports/*`, `/api/v1/payments/routes/*`, `/api/v1/social-identities/*`, `/api/v1/transactions/*`, `/api/v1/instagram/*`, and developer bypass `/api/v1/auth/dev-login`) are secured by [`AdminOidcAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-oidc-auth.guard.ts).
+Administrative APIs (`/api/v1/admin/*` including developer bypass `/api/v1/admin/dev-login`, `/api/v1/notifications/*`, `/api/v1/reports/*`, `/api/v1/payments/routes/*`, `/api/v1/social-identities/*`, `/api/v1/transactions/*`, `/api/v1/instagram/*`) are secured by [`AdminOidcAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-oidc-auth.guard.ts).
 
 This replaces legacy HTTP Basic Auth and shared static passwords with **Zero-Trust Google OpenID Connect (OIDC)**, delegating identity verification to Google and authorization to Google Cloud IAM.
 

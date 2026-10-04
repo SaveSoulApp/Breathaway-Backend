@@ -15,8 +15,7 @@ The `AuthModule` is the gateway for user onboarding, logins, session handling, a
 - **Token Refresh (`/refresh`)**: Refreshes short-lived access tokens using cryptographically signed refresh tokens with automated Refresh Token Rotation (RTR).
 - **Targeted Signout (`/signout`)**: Securely terminates active sessions—either targeted to a specific device family or globally across all devices.
 - **Social Integration (`/social-signin`)**: Authenticates users using external credentials (e.g. Instagram OAuth).
-- **Secondary Credentials (`/add-secondary`)**: Allows users to attach a secondary email or phone number to their primary profile.
-- **Developer Login (`/dev-login`)**: Simplifies local manual testing by bypassing full Firebase integrations if configured.
+- **Developer Login (`/api/v1/admin/dev-login`)**: Simplifies local manual testing by bypassing full Firebase integrations if configured (managed by `AdminController` via `AuthService.devLogin`).
 
 ---
 
@@ -88,7 +87,7 @@ The `POST /api/v1/auth/signout` endpoint enables flexible session termination:
 
 ### 6. Standardized Response Contract (`UserAuthResponseDto`)
 
-All authentication endpoints (`/signup`, `/signin`, `/social-signin`, `/dev-login`, `/refresh`) return a strictly standardized, pure `camelCase` response model:
+All authentication endpoints (`/signup`, `/signin`, `/social-signin`, `/refresh`, as well as `/admin/dev-login`) return a strictly standardized, pure `camelCase` response model:
 
 ```json
 {
@@ -114,7 +113,7 @@ To mitigate this, `AuthModule` integrates `@nestjs/throttler` with multi-tiered 
 | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------ | :----------: | :-----------: | :----------: | :-------------------------------------------------------------------------------------------- |
 | `POST /api/v1/auth/refresh`                                                                                                                                            | `AUTH_REFRESH_THROTTLE`   |  2 req / 1s  |  5 req / 10s  | 10 req / 60s | Accommodates mobile parallel 401 retry bursts while capping at 10/min to block brute-forcing. |
 | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` | `AUTH_STRICT_THROTTLE`    |  1 req / 1s  |  3 req / 10s  | 5 req / 60s  | Prevents credential stuffing, rapid account generation, and SMS/OTP pump fraud.               |
-| `POST /api/v1/auth/dev-login`                                                                                                                                          | `AUTH_DEV_LOGIN_THROTTLE` |  2 req / 1s  |  5 req / 10s  | 10 req / 60s | Developer bypass route rate-capped to prevent local automated abuse.                          |
+| `POST /api/v1/admin/dev-login`                                                                                                                                         | `AUTH_DEV_LOGIN_THROTTLE` |  2 req / 1s  |  5 req / 10s  | 10 req / 60s | Developer bypass route rate-capped to prevent local automated abuse.                          |
 
 #### Client IP Tracking Behind GCP Cloud Run
 

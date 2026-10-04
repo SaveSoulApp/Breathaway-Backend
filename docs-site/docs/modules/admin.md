@@ -155,7 +155,7 @@ export TOKEN=$(gcloud auth print-identity-token)
 - **[`AdminBasicAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-basic-auth.guard.ts)**: Backward-compatible adapter extending `AdminOidcAuthGuard`.
 
 ### Controllers Protected by Admin OIDC
-- **[`AdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/admin.controller.ts)**: User account deletion and manual credit adjustments (`/api/v1/admin/*`).
+- **[`AdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/admin.controller.ts)**: User account deletion, manual credit adjustments, and developer test authentication (`/api/v1/admin/*`, `/api/v1/admin/dev-login`).
 - **[`SubscriptionsAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/subscriptions/subscriptions-admin.controller.ts)**: Subscription plan and pricing catalog (`/api/v1/admin/subscriptions/*`).
 - **[`PaymentRoutesAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/payments/payment-routes-admin.controller.ts)**: Dynamic payment routing and circuit breaker switches (`/api/v1/admin/payments/routes/*`).
 - **[`SocialIdentitiesController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/social-identities/social-identities.controller.ts)**: Social identity verification (`/api/v1/social-identities/*`).
@@ -163,7 +163,6 @@ export TOKEN=$(gcloud auth print-identity-token)
 - **[`InstagramController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/instagram/instagram.controller.ts)**: System Instagram token refresh (`/api/v1/instagram/*`).
 - **[`NotificationsAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/notifications/notifications-admin.controller.ts)**: Multi-channel administrative dispatch (`/api/v1/notifications/send`).
 - **[`ReportsController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/reports/reports.controller.ts)**: Overall platform metrics and reporting (`/api/v1/reports/*`).
-- **[`AuthController.devLogin`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/auth/auth.controller.ts)**: Developer bypass authentication (`/api/v1/auth/dev-login`).
 
 ### Services
 - **[`AdminService`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/admin.service.ts)**: Core administrative business logic (cascading soft-deletions, device deactivations).

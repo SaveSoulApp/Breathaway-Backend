@@ -19,15 +19,10 @@ import {
 import { JwtAuthGuard } from '@common/guards';
 import { extractClientIp } from '@common/utils/request.utils';
 import { LoggerService } from '@core/logger';
-import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
-import {
-  AUTH_DEV_LOGIN_THROTTLE,
-  AUTH_REFRESH_THROTTLE,
-  AUTH_STRICT_THROTTLE,
-} from '../constants';
+import { AUTH_REFRESH_THROTTLE, AUTH_STRICT_THROTTLE } from '../constants';
 
 describe('Auth Throttling', () => {
   let moduleRef: TestingModule;
@@ -42,7 +37,6 @@ describe('Auth Throttling', () => {
     refresh: jest
       .fn()
       .mockResolvedValue({ accessToken: 'a1', refreshToken: 'r1' }),
-    devLogin: jest.fn().mockResolvedValue({ userId: 'dev-1' }),
   };
 
   const loggerServiceMock = {
@@ -77,8 +71,6 @@ describe('Auth Throttling', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(AdminOidcAuthGuard)
-      .useValue({ canActivate: () => true })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -155,20 +147,6 @@ describe('Auth Throttling', () => {
 
       expect(shortLimit).toBe(AUTH_STRICT_THROTTLE.short.limit);
       expect(longLimit).toBe(AUTH_STRICT_THROTTLE.long.limit);
-    });
-
-    it('should attach dev-login throttling metadata to /dev-login', () => {
-      const shortLimit = reflector.get(
-        THROTTLER_LIMIT + 'short',
-        controller.devLogin,
-      );
-      const longLimit = reflector.get(
-        THROTTLER_LIMIT + 'long',
-        controller.devLogin,
-      );
-
-      expect(shortLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.short.limit);
-      expect(longLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.long.limit);
     });
   });
 

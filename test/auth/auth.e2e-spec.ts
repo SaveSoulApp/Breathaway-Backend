@@ -9,7 +9,6 @@ import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
 
 import {
-  buildAdminAuthHeader,
   createAuthTestApp,
   mockEmailFirebaseToken,
   mockPhoneFirebaseToken,
@@ -497,94 +496,6 @@ describe('AuthController (e2e)', () => {
       });
 
       expect(res.status).toBe(410);
-    });
-  });
-
-  // =========================================================================
-  // POST /api/v1/auth/dev-login
-  // =========================================================================
-  describe('POST /api/v1/auth/dev-login', () => {
-    const identifier = 'devlogin@e2e.test';
-    let seededUserId: string;
-    let adminAuthHeader: string;
-
-    beforeAll(async () => {
-      // Seed: user with email credential — use processPublicValue so the hash
-      // matches what auth.service.ts produces after normalising the email.
-      const { publicValueHash: hash } = await crypto.processPublicValue(
-        identifier,
-        IdentityType.EMAIL,
-      );
-      const user = await prisma.user.create({ data: {} });
-      const identity = await prisma.identity.create({
-        data: {
-          type: 'EMAIL',
-          publicValueHash: hash,
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
-          publicValueKeyId: 'key-v1',
-          publicValueMasked: 'd••••n@e2e.test',
-          userId: user.id,
-          isVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
-      await prisma.authCredential.create({
-        data: {
-          userId: user.id,
-          type: 'EMAIL',
-          valueHash: hash,
-          valueMasked: 'd••••n@e2e.test',
-          isPrimary: true,
-          identityId: identity.id,
-        },
-      });
-      seededUserId = user.id;
-      allCreatedUserIds.push(user.id);
-
-      // Build Admin OIDC Auth header
-      adminAuthHeader = buildAdminAuthHeader();
-    });
-
-    it('200 – returns access_token for known dev identifier', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', adminAuthHeader)
-        .send({ identifier });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: seededUserId,
-      });
-    });
-
-    it('404 – not found for unknown identifier', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', adminAuthHeader)
-        .send({ identifier: 'ghost@e2e.test' });
-
-      expect(res.status).toBe(404);
-    });
-
-    it('401 – missing Admin Auth header', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .send({ identifier });
-
-      expect(res.status).toBe(401);
-    });
-
-    it('401 – wrong credentials in Admin Auth header', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', buildAdminAuthHeader('wrong-token'))
-        .send({ identifier });
-
-      expect(res.status).toBe(401);
     });
   });
 

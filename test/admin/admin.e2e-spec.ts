@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
-import { CreditSource, CurrencyCode } from '@prisma/client';
+import { CreditSource, CurrencyCode, IdentityType } from '@prisma/client';
 
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AdminModule } from '@modules/admin/admin.module';
 
@@ -17,6 +18,7 @@ import { authedRequest } from '../helpers/request.helper';
 describe('AdminModule (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let crypto: IdentityCryptoService;
   let adminAuthHeader: string;
 
   const allCreatedUserIds: string[] = [];
@@ -26,6 +28,7 @@ describe('AdminModule (e2e)', () => {
     const context = await createAuthTestApp([AdminModule]);
     app = context.app;
     prisma = context.prisma;
+    crypto = app.get(IdentityCryptoService);
 
     adminAuthHeader = buildAdminAuthHeader();
   });
@@ -337,6 +340,86 @@ describe('AdminModule (e2e)', () => {
 
       // Assert
       expect(res.status).toBe(404);
+    });
+  });
+
+  // =========================================================================
+  // POST /api/v1/admin/dev-login
+  // =========================================================================
+  describe('POST /api/v1/admin/dev-login', () => {
+    const identifier = 'admindevlogin@e2e.test';
+    let seededUserId: string;
+
+    beforeAll(async () => {
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        identifier,
+        IdentityType.EMAIL,
+      );
+      const user = await prisma.user.create({ data: {} });
+      const identity = await prisma.identity.create({
+        data: {
+          type: 'EMAIL',
+          publicValueHash: hash,
+          publicValueCiphertext: 'x',
+          publicValueIv: 'x',
+          publicValueTag: 'x',
+          publicValueWrappedKey: 'x',
+          publicValueKeyId: 'key-v1',
+          publicValueMasked: 'a••••n@e2e.test',
+          userId: user.id,
+          isVerified: true,
+          verifiedAt: new Date(),
+        },
+      });
+      await prisma.authCredential.create({
+        data: {
+          userId: user.id,
+          type: 'EMAIL',
+          valueHash: hash,
+          valueMasked: 'a••••n@e2e.test',
+          isPrimary: true,
+          identityId: identity.id,
+        },
+      });
+      seededUserId = user.id;
+      allCreatedUserIds.push(user.id);
+    });
+
+    it('200 – returns access token for known dev identifier', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', adminAuthHeader)
+        .send({ identifier });
+
+      expect(res.status).toBe(200);
+      expect(res.body.accessToken || res.body.access_token).toBeDefined();
+      expect(res.body.userId || res.body.user_id).toBe(seededUserId);
+    });
+
+    it('404 – not found for unknown identifier', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', adminAuthHeader)
+        .send({ identifier: 'ghost@e2e.test' });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('401 – missing Admin Auth header', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .send({ identifier });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('401 – wrong credentials in Admin Auth header', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', buildAdminAuthHeader('wrong-token'))
+        .send({ identifier });
+
+      expect(res.status).toBe(401);
     });
   });
 });

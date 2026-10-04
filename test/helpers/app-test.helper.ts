@@ -322,7 +322,7 @@ export function buildBasicAuthHeader(
 
 /**
  * Reads the dev login credentials from env vars set by .env.test.
- * @deprecated /api/v1/auth/dev-login now uses AdminOidcAuthGuard (buildAdminAuthHeader).
+ * @deprecated /api/v1/admin/dev-login now uses AdminOidcAuthGuard (buildAdminAuthHeader).
  */
 export function getDevLoginCredentials(configService: ConfigService): {
   username: string;
