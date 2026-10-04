@@ -1,6 +1,8 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { extractClientIp } from '@common/utils/request.utils';
+
 /**
  * Extracts the public client IP address from the incoming HTTP request.
  *
@@ -13,21 +15,6 @@ import type { Request } from 'express';
 export const ClientIp = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string | undefined => {
     const request = ctx.switchToHttp().getRequest<Request>();
-
-    const forwarded = request.headers['x-forwarded-for'];
-
-    if (typeof forwarded === 'string' && forwarded.length > 0) {
-      const clientIp = forwarded.split(',')[0].trim();
-      if (clientIp) {
-        return clientIp;
-      }
-    } else if (Array.isArray(forwarded) && forwarded.length > 0) {
-      const clientIp = forwarded[0].split(',')[0].trim();
-      if (clientIp) {
-        return clientIp;
-      }
-    }
-
-    return request.ip || request.socket?.remoteAddress;
+    return extractClientIp(request);
   },
 );

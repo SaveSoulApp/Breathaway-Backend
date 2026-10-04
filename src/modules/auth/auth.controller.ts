@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import {
   ApiStandardErrors,
@@ -31,6 +32,11 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import { AuthService } from './auth.service';
+import {
+  AUTH_DEV_LOGIN_THROTTLE,
+  AUTH_REFRESH_THROTTLE,
+  AUTH_STRICT_THROTTLE,
+} from './constants';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
@@ -75,11 +81,16 @@ export class AuthController extends BaseController {
    *   or when the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signup')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign up a new user' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'User successfully signed up',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many registration requests; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.CREATED)
@@ -108,11 +119,16 @@ export class AuthController extends BaseController {
    * @throws {ConflictException} When the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signin')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign in an existing user' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully signed in',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many sign-in attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
@@ -140,11 +156,16 @@ export class AuthController extends BaseController {
    * @throws {ConflictException} When the authentication method is not supported (only phone and email are allowed).
    */
   @Post('signin-or-signup')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiOperation({ summary: 'Sign in or sign up depending on user existence' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User successfully authenticated',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many authentication attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
@@ -190,6 +211,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When no user exists with the provided developer credential.
    */
   @Post('dev-login')
+  @Throttle(AUTH_DEV_LOGIN_THROTTLE)
   @UseGuards(BasicAuthGuard)
   @ApiStandardErrors()
   @ApiOperation({ summary: 'Developer login for testing purposes' })
@@ -197,6 +219,10 @@ export class AuthController extends BaseController {
     status: HttpStatus.OK,
     description: 'Dev user successfully authenticated',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many dev-login attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
@@ -226,6 +252,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When the current user record cannot be found.
    */
   @Patch('add-phone')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
@@ -234,6 +261,10 @@ export class AuthController extends BaseController {
     status: HttpStatus.OK,
     description: 'Phone number added successfully',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many credential update attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
@@ -264,6 +295,7 @@ export class AuthController extends BaseController {
    * @throws {NotFoundException} When the current user record cannot be found.
    */
   @Patch('add-email')
+  @Throttle(AUTH_STRICT_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
@@ -272,6 +304,10 @@ export class AuthController extends BaseController {
     status: HttpStatus.OK,
     description: 'Email added successfully',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many credential update attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)
@@ -296,11 +332,16 @@ export class AuthController extends BaseController {
    * @returns Rotated access and refresh tokens with expiration metadata.
    */
   @Post('refresh')
+  @Throttle(AUTH_REFRESH_THROTTLE)
   @ApiOperation({ summary: 'Refresh access and refresh tokens' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Tokens successfully refreshed',
     type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many refresh attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
   @HttpCode(HttpStatus.OK)

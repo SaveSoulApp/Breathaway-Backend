@@ -140,7 +140,7 @@ sequenceDiagram
     end
 
     Auth -->> Attacker: 401 Unauthorized (Breach detected; family terminated)
-    
+
     Note over Victim, Auth: 3. Legitimate Client Locked Out for Safety
     Victim ->> Auth: POST /refresh with Token 2 (familyId: F1)
     Auth -->> Victim: 401 Unauthorized (Family was revoked due to breach)
@@ -204,6 +204,77 @@ While the backend is completely concurrency-safe via CAS, client applications (i
 3. Perform a single `POST /api/v1/auth/refresh` call.
 4. Update local storage with the new access and refresh token pair.
 5. Replay all queued requests with the updated `Authorization: Bearer <new_token>` header, then release the lock.
+
+---
+
+### ⏱️ Brute-Force Defense: Multi-Tiered Rate Limiting (@nestjs/throttler)
+
+While cryptographic verification and RFC 6819 Token Family tracking safeguard against replayed credentials, public authentication APIs are prime targets for automated attacks:
+
+- **Refresh Token Endpoints (`/refresh`)**: Vulnerable to signature brute-forcing or denial-of-service (DoS) attempts aimed at exhausting database transaction pools with rapid token rotation requests.
+- **Sign-In & Onboarding Endpoints (`/signin`, `/signup`, `/signin-or-signup`, `/add-phone`, `/add-email`)**: Vulnerable to credential stuffing, SMS/OTP pumping fraud, and high-frequency bot account creation.
+
+BreathAway guards these critical attack surfaces using `@nestjs/throttler` with a tiered defense strategy.
+
+#### Reverse Proxy & Google Cloud Run IP Resolution
+
+In serverless Google Cloud Run deployments fronted by Google Cloud Load Balancing (GCLB), the default Express client IP resolution (`req.ip`) evaluates to an internal Google infrastructure IP. Under default settings, **every mobile client worldwide would share the exact same rate-limiting counter**, causing false-positive 429 lockouts.
+
+To enforce per-client rate isolation:
+
+1. **Express Trust Proxy**: Configured via `app.set('trust proxy', true)` in [`main.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/main.ts).
+2. **Deterministic IP Resolution (`extractClientIp`)**: Provided in [`request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
+   ```typescript
+   export function extractClientIp(req: Request): string | undefined {
+     const forwarded = req.headers['x-forwarded-for'];
+     if (typeof forwarded === 'string' && forwarded.length > 0) {
+       return forwarded.split(',')[0].trim();
+     }
+     if (Array.isArray(forwarded) && forwarded.length > 0) {
+       return forwarded[0].split(',')[0].trim();
+     }
+     return (
+       (req.headers['x-real-ip'] as string) ||
+       req.ip ||
+       req.socket?.remoteAddress
+     );
+   }
+   ```
+   This guarantees that the client's genuine public IP address (the leftmost entry in `x-forwarded-for`) governs their individual rate limit bucket.
+
+#### Multi-Tier Throttling Profiles
+
+Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
+
+| Policy Constant               | Target Endpoints                                                                                                                                                       | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection                                                                                                                    |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
+| **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/auth/dev-login`                                                                                                                                          |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+
+#### Error Response Contract (`429 Too Many Requests`)
+
+When a client breaches any of the configured throttler thresholds, the NestJS `ThrottlerGuard` immediately halts processing before controller or database execution, returning standard HTTP 429:
+
+```json
+{
+  "statusCode": 429,
+  "message": "ThrottlerException: Too Many Requests"
+}
+```
+
+---
+
+### 🧹 Session Retention & Storage Lifecycle
+
+Because access tokens expire in 15 minutes, an active user generates approximately 4 `UserSession` records per active hour (~96 records/day). Over months across thousands of users, the table accumulates millions of rows, degrading B-tree index performance on `jti` and `userId`.
+
+BreathAway executes an automated, chunked retention cleanup job:
+
+- **Schedule**: Weekly (`0 3 * * 0 UTC`) via Cloud Scheduler invoking `POST /api/v1/internal/jobs/purge-expired-sessions`.
+- **Grace Period**: Purges sessions where `expiresAt < NOW() - INTERVAL '7 days'`, retaining a 7-day audit horizon for forensics.
+- **Batching**: Iteratively deletes in chunks of 5,000 rows to avoid PostgreSQL lock escalation and WAL buffer exhaustion.
+- **Documentation**: See [Maintenance Module](/modules/maintenance#5-scheduled-user-session-retention-cleanup) for execution details.
 
 ---
 

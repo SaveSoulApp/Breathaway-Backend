@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { ClsModule } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import { extractClientIp } from '@common/utils/request.utils';
 import { AppValidationPipe } from '@core/pipes';
 
 import { AppController } from './app.controller';
@@ -69,14 +70,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
           cls.set('requestStart', Date.now());
 
           // Extract public client IP (GCP Cloud Load Balancer / reverse proxy aware)
-          const forwarded = req.headers['x-forwarded-for'];
-          let clientIp: string | undefined;
-          if (typeof forwarded === 'string' && forwarded.length > 0) {
-            clientIp = forwarded.split(',')[0].trim();
-          } else if (Array.isArray(forwarded) && forwarded.length > 0) {
-            clientIp = forwarded[0].split(',')[0].trim();
-          }
-          cls.set('ipAddress', clientIp || req.ip || req.socket?.remoteAddress);
+          cls.set('ipAddress', extractClientIp(req));
 
           // Extract user agent prioritizing x-user-agent with standard user-agent fallback
           const userAgent =
@@ -113,23 +107,27 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     }),
     //Rate limiting for the entire application
     ThrottlerModule.forRootAsync({
-      useFactory: () => [
-        {
-          name: 'short',
-          ttl: seconds(1),
-          limit: 5,
-        },
-        {
-          name: 'medium',
-          ttl: seconds(10),
-          limit: 20,
-        },
-        {
-          name: 'long',
-          ttl: seconds(60),
-          limit: 50,
-        },
-      ],
+      useFactory: () => ({
+        getTracker: (req: Record<string, unknown>) =>
+          extractClientIp(req) || '127.0.0.1',
+        throttlers: [
+          {
+            name: 'short',
+            ttl: seconds(1),
+            limit: 5,
+          },
+          {
+            name: 'medium',
+            ttl: seconds(10),
+            limit: 20,
+          },
+          {
+            name: 'long',
+            ttl: seconds(60),
+            limit: 50,
+          },
+        ],
+      }),
     }),
 
     //Core Modules

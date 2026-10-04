@@ -49,18 +49,18 @@ BreathAway implements a dual-token architecture designed to balance low API late
 
 Every issued refresh token is persisted in PostgreSQL as a `UserSession` record:
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| **`id`** | String (ULID) | Primary key identifier for the session record. |
-| **`userId`** | String | Foreign key referencing the authenticating user (`User`). Cascades on account deletion. |
-| **`jti`** | String (`@unique`) | Unique JWT ID (32-character nanoid) embedded in the refresh token claims. Acts as an O(1) indexed lookup key. |
-| **`tokenHash`** | String (`@unique @db.Char(64)`) | SHA-256 hash of the issued refresh token string. Protects against offline database compromise. |
-| **`familyId`** | String (`@@index`) | Lineage identifier (24-character nanoid) shared across all tokens generated in a continuous rotation chain on a single device. |
-| **`deviceId`** | String? | Hardware or installation identifier passed via client headers (`x-device-id`). |
-| **`userAgent`** | String? | Client application and OS string recorded from `x-user-agent` or standard `user-agent`. |
-| **`ipAddress`** | String? | Client IP address recorded from proxy forwarding headers (`x-forwarded-for`, `x-real-ip`). |
-| **`expiresAt`** | DateTime (`@@index`) | Expiration timestamp matching the token's JWT `exp` claim. |
-| **`revokedAt`** | DateTime? | Timestamp marking when this session was rotated, signed out, or invalidated. |
+| Field           | Type                            | Description                                                                                                                    |
+| :-------------- | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------- |
+| **`id`**        | String (ULID)                   | Primary key identifier for the session record.                                                                                 |
+| **`userId`**    | String                          | Foreign key referencing the authenticating user (`User`). Cascades on account deletion.                                        |
+| **`jti`**       | String (`@unique`)              | Unique JWT ID (32-character nanoid) embedded in the refresh token claims. Acts as an O(1) indexed lookup key.                  |
+| **`tokenHash`** | String (`@unique @db.Char(64)`) | SHA-256 hash of the issued refresh token string. Protects against offline database compromise.                                 |
+| **`familyId`**  | String (`@@index`)              | Lineage identifier (24-character nanoid) shared across all tokens generated in a continuous rotation chain on a single device. |
+| **`deviceId`**  | String?                         | Hardware or installation identifier passed via client headers (`x-device-id`).                                                 |
+| **`userAgent`** | String?                         | Client application and OS string recorded from `x-user-agent` or standard `user-agent`.                                        |
+| **`ipAddress`** | String?                         | Client IP address recorded from proxy forwarding headers (`x-forwarded-for`, `x-real-ip`).                                     |
+| **`expiresAt`** | DateTime (`@@index`)            | Expiration timestamp matching the token's JWT `exp` claim.                                                                     |
+| **`revokedAt`** | DateTime?                       | Timestamp marking when this session was rotated, signed out, or invalidated.                                                   |
 
 ### 4. Token Families (`familyId`) & Breach Containment (RFC 6819)
 
@@ -103,6 +103,26 @@ All authentication endpoints (`/signup`, `/signin`, `/social-signin`, `/dev-logi
 
 > [!NOTE]
 > All legacy `snake_case` properties (such as `user_id`, `expires_in`, and `refresh_token_expires_at`) have been deprecated and eliminated across all authentication response DTOs, ensuring strict property naming consistency across the frontend and backend.
+
+### 7. Multi-Tiered Rate Limiting & Brute-Force Protection
+
+Authentication endpoints represent the front-line perimeter against credential stuffing, automated bot farm registrations, and refresh token brute-force enumeration. While cryptographic signatures and `familyId` breach containment neutralize replayed tokens, an attacker attempting high-frequency brute-forcing could exhaust database transaction pools or API capacity.
+
+To mitigate this, `AuthModule` integrates `@nestjs/throttler` with multi-tiered named limits and IP resolution tuned for GCP Cloud Run reverse proxies:
+
+| Endpoint(s)                                                                                                                                                            | Policy Constant           | Short Window | Medium Window | Long Window  | Protection Purpose                                                                            |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------ | :----------: | :-----------: | :----------: | :-------------------------------------------------------------------------------------------- |
+| `POST /api/v1/auth/refresh`                                                                                                                                            | `AUTH_REFRESH_THROTTLE`   |  2 req / 1s  |  5 req / 10s  | 10 req / 60s | Accommodates mobile parallel 401 retry bursts while capping at 10/min to block brute-forcing. |
+| `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` | `AUTH_STRICT_THROTTLE`    |  1 req / 1s  |  3 req / 10s  | 5 req / 60s  | Prevents credential stuffing, rapid account generation, and SMS/OTP pump fraud.               |
+| `POST /api/v1/auth/dev-login`                                                                                                                                          | `AUTH_DEV_LOGIN_THROTTLE` |  2 req / 1s  |  5 req / 10s  | 10 req / 60s | Developer bypass route rate-capped to prevent local automated abuse.                          |
+
+#### Client IP Tracking Behind GCP Cloud Run
+
+In a containerized Cloud Run environment behind Google Cloud Load Balancing (GCLB), the raw `req.ip` represents the internal Google proxy load balancer. If unconfigured, all mobile users worldwide would share a single rate-limit bucket. BreathAway resolves this cleanly:
+
+1. **Proxy Trust**: `app.set('trust proxy', true)` enables Express to inspect proxy forwarding headers.
+2. **Deterministic Extraction**: `extractClientIp(req)` extracts the leftmost IP from `x-forwarded-for` (or `x-real-ip`), guaranteeing each client device maintains an isolated rate-limiting bucket.
+3. **Response Status**: When a limit is violated, the API immediately halts execution and returns `429 Too Many Requests`.
 
 ---
 

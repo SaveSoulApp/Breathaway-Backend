@@ -3,6 +3,7 @@ process.env.TZ = 'UTC';
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { ClsService } from 'nestjs-cls';
 
@@ -16,10 +17,13 @@ import { configureCors } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
 
 /**
- * Configures HTTP security headers via Helmet.
+ * Configures HTTP security headers via Helmet and reverse proxy trust.
  * Disables CSP for Swagger asset delivery and enables cross-origin resource policy for browser clients.
  */
-function configureSecurity(app: INestApplication): void {
+function configureSecurity(app: NestExpressApplication): void {
+  // Trust reverse proxy (GCP Cloud Load Balancing / Cloud Run) to populate req.ip and X-Forwarded-* headers
+  app.set('trust proxy', true);
+
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -69,7 +73,7 @@ function configureVersioning(app: INestApplication): void {
 }
 
 async function bootstrap(): Promise<void> {
-  const app: INestApplication = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     rawBody: true,
   });
