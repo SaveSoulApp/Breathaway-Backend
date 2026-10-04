@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
@@ -262,6 +263,12 @@ export class AuthController extends BaseController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiStandardErrors()
+  @ApiBody({
+    type: SignoutRequestDto,
+    required: false,
+    description:
+      'Optional refresh token to revoke a specific session lineage. If omitted, all active sessions for the user are terminated.',
+  })
   @ApiOperation({ summary: 'Sign out the current user' })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
