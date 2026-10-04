@@ -207,7 +207,7 @@ describe('AuthTokenService', () => {
       });
     });
 
-    it('should trigger reuse detection and revoke family when an already-revoked token is used', async () => {
+    it('should trigger reuse detection and revoke family when an already-revoked token is used after grace period', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
@@ -220,7 +220,7 @@ describe('AuthTokenService', () => {
         userId: 'user-auth-123',
         jti: 'revoked-jti',
         familyId: 'family-breached',
-        revokedAt: new Date(Date.now() - 5000), // ALREADY REVOKED!
+        revokedAt: new Date(Date.now() - 30000), // 30 seconds ago, exceeds grace period!
         expiresAt: new Date(Date.now() + 100000),
       });
 
@@ -232,6 +232,41 @@ describe('AuthTokenService', () => {
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
         where: { familyId: 'family-breached', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
+      });
+    });
+
+    it('should allow concurrent refresh requests within grace period without revoking family', async () => {
+      // Arrange
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'concurrent-jti',
+        familyId: 'family-concurrent',
+        token_type: 'refresh',
+      });
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-concurrent',
+        userId: 'user-auth-123',
+        jti: 'concurrent-jti',
+        familyId: 'family-concurrent',
+        revokedAt: new Date(Date.now() - 200), // 200ms ago, well within grace window!
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+
+      // Act
+      const result = await service.refreshToken({
+        refreshToken: 'concurrent-token',
+      });
+
+      // Assert
+      expect(result.access_token).toBe('mock-jwt-token');
+      // Verify family was NOT revoked
+      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
+      // Verify new session in same family was created
+      expect(prisma.userSession.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          familyId: 'family-concurrent',
+        }),
       });
     });
 
