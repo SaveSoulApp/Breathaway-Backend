@@ -18,8 +18,6 @@ export enum GcpSecretName {
   SUPABASE_URL = 'supabase-url',
   SUPABASE_SERVICE_ROLE_KEY = 'supabase-service-role-key',
   SUPABASE_JWT_PRIVATE_KEY = 'supabase-jwt-private-key',
-  ADMIN_USERNAME = 'admin-username',
-  ADMIN_PASSWORD = 'admin-password',
   SWAGGER_USERNAME = 'swagger-username',
   SWAGGER_PASSWORD = 'swagger-password',
   REVENUECAT_WEBHOOK_SECRET = 'revenuecat-webhook-secret',

@@ -10,7 +10,7 @@ import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -33,7 +33,7 @@ jest.mock('@modules/firebase/firebase.service', () => {
 describe('NotificationsModule (e2e)', () => {
   let app: INestApplication;
   let pubsubPublisherService: PubSubPublisherService;
-  let adminBasicAuthHeader: string;
+  let adminAuthHeader: string;
 
   beforeAll(async () => {
     const context = await createAuthTestApp([
@@ -42,11 +42,7 @@ describe('NotificationsModule (e2e)', () => {
     ]);
     app = context.app;
 
-    const configService = app.get(ConfigService);
-    adminBasicAuthHeader = buildBasicAuthHeader(
-      configService.get<string>('ADMIN_USERNAME') ?? 'admin',
-      configService.get<string>('ADMIN_PASSWORD') ?? 'adminpass',
-    );
+    adminAuthHeader = buildAdminAuthHeader();
 
     // Mock publish to prevent keeping PubSub connections open
     pubsubPublisherService = app.get(PubSubPublisherService);
@@ -61,7 +57,7 @@ describe('NotificationsModule (e2e)', () => {
     }
   });
 
-  it('POST /api/v1/notifications/send - fails with 401 when called without admin basic auth', async () => {
+  it('POST /api/v1/notifications/send - fails with 401 when called without admin auth', async () => {
     // Arrange & Act
     const res = await authedRequest(app)
       .post('/api/v1/notifications/send')
@@ -78,9 +74,9 @@ describe('NotificationsModule (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/v1/notifications/send - fails with 401 when called with invalid admin basic auth', async () => {
+  it('POST /api/v1/notifications/send - fails with 401 when called with invalid admin auth', async () => {
     // Arrange
-    const invalidAuthHeader = buildBasicAuthHeader('wrong-user', 'wrong-pass');
+    const invalidAuthHeader = buildAdminAuthHeader('wrong-token');
 
     // Act
     const res = await authedRequest(app)
@@ -99,11 +95,11 @@ describe('NotificationsModule (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/v1/notifications/send - enqueues a notification successfully with valid basic auth', async () => {
+  it('POST /api/v1/notifications/send - enqueues a notification successfully with valid admin auth', async () => {
     // Arrange & Act
     const res = await authedRequest(app)
       .post('/api/v1/notifications/send')
-      .set('authorization', adminBasicAuthHeader)
+      .set('authorization', adminAuthHeader)
       .send({
         channels: [NotificationChannel.PUSH],
         userIds: ['user-123'],
@@ -120,11 +116,11 @@ describe('NotificationsModule (e2e)', () => {
     expect(res.body.userCount).toBe(1);
   });
 
-  it('POST /api/v1/notifications/send - fails on bad request with valid basic auth', async () => {
+  it('POST /api/v1/notifications/send - fails on bad request with valid admin auth', async () => {
     // Arrange & Act
     const res = await authedRequest(app)
       .post('/api/v1/notifications/send')
-      .set('authorization', adminBasicAuthHeader)
+      .set('authorization', adminAuthHeader)
       .send({
         channels: ['UNKNOWN_CHANNEL'],
         userIds: [],

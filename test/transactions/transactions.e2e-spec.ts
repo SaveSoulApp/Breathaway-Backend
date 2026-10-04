@@ -1,5 +1,4 @@
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   PaymentGateway,
   TransactionChannel,
@@ -12,7 +11,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import {
@@ -24,7 +23,7 @@ import { authedRequest } from '../helpers/request.helper';
 describe('TransactionsController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let adminBasicAuthHeader: string;
+  let adminAuthHeader: string;
 
   const allCreatedUserIds: string[] = [];
   const allCreatedTransactionIds: string[] = [];
@@ -34,18 +33,11 @@ describe('TransactionsController (e2e)', () => {
   const gatewayTxnId = `rc_test_txn_${Date.now()}`;
 
   beforeAll(async () => {
-    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
-
     const context = await createAuthTestApp([TransactionsModule]);
     app = context.app;
     prisma = context.prisma;
-    const configService = app.get(ConfigService);
 
-    adminBasicAuthHeader = buildBasicAuthHeader(
-      configService.getOrThrow<string>('ADMIN_USERNAME'),
-      configService.getOrThrow<string>('ADMIN_PASSWORD'),
-    );
+    adminAuthHeader = buildAdminAuthHeader();
 
     // Seed test user
     const user = await prisma.user.create({ data: {} });
@@ -78,8 +70,8 @@ describe('TransactionsController (e2e)', () => {
     await app.close();
   });
 
-  describe('Admin Basic Auth Guard', () => {
-    it('rejects unauthenticated requests without Basic Auth (401)', async () => {
+  describe('Admin Auth Guard', () => {
+    it('rejects unauthenticated requests without Bearer token (401)', async () => {
       // Act
       const res = await authedRequest(app).get('/api/v1/admin/transactions');
 
@@ -87,9 +79,9 @@ describe('TransactionsController (e2e)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('rejects requests with invalid Basic Auth credentials (401)', async () => {
+    it('rejects requests with invalid Bearer token (401)', async () => {
       // Arrange
-      const invalidAuth = buildBasicAuthHeader('baduser', 'badpass');
+      const invalidAuth = buildAdminAuthHeader('bad-token');
 
       // Act
       const res = await authedRequest(app)
@@ -106,7 +98,7 @@ describe('TransactionsController (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .get('/api/v1/admin/transactions')
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(200);
@@ -128,7 +120,7 @@ describe('TransactionsController (e2e)', () => {
         .get(
           `/api/v1/admin/transactions?gateway=REVENUECAT&status=COMPLETED&limit=10&page=1`,
         )
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(200);
@@ -143,7 +135,7 @@ describe('TransactionsController (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .get(`/api/v1/admin/transactions?page=0&limit=999`)
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(400);
@@ -155,7 +147,7 @@ describe('TransactionsController (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .get(`/api/v1/admin/transactions/${seededTransactionId}`)
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(200);
@@ -169,7 +161,7 @@ describe('TransactionsController (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .get('/api/v1/admin/transactions/01H1V1ABCD2EF3GH4JK5LM6NP7')
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(404);

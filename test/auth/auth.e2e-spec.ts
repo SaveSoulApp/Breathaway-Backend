@@ -9,9 +9,8 @@ import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
-  getDevLoginCredentials,
   mockEmailFirebaseToken,
   mockPhoneFirebaseToken,
 } from '../helpers/app-test.helper';
@@ -507,7 +506,7 @@ describe('AuthController (e2e)', () => {
   describe('POST /api/v1/auth/dev-login', () => {
     const identifier = 'devlogin@e2e.test';
     let seededUserId: string;
-    let basicAuthHeader: string;
+    let adminAuthHeader: string;
 
     beforeAll(async () => {
       // Seed: user with email credential — use processPublicValue so the hash
@@ -545,15 +544,14 @@ describe('AuthController (e2e)', () => {
       seededUserId = user.id;
       allCreatedUserIds.push(user.id);
 
-      // Build Basic Auth header from .env.test credentials
-      const { username, password } = getDevLoginCredentials(configService);
-      basicAuthHeader = buildBasicAuthHeader(username, password);
+      // Build Admin OIDC Auth header
+      adminAuthHeader = buildAdminAuthHeader();
     });
 
     it('200 – returns access_token for known dev identifier', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/auth/dev-login')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ identifier });
 
       expect(res.status).toBe(200);
@@ -566,13 +564,13 @@ describe('AuthController (e2e)', () => {
     it('404 – not found for unknown identifier', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/auth/dev-login')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ identifier: 'ghost@e2e.test' });
 
       expect(res.status).toBe(404);
     });
 
-    it('401 – missing Basic Auth header', async () => {
+    it('401 – missing Admin Auth header', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/auth/dev-login')
         .send({ identifier });
@@ -580,10 +578,10 @@ describe('AuthController (e2e)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('401 – wrong credentials in Basic Auth header', async () => {
+    it('401 – wrong credentials in Admin Auth header', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/auth/dev-login')
-        .set('authorization', buildBasicAuthHeader('wrong-user', 'wrong-pass'))
+        .set('authorization', buildAdminAuthHeader('wrong-token'))
         .send({ identifier });
 
       expect(res.status).toBe(401);

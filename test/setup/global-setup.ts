@@ -32,8 +32,8 @@ export default async function globalSetup(): Promise<void> {
   loadEnvFile(path.resolve(process.cwd(), '.env.test'));
 
   // Ensure default admin and GCP OIDC test credentials are set
-  process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-  process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
+  process.env.ADMIN_ALLOWED_EMAILS =
+    process.env.ADMIN_ALLOWED_EMAILS || 'admin@breathaway.com';
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';

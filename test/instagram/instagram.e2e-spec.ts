@@ -6,7 +6,7 @@ import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-man
 import { InstagramModule } from '@modules/instagram/instagram.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import { authedRequest } from '../helpers/request.helper';
@@ -30,7 +30,7 @@ describe('InstagramController (e2e)', () => {
   let app: INestApplication;
   let configService: ConfigService;
   let gcpSecretManager: GcpSecretManagerService;
-  let basicAuthHeader: string;
+  let adminAuthHeader: string;
 
   beforeAll(async () => {
     const context = await createAuthTestApp([MockGcpModule, InstagramModule]);
@@ -38,9 +38,7 @@ describe('InstagramController (e2e)', () => {
     configService = app.get(ConfigService);
     gcpSecretManager = app.get(GcpSecretManagerService);
 
-    const adminUsername = configService.getOrThrow<string>('ADMIN_USERNAME');
-    const adminPassword = configService.getOrThrow<string>('ADMIN_PASSWORD');
-    basicAuthHeader = buildBasicAuthHeader(adminUsername, adminPassword);
+    adminAuthHeader = buildAdminAuthHeader();
   });
 
   afterAll(async () => {
@@ -60,7 +58,7 @@ describe('InstagramController (e2e)', () => {
 
       const res = await authedRequest(app)
         .get('/api/v1/instagram/refresh-token?token=old-token')
-        .set('authorization', basicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject(mockResponse.data);
@@ -77,7 +75,7 @@ describe('InstagramController (e2e)', () => {
       expect(gcpSecretManager.upsertSecret).not.toHaveBeenCalled();
     });
 
-    it('401 – unauthorized if basic auth missing', async () => {
+    it('401 – unauthorized if admin auth missing', async () => {
       const res = await authedRequest(app).get(
         '/api/v1/instagram/refresh-token?token=old-token',
       );
@@ -91,7 +89,7 @@ describe('InstagramController (e2e)', () => {
 
       const res = await authedRequest(app)
         .get('/api/v1/instagram/refresh-token?token=old-token')
-        .set('authorization', basicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       expect(res.status).toBe(502);
     });
@@ -106,7 +104,7 @@ describe('InstagramController (e2e)', () => {
 
       const res = await authedRequest(app)
         .get('/api/v1/instagram/refresh-env-token')
-        .set('authorization', basicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject(mockResponse.data);
