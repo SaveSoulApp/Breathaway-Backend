@@ -301,7 +301,11 @@ describe('AuthTokenService', () => {
 
       // Assert
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { familyId: 'target-family', revokedAt: null },
+        where: {
+          userId: 'user-auth-123',
+          familyId: 'target-family',
+          revokedAt: null,
+        },
         data: { revokedAt: expect.any(Date) },
       });
     });

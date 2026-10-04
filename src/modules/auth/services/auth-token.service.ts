@@ -261,7 +261,7 @@ export class AuthTokenService extends BaseService {
 
         if (typeof record?.familyId === 'string') {
           await this.prisma.userSession.updateMany({
-            where: { familyId: record.familyId, revokedAt: null },
+            where: { userId, familyId: record.familyId, revokedAt: null },
             data: { revokedAt: DateUtil.now() },
           });
           return;
