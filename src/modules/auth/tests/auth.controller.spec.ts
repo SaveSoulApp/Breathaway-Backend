@@ -27,13 +27,12 @@ describe('AuthController', () => {
   };
 
   const mockSigninResponse = {
-    access_token: 'mock-access-token',
-    user_id: 'user-id-123',
     userId: 'user-id-123',
-    token_type: 'Bearer',
-    expires_in: 900,
-    refresh_token: 'mock-refresh-token',
-    refresh_token_expires_at: '2026-10-18T00:00:00.000Z',
+    tokenType: 'Bearer',
+    accessToken: 'mock-access-token',
+    expiresIn: 900,
+    refreshToken: 'mock-refresh-token',
+    refreshTokenExpiresAt: '2026-10-18T00:00:00.000Z',
   };
 
   beforeEach(async () => {
@@ -213,7 +212,7 @@ describe('AuthController', () => {
       const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
       const mockDevResponse = {
         ...mockSigninResponse,
-        user_id: 'dev-user-1',
+        userId: 'dev-user-1',
       };
       service.devLogin.mockResolvedValue(mockDevResponse);
 

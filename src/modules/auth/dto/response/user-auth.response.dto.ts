@@ -4,32 +4,28 @@ import { Expose } from 'class-transformer';
 /**
  * Response payload containing authentication results and user profile summary.
  *
- * This DTO is returned after successful sign-in, registration, or token exchange,
- * enclosing the JWT access token and basic user details needed for immediate client hydration.
+ * Returned after successful sign-in, registration, or token rotation,
+ * enclosing access and refresh tokens along with basic user details for client hydration.
  */
 export class UserAuthResponseDto {
   /**
    * The unique user identifier.
-   * Typically returned in sign-in responses.
    */
-  @ApiPropertyOptional({ description: 'The unique user ID (used in login)' })
-  @Expose()
-  user_id?: string;
-
-  /**
-   * The unique user identifier.
-   * Typically returned in sign-up responses.
-   */
-  @ApiPropertyOptional({ description: 'The unique user ID (used in signup)' })
+  @ApiPropertyOptional({
+    description: 'The unique user identifier',
+    example: '01M43375E5QSSD3139BGTV9VQW',
+  })
   @Expose()
   userId?: string;
 
   /**
    * Current authentication or account registration status.
-   * E.g., 'pending_verification' if the user needs to fulfill additional verification steps.
+   * E.g., 'verified' or 'pending_verification' if the user needs to fulfill additional verification steps.
    */
   @ApiPropertyOptional({
-    description: 'Status of the authentication (e.g. pending_verification)',
+    description:
+      'Status of the authentication (e.g. verified, pending_verification)',
+    example: 'verified',
   })
   @Expose()
   status?: string;
@@ -37,14 +33,20 @@ export class UserAuthResponseDto {
   /**
    * Verified primary or secondary email address of the authenticated user.
    */
-  @ApiPropertyOptional({ description: 'User email address' })
+  @ApiPropertyOptional({
+    description: 'User email address',
+    example: 'user@example.com',
+  })
   @Expose()
   email?: string;
 
   /**
    * Verified phone number of the authenticated user (including country prefix).
    */
-  @ApiPropertyOptional({ description: 'User phone number' })
+  @ApiPropertyOptional({
+    description: 'User phone number',
+    example: '+1234567890',
+  })
   @Expose()
   phone?: string;
 
@@ -52,19 +54,22 @@ export class UserAuthResponseDto {
    * JSON Web Token (JWT) used for authorizing subsequent HTTP requests.
    * Should be attached to the Authorization header as a Bearer token.
    */
-  @ApiPropertyOptional({ description: 'JWT Access token for authentication' })
+  @ApiPropertyOptional({
+    description: 'JWT Access token for authentication',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   @Expose()
-  access_token?: string;
+  accessToken?: string;
 
   /**
-   * Token authorization type.
+   * Token authorization type (e.g., 'Bearer').
    */
   @ApiPropertyOptional({
     description: 'Type of the access token',
     example: 'Bearer',
   })
   @Expose()
-  token_type?: string;
+  tokenType?: string;
 
   /**
    * Access token validity in seconds.
@@ -74,23 +79,25 @@ export class UserAuthResponseDto {
     example: 900,
   })
   @Expose()
-  expires_in?: number;
+  expiresIn?: number;
 
   /**
-   * JSON Web Token (JWT) used for refreshing access credentials.
+   * Cryptographically signed JWT used for rotating access credentials.
    */
   @ApiPropertyOptional({
-    description: 'JWT Refresh token used to rotate credentials',
+    description: 'Signed JWT refresh token used to rotate credentials',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   @Expose()
-  refresh_token?: string;
+  refreshToken?: string;
 
   /**
    * ISO 8601 timestamp representing the exact expiration time of the refresh token.
    */
   @ApiPropertyOptional({
     description: 'ISO-8601 timestamp when the refresh token expires',
+    example: '2026-10-18T09:30:55.328Z',
   })
   @Expose()
-  refresh_token_expires_at?: string;
+  refreshTokenExpiresAt?: string;
 }

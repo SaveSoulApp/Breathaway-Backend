@@ -115,13 +115,12 @@ describe('AuthTokenService', () => {
 
       // Assert
       expect(result).toEqual({
-        user_id: 'user-auth-123',
         userId: 'user-auth-123',
-        token_type: 'Bearer',
-        access_token: 'mock-jwt-token',
-        expires_in: 900,
-        refresh_token: 'mock-jwt-token',
-        refresh_token_expires_at: expect.any(String),
+        tokenType: 'Bearer',
+        accessToken: 'mock-jwt-token',
+        expiresIn: 900,
+        refreshToken: 'mock-jwt-token',
+        refreshTokenExpiresAt: expect.any(String),
       });
       expect(prisma.userSession.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -152,7 +151,7 @@ describe('AuthTokenService', () => {
       const result = await service.generateAuthResponse(mockUser, metadata);
 
       // Assert
-      expect(result.access_token).toBe('mock-jwt-token');
+      expect(result.accessToken).toBe('mock-jwt-token');
       expect(prisma.userSession.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           familyId: 'existing-family',
@@ -205,17 +204,17 @@ describe('AuthTokenService', () => {
 
       const result = await realService.generateAuthResponse(mockUser);
 
-      expect(result.access_token).toBeDefined();
-      expect(result.refresh_token).toBeDefined();
+      expect(result.accessToken).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
 
-      const decodedAccess = realJwtService.verify(result.access_token, {
+      const decodedAccess = realJwtService.verify(result.accessToken!, {
         audience: 'breathaway-client',
         issuer: 'breathaway-issuer',
       });
       expect(decodedAccess.sub).toBe('user-auth-123');
       expect(decodedAccess.aud).toBe('breathaway-client');
 
-      const decodedRefresh = realJwtService.verify(result.refresh_token, {
+      const decodedRefresh = realJwtService.verify(result.refreshToken!, {
         audience: 'breathaway-client:refresh',
         issuer: 'breathaway-issuer',
       });
@@ -235,11 +234,11 @@ describe('AuthTokenService', () => {
       prisma.user.findFirst.mockResolvedValue(mockUser);
 
       const refreshedResult = await realService.refreshToken({
-        refreshToken: result.refresh_token,
+        refreshToken: result.refreshToken!,
       });
 
-      expect(refreshedResult.access_token).toBeDefined();
-      expect(refreshedResult.refresh_token).toBeDefined();
+      expect(refreshedResult.accessToken).toBeDefined();
+      expect(refreshedResult.refreshToken).toBeDefined();
     });
   });
 
@@ -269,7 +268,7 @@ describe('AuthTokenService', () => {
 
       // Assert
       expect(prisma.$transaction).toHaveBeenCalled();
-      expect(result.access_token).toBe('mock-jwt-token');
+      expect(result.accessToken).toBe('mock-jwt-token');
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
         where: { id: 'session-1', revokedAt: null },
         data: { revokedAt: expect.any(Date) },

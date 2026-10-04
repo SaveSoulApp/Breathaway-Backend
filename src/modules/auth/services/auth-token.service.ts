@@ -12,7 +12,7 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
-import { RefreshTokenRequestDto } from '../dto/request/refresh-token.request.dto';
+import { RefreshTokenRequestDto, UserAuthResponseDto } from '../dto';
 
 /**
  * Handles JWT access token generation, refresh token lifecycle, and session revocation.
@@ -44,7 +44,7 @@ export class AuthTokenService extends BaseService {
     user: User,
     metadata?: Record<string, unknown>,
     tx?: Prisma.TransactionClient,
-  ) {
+  ): Promise<UserAuthResponseDto> {
     const accessExpiresIn = this.configService.get<string>(
       'JWT_EXPIRES_IN',
       '15m',
@@ -141,13 +141,12 @@ export class AuthTokenService extends BaseService {
     }
 
     return {
-      user_id: user.id,
       userId: user.id,
-      token_type: 'Bearer',
-      access_token: accessToken,
-      expires_in: accessExpiresInSeconds,
-      refresh_token: refreshToken,
-      refresh_token_expires_at: refreshTokenExpiresAt.toISOString(),
+      tokenType: 'Bearer',
+      accessToken,
+      expiresIn: accessExpiresInSeconds,
+      refreshToken,
+      refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),
     };
   }
 
@@ -165,7 +164,7 @@ export class AuthTokenService extends BaseService {
   async refreshToken(
     dto: RefreshTokenRequestDto,
     metadata?: Record<string, unknown>,
-  ) {
+  ): Promise<UserAuthResponseDto> {
     const { refreshToken } = dto;
     const audience = this.configService.getOrThrow<string>('JWT_AUDIENCE');
     const issuer = this.configService.get<string>('JWT_ISSUER');
