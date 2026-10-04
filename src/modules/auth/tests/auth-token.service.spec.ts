@@ -22,6 +22,7 @@ describe('AuthTokenService', () => {
   let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
   let prisma: {
+    $transaction: jest.Mock;
     userSession: {
       create: jest.Mock;
       findUnique: jest.Mock;
@@ -71,6 +72,7 @@ describe('AuthTokenService', () => {
     };
     eventEmitter = { emit: jest.fn() };
     prisma = {
+      $transaction: jest.fn((callback) => callback(prisma)),
       userSession: {
         create: jest.fn().mockResolvedValue({ id: 'session-123' }),
         findUnique: jest.fn(),
@@ -192,6 +194,7 @@ describe('AuthTokenService', () => {
       });
 
       // Assert
+      expect(prisma.$transaction).toHaveBeenCalled();
       expect(result.access_token).toBe('mock-jwt-token');
       expect(prisma.userSession.update).toHaveBeenCalledWith({
         where: { id: 'session-1' },

@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { nanoid } from 'nanoid';
 
 import { DateUtil } from '@common/utils/date.utils';
@@ -37,9 +37,14 @@ export class AuthTokenService extends BaseService {
    *
    * @param user - The User entity requesting authorization.
    * @param metadata - Request context (e.g. IP address, device, familyId for rotation).
+   * @param tx - Optional active Prisma transaction client for atomic multi-write operations.
    * @returns An authenticated response containing access and refresh tokens with expiration metadata.
    */
-  async generateAuthResponse(user: User, metadata?: Record<string, unknown>) {
+  async generateAuthResponse(
+    user: User,
+    metadata?: Record<string, unknown>,
+    tx?: Prisma.TransactionClient,
+  ) {
     const accessExpiresIn = this.configService.get<string>(
       'JWT_EXPIRES_IN',
       '15m',
@@ -98,7 +103,8 @@ export class AuthTokenService extends BaseService {
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
 
     // 3. Persist session in PostgreSQL
-    await this.prisma.userSession.create({
+    const prismaClient = tx ?? this.prisma;
+    await prismaClient.userSession.create({
       data: {
         userId: user.id,
         jti: refreshJti,
@@ -232,18 +238,23 @@ export class AuthTokenService extends BaseService {
       );
     }
 
-    // Consume current session
-    await this.prisma.userSession.update({
-      where: { id: session.id },
-      data: { revokedAt: DateUtil.now() },
-    });
+    // Atomically consume current session and record rotated session in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { revokedAt: DateUtil.now() },
+      });
 
-    // Rotate: Issue new token pair preserving familyId lineage
-    return this.generateAuthResponse(user, {
-      ...metadata,
-      familyId: session.familyId,
-      deviceId: session.deviceId,
-      isRefresh: true,
+      return this.generateAuthResponse(
+        user,
+        {
+          ...metadata,
+          familyId: session.familyId,
+          deviceId: session.deviceId,
+          isRefresh: true,
+        },
+        tx,
+      );
     });
   }
 
