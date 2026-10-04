@@ -141,4 +141,23 @@ export class MaintenanceController extends BaseController {
         'Instagram system access token rotated and persisted to Secret Manager successfully',
     };
   }
+
+  /**
+   * Purges expired and stale user session records older than the retention threshold (7 days).
+   *
+   * Intended to be invoked weekly by GCP Cloud Scheduler. Returns HTTP 204 No Content
+   * upon successful execution without requiring a request body.
+   */
+  @Post('purge-expired-sessions')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Purge expired user sessions older than the retention threshold',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Expired user sessions purged successfully',
+  })
+  async purgeExpiredSessions(): Promise<void> {
+    await this.maintenanceService.purgeExpiredUserSessions();
+  }
 }

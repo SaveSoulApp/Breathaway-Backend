@@ -58,6 +58,17 @@ export class DateUtil {
   static addDays(dateVal: string | number | Date, days: number): Date {
     return dayjs(dateVal).add(days, 'day').toDate();
   }
+
+  /**
+   * Subtracts a specified number of days from a given date.
+   *
+   * @param dateVal - The source date.
+   * @param days - Number of days to subtract.
+   * @returns A new native Date instance.
+   */
+  static subtractDays(dateVal: string | number | Date, days: number): Date {
+    return dayjs(dateVal).subtract(days, 'day').toDate();
+  }
 }
 
 /**

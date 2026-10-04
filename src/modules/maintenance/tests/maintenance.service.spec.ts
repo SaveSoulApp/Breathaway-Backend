@@ -240,4 +240,96 @@ describe('MaintenanceService', () => {
       );
     });
   });
+
+  describe('purgeExpiredUserSessions', () => {
+    it('should purge expired sessions in chunks and return total deleted count', async () => {
+      // Arrange
+      const batch1 = [{ id: 'session-1' }, { id: 'session-2' }];
+      (prisma.userSession.findMany as jest.Mock)
+        .mockResolvedValueOnce(batch1)
+        .mockResolvedValueOnce([]);
+      (prisma.userSession.deleteMany as jest.Mock).mockResolvedValueOnce({
+        count: 2,
+      });
+
+      // Act
+      const result = await service.purgeExpiredUserSessions();
+
+      // Assert
+      expect(result.deletedCount).toBe(2);
+      expect(result.cutoffDate).toBeDefined();
+      expect(prisma.userSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { expiresAt: { lt: expect.any(Date) } },
+          select: { id: true },
+        }),
+      );
+      expect(prisma.userSession.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['session-1', 'session-2'] } },
+      });
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'User session retention cleanup started',
+        expect.objectContaining({ step: 'init' }),
+      );
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'User session retention cleanup completed',
+        expect.objectContaining({
+          step: 'complete',
+          totalDeleted: 2,
+        }),
+      );
+    });
+
+    it('should return 0 deleted count when no expired sessions are found', async () => {
+      // Arrange
+      (prisma.userSession.findMany as jest.Mock).mockResolvedValueOnce([]);
+
+      // Act
+      const result = await service.purgeExpiredUserSessions();
+
+      // Assert
+      expect(result.deletedCount).toBe(0);
+      expect(prisma.userSession.deleteMany).not.toHaveBeenCalled();
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'User session retention cleanup completed',
+        expect.objectContaining({
+          step: 'complete',
+          totalDeleted: 0,
+        }),
+      );
+    });
+
+    it('should respect custom retentionDays parameter when passed', async () => {
+      // Arrange
+      (prisma.userSession.findMany as jest.Mock).mockResolvedValueOnce([]);
+
+      // Act
+      const result = await service.purgeExpiredUserSessions(14);
+
+      // Assert
+      expect(result.deletedCount).toBe(0);
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'User session retention cleanup started',
+        expect.objectContaining({
+          step: 'init',
+          retentionDays: 14,
+        }),
+      );
+    });
+
+    it('should log and rethrow when database operation fails', async () => {
+      // Arrange
+      const dbError = new Error('Database connection failed');
+      (prisma.userSession.findMany as jest.Mock).mockRejectedValueOnce(dbError);
+
+      // Act & Assert
+      await expect(service.purgeExpiredUserSessions()).rejects.toThrow(dbError);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'User session retention cleanup failed',
+        expect.objectContaining({
+          step: 'purge_sessions',
+        }),
+      );
+    });
+  });
 });
