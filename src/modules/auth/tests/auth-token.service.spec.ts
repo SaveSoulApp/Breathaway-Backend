@@ -270,8 +270,8 @@ describe('AuthTokenService', () => {
       // Assert
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(result.access_token).toBe('mock-jwt-token');
-      expect(prisma.userSession.update).toHaveBeenCalledWith({
-        where: { id: 'session-1' },
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { id: 'session-1', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
       expect(prisma.userSession.create).toHaveBeenCalledWith({
@@ -317,7 +317,7 @@ describe('AuthTokenService', () => {
       });
     });
 
-    it('should trigger reuse detection and revoke family when an already-revoked token is used after grace period', async () => {
+    it('should trigger reuse detection and revoke family when an already-revoked token is presented', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
@@ -330,7 +330,7 @@ describe('AuthTokenService', () => {
         userId: 'user-auth-123',
         jti: 'revoked-jti',
         familyId: 'family-breached',
-        revokedAt: new Date(Date.now() - 30000), // 30 seconds ago, exceeds grace period!
+        revokedAt: new Date(Date.now() - 5000),
         expiresAt: new Date(Date.now() + 100000),
       });
 
@@ -345,38 +345,40 @@ describe('AuthTokenService', () => {
       });
     });
 
-    it('should allow concurrent refresh requests within grace period without revoking family', async () => {
+    it('should trigger reuse detection and revoke family if a concurrent request already consumed the token (race condition)', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
-        jti: 'concurrent-jti',
-        familyId: 'family-concurrent',
+        jti: 'valid-jti',
+        familyId: 'family-race',
         token_type: 'refresh',
       });
       prisma.userSession.findUnique.mockResolvedValue({
-        id: 'session-concurrent',
+        id: 'session-race',
         userId: 'user-auth-123',
-        jti: 'concurrent-jti',
-        familyId: 'family-concurrent',
-        revokedAt: new Date(Date.now() - 200), // 200ms ago, well within grace window!
+        jti: 'valid-jti',
+        familyId: 'family-race',
+        revokedAt: null,
         expiresAt: new Date(Date.now() + 100000),
       });
       prisma.user.findFirst.mockResolvedValue(mockUser);
+      // Simulate CAS failure: another parallel request already updated revokedAt
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 0 });
 
-      // Act
-      const result = await service.refreshToken({
-        refreshToken: 'concurrent-token',
+      // Act & Assert
+      await expect(
+        service.refreshToken({ refreshToken: 'concurrent-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Verify the CAS check was attempted
+      expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: 'session-race', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
       });
-
-      // Assert
-      expect(result.access_token).toBe('mock-jwt-token');
-      // Verify family was NOT revoked
-      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
-      // Verify new session in same family was created
-      expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          familyId: 'family-concurrent',
-        }),
+      // Verify the entire family was revoked due to race / reuse detection
+      expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { familyId: 'family-race', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
       });
     });
 

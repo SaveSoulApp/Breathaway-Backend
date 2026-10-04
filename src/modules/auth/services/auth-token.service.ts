@@ -15,13 +15,6 @@ import { AuditActionType } from '@modules/audit/dto';
 import { RefreshTokenRequestDto } from '../dto/request/refresh-token.request.dto';
 
 /**
- * Leeway window in milliseconds allowing rapid concurrent refresh requests
- * (e.g. parallel network requests on mobile app foregrounding) to succeed
- * without prematurely triggering token family reuse detection.
- */
-const ROTATION_GRACE_PERIOD_MS = 15 * 1000;
-
-/**
  * Handles JWT access token generation, refresh token lifecycle, and session revocation.
  *
  * Implements Refresh Token Rotation (RTR) and token family reuse detection (RFC 6819)
@@ -213,42 +206,27 @@ export class AuthTokenService extends BaseService {
       throw new UnauthorizedException('Refresh token session not found');
     }
 
-    // AUTOMATIC REUSE DETECTION WITH LEEWAY GRACE PERIOD:
-    // If an already-revoked refresh token is presented, check if it's within the grace window
-    // (accommodating concurrent requests or network retries from legitimate clients).
+    // AUTOMATIC REUSE DETECTION (RFC 6819 §5.2.2.3):
+    // If an already-revoked refresh token is presented, this indicates token reuse/replay or compromise.
+    // Unconditionally terminate the entire session lineage (familyId) to prevent unauthorized access.
     if (session.revokedAt !== null) {
-      const timeSinceRevocation =
-        DateUtil.now().getTime() - session.revokedAt.getTime();
+      await this.prisma.userSession.updateMany({
+        where: { familyId: session.familyId, revokedAt: null },
+        data: { revokedAt: DateUtil.now() },
+      });
 
-      if (timeSinceRevocation > ROTATION_GRACE_PERIOD_MS) {
-        await this.prisma.userSession.updateMany({
-          where: { familyId: session.familyId, revokedAt: null },
-          data: { revokedAt: DateUtil.now() },
-        });
-
-        this.logger.warn(
-          'Refresh token reuse detected; revoked entire token family',
-          {
-            step: 'token_reuse_detected',
-            userId: session.userId,
-            familyId: session.familyId,
-            reusedJti: session.jti,
-          },
-        );
-
-        throw new UnauthorizedException(
-          'Revoked refresh token reuse detected. All sessions in this lineage have been terminated. Please sign in again.',
-        );
-      }
-
-      this.logger.debug(
-        'Concurrent refresh token request within rotation grace window accepted',
+      this.logger.warn(
+        'Refresh token reuse detected; revoked entire token family',
         {
-          step: 'rtr_grace_window_accepted',
+          step: 'token_reuse_detected',
           userId: session.userId,
           familyId: session.familyId,
-          jti: session.jti,
+          reusedJti: session.jti,
         },
+      );
+
+      throw new UnauthorizedException(
+        'Revoked refresh token reuse detected. All sessions in this lineage have been terminated. Please sign in again.',
       );
     }
 
@@ -270,13 +248,34 @@ export class AuthTokenService extends BaseService {
       );
     }
 
-    // Atomically consume current session (if not already revoked) and record rotated session in a transaction
+    // Atomically revoke current session and issue rotated session in a single database transaction.
+    // updateMany with { id: session.id, revokedAt: null } acts as an atomic compare-and-swap (CAS).
+    // If count === 0, a concurrent in-flight request already consumed this refresh token.
     return this.prisma.$transaction(async (tx) => {
-      if (session.revokedAt === null) {
-        await tx.userSession.update({
-          where: { id: session.id },
+      const updateResult = await tx.userSession.updateMany({
+        where: { id: session.id, revokedAt: null },
+        data: { revokedAt: DateUtil.now() },
+      });
+
+      if (updateResult.count === 0) {
+        await tx.userSession.updateMany({
+          where: { familyId: session.familyId, revokedAt: null },
           data: { revokedAt: DateUtil.now() },
         });
+
+        this.logger.warn(
+          'Concurrent refresh token race detected; revoked entire token family',
+          {
+            step: 'concurrent_rtr_race_detected',
+            userId: session.userId,
+            familyId: session.familyId,
+            reusedJti: session.jti,
+          },
+        );
+
+        throw new UnauthorizedException(
+          'Revoked refresh token reuse detected. All sessions in this lineage have been terminated. Please sign in again.',
+        );
       }
 
       return this.generateAuthResponse(
