@@ -26,10 +26,11 @@ import {
   DeviceId,
   UserAgent,
 } from '@common/decorators';
-import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { AuthService } from './auth.service';
 import {
@@ -212,7 +213,8 @@ export class AuthController extends BaseController {
    */
   @Post('dev-login')
   @Throttle(AUTH_DEV_LOGIN_THROTTLE)
-  @UseGuards(BasicAuthGuard)
+  @UseGuards(AdminOidcAuthGuard)
+  @ApiBearerAuth('gcp-oidc')
   @ApiStandardErrors()
   @ApiOperation({ summary: 'Developer login for testing purposes' })
   @ApiResponse({

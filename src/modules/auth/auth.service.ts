@@ -1017,7 +1017,7 @@ export class AuthService extends BaseService {
    *
    * Normalizes the identifier (lowercases emails, strips non-digits from phone numbers)
    * before hashing for lookup. Only intended for use in non-production environments
-   * protected by BasicAuthGuard at the controller layer.
+   * protected by AdminOidcAuthGuard at the controller layer.
    *
    * @param dto - A pre-seeded email or phone number from the test database.
    * @returns The user's ID and a signed JWT access token.

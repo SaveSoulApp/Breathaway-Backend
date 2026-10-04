@@ -89,6 +89,16 @@ function publicApiDocumentation(app: INestApplication): void {
     .setDescription('BreathAway APIs - REST APIs for BreathAway App')
     .setVersion('1.0')
     .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Enter Google Cloud OIDC ID token generated via: gcloud auth print-identity-token',
+      },
+      'gcp-oidc',
+    )
     .addApiKey(
       {
         type: 'apiKey',
@@ -247,7 +257,16 @@ function adminApiDocumentation(app: INestApplication): void {
       'BreathAway Admin APIs - REST APIs for BreathAway Admin App',
     )
     .setVersion('1.0')
-    .addBasicAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Enter Google Cloud OIDC ID token generated via: gcloud auth print-identity-token',
+      },
+      'gcp-oidc',
+    )
     .addApiKey(
       {
         type: 'apiKey',

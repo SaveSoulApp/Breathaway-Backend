@@ -7,6 +7,7 @@ import { ConsumeCreditsRequestDto } from '@modules/credits/dto';
 
 import { AdminController } from '../admin.controller';
 import { AdminService } from '../admin.service';
+import { AdminOidcAuthGuard } from '../guards/admin-oidc-auth.guard';
 
 describe('AdminController', () => {
   let controller: AdminController;
@@ -39,7 +40,10 @@ describe('AdminController', () => {
         { provide: CreditsService, useValue: mockCreditsService },
         { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
-    }).compile();
+    })
+      .overrideGuard(AdminOidcAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile();
 
     controller = module.get<AdminController>(AdminController);
     adminService = module.get(AdminService);

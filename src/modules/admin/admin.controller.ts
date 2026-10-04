@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -30,7 +30,7 @@ import {
 
 import { AdminService } from './admin.service';
 import { DeleteAccountRequestDto } from './dto';
-import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from './guards/admin-oidc-auth.guard';
 
 @ApiTags('Admin')
 @SkipClientIdentity()
@@ -39,8 +39,8 @@ import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
   path: 'admin',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
-@ApiBasicAuth()
+@UseGuards(AdminOidcAuthGuard)
+@ApiBearerAuth('gcp-oidc')
 export class AdminController extends BaseController {
   constructor(
     logger: LoggerService,

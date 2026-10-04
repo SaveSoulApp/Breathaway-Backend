@@ -39,6 +39,9 @@ export abstract class BaseService {
     const ipAddress = this.cls.get<string | undefined>('ipAddress');
     const userAgent = this.cls.get<string | undefined>('userAgent');
     const requestId = this.cls.get<string | undefined>('requestId');
+    const adminEmail = this.cls.get<string | undefined>('adminEmail');
+    const adminSub = this.cls.get<string | undefined>('adminSub');
+    const adminEmailHash = this.cls.get<string | undefined>('adminEmailHash');
 
     const enrichedPayload: AuditEventRequestDto = {
       ...payload,
@@ -47,6 +50,9 @@ export abstract class BaseService {
         ...payload.metadata,
         ...(userAgent && { userAgent }),
         ...(requestId && { requestId }),
+        ...(adminEmail && { adminEmail }),
+        ...(adminSub && { adminSub }),
+        ...(adminEmailHash && { adminEmailHash }),
       },
     };
 

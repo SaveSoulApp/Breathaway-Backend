@@ -16,9 +16,10 @@ import {
   THROTTLER_TTL,
 } from '@nestjs/throttler/dist/throttler.constants';
 
-import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { JwtAuthGuard } from '@common/guards';
 import { extractClientIp } from '@common/utils/request.utils';
 import { LoggerService } from '@core/logger';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
@@ -76,7 +77,7 @@ describe('Auth Throttling', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(BasicAuthGuard)
+      .overrideGuard(AdminOidcAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })

@@ -5,8 +5,9 @@ jest.mock('nanoid', () => ({
 import { GoneException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
@@ -65,7 +66,7 @@ describe('AuthController', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(BasicAuthGuard)
+      .overrideGuard(AdminOidcAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })

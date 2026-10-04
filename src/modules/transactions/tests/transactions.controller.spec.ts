@@ -10,7 +10,7 @@ import {
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import {
   PaginatedTransactionResponseDto,
@@ -81,7 +81,7 @@ describe('TransactionsController', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(AdminBasicAuthGuard)
+      .overrideGuard(AdminOidcAuthGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .compile();
 

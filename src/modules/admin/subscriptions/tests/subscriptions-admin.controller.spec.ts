@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CurrencyCode, SubscriptionPlanStatus } from '@prisma/client';
 
 import { LoggerService } from '@core/logger';
+import { AdminOidcAuthGuard } from '../../guards/admin-oidc-auth.guard';
 import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
 
 import { SubscriptionsAdminController } from '../subscriptions-admin.controller';
@@ -52,7 +53,10 @@ describe('SubscriptionsAdminController', () => {
         { provide: SubscriptionPlansService, useValue: mockPlansService },
         { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
-    }).compile();
+    })
+      .overrideGuard(AdminOidcAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile();
 
     controller = module.get<SubscriptionsAdminController>(
       SubscriptionsAdminController,
