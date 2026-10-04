@@ -41,6 +41,9 @@ export class AdminOidcAuthGuard implements CanActivate {
   private cacheExpiresAt = 0;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+  /** Active in-flight promise for GCP IAM policy fetch to prevent concurrent stampedes. */
+  private inFlightIamFetch: Promise<Set<string>> | null = null;
+
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
@@ -198,12 +201,21 @@ export class AdminOidcAuthGuard implements CanActivate {
       return this.cachedIamAdminEmails.has(email);
     }
 
-    // 3. Query GCP Cloud Resource Manager IAM policy
-    try {
-      const iamAdminEmails = await this.fetchGcpIamAdminEmails();
-      this.cachedIamAdminEmails = iamAdminEmails;
-      this.cacheExpiresAt = Date.now() + this.CACHE_TTL_MS;
+    // 3. Query GCP Cloud Resource Manager IAM policy (deduplicating concurrent in-flight requests)
+    if (!this.inFlightIamFetch) {
+      this.inFlightIamFetch = this.fetchGcpIamAdminEmails()
+        .then((emails) => {
+          this.cachedIamAdminEmails = emails;
+          this.cacheExpiresAt = Date.now() + this.CACHE_TTL_MS;
+          return emails;
+        })
+        .finally(() => {
+          this.inFlightIamFetch = null;
+        });
+    }
 
+    try {
+      const iamAdminEmails = await this.inFlightIamFetch;
       const isAuthorized = iamAdminEmails.has(email);
       if (!isAuthorized) {
         this.logger.warn(
@@ -274,6 +286,10 @@ export class AdminOidcAuthGuard implements CanActivate {
             authorizedEmails.add(
               member.slice('user:'.length).trim().toLowerCase(),
             );
+          } else if (member.startsWith('serviceAccount:')) {
+            authorizedEmails.add(
+              member.slice('serviceAccount:'.length).trim().toLowerCase(),
+            );
           }
         }
       }
@@ -283,10 +299,11 @@ export class AdminOidcAuthGuard implements CanActivate {
   }
 
   /**
-   * Clears the in-memory IAM cache. Useful for unit testing.
+   * Clears the in-memory IAM cache and pending in-flight promise. Useful for unit testing.
    */
   clearIamCache(): void {
     this.cachedIamAdminEmails = null;
     this.cacheExpiresAt = 0;
+    this.inFlightIamFetch = null;
   }
 }

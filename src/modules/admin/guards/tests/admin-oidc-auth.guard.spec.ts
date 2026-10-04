@@ -287,5 +287,98 @@ describe('AdminOidcAuthGuard', () => {
         ForbiddenException,
       );
     });
+
+    it('should authorize serviceAccount members discovered in IAM policy', async () => {
+      const saEmail = 'service-runner@test-gcp-project.iam.gserviceaccount.com';
+
+      jest
+        .spyOn(guard['oAuth2Client'] as any, 'verifyIdToken')
+        .mockResolvedValue({
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            email: saEmail,
+            email_verified: true,
+            sub: 'sa-sub-999',
+            aud: 'https://api.breathaway.com',
+          }),
+        });
+
+      const mockRequest = jest.fn().mockResolvedValue({
+        data: {
+          bindings: [
+            {
+              role: 'roles/editor',
+              members: [`serviceAccount:${saEmail}`],
+            },
+          ],
+        },
+      });
+
+      jest.spyOn(guard['googleAuth'], 'getClient').mockResolvedValue({
+        request: mockRequest,
+      } as any);
+
+      const req: any = {
+        headers: { authorization: 'Bearer valid.sa.token' },
+        originalUrl: '/v1/admin/transactions',
+        method: 'GET',
+      };
+      const context = createMockExecutionContext(req);
+
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      expect(clsService.set).toHaveBeenCalledWith('adminEmail', saEmail);
+    });
+
+    it('should deduplicate concurrent in-flight IAM policy fetches (singleflight)', async () => {
+      let resolveFetch!: (val: any) => void;
+      const fetchPromise = new Promise((res) => {
+        resolveFetch = res;
+      });
+
+      const mockRequest = jest.fn().mockImplementation(() => fetchPromise);
+
+      jest.spyOn(guard['googleAuth'], 'getClient').mockResolvedValue({
+        request: mockRequest,
+      } as any);
+
+      const req1: any = {
+        headers: { authorization: 'Bearer valid.google.token' },
+        originalUrl: '/v1/admin/users',
+        method: 'GET',
+      };
+      const req2: any = {
+        headers: { authorization: 'Bearer valid.google.token' },
+        originalUrl: '/v1/admin/reports',
+        method: 'GET',
+      };
+
+      const ctx1 = createMockExecutionContext(req1);
+      const ctx2 = createMockExecutionContext(req2);
+
+      // Launch both concurrently
+      const call1 = guard.canActivate(ctx1);
+      const call2 = guard.canActivate(ctx2);
+
+      // Resolve the single mock request
+      resolveFetch({
+        data: {
+          bindings: [
+            {
+              role: 'roles/owner',
+              members: [`user:${defaultUserEmail}`],
+            },
+          ],
+        },
+      });
+
+      const [res1, res2] = await Promise.all([call1, call2]);
+
+      expect(res1).toBe(true);
+      expect(res2).toBe(true);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -1,9 +1,10 @@
-import { ContextualLogger, LoggerService } from '@core/logger';
-import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
-import { AuditEventRequestDto } from '@modules/audit/dto';
 import { Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
+
+import { ContextualLogger, LoggerService } from '@core/logger';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditEventRequestDto } from '@modules/audit/dto';
 
 /**
  * Foundational service class that provides common infrastructure capabilities to all domain services.
