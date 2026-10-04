@@ -192,6 +192,55 @@ describe('AuthTokenService', () => {
         }),
       });
     });
+
+    it('should successfully sign and verify tokens using real JwtService without options conflict', async () => {
+      const realJwtService = new JwtService({ secret: 'test-secret' });
+      const realService = new AuthTokenService(
+        { forContext: jest.fn().mockReturnValue(mockLogger) } as any,
+        realJwtService,
+        configService as any,
+        prisma as any,
+      );
+      Object.assign(realService, { cls: clsService, eventEmitter });
+
+      const result = await realService.generateAuthResponse(mockUser);
+
+      expect(result.access_token).toBeDefined();
+      expect(result.refresh_token).toBeDefined();
+
+      const decodedAccess = realJwtService.verify(result.access_token, {
+        audience: 'breathaway-client',
+        issuer: 'breathaway-issuer',
+      });
+      expect(decodedAccess.sub).toBe('user-auth-123');
+      expect(decodedAccess.aud).toBe('breathaway-client');
+
+      const decodedRefresh = realJwtService.verify(result.refresh_token, {
+        audience: 'breathaway-client:refresh',
+        issuer: 'breathaway-issuer',
+      });
+      expect(decodedRefresh.sub).toBe('user-auth-123');
+      expect(decodedRefresh.aud).toBe('breathaway-client:refresh');
+      expect(decodedRefresh.token_type).toBe('refresh');
+      expect(decodedRefresh.familyId).toBeDefined();
+
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-real',
+        userId: 'user-auth-123',
+        jti: decodedRefresh.jti,
+        familyId: decodedRefresh.familyId,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+
+      const refreshedResult = await realService.refreshToken({
+        refreshToken: result.refresh_token,
+      });
+
+      expect(refreshedResult.access_token).toBeDefined();
+      expect(refreshedResult.refresh_token).toBeDefined();
+    });
   });
 
   describe('refreshToken', () => {

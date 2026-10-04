@@ -76,16 +76,16 @@ export class AuthTokenService extends BaseService {
       .toDate();
 
     // 1. Generate short-lived Access Token
-    const accessPayload = {
-      sub: user.id,
-      iss: issuer,
-      aud: audience,
-      jti: nanoid(24),
-    };
-
-    const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: accessExpiresInSeconds,
-    });
+    const accessToken = this.jwtService.sign(
+      {},
+      {
+        subject: user.id,
+        audience,
+        ...(issuer && { issuer }),
+        jwtid: nanoid(24),
+        expiresIn: accessExpiresInSeconds,
+      },
+    );
 
     // 2. Generate long-lived Refresh Token (Option B: Signed JWT with Family ID)
     const refreshJti = nanoid(32);
@@ -93,18 +93,16 @@ export class AuthTokenService extends BaseService {
       typeof metadata?.familyId === 'string' ? metadata.familyId : nanoid(24);
 
     const refreshPayload = {
-      sub: user.id,
-      iss: issuer,
-      aud: `${audience}:refresh`,
-      jti: refreshJti,
       familyId,
       token_type: 'refresh',
     };
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
-      expiresIn: refreshExpiresInSeconds,
+      subject: user.id,
       audience: `${audience}:refresh`,
-      issuer,
+      ...(issuer && { issuer }),
+      jwtid: refreshJti,
+      expiresIn: refreshExpiresInSeconds,
     });
 
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
@@ -189,7 +187,7 @@ export class AuthTokenService extends BaseService {
     try {
       payload = this.jwtService.verify(refreshToken, {
         audience: `${audience}:refresh`,
-        issuer,
+        ...(issuer && { issuer }),
       });
     } catch (err) {
       this.logger.warn('Refresh token cryptographic verification failed', {
