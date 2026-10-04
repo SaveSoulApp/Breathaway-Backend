@@ -1,8 +1,9 @@
-import { ExtractJwt, Strategy } from 'passport-jwt';
-
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+
+import { PrismaService } from '@infrastructure/database/prisma.service';
 
 interface JwtPayload {
   sub: string;
@@ -13,11 +14,15 @@ interface JwtPayload {
 /**
  * Passport strategy validating JSON Web Tokens (JWT) provided in Bearer Authorization headers.
  *
- * Loads token constraints (secret key, audience, and optional issuer validation) from environment variables.
+ * Verifies the token signature, audience, and expiration constraints. Additionally checks
+ * that the user account exists and has not been deactivated or soft-deleted.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -28,15 +33,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * Maps valid, decoded JWT payloads to the standard request user shape.
+   * Validates decoded JWT payloads against the active user records in the database.
    *
-   * Automatically invoked by Passport once signature and expiration validation succeeds.
-   * The returned user object is injected into the NestJS context as `request.user`.
+   * Rejects requests if the user has been deleted or deactivated (resolving OWASP CWE-613).
    *
    * @param payload - Decoded JWT claims.
-   * @returns A parsed user profile object containing the user's ID and email.
+   * @returns An authenticated request user shape with userId and email.
+   * @throws {UnauthorizedException} When the user does not exist or has been soft-deleted.
    */
-  validate(payload: JwtPayload) {
+  async validate(payload: JwtPayload) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: payload.sub,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'User account is invalid or has been deactivated',
+      );
+    }
+
     return {
       userId: payload.sub,
       email: payload.email,

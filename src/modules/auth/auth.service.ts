@@ -42,6 +42,7 @@ import {
   AuthSignupRequestDto,
   DeleteAccountRequestDto,
   DevLoginRequestDto,
+  RefreshTokenRequestDto,
   SocialAuthRequestDto,
 } from './dto';
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
@@ -1059,17 +1060,29 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Records a user logout event and emits a USER_LOGOUT audit log.
+   * Refreshes access and refresh tokens using Refresh Token Rotation (RTR).
    *
-   * JWT tokens are stateless and are not actively invalidated — callers must discard
-   * the token client-side. Token revocation (e.g., via a denylist) can be layered on here.
+   * @param dto - Container for the refresh token string.
+   * @param metadata - Optional request context metadata.
+   * @returns Rotated token pair with updated expiration timestamps.
+   */
+  async refresh(
+    dto: RefreshTokenRequestDto,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.authTokenService.refreshToken(dto, metadata);
+  }
+
+  /**
+   * Records a user logout event, terminates active refresh token sessions, and emits a USER_LOGOUT audit log.
    *
    * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
+   * @param refreshToken - Optional refresh token string to target specific session revocation.
    * @returns A confirmation message object.
    */
-  signout(userId: string) {
+  async signout(userId: string, refreshToken?: string) {
     this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
-    // Token revocation can be implemented later
+    await this.authTokenService.revokeSession(userId, refreshToken);
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,

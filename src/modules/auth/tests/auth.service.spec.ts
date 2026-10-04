@@ -1509,9 +1509,13 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
   describe('signout', () => {
     let service: AuthService;
     let eventEmitter: { emit: jest.Mock };
+    let authTokenService: { revokeSession: jest.Mock };
 
     beforeEach(async () => {
       eventEmitter = { emit: jest.fn() };
+      authTokenService = {
+        revokeSession: jest.fn().mockResolvedValue(undefined),
+      };
       const loggerMock = {
         forContext: jest.fn().mockReturnValue({
           log: jest.fn(),
@@ -1528,7 +1532,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           AuthService,
           { provide: PrismaService, useValue: createPrismaMock() },
           { provide: IdentityCryptoService, useValue: {} },
-          { provide: AuthTokenService, useValue: {} },
+          { provide: AuthTokenService, useValue: authTokenService },
           { provide: FirebaseService, useValue: {} },
           { provide: PubSubPublisherService, useValue: {} },
           { provide: AuthCredentialService, useValue: {} },
@@ -1541,9 +1545,13 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       service = module.get<AuthService>(AuthService);
     });
 
-    it('should emit audit log and return confirmation message', () => {
-      const result = service.signout('user-signout-123');
+    it('should emit audit log, revoke session, and return confirmation message', async () => {
+      const result = await service.signout('user-signout-123');
 
+      expect(authTokenService.revokeSession).toHaveBeenCalledWith(
+        'user-signout-123',
+        undefined,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         AUDIT_LOG_EVENT,
         expect.objectContaining({
@@ -1552,6 +1560,64 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       );
       expect(result).toEqual({ message: 'Signout successful' });
+    });
+  });
+
+  describe('refresh', () => {
+    let service: AuthService;
+    let authTokenService: { refreshToken: jest.Mock };
+
+    beforeEach(async () => {
+      authTokenService = { refreshToken: jest.fn() };
+      const loggerMock = {
+        forContext: jest.fn().mockReturnValue({
+          log: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn(),
+          debug: jest.fn(),
+          info: jest.fn(),
+          event: jest.fn(),
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: createPrismaMock() },
+          { provide: IdentityCryptoService, useValue: {} },
+          { provide: AuthTokenService, useValue: authTokenService },
+          { provide: FirebaseService, useValue: {} },
+          { provide: PubSubPublisherService, useValue: {} },
+          { provide: AuthCredentialService, useValue: {} },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: LoggerService, useValue: loggerMock },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+    });
+
+    it('should delegate to authTokenService.refreshToken', async () => {
+      const dto = { refreshToken: 'mock-token' };
+      const mockResult = {
+        user_id: 'user-1',
+        userId: 'user-1',
+        token_type: 'Bearer',
+        access_token: 'access-1',
+        expires_in: 900,
+        refresh_token: 'refresh-1',
+        refresh_token_expires_at: '2026-10-18T00:00:00.000Z',
+      };
+      authTokenService.refreshToken.mockResolvedValue(mockResult);
+
+      const result = await service.refresh(dto);
+
+      expect(authTokenService.refreshToken).toHaveBeenCalledWith(
+        dto,
+        undefined,
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 

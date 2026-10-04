@@ -55,4 +55,42 @@ export class UserAuthResponseDto {
   @ApiPropertyOptional({ description: 'JWT Access token for authentication' })
   @Expose()
   access_token?: string;
+
+  /**
+   * Token authorization type.
+   */
+  @ApiPropertyOptional({
+    description: 'Type of the access token',
+    example: 'Bearer',
+  })
+  @Expose()
+  token_type?: string;
+
+  /**
+   * Access token validity in seconds.
+   */
+  @ApiPropertyOptional({
+    description: 'Access token expiration time in seconds',
+    example: 900,
+  })
+  @Expose()
+  expires_in?: number;
+
+  /**
+   * JSON Web Token (JWT) used for refreshing access credentials.
+   */
+  @ApiPropertyOptional({
+    description: 'JWT Refresh token used to rotate credentials',
+  })
+  @Expose()
+  refresh_token?: string;
+
+  /**
+   * ISO 8601 timestamp representing the exact expiration time of the refresh token.
+   */
+  @ApiPropertyOptional({
+    description: 'ISO-8601 timestamp when the refresh token expires',
+  })
+  @Expose()
+  refresh_token_expires_at?: string;
 }

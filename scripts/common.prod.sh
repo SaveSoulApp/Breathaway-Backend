@@ -39,7 +39,8 @@ export META_VERIFY_TOKEN='my_meta_verification_token'
 export FIREBASE_PROJECT_ID='breathaway-dev-37fd5'
 
 # JWT
-export JWT_EXPIRES_IN='30d'
+export JWT_EXPIRES_IN='15m'
+export JWT_REFRESH_EXPIRES_IN='14d'
 export JWT_AUDIENCE='breathaway-mobile-app'
 export JWT_ISSUER='https://breathaway.app'
 

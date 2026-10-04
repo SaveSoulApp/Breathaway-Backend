@@ -30,6 +30,8 @@ import {
   AuthSignupRequestDto,
   DeleteAccountRequestDto,
   DevLoginRequestDto,
+  RefreshTokenRequestDto,
+  SignoutRequestDto,
   UserAuthResponseDto,
 } from './dto';
 import { AuthMethod } from './utils/auth-method.utils';
@@ -231,9 +233,29 @@ export class AuthController extends BaseController {
   }
 
   /**
-   * Logs out the authenticated user and emits an audit log event.
+   * Refreshes access and refresh tokens using Refresh Token Rotation (RTR).
+   *
+   * @param dto - Container for the signed JWT refresh token.
+   * @returns Rotated access and refresh tokens with expiration metadata.
+   */
+  @Post('refresh')
+  @ApiOperation({ summary: 'Refresh access and refresh tokens' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Tokens successfully refreshed',
+    type: UserAuthResponseDto,
+  })
+  @SerializeExpose(UserAuthResponseDto)
+  @HttpCode(HttpStatus.OK)
+  refresh(@Body() dto: RefreshTokenRequestDto) {
+    return this.authService.refresh(dto);
+  }
+
+  /**
+   * Logs out the authenticated user, revokes active refresh token sessions, and emits an audit log event.
    *
    * @param userId - Unique identifier of the authenticated user, extracted from the JWT.
+   * @param dto - Optional container specifying a single refresh token to revoke.
    * @returns An object confirming successful sign-out.
    */
   @Post('signout')
@@ -246,8 +268,8 @@ export class AuthController extends BaseController {
     description: 'User successfully signed out',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  signout(@CurrentUserId() userId: string) {
-    return this.authService.signout(userId);
+  signout(@CurrentUserId() userId: string, @Body() dto?: SignoutRequestDto) {
+    return this.authService.signout(userId, dto?.refreshToken);
   }
 
   /**
