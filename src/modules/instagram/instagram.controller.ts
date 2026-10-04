@@ -1,6 +1,6 @@
 import { Controller, Get, HttpStatus, Query, UseGuards } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -9,7 +9,7 @@ import {
 import { ApiStandardErrors } from '@common/decorators';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { RefreshInstagramTokenRequestDto } from './dto';
 import { InstagramService } from './instagram.service';
@@ -20,12 +20,12 @@ import { InstagramService } from './instagram.service';
   path: 'instagram',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
-@ApiBasicAuth()
+@UseGuards(AdminOidcAuthGuard)
+@ApiBearerAuth('gcp-oidc')
 /**
  * Handles HTTP operations for Instagram access-token management under /instagram.
  *
- * All endpoints are restricted to internal administrators via AdminBasicAuthGuard — these routes
+ * All endpoints are restricted to internal administrators via AdminOidcAuthGuard — these routes
  * are not intended for end-user consumption.
  */
 export class InstagramController extends BaseController {

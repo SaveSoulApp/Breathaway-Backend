@@ -1,6 +1,6 @@
 import { Body, Controller, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -10,23 +10,23 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentitiesService } from './social-identities.service';
 
 @ApiTags('Social Identities')
 @ApiStandardErrors()
-@ApiBasicAuth()
+@ApiBearerAuth('gcp-oidc')
 @Controller({
   path: 'social-identities',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
+@UseGuards(AdminOidcAuthGuard)
 /**
  * Handles HTTP operations for the /social-identities resource.
  *
- * Endpoints are restricted to internal administrators via AdminBasicAuthGuard
+ * Endpoints are restricted to internal administrators via AdminOidcAuthGuard
  * for identity verification workflows.
  */
 export class SocialIdentitiesController extends BaseController {

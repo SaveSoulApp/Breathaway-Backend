@@ -1,7 +1,6 @@
 import * as crypto from 'crypto';
 
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { DevicePlatform, GenderType, IdentityType } from '@prisma/client';
 import request from 'supertest';
 
@@ -10,34 +9,26 @@ import { AdminModule } from '@modules/admin/admin.module';
 import { ReportsModule } from '@modules/reports/reports.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
 
 describe('ReportsModule (e2e)', () => {
   let app: INestApplication;
-  let configService: ConfigService;
   let prisma: PrismaService;
   let authHeader: string;
 
   const allCreatedUserIds: string[] = [];
 
   beforeAll(async () => {
-    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
-
-    // We also include AdminModule just in case AdminBasicAuthGuard needs any global setup from it,
+    // We also include AdminModule just in case AdminOidcAuthGuard needs any global setup from it,
     // but the endpoints are on ReportsModule.
     const context = await createAuthTestApp([ReportsModule, AdminModule]);
     app = context.app;
-    configService = app.get(ConfigService);
     prisma = context.prisma;
 
-    authHeader = buildBasicAuthHeader(
-      configService.getOrThrow<string>('ADMIN_USERNAME'),
-      configService.getOrThrow<string>('ADMIN_PASSWORD'),
-    );
+    authHeader = buildAdminAuthHeader();
   });
 
   afterAll(async () => {
@@ -54,7 +45,7 @@ describe('ReportsModule (e2e)', () => {
     });
 
     it('should reject requests with invalid credentials', async () => {
-      const invalidAuth = `Basic ${Buffer.from('wrong:wrong').toString('base64')}`;
+      const invalidAuth = buildAdminAuthHeader('wrong-token');
       const res = await request(app.getHttpServer())
         .get('/api/v1/reports/total')
         .set('Authorization', invalidAuth);

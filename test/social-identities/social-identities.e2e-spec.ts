@@ -5,7 +5,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
@@ -16,7 +16,7 @@ describe('SocialIdentitiesController (e2e)', () => {
   let prisma: PrismaService;
   let configService: ConfigService;
   let originalFetch: typeof global.fetch;
-  let basicAuthHeader: string;
+  let adminAuthHeader: string;
 
   const allCreatedUserIds: string[] = [];
 
@@ -28,9 +28,7 @@ describe('SocialIdentitiesController (e2e)', () => {
     prisma = context.prisma;
     configService = app.get(ConfigService);
 
-    const adminUser = configService.getOrThrow<string>('ADMIN_USERNAME');
-    const adminPass = configService.getOrThrow<string>('ADMIN_PASSWORD');
-    basicAuthHeader = buildBasicAuthHeader(adminUser, adminPass);
+    adminAuthHeader = buildAdminAuthHeader();
   });
 
   afterAll(async () => {
@@ -58,7 +56,7 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ instagramId: '17841400000000000' });
 
       expect(res.status).toBe(201);
@@ -75,7 +73,7 @@ describe('SocialIdentitiesController (e2e)', () => {
       });
     });
 
-    it('should reject unauthorized requests when admin basic auth is missing (401)', async () => {
+    it('should reject unauthorized requests when admin auth is missing (401)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
         .send({ instagramId: '17841400000000000' });
@@ -86,7 +84,7 @@ describe('SocialIdentitiesController (e2e)', () => {
     it('should reject non-numeric or parameter injection instagramId (400)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ instagramId: 'foo?bar=1' });
 
       expect(res.status).toBe(400);
@@ -109,7 +107,7 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ instagramId: '999999999' });
 
       expect(res.status).toBe(400);
@@ -127,7 +125,7 @@ describe('SocialIdentitiesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ instagramId: '17841400000000000' });
 
       expect(res.status).toBe(500);
@@ -142,7 +140,7 @@ describe('SocialIdentitiesController (e2e)', () => {
     it('should reject invalid payload without instagramId (400)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/social-identities/verify/instagram')
-        .set('authorization', basicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({});
 
       expect(res.status).toBe(400);

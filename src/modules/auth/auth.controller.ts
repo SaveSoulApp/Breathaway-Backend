@@ -26,23 +26,17 @@ import {
   DeviceId,
   UserAgent,
 } from '@common/decorators';
-import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-
 import { AuthService } from './auth.service';
-import {
-  AUTH_DEV_LOGIN_THROTTLE,
-  AUTH_REFRESH_THROTTLE,
-  AUTH_STRICT_THROTTLE,
-} from './constants';
+import { AUTH_REFRESH_THROTTLE, AUTH_STRICT_THROTTLE } from './constants';
 import {
   AddSecondaryAuthRequestDto,
   AuthSigninRequestDto,
   AuthSignupRequestDto,
   DeleteAccountRequestDto,
-  DevLoginRequestDto,
   RefreshTokenRequestDto,
   SignoutRequestDto,
   UserAuthResponseDto,
@@ -199,44 +193,6 @@ export class AuthController extends BaseController {
     throw new GoneException(
       'Social authentication via this endpoint has been disabled.',
     );
-  }
-
-  /**
-   * Bypasses standard external OAuth or OTP checks to authenticate a developer during testing.
-   *
-   * Uses basic authentication and checks the provided identifier directly in the database.
-   *
-   * @param dto - The developer user's identifier (email or phone).
-   * @returns The authenticated user details and JWT access and refresh tokens.
-   * @throws {NotFoundException} When no user exists with the provided developer credential.
-   */
-  @Post('dev-login')
-  @Throttle(AUTH_DEV_LOGIN_THROTTLE)
-  @UseGuards(BasicAuthGuard)
-  @ApiStandardErrors()
-  @ApiOperation({ summary: 'Developer login for testing purposes' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Dev user successfully authenticated',
-    type: UserAuthResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.TOO_MANY_REQUESTS,
-    description: 'Too many dev-login attempts; rate limit exceeded',
-  })
-  @SerializeExpose(UserAuthResponseDto)
-  @HttpCode(HttpStatus.OK)
-  devLogin(
-    @Body() dto: DevLoginRequestDto,
-    @ClientIp() clientIp?: string,
-    @UserAgent() userAgent?: string,
-    @DeviceId() deviceId?: string,
-  ) {
-    return this.authService.devLogin(dto, {
-      ipAddress: clientIp,
-      userAgent,
-      deviceId,
-    });
   }
 
   /**

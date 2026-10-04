@@ -1,9 +1,10 @@
-import { ContextualLogger, LoggerService } from '@core/logger';
-import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
-import { AuditEventRequestDto } from '@modules/audit/dto';
 import { Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
+
+import { ContextualLogger, LoggerService } from '@core/logger';
+import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
+import { AuditEventRequestDto } from '@modules/audit/dto';
 
 /**
  * Foundational service class that provides common infrastructure capabilities to all domain services.
@@ -39,6 +40,9 @@ export abstract class BaseService {
     const ipAddress = this.cls.get<string | undefined>('ipAddress');
     const userAgent = this.cls.get<string | undefined>('userAgent');
     const requestId = this.cls.get<string | undefined>('requestId');
+    const adminEmail = this.cls.get<string | undefined>('adminEmail');
+    const adminSub = this.cls.get<string | undefined>('adminSub');
+    const adminEmailHash = this.cls.get<string | undefined>('adminEmailHash');
 
     const enrichedPayload: AuditEventRequestDto = {
       ...payload,
@@ -47,6 +51,9 @@ export abstract class BaseService {
         ...payload.metadata,
         ...(userAgent && { userAgent }),
         ...(requestId && { requestId }),
+        ...(adminEmail && { adminEmail }),
+        ...(adminSub && { adminSub }),
+        ...(adminEmailHash && { adminEmailHash }),
       },
     };
 

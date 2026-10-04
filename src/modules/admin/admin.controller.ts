@@ -9,18 +9,27 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
-import { ApiStandardErrors } from '@common/decorators';
+import {
+  ApiStandardErrors,
+  ClientIp,
+  DeviceId,
+  UserAgent,
+} from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { RequireTimezoneGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { AuthService } from '@modules/auth/auth.service';
+import { AUTH_DEV_LOGIN_THROTTLE } from '@modules/auth/constants';
+import { DevLoginRequestDto, UserAuthResponseDto } from '@modules/auth/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 import {
   ConsumeCreditsRequestDto,
@@ -30,7 +39,7 @@ import {
 
 import { AdminService } from './admin.service';
 import { DeleteAccountRequestDto } from './dto';
-import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from './guards/admin-oidc-auth.guard';
 
 @ApiTags('Admin')
 @SkipClientIdentity()
@@ -39,13 +48,14 @@ import { AdminBasicAuthGuard } from './guards/admin-basic-auth.guard';
   path: 'admin',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
-@ApiBasicAuth()
+@UseGuards(AdminOidcAuthGuard)
+@ApiBearerAuth('gcp-oidc')
 export class AdminController extends BaseController {
   constructor(
     logger: LoggerService,
     private readonly adminService: AdminService,
     private readonly creditsService: CreditsService,
+    private readonly authService: AuthService,
   ) {
     super(logger);
   }
@@ -127,5 +137,48 @@ export class AdminController extends BaseController {
     @Body() dto: ConsumeCreditsRequestDto,
   ): Promise<CreditLedgerResponseDto> {
     return this.creditsService.consumeCredits(dto);
+  }
+
+  /**
+   * Bypasses standard external OAuth or OTP checks to authenticate a developer during testing.
+   *
+   * Callable only by authorized GCP administrators via Google Cloud ID tokens.
+   *
+   * @param dto - The developer user's identifier (email or phone).
+   * @param clientIp - Optional client IP address from request headers.
+   * @param userAgent - Optional client user-agent string.
+   * @param deviceId - Optional unique device identifier.
+   * @returns The authenticated user details and JWT access and refresh tokens.
+   * @throws {NotFoundException} When no user exists with the provided developer credential.
+   */
+  @Post('dev-login')
+  @Throttle(AUTH_DEV_LOGIN_THROTTLE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Developer login for testing purposes (Admin)',
+    description:
+      'Bypasses OAuth/OTP checks to authenticate a developer during testing. Requires GCP OIDC ID token with admin permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Dev user successfully authenticated',
+    type: UserAuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many dev-login attempts; rate limit exceeded',
+  })
+  @SerializeExpose(UserAuthResponseDto)
+  devLogin(
+    @Body() dto: DevLoginRequestDto,
+    @ClientIp() clientIp?: string,
+    @UserAgent() userAgent?: string,
+    @DeviceId() deviceId?: string,
+  ) {
+    return this.authService.devLogin(dto, {
+      ipAddress: clientIp,
+      userAgent,
+      deviceId,
+    });
   }
 }

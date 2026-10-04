@@ -5,7 +5,7 @@ jest.mock('nanoid', () => ({
 import { GoneException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { BasicAuthGuard, JwtAuthGuard } from '@common/guards';
+import { JwtAuthGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 
 import { AuthController } from '../auth.controller';
@@ -13,7 +13,6 @@ import { AuthService } from '../auth.service';
 import {
   AuthSigninRequestDto,
   AuthSignupRequestDto,
-  DevLoginRequestDto,
   RefreshTokenRequestDto,
 } from '../dto';
 
@@ -41,7 +40,6 @@ describe('AuthController', () => {
       signin: jest.fn(),
       signInOrSignUp: jest.fn(),
       socialAuth: jest.fn(),
-      devLogin: jest.fn(),
       addSecondaryAuth: jest.fn(),
       refresh: jest.fn(),
       signout: jest.fn(),
@@ -65,8 +63,6 @@ describe('AuthController', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(BasicAuthGuard)
-      .useValue({ canActivate: () => true })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -204,31 +200,6 @@ describe('AuthController', () => {
         deviceId: 'device-uuid-5',
       });
       expect(result).toEqual(mockSigninResponse);
-    });
-  });
-
-  describe('devLogin', () => {
-    it('should invoke authService.devLogin with developer credentials and metadata', async () => {
-      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
-      const mockDevResponse = {
-        ...mockSigninResponse,
-        userId: 'dev-user-1',
-      };
-      service.devLogin.mockResolvedValue(mockDevResponse);
-
-      const result = await controller.devLogin(
-        dto,
-        '127.0.0.1',
-        'DevClient',
-        'device-dev-1',
-      );
-
-      expect(service.devLogin).toHaveBeenCalledWith(dto, {
-        ipAddress: '127.0.0.1',
-        userAgent: 'DevClient',
-        deviceId: 'device-dev-1',
-      });
-      expect(result).toEqual(mockDevResponse);
     });
   });
 

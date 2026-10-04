@@ -22,8 +22,6 @@ locals {
     supabase_url              = "supabase-url"
     supabase_service_role_key = "supabase-service-role-key"
     supabase_jwt_private_key  = "supabase-jwt-private-key"
-    admin_username            = "admin-username"
-    admin_password            = "admin-password"
     swagger_username          = "swagger-username"
     swagger_password          = "swagger-password"
     revenuecat_webhook_secret = "revenuecat-webhook-secret"

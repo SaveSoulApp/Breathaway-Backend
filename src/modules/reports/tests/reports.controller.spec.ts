@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import {
   GetReportRequestDto,
@@ -184,7 +184,7 @@ describe('ReportsController', () => {
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     })
-      .overrideGuard(AdminBasicAuthGuard)
+      .overrideGuard(AdminOidcAuthGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .compile();
 

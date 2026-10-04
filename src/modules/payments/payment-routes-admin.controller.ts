@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -24,7 +24,7 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import {
   CreatePaymentRouteRequestDto,
@@ -39,14 +39,14 @@ import { PaymentRoutesService } from './payment-routes.service';
  * Administrative controller for managing payment gateway routing, dynamic kill-switches,
  * amount boundaries, and priority steps.
  *
- * Protected with HTTP Basic Authentication (`AdminBasicAuthGuard`). Callable by:
+ * Protected with Google OIDC Bearer Auth (`AdminOidcAuthGuard`). Callable by:
  * 1. Human administrators via the Admin dashboard or Swagger UI (`/api/admin`).
- * 2. Automated internal systems (e.g., real-time success-rate balancers or circuit breakers).
+ * 2. Automated internal systems with authorized Google OIDC credentials.
  */
 @ApiTags('Admin - Payments')
 @SkipClientIdentity()
-@ApiBasicAuth()
-@UseGuards(AdminBasicAuthGuard)
+@ApiBearerAuth('gcp-oidc')
+@UseGuards(AdminOidcAuthGuard)
 @ApiStandardErrors()
 @Controller({
   path: 'admin/payments/routes',

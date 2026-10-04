@@ -1,12 +1,12 @@
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { CreditSource, CurrencyCode } from '@prisma/client';
+import { CreditSource, CurrencyCode, IdentityType } from '@prisma/client';
 
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AdminModule } from '@modules/admin/admin.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import {
@@ -18,24 +18,19 @@ import { authedRequest } from '../helpers/request.helper';
 describe('AdminModule (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let adminBasicAuthHeader: string;
+  let crypto: IdentityCryptoService;
+  let adminAuthHeader: string;
 
   const allCreatedUserIds: string[] = [];
   const allCreatedPlanIds: string[] = [];
 
   beforeAll(async () => {
-    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
-
     const context = await createAuthTestApp([AdminModule]);
     app = context.app;
     prisma = context.prisma;
-    const configService = app.get(ConfigService);
+    crypto = app.get(IdentityCryptoService);
 
-    adminBasicAuthHeader = buildBasicAuthHeader(
-      configService.getOrThrow<string>('ADMIN_USERNAME'),
-      configService.getOrThrow<string>('ADMIN_PASSWORD'),
-    );
+    adminAuthHeader = buildAdminAuthHeader();
   });
 
   afterAll(async () => {
@@ -45,7 +40,7 @@ describe('AdminModule (e2e)', () => {
   });
 
   describe('Admin Authentication Guard', () => {
-    it('rejects requests without Basic Auth (401)', async () => {
+    it('rejects requests without Bearer token (401)', async () => {
       // Arrange & Act
       const res = await authedRequest(app).get(
         '/api/v1/admin/subscriptions/plans',
@@ -55,9 +50,9 @@ describe('AdminModule (e2e)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('rejects requests with invalid Basic Auth credentials (401)', async () => {
+    it('rejects requests with invalid Bearer token (401)', async () => {
       // Arrange
-      const wrongAuth = buildBasicAuthHeader('baduser', 'badpass');
+      const wrongAuth = buildAdminAuthHeader('bad-token');
 
       // Act
       const res = await authedRequest(app)
@@ -83,7 +78,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .delete(`/api/v1/admin/users/${targetUserId}`)
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ reason: 'Terms of service violation' });
 
       // Assert
@@ -99,7 +94,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .delete('/api/v1/admin/users/non-existent-user-id')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ reason: 'Random cleanup' });
 
       // Assert
@@ -110,7 +105,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .delete(`/api/v1/admin/users/${targetUserId}`)
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({});
 
       // Assert
@@ -132,7 +127,7 @@ describe('AdminModule (e2e)', () => {
       // Arrange & Act
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/grant')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .set('x-timezone', 'UTC')
         .send({
           userId: creditUserId,
@@ -152,7 +147,7 @@ describe('AdminModule (e2e)', () => {
       // Arrange & Act
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/grant')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .set('x-timezone', '')
         .send({
           userId: creditUserId,
@@ -168,7 +163,7 @@ describe('AdminModule (e2e)', () => {
       // Arrange & Act
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/consume')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           userId: creditUserId,
           amount: 20,
@@ -184,7 +179,7 @@ describe('AdminModule (e2e)', () => {
       // Arrange & Act
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/consume')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           userId: creditUserId,
           amount: 99999,
@@ -198,7 +193,7 @@ describe('AdminModule (e2e)', () => {
     it('POST /api/v1/admin/credits/grant - rejects invalid payload (400)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/grant')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .set('x-timezone', 'UTC')
         .send({});
 
@@ -226,7 +221,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .post('/api/v1/admin/subscriptions/plans')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send(payload);
 
       // Assert
@@ -245,7 +240,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .get('/api/v1/admin/subscriptions/plans')
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(200);
@@ -258,7 +253,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .patch(`/api/v1/admin/subscriptions/plans/${createdPlanId}`)
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           name: 'Updated E2E Test Plan',
           creditsGranted: 150,
@@ -276,7 +271,7 @@ describe('AdminModule (e2e)', () => {
         .patch(
           '/api/v1/admin/subscriptions/plans/00000000-0000-0000-0000-000000000000',
         )
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({ name: 'Will not update' });
 
       // Assert
@@ -294,7 +289,7 @@ describe('AdminModule (e2e)', () => {
       // Act
       const res = await authedRequest(app)
         .post(`/api/v1/admin/subscriptions/plans/${createdPlanId}/prices`)
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send(pricePayload);
 
       // Assert
@@ -312,7 +307,7 @@ describe('AdminModule (e2e)', () => {
         .post(
           '/api/v1/admin/subscriptions/plans/00000000-0000-0000-0000-000000000000/prices',
         )
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           currencyCode: CurrencyCode.USD,
           price: 9.99,
@@ -329,7 +324,7 @@ describe('AdminModule (e2e)', () => {
         .delete(
           `/api/v1/admin/subscriptions/plans/${createdPlanId}/prices/${createdPriceId}`,
         )
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(204);
@@ -341,10 +336,90 @@ describe('AdminModule (e2e)', () => {
         .delete(
           `/api/v1/admin/subscriptions/plans/${createdPlanId}/prices/00000000-0000-0000-0000-000000000000`,
         )
-        .set('authorization', adminBasicAuthHeader);
+        .set('authorization', adminAuthHeader);
 
       // Assert
       expect(res.status).toBe(404);
+    });
+  });
+
+  // =========================================================================
+  // POST /api/v1/admin/dev-login
+  // =========================================================================
+  describe('POST /api/v1/admin/dev-login', () => {
+    const identifier = 'admindevlogin@e2e.test';
+    let seededUserId: string;
+
+    beforeAll(async () => {
+      const { publicValueHash: hash } = await crypto.processPublicValue(
+        identifier,
+        IdentityType.EMAIL,
+      );
+      const user = await prisma.user.create({ data: {} });
+      const identity = await prisma.identity.create({
+        data: {
+          type: 'EMAIL',
+          publicValueHash: hash,
+          publicValueCiphertext: 'x',
+          publicValueIv: 'x',
+          publicValueTag: 'x',
+          publicValueWrappedKey: 'x',
+          publicValueKeyId: 'key-v1',
+          publicValueMasked: 'a••••n@e2e.test',
+          userId: user.id,
+          isVerified: true,
+          verifiedAt: new Date(),
+        },
+      });
+      await prisma.authCredential.create({
+        data: {
+          userId: user.id,
+          type: 'EMAIL',
+          valueHash: hash,
+          valueMasked: 'a••••n@e2e.test',
+          isPrimary: true,
+          identityId: identity.id,
+        },
+      });
+      seededUserId = user.id;
+      allCreatedUserIds.push(user.id);
+    });
+
+    it('200 – returns access token for known dev identifier', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', adminAuthHeader)
+        .send({ identifier });
+
+      expect(res.status).toBe(200);
+      expect(res.body.accessToken || res.body.access_token).toBeDefined();
+      expect(res.body.userId || res.body.user_id).toBe(seededUserId);
+    });
+
+    it('404 – not found for unknown identifier', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', adminAuthHeader)
+        .send({ identifier: 'ghost@e2e.test' });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('401 – missing Admin Auth header', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .send({ identifier });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('401 – wrong credentials in Admin Auth header', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', buildAdminAuthHeader('wrong-token'))
+        .send({ identifier });
+
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -32,7 +32,7 @@ export const AUTH_REFRESH_THROTTLE = {
 };
 
 /**
- * Rate limits for developer testing login (`POST /api/v1/auth/dev-login`).
+ * Rate limits for developer testing login (`POST /api/v1/admin/dev-login`).
  *
  * - short: 2 req / 1s
  * - medium: 5 req / 10s

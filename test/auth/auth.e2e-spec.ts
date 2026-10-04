@@ -9,9 +9,7 @@ import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import type { FirebaseValidationResult } from '@modules/firebase/firebase.service';
 
 import {
-  buildBasicAuthHeader,
   createAuthTestApp,
-  getDevLoginCredentials,
   mockEmailFirebaseToken,
   mockPhoneFirebaseToken,
 } from '../helpers/app-test.helper';
@@ -498,95 +496,6 @@ describe('AuthController (e2e)', () => {
       });
 
       expect(res.status).toBe(410);
-    });
-  });
-
-  // =========================================================================
-  // POST /api/v1/auth/dev-login
-  // =========================================================================
-  describe('POST /api/v1/auth/dev-login', () => {
-    const identifier = 'devlogin@e2e.test';
-    let seededUserId: string;
-    let basicAuthHeader: string;
-
-    beforeAll(async () => {
-      // Seed: user with email credential — use processPublicValue so the hash
-      // matches what auth.service.ts produces after normalising the email.
-      const { publicValueHash: hash } = await crypto.processPublicValue(
-        identifier,
-        IdentityType.EMAIL,
-      );
-      const user = await prisma.user.create({ data: {} });
-      const identity = await prisma.identity.create({
-        data: {
-          type: 'EMAIL',
-          publicValueHash: hash,
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
-          publicValueKeyId: 'key-v1',
-          publicValueMasked: 'd••••n@e2e.test',
-          userId: user.id,
-          isVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
-      await prisma.authCredential.create({
-        data: {
-          userId: user.id,
-          type: 'EMAIL',
-          valueHash: hash,
-          valueMasked: 'd••••n@e2e.test',
-          isPrimary: true,
-          identityId: identity.id,
-        },
-      });
-      seededUserId = user.id;
-      allCreatedUserIds.push(user.id);
-
-      // Build Basic Auth header from .env.test credentials
-      const { username, password } = getDevLoginCredentials(configService);
-      basicAuthHeader = buildBasicAuthHeader(username, password);
-    });
-
-    it('200 – returns access_token for known dev identifier', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', basicAuthHeader)
-        .send({ identifier });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: seededUserId,
-      });
-    });
-
-    it('404 – not found for unknown identifier', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', basicAuthHeader)
-        .send({ identifier: 'ghost@e2e.test' });
-
-      expect(res.status).toBe(404);
-    });
-
-    it('401 – missing Basic Auth header', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .send({ identifier });
-
-      expect(res.status).toBe(401);
-    });
-
-    it('401 – wrong credentials in Basic Auth header', async () => {
-      const res = await authedRequest(app)
-        .post('/api/v1/auth/dev-login')
-        .set('authorization', buildBasicAuthHeader('wrong-user', 'wrong-pass'))
-        .send({ identifier });
-
-      expect(res.status).toBe(401);
     });
   });
 

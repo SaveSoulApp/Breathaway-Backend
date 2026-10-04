@@ -9,7 +9,7 @@ import { CreditsModule } from '@modules/credits/credits.module';
 import { MaintenanceModule } from '@modules/maintenance/maintenance.module';
 
 import {
-  buildBasicAuthHeader,
+  buildAdminAuthHeader,
   createAuthTestApp,
 } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
@@ -25,12 +25,9 @@ describe('CreditsModule (e2e)', () => {
   let seededUserId: string;
   let validJwt: string;
   let otherUserJwt: string;
-  let adminBasicAuthHeader: string;
+  let adminAuthHeader: string;
 
   beforeAll(async () => {
-    process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
-
     const context = await createAuthTestApp([
       CreditsModule,
       MaintenanceModule,
@@ -59,10 +56,7 @@ describe('CreditsModule (e2e)', () => {
       aud: configService.get<string>('JWT_AUDIENCE'),
     });
 
-    adminBasicAuthHeader = buildBasicAuthHeader(
-      configService.getOrThrow<string>('ADMIN_USERNAME'),
-      configService.getOrThrow<string>('ADMIN_PASSWORD'),
-    );
+    adminAuthHeader = buildAdminAuthHeader();
   });
 
   afterAll(async () => {
@@ -87,10 +81,10 @@ describe('CreditsModule (e2e)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('POST /api/v1/admin/credits/grant - grants credits with admin basic auth and timezone header', async () => {
+    it('POST /api/v1/admin/credits/grant - grants credits with admin auth and timezone header', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/grant')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .set('x-timezone', 'UTC')
         .send({
           userId: seededUserId,
@@ -117,7 +111,7 @@ describe('CreditsModule (e2e)', () => {
       // Using basic supertest without authedRequest wrapper to omit x-timezone
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/grant')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .set('x-timezone', '')
         .send({
           userId: seededUserId,
@@ -129,10 +123,10 @@ describe('CreditsModule (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('POST /api/v1/admin/credits/consume - consumes credits with admin basic auth', async () => {
+    it('POST /api/v1/admin/credits/consume - consumes credits with admin auth', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/consume')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           userId: seededUserId,
           amount: 25,
@@ -188,7 +182,7 @@ describe('CreditsModule (e2e)', () => {
       expect(res.status).toBe(404);
     });
 
-    it('POST /api/v1/admin/credits/consume - fails when called with user JWT instead of admin basic auth', async () => {
+    it('POST /api/v1/admin/credits/consume - fails when called with user JWT instead of admin auth', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/consume')
         .set('authorization', `Bearer ${validJwt}`)
@@ -204,7 +198,7 @@ describe('CreditsModule (e2e)', () => {
     it('POST /api/v1/admin/credits/consume - fails when insufficient balance (402 Payment Required)', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/admin/credits/consume')
-        .set('authorization', adminBasicAuthHeader)
+        .set('authorization', adminAuthHeader)
         .send({
           userId: seededUserId,
           amount: 10000,

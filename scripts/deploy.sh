@@ -223,7 +223,7 @@ deploy_cloud_run_service() {
     for secret in "${COMMON_SECRETS[@]}"; do
         gcloud_run_args+=(--update-secrets="${secret}")
     done
-    gcloud_run_args+=(--remove-secrets="PUBSUB_VERIFICATION_TOKEN")
+    gcloud_run_args+=(--remove-secrets="PUBSUB_VERIFICATION_TOKEN,ADMIN_USERNAME,ADMIN_PASSWORD")
 
     gcloud "${gcloud_run_args[@]}" || print_error "Deployment failed for ${target_service}"
     print_success "Deployment completed successfully for ${target_service}"

@@ -61,11 +61,8 @@ describe('PaymentRoutesAdminController', () => {
         {
           provide: ConfigService,
           useValue: {
-            getOrThrow: jest.fn((key: string) => {
-              if (key === 'ADMIN_USERNAME') return 'admin';
-              if (key === 'ADMIN_PASSWORD') return 'secret';
-              return '';
-            }),
+            get: jest.fn().mockReturnValue(''),
+            getOrThrow: jest.fn().mockReturnValue(''),
           },
         },
       ],

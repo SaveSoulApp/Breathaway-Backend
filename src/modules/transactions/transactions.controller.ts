@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -17,7 +17,7 @@ import { SkipClientIdentity } from '@common/decorators/skip-client-identity.deco
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import {
   PaginatedTransactionResponseDto,
@@ -31,13 +31,13 @@ import { TransactionsService } from './transactions.service';
  *
  * Transactions are written exclusively by gateway webhook handlers, never by a
  * client, so this controller is read-only. The listing is not scoped to a user —
- * it spans every account — which is why it sits behind Basic Auth alongside the
- * other admin controllers rather than the JWT guard.
+ * it spans every account — which is why it sits behind Google OIDC Bearer Auth
+ * alongside the other admin controllers rather than the JWT guard.
  */
 @ApiTags('Admin - Transactions')
 @SkipClientIdentity()
-@ApiBasicAuth()
-@UseGuards(AdminBasicAuthGuard)
+@ApiBearerAuth('gcp-oidc')
+@UseGuards(AdminOidcAuthGuard)
 @Controller({
   path: 'admin/transactions',
   version: ['1'],

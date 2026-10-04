@@ -4,11 +4,12 @@ sidebar_position: 2
 
 # API Authentication & Guards
 
-BreathAway APIs are secured using three distinct authentication layers depending on the caller type:
+BreathAway APIs are secured using four distinct authentication layers depending on the caller type:
 
 1. **Client Identity Verification**: Ensures requests originate from a supported, authentic version of the mobile app.
 2. **User Session Authentication**: Authenticates and identifies the logged-in user via JWT tokens.
 3. **Internal GCP Service Authentication (OIDC)**: Authenticates automated service-to-service calls from GCP infrastructure (Cloud Scheduler and Pub/Sub) using Google-signed OpenID Connect ID tokens.
+4. **Administrative & Developer Authentication (Google OIDC + GCP IAM)**: Authenticates engineers and administrators invoking privileged routes using personal Google accounts verified against live GCP project IAM policies.
 
 ---
 
@@ -250,7 +251,7 @@ Rather than a single coarse window, BreathAway configures three concurrent time 
 | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
 | **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
 | **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
-| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/auth/dev-login`                                                                                                                                          |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login`                                                                                                                                         |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
 
 #### Error Response Contract (`429 Too Many Requests`)
 
@@ -350,3 +351,165 @@ sequenceDiagram
     Controller ->> MobileClient: 200 OK (Response Payload)
     deactivate Controller
 ```
+
+---
+
+## 🛠️ 4. Administrative & Developer Authentication (Google OIDC + GCP IAM)
+
+Administrative APIs (`/api/v1/admin/*` including developer bypass `/api/v1/admin/dev-login`, `/api/v1/notifications/*`, `/api/v1/reports/*`, `/api/v1/payments/routes/*`, `/api/v1/social-identities/*`, `/api/v1/transactions/*`, `/api/v1/instagram/*`) are secured by [`AdminOidcAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-oidc-auth.guard.ts).
+
+This replaces legacy HTTP Basic Auth and shared static passwords with **Zero-Trust Google OpenID Connect (OIDC)**, delegating identity verification to Google and authorization to Google Cloud IAM.
+
+---
+
+### ⚖️ Regular Customer Flow vs. Admin OIDC Flow
+
+| Architectural Aspect | Regular Customer Flow (App Users) | Administrative OIDC Flow (Engineers / Admins) |
+| :--- | :--- | :--- |
+| **Primary Identity Provider** | Firebase Auth (Phone OTP, Apple, Google Sign-In) | Google Accounts (`@gmail.com` or `@mycompany.com`) |
+| **Token Type & Issuer** | BreathAway Custom JWTs (HMAC/RSA issued by Backend) | Google OIDC ID Token issued by `accounts.google.com` |
+| **Token Lifetime** | 15 minutes (Access) / 14 days (Refresh Token Family) | 1 hour (Google standard OIDC lifetime, no refresh flow) |
+| **Client Headers Required** | `x-api-key`, `x-client-id`, `x-user-agent`, `x-device-id` | `@SkipClientIdentity()` applied (No client app headers required) |
+| **Authorization Source** | PostgreSQL database tables (`User`, `UserRole`, status) | Live GCP Project IAM Policy (`roles/owner`, `roles/editor`) |
+| **Revocation Mechanism** | Database session deletion / token blacklist | Removing developer from GCP Project IAM in Google Cloud Console |
+| **Audit Logging Actor** | Internal User ULID (`sub: "01KY9DY8M1GARM..."`) | Verified Google email (`adminEmail: "engineer@company.com"`) |
+| **Audit Sink Destination** | Application database & standard access logs | GCP Cloud Logging & BigQuery Sink (`jsonPayload.adminEmail`) |
+| **Interactive Tooling** | Mobile App / Public Web Client | Terminal (`curl`), Postman, and Admin Swagger UI (`/api/docs/admin`) |
+
+---
+
+### 🛡️ How Admin OIDC Verification Works
+
+When a request reaches a route protected by `AdminOidcAuthGuard`:
+
+1. **Header Validation**: Extracts the Bearer token from `Authorization: Bearer <token>`. Rejects missing or malformed headers with `401 Unauthorized`.
+2. **Cryptographic Google JWKS Verification**:
+   - The token signature is verified against Google's public JWKS certificates (`https://www.googleapis.com/oauth2/v3/certs`) via `google-auth-library`.
+   - Google certificates are automatically cached in-memory, requiring 0ms network latency on subsequent requests.
+   - Verifies `iss` is `accounts.google.com` or `https://accounts.google.com`.
+   - Verifies `aud` matches either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
+   - Verifies `email_verified: true` and extracts `payload.email`.
+3. **Dynamic GCP IAM Authorization**:
+   - **Step 3A (Config Whitelist)**: Checks `ADMIN_ALLOWED_EMAILS` (comma-separated list). If matched, authorizes immediately (ideal for local dev without cloud access).
+   - **Step 3B (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
+   - **Step 3C (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) or the Cloud Run service account.
+   - Extracts all members bound to `roles/owner`, `roles/editor`, `roles/resourcemanager.organizationAdmin`, or roles specified in `GCP_ADMIN_IAM_ROLES`.
+   - If `user:<email>` is found in the IAM policy bindings, updates the in-memory cache and grants access.
+   - If not found, logs a warning and throws `403 Forbidden: Caller does not have administrative permissions in GCP`.
+4. **Context Propagation & Structured Audit Logging**:
+   - Injects `adminEmail`, `adminSub`, and `adminEmailHash` (SHA-256) into Continuation-Local Storage (CLS) via `ClsService`.
+   - Attaches `request.adminUser = { email, sub, emailHash }`.
+   - Emits structured JSON log with `step: 'authenticate'`, `adminEmail`, and request details.
+   - Any downstream call to `BaseService.emitAuditLog` automatically enriches audit events (`PubSubEvent.SYSTEM_AUDIT_LOG`) with the admin email for BigQuery ingestion.
+
+---
+
+### 🔄 Admin Authentication Sequence Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Engineer / Admin<br/>(@gmail.com or @company.com)
+    participant CLI as Terminal / Postman / Swagger
+    participant Backend as NestJS Admin Endpoint
+    participant Guard as AdminOidcAuthGuard
+    participant GoogleJWKS as Google OAuth JWKS
+    participant GCPIAM as GCP Cloud Resource Manager API
+    participant Logger as Cloud Logging / BigQuery
+
+    Admin->>CLI: gcloud auth login
+    Admin->>CLI: export TOKEN=$(gcloud auth print-identity-token)
+    CLI->>Backend: HTTP POST /v1/notifications/send (Authorization: Bearer <TOKEN>)
+    Backend->>Guard: canActivate(context)
+    
+    Guard->>GoogleJWKS: 1. Cryptographically verify signature & claims (Local/Cached)
+    alt Invalid Signature / Expired / Unverified Email
+        Guard-->>CLI: 401 Unauthorized
+    end
+
+    alt Email in ADMIN_ALLOWED_EMAILS or Cache Valid (<5m TTL)
+        Guard->>Guard: Authorize from Cache
+    else Cache Expired / Miss
+        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
+        GCPIAM-->>Guard: Return project IAM bindings (roles/owner, roles/editor)
+        Guard->>Guard: Populate in-memory cache (5m TTL)
+    end
+
+    alt Caller Not in Project IAM Policy
+        Guard-->>CLI: 403 Forbidden (Caller lacks admin permissions)
+    else Caller Authorized
+        Guard->>Backend: 3. Set CLS context (adminEmail, adminSub)
+        Guard->>Logger: 4. Structured log (adminEmail, route, method)
+        Backend->>Backend: Execute administrative business logic
+        Backend->>Logger: 5. Emit domain audit event enriched with adminEmail
+        Backend-->>CLI: 200 OK / 204 No Content
+    end
+```
+
+---
+
+### 💻 Developer Guide: How to Generate and Use Admin Tokens
+
+#### 1. Prerequisites
+- The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-dev` / `breathaway-prod`) with the **Editor** or **Owner** role.
+- Google Cloud CLI (`gcloud`) installed locally.
+
+#### 2. Generating the Token
+Run the following in your terminal:
+
+```bash
+# 1. Log in with your authorized Google account
+gcloud auth login
+
+# 2. Mint the short-lived 1-hour Google OIDC identity token
+export TOKEN=$(gcloud auth print-identity-token)
+```
+
+> [!NOTE]
+> **Why no `--audiences` flag?**: The `--audiences` flag in `gcloud auth print-identity-token` is only permitted for Service Accounts. For human developer accounts, omitting `--audiences` produces a token targeted at the Google Cloud SDK client ID (`32555940559.apps.googleusercontent.com`), which `AdminOidcAuthGuard` natively accepts.
+
+#### 3. Using in Swagger UI
+1. Open the Admin Swagger documentation: `http://localhost:3000/api/docs/admin` (or production URL).
+2. Click the green **Authorize** button at the top right.
+3. Paste the token into the **`gcp-oidc (http, Bearer)`** input field and click **Authorize**.
+4. All admin endpoints can now be executed interactively.
+
+#### 4. Using in Postman / Curl
+```bash
+curl -X POST "http://localhost:3000/api/v1/notifications/send" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "EMAIL",
+    "category": "TRANSACTIONAL",
+    "type": "USER_WELCOME",
+    "recipientUserId": "01KY9DY8M1GARMFEHXFJBZ08RM"
+  }'
+```
+
+---
+
+### ☁️ Required Google Cloud Platform Services & Permissions
+
+To enable dynamic IAM evaluation, the GCP project and runtime environment require the following configuration:
+
+#### 1. Enable Cloud Resource Manager API
+The GCP Cloud Resource Manager API must be enabled on the project to allow the backend to query project IAM policies:
+```bash
+gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
+```
+
+#### 2. Service Account Permissions (Cloud Run)
+The Cloud Run runtime service account (`backend-service@<project-id>.iam.gserviceaccount.com`) must be granted read access to the project IAM policy:
+```bash
+gcloud projects add-iam-policy-binding <project-id> \
+  --member="serviceAccount:backend-service@<project-id>.iam.gserviceaccount.com" \
+  --role="roles/browser"
+```
+*(Alternatively, grant `roles/viewer`).*
+
+#### 3. Local Development (Localhost)
+When running the NestJS backend locally on localhost:
+- Run `gcloud auth application-default login` so your local Node.js process inherits credentials to query Cloud Resource Manager.
+- Or configure `ADMIN_ALLOWED_EMAILS="your-email@gmail.com"` in your environment variables to bypass cloud IAM API queries locally.
+

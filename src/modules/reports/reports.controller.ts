@@ -1,15 +1,17 @@
-import { ApiStandardErrors } from '@common/decorators';
-import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
+
 import {
   GetReportRequestDto,
   ReportTimeframeResponseDto,
@@ -24,8 +26,8 @@ import { ReportsService } from './reports.service';
   path: 'reports',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
-@ApiBasicAuth()
+@UseGuards(AdminOidcAuthGuard)
+@ApiBearerAuth('gcp-oidc')
 export class ReportsController extends BaseController {
   constructor(
     logger: LoggerService,

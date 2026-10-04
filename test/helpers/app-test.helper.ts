@@ -6,6 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
+import { OAuth2Client } from 'google-auth-library';
 import { ClsModule, ClsService } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
@@ -90,8 +91,8 @@ export async function createAuthTestApp(
   extraModules: any[] = [],
 ): Promise<AppTestContext> {
   // Ensure required test environment variables are populated
-  process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-  process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'adminpass';
+  process.env.ADMIN_ALLOWED_EMAILS =
+    process.env.ADMIN_ALLOWED_EMAILS || TEST_ADMIN_EMAIL;
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';
@@ -100,6 +101,35 @@ export async function createAuthTestApp(
   jest
     .spyOn(PubSubPublisherService.prototype, 'publish')
     .mockResolvedValue('mock-message-id');
+
+  // Mock Google OIDC token verification for AdminOidcAuthGuard
+  jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockImplementation(((
+    options: any,
+  ) => {
+    if (options?.idToken === TEST_ADMIN_TOKEN) {
+      return Promise.resolve({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          email: TEST_ADMIN_EMAIL,
+          email_verified: true,
+          sub: '109876543210987654321',
+          aud: options?.audience?.[0] || 'mock-audience',
+        }),
+      } as any);
+    }
+    if (options?.idToken === 'unauthorized-admin-token') {
+      return Promise.resolve({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          email: 'unauthorized-admin@example.com',
+          email_verified: true,
+          sub: '999999999999999999999',
+          aud: options?.audience?.[0] || 'mock-audience',
+        }),
+      } as any);
+    }
+    return Promise.reject(new Error('Invalid Google ID token'));
+  }) as any);
 
   const mockFirebaseValidation = jest.fn<
     Promise<FirebaseValidationResult>,
@@ -268,8 +298,19 @@ export function mockEmailFirebaseToken(
   };
 }
 
+export const TEST_ADMIN_EMAIL = 'admin@breathaway.com';
+export const TEST_ADMIN_TOKEN = 'test-admin-token';
+
+/**
+ * Generates an Admin Authorization Bearer header for Google OIDC auth.
+ */
+export function buildAdminAuthHeader(token: string = TEST_ADMIN_TOKEN): string {
+  return `Bearer ${token}`;
+}
+
 /**
  * Generates a valid Basic Auth header value from username:password.
+ * @deprecated Use buildAdminAuthHeader for admin endpoints.
  */
 export function buildBasicAuthHeader(
   username: string,
@@ -281,6 +322,7 @@ export function buildBasicAuthHeader(
 
 /**
  * Reads the dev login credentials from env vars set by .env.test.
+ * @deprecated /api/v1/admin/dev-login now uses AdminOidcAuthGuard (buildAdminAuthHeader).
  */
 export function getDevLoginCredentials(configService: ConfigService): {
   username: string;

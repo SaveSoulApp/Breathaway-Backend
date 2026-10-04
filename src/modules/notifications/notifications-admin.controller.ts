@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBasicAuth,
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -17,7 +17,7 @@ import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { AdminBasicAuthGuard } from '@modules/admin/guards/admin-basic-auth.guard';
+import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
 import { SendNotificationRequestDto, SendNotificationResponseDto } from './dto';
 import { NotificationsService } from './notifications.service';
@@ -26,7 +26,7 @@ import { NotificationsService } from './notifications.service';
  * Administrative HTTP controller for notification operations.
  *
  * Dedicated to administrative multi-channel dispatch (Push, Email, SMS).
- * Protected at class level with HTTP Basic Authentication (`AdminBasicAuthGuard`).
+ * Protected at class level with Google OIDC Bearer Authentication (`AdminOidcAuthGuard`).
  */
 @ApiTags('Admin - Notifications')
 @SkipClientIdentity()
@@ -35,8 +35,8 @@ import { NotificationsService } from './notifications.service';
   path: 'notifications',
   version: ['1'],
 })
-@UseGuards(AdminBasicAuthGuard)
-@ApiBasicAuth()
+@UseGuards(AdminOidcAuthGuard)
+@ApiBearerAuth('gcp-oidc')
 export class NotificationsAdminController extends BaseController {
   constructor(
     loggerService: LoggerService,
