@@ -397,7 +397,11 @@ describe('AuthTokenService', () => {
       ).rejects.toThrow(UnauthorizedException);
 
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { familyId: 'family-breached', revokedAt: null },
+        where: {
+          familyId: 'family-breached',
+          userId: 'user-auth-123',
+          revokedAt: null,
+        },
         data: { revokedAt: expect.any(Date) },
       });
     });
@@ -477,9 +481,13 @@ describe('AuthTokenService', () => {
         service.refreshToken({ refreshToken: 'concurrent-token' }),
       ).rejects.toThrow(UnauthorizedException);
 
-      // Verify second call revoked the entire family
+      // Verify second call revoked the entire family scoped by userId
       expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(2, {
-        where: { familyId: 'family-failed-race', revokedAt: null },
+        where: {
+          familyId: 'family-failed-race',
+          userId: 'user-auth-123',
+          revokedAt: null,
+        },
         data: { revokedAt: expect.any(Date) },
       });
     });

@@ -391,9 +391,9 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
     // Outside grace window OR cache unresolvable: trigger breach containment
     await this.terminateSessionFamily(
       session.familyId,
+      session.userId,
       'token_reuse_detected',
       {
-        userId: session.userId,
         reusedJti: session.jti,
         timeSinceRevocation,
       },
@@ -519,9 +519,9 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
     // If cache never populated after retries, conclude breach or failed rotation
     await this.terminateSessionFamily(
       session.familyId,
+      session.userId,
       'concurrent_rtr_race_unresolved',
       {
-        userId: session.userId,
         reusedJti: session.jti,
       },
     );
@@ -533,18 +533,21 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
 
   /**
    * Terminates all active sessions in a family lineage upon security breach detection.
+   * Scoped strictly by familyId AND userId for tenant isolation defense-in-depth.
    *
    * @param familyId - Token family identifier to terminate.
+   * @param userId - ID of the tenant user owning the family.
    * @param step - Logging step context.
    * @param logContext - Additional structured metadata.
    */
   private async terminateSessionFamily(
     familyId: string,
+    userId: string,
     step: string,
     logContext: Record<string, unknown>,
   ): Promise<void> {
     await this.prisma.userSession.updateMany({
-      where: { familyId, revokedAt: null },
+      where: { familyId, userId, revokedAt: null },
       data: { revokedAt: DateUtil.now() },
     });
 
@@ -553,6 +556,7 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
       {
         step,
         familyId,
+        userId,
         ...logContext,
       },
     );
