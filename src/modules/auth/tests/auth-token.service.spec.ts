@@ -349,8 +349,58 @@ describe('AuthTokenService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
+    it('should poll and resolve cached response if revoked token arrives before Redis write finishes (sub-second race)', async () => {
+      // Arrange
+      const cachedPayload = {
+        userId: 'user-auth-123',
+        tokenType: 'Bearer' as const,
+        accessToken: 'already-issued-access-token',
+        expiresIn: 900,
+        refreshToken: 'already-issued-refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 100000).toISOString(),
+      };
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'sub-second-jti',
+        familyId: 'family-sub-second',
+        token_type: 'refresh',
+      });
+      // Token was revoked just 50ms ago by another concurrent instance
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-sub-second',
+        userId: 'user-auth-123',
+        jti: 'sub-second-jti',
+        familyId: 'family-sub-second',
+        revokedAt: new Date(Date.now() - 50),
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+      // Redis returns null on first attempt (in-flight write), then returns cached payload on retry
+      redisClient.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(JSON.stringify(cachedPayload));
+
+      // Act
+      const result = await service.refreshToken({
+        refreshToken: 'sub-second-refresh-token',
+      });
+
+      // Assert
+      expect(result).toEqual(cachedPayload);
+      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
+      expect(redisClient.get).toHaveBeenCalledTimes(2);
+    });
+
     it('should reject refresh within grace window if user account has been deactivated', async () => {
       // Arrange
+      const cachedPayload = {
+        userId: 'user-auth-123',
+        tokenType: 'Bearer' as const,
+        accessToken: 'already-issued-access-token',
+        expiresIn: 900,
+        refreshToken: 'already-issued-refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 100000).toISOString(),
+      };
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
         jti: 'recent-jti',
@@ -365,6 +415,7 @@ describe('AuthTokenService', () => {
         revokedAt: new Date(Date.now() - 500),
         expiresAt: new Date(Date.now() + 100000),
       });
+      redisClient.get.mockResolvedValue(JSON.stringify(cachedPayload));
       prisma.user.findFirst.mockResolvedValue(null); // Deactivated account!
 
       // Act & Assert

@@ -370,10 +370,28 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
       DateUtil.now().getTime() - session.revokedAt!.getTime();
 
     if (timeSinceRevocation <= ROTATION_GRACE_PERIOD_MS) {
-      await this.validateActiveUser(session.userId);
+      let cachedResponse = await this.getCachedRotatedResponse(session.jti);
 
-      const cachedResponse = await this.getCachedRotatedResponse(session.jti);
+      // If token was freshly revoked (<= 1500ms) and cache is not yet populated,
+      // poll briefly to let the winning concurrent request finish writing to Redis.
+      if (!cachedResponse && timeSinceRevocation <= 1500) {
+        for (
+          let attempt = 0;
+          attempt < CONCURRENT_ROTATION_MAX_RETRIES;
+          attempt++
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, CONCURRENT_ROTATION_WAIT_MS),
+          );
+          cachedResponse = await this.getCachedRotatedResponse(session.jti);
+          if (cachedResponse) break;
+        }
+      }
+
       if (cachedResponse) {
+        // Validate user account is still active before serving cached response
+        await this.validateActiveUser(session.userId);
+
         this.logger.debug(
           'Concurrent refresh token request within rotation grace window served from cache',
           {
