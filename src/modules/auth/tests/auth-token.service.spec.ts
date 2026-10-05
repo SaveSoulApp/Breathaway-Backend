@@ -14,6 +14,11 @@ import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
+import {
+  AUTH_REFRESH_GRACE_PREFIX,
+  ROTATION_GRACE_PERIOD_MS,
+  ROTATION_GRACE_TTL_SECONDS,
+} from '../constants';
 import { AuthTokenService } from '../services/auth-token.service';
 
 describe('AuthTokenService', () => {
@@ -22,6 +27,12 @@ describe('AuthTokenService', () => {
   let jwtService: { sign: jest.Mock; verify: jest.Mock; decode: jest.Mock };
   let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
+  let redisClient: {
+    get: jest.Mock;
+    set: jest.Mock;
+    del: jest.Mock;
+    quit: jest.Mock;
+  };
   let prisma: {
     $transaction: jest.Mock;
     userSession: {
@@ -73,6 +84,12 @@ describe('AuthTokenService', () => {
       }),
     };
     eventEmitter = { emit: jest.fn() };
+    redisClient = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
+      quit: jest.fn().mockResolvedValue('OK'),
+    };
     prisma = {
       $transaction: jest.fn((callback) => callback(prisma)),
       userSession: {
@@ -94,6 +111,7 @@ describe('AuthTokenService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: PrismaService, useValue: prisma },
+        { provide: 'REDIS_CLIENT', useValue: redisClient },
         {
           provide: LoggerService,
           useValue: { forContext: jest.fn().mockReturnValue(mockLogger) },
@@ -199,6 +217,7 @@ describe('AuthTokenService', () => {
         realJwtService,
         configService as any,
         prisma as any,
+        redisClient as any,
       );
       Object.assign(realService, { cls: clsService, eventEmitter });
 
@@ -243,7 +262,7 @@ describe('AuthTokenService', () => {
   });
 
   describe('refreshToken', () => {
-    it('should rotate tokens successfully when a valid refresh token is provided', async () => {
+    it('should rotate tokens successfully and cache the response in Redis and memory', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
@@ -278,45 +297,83 @@ describe('AuthTokenService', () => {
           familyId: 'family-1',
         }),
       });
+      // Assert caching in Redis with TTL
+      expect(redisClient.set).toHaveBeenCalledWith(
+        `${AUTH_REFRESH_GRACE_PREFIX}valid-jti`,
+        JSON.stringify(result),
+        'EX',
+        ROTATION_GRACE_TTL_SECONDS,
+      );
     });
 
-    it('should forward request metadata and retain deviceId on token rotation', async () => {
+    it('should return cached response during grace window without revoking family or creating new sessions', async () => {
       // Arrange
+      const cachedPayload = {
+        userId: 'user-auth-123',
+        tokenType: 'Bearer' as const,
+        accessToken: 'already-issued-access-token',
+        expiresIn: 900,
+        refreshToken: 'already-issued-refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 100000).toISOString(),
+      };
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
-        jti: 'valid-jti',
-        familyId: 'family-1',
+        jti: 'recent-jti',
+        familyId: 'family-grace',
         token_type: 'refresh',
       });
+      // Token was revoked 500ms ago (well within ROTATION_GRACE_PERIOD_MS of 10s)
       prisma.userSession.findUnique.mockResolvedValue({
-        id: 'session-1',
+        id: 'session-recent',
         userId: 'user-auth-123',
-        jti: 'valid-jti',
-        familyId: 'family-1',
-        deviceId: 'original-device',
-        revokedAt: null,
+        jti: 'recent-jti',
+        familyId: 'family-grace',
+        revokedAt: new Date(Date.now() - 500),
         expiresAt: new Date(Date.now() + 100000),
       });
       prisma.user.findFirst.mockResolvedValue(mockUser);
+      redisClient.get.mockResolvedValue(JSON.stringify(cachedPayload));
 
       // Act
-      await service.refreshToken(
-        { refreshToken: 'valid-refresh-token' },
-        { ipAddress: '10.0.0.1', userAgent: 'NewAgent/1.0' },
-      );
+      const result = await service.refreshToken({
+        refreshToken: 'recent-refresh-token',
+      });
 
       // Assert
-      expect(prisma.userSession.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          familyId: 'family-1',
-          deviceId: 'original-device',
-          ipAddress: '10.0.0.1',
-          userAgent: 'NewAgent/1.0',
-        }),
-      });
+      expect(result).toEqual(cachedPayload);
+      // Verify family was NOT revoked
+      expect(prisma.userSession.updateMany).not.toHaveBeenCalled();
+      // Verify no new session was created
+      expect(prisma.userSession.create).not.toHaveBeenCalled();
+      // Verify no new transaction was executed
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('should trigger reuse detection and revoke family when an already-revoked token is presented', async () => {
+    it('should reject refresh within grace window if user account has been deactivated', async () => {
+      // Arrange
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'recent-jti',
+        familyId: 'family-grace',
+        token_type: 'refresh',
+      });
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-recent',
+        userId: 'user-auth-123',
+        jti: 'recent-jti',
+        familyId: 'family-grace',
+        revokedAt: new Date(Date.now() - 500),
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(null); // Deactivated account!
+
+      // Act & Assert
+      await expect(
+        service.refreshToken({ refreshToken: 'recent-refresh-token' }),
+      ).rejects.toThrow('User account is invalid or has been deactivated');
+    });
+
+    it('should trigger reuse detection and revoke family when an already-revoked token is presented after grace window', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
@@ -324,12 +381,13 @@ describe('AuthTokenService', () => {
         familyId: 'family-breached',
         token_type: 'refresh',
       });
+      // Revoked 20 seconds ago (exceeds ROTATION_GRACE_PERIOD_MS of 10s)
       prisma.userSession.findUnique.mockResolvedValue({
         id: 'session-compromised',
         userId: 'user-auth-123',
         jti: 'revoked-jti',
         familyId: 'family-breached',
-        revokedAt: new Date(Date.now() - 5000),
+        revokedAt: new Date(Date.now() - 20000),
         expiresAt: new Date(Date.now() + 100000),
       });
 
@@ -344,18 +402,26 @@ describe('AuthTokenService', () => {
       });
     });
 
-    it('should trigger reuse detection and revoke family if a concurrent request already consumed the token (race condition)', async () => {
+    it('should resolve CAS race condition by polling and returning the winning request cached response', async () => {
       // Arrange
+      const cachedWinningPayload = {
+        userId: 'user-auth-123',
+        tokenType: 'Bearer' as const,
+        accessToken: 'winner-access-token',
+        expiresIn: 900,
+        refreshToken: 'winner-refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 100000).toISOString(),
+      };
       jwtService.verify.mockReturnValue({
         sub: 'user-auth-123',
-        jti: 'valid-jti',
+        jti: 'race-jti',
         familyId: 'family-race',
         token_type: 'refresh',
       });
       prisma.userSession.findUnique.mockResolvedValue({
         id: 'session-race',
         userId: 'user-auth-123',
-        jti: 'valid-jti',
+        jti: 'race-jti',
         familyId: 'family-race',
         revokedAt: null,
         expiresAt: new Date(Date.now() + 100000),
@@ -363,22 +429,104 @@ describe('AuthTokenService', () => {
       prisma.user.findFirst.mockResolvedValue(mockUser);
       // Simulate CAS failure: another parallel request already updated revokedAt
       prisma.userSession.updateMany.mockResolvedValueOnce({ count: 0 });
+      // Redis returns null on first check, then returns cached payload
+      redisClient.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(JSON.stringify(cachedWinningPayload));
+
+      // Act
+      const result = await service.refreshToken({
+        refreshToken: 'concurrent-token',
+      });
+
+      // Assert
+      expect(result).toEqual(cachedWinningPayload);
+      // Verify CAS update was attempted
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { id: 'session-race', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      // Verify family was NOT revoked because race condition resolved cleanly via cache
+      expect(prisma.userSession.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('should revoke family if CAS race condition cache remains unresolved after retries', async () => {
+      // Arrange
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'failed-race-jti',
+        familyId: 'family-failed-race',
+        token_type: 'refresh',
+      });
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-failed-race',
+        userId: 'user-auth-123',
+        jti: 'failed-race-jti',
+        familyId: 'family-failed-race',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+      // Simulate CAS failure
+      prisma.userSession.updateMany.mockResolvedValueOnce({ count: 0 });
+      // Redis never yields a cached value
+      redisClient.get.mockResolvedValue(null);
 
       // Act & Assert
       await expect(
         service.refreshToken({ refreshToken: 'concurrent-token' }),
       ).rejects.toThrow(UnauthorizedException);
 
-      // Verify the CAS check was attempted
-      expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(1, {
-        where: { id: 'session-race', revokedAt: null },
-        data: { revokedAt: expect.any(Date) },
-      });
-      // Verify the entire family was revoked due to race / reuse detection
+      // Verify second call revoked the entire family
       expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(2, {
-        where: { familyId: 'family-race', revokedAt: null },
+        where: { familyId: 'family-failed-race', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
+    });
+
+    it('should fall back to in-memory cache if Redis is unavailable or throws', async () => {
+      // Arrange
+      redisClient.set.mockRejectedValue(new Error('Redis connection lost'));
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: 'memory-fallback-jti',
+        familyId: 'family-memory',
+        token_type: 'refresh',
+      });
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-memory',
+        userId: 'user-auth-123',
+        jti: 'memory-fallback-jti',
+        familyId: 'family-memory',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100000),
+      });
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+
+      // Act 1: Initial rotation succeeds despite Redis error (cached locally in memory)
+      const firstResult = await service.refreshToken({
+        refreshToken: 'token-1',
+      });
+      expect(firstResult.accessToken).toBe('mock-jwt-token');
+
+      // Act 2: Immediate concurrent call presenting same token should be served from memory
+      redisClient.get.mockRejectedValue(new Error('Redis connection lost'));
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-memory',
+        userId: 'user-auth-123',
+        jti: 'memory-fallback-jti',
+        familyId: 'family-memory',
+        revokedAt: new Date(Date.now() - 100), // Revoked 100ms ago
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      const secondResult = await service.refreshToken({
+        refreshToken: 'token-1',
+      });
+
+      // Assert: Second call served identically from local in-memory fallback
+      expect(secondResult).toEqual(firstResult);
+      expect(prisma.userSession.create).toHaveBeenCalledTimes(1); // Only created on first call
     });
 
     it('should throw UnauthorizedException when refresh token is expired', async () => {
@@ -441,14 +589,20 @@ describe('AuthTokenService', () => {
       });
     });
 
-    it('should revoke specific family lineage when refresh token with familyId is decoded', async () => {
+    it('should revoke specific family lineage and purge grace cache when refresh token is provided', async () => {
       // Arrange
-      jwtService.decode.mockReturnValue({ familyId: 'target-family' });
+      jwtService.decode.mockReturnValue({
+        jti: 'logout-jti',
+        familyId: 'target-family',
+      });
 
       // Act
       await service.revokeSession('user-auth-123', 'some-refresh-token');
 
       // Assert
+      expect(redisClient.del).toHaveBeenCalledWith(
+        `${AUTH_REFRESH_GRACE_PREFIX}logout-jti`,
+      );
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
         where: {
           userId: 'user-auth-123',
@@ -457,6 +611,16 @@ describe('AuthTokenService', () => {
         },
         data: { revokedAt: expect.any(Date) },
       });
+    });
+  });
+
+  describe('onModuleDestroy', () => {
+    it('should gracefully close Redis client connection when available', async () => {
+      // Act
+      await service.onModuleDestroy();
+
+      // Assert
+      expect(redisClient.quit).toHaveBeenCalled();
     });
   });
 });

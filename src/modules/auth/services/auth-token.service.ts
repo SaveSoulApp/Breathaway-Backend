@@ -1,34 +1,69 @@
 import { createHash } from 'crypto';
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, User } from '@prisma/client';
+import Redis from 'ioredis';
 import { nanoid } from 'nanoid';
 
+import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
+import {
+  AUTH_REFRESH_GRACE_PREFIX,
+  CONCURRENT_ROTATION_MAX_RETRIES,
+  CONCURRENT_ROTATION_WAIT_MS,
+  ROTATION_GRACE_PERIOD_MS,
+  ROTATION_GRACE_TTL_SECONDS,
+} from '../constants';
 import { RefreshTokenRequestDto, UserAuthResponseDto } from '../dto';
 
 /**
  * Handles JWT access token generation, refresh token lifecycle, and session revocation.
  *
- * Implements Refresh Token Rotation (RTR) and token family reuse detection (RFC 6819)
- * to prevent token replay attacks and post-logout session hijacking.
+ * Implements Refresh Token Rotation (RTR) with a 10-second grace window (leeway)
+ * and token family reuse detection (RFC 6819 §5.2.2.3) to prevent token replay attacks
+ * while protecting distributed clients (serverless SSR proxies, mobile cold starts,
+ * and multi-tab applications) from race-induced logouts.
  */
 @Injectable()
-export class AuthTokenService extends BaseService {
+export class AuthTokenService extends BaseService implements OnModuleDestroy {
+  /**
+   * Process-local fallback cache for single-instance / test environments.
+   */
+  private readonly inMemoryGraceCache = new Map<
+    string,
+    { response: UserAuthResponseDto; expiresAt: number }
+  >();
+
   constructor(
     logger: LoggerService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional()
+    @Inject('REDIS_CLIENT')
+    private readonly redisClient?: Redis,
   ) {
     super(logger);
+  }
+
+  /**
+   * Closes the Redis client connection gracefully on module destruction.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await safeCloseClient(this.redisClient, this.logger, 'Redis', 'quit');
   }
 
   /**
@@ -153,12 +188,14 @@ export class AuthTokenService extends BaseService {
   /**
    * Refreshes access and refresh tokens using Refresh Token Rotation (RTR).
    *
-   * Detects and blocks replayed/compromised refresh tokens by revoking the entire
-   * token family if an already consumed token is presented.
+   * Accommodates concurrent requests (e.g. serverless SSR proxies, multiple browser tabs,
+   * mobile cold starts) via an idempotent grace window (10s) backed by Upstash Redis and
+   * process-local fallback. Any replay presented after the grace window triggers immediate
+   * breach containment (RFC 6819 §5.2.2.3), terminating the entire session family.
    *
    * @param dto - Container for the refresh token.
    * @param metadata - Request context (e.g. IP, user agent).
-   * @returns A fresh token pair with updated expirations.
+   * @returns A fresh token pair with updated expirations (or the cached pair if within grace window).
    * @throws {UnauthorizedException} If token is invalid, expired, revoked, or account is deactivated.
    */
   async refreshToken(
@@ -205,10 +242,43 @@ export class AuthTokenService extends BaseService {
       throw new UnauthorizedException('Refresh token session not found');
     }
 
-    // AUTOMATIC REUSE DETECTION (RFC 6819 §5.2.2.3):
-    // If an already-revoked refresh token is presented, this indicates token reuse/replay or compromise.
-    // Unconditionally terminate the entire session lineage (familyId) to prevent unauthorized access.
+    // 1. REUSE DETECTION WITH ROTATION LEEWAY / GRACE WINDOW:
+    // If an already-revoked refresh token is presented:
+    // - Within the grace window (<= 10s): return the identical cached token pair issued during rotation.
+    // - After the grace window (> 10s): treat as token theft and terminate the entire session lineage.
     if (session.revokedAt !== null) {
+      const timeSinceRevocation =
+        DateUtil.now().getTime() - session.revokedAt.getTime();
+
+      if (timeSinceRevocation <= ROTATION_GRACE_PERIOD_MS) {
+        // Confirm user account has not been deactivated before serving cached response
+        const user = await this.prisma.user.findFirst({
+          where: { id: session.userId, deletedAt: null },
+        });
+
+        if (!user) {
+          throw new UnauthorizedException(
+            'User account is invalid or has been deactivated',
+          );
+        }
+
+        const cachedResponse = await this.getCachedRotatedResponse(session.jti);
+        if (cachedResponse) {
+          this.logger.debug(
+            'Concurrent refresh token request within rotation grace window served from cache',
+            {
+              step: 'rtr_grace_window_served',
+              userId: session.userId,
+              familyId: session.familyId,
+              jti: session.jti,
+              timeSinceRevocation,
+            },
+          );
+          return cachedResponse;
+        }
+      }
+
+      // Beyond grace window OR unresolvable cache: trigger RFC 6819 §5.2.2.3 breach containment
       await this.prisma.userSession.updateMany({
         where: { familyId: session.familyId, revokedAt: null },
         data: { revokedAt: DateUtil.now() },
@@ -221,6 +291,7 @@ export class AuthTokenService extends BaseService {
           userId: session.userId,
           familyId: session.familyId,
           reusedJti: session.jti,
+          timeSinceRevocation,
         },
       );
 
@@ -229,14 +300,14 @@ export class AuthTokenService extends BaseService {
       );
     }
 
-    // Expiration validation
+    // 2. Expiration validation
     if (session.expiresAt.getTime() <= DateUtil.now().getTime()) {
       throw new UnauthorizedException(
         'Refresh token has expired. Please sign in again.',
       );
     }
 
-    // Active user validation
+    // 3. Active user validation
     const user = await this.prisma.user.findFirst({
       where: { id: session.userId, deletedAt: null },
     });
@@ -247,34 +318,18 @@ export class AuthTokenService extends BaseService {
       );
     }
 
-    // Atomically revoke current session and issue rotated session in a single database transaction.
-    // updateMany with { id: session.id, revokedAt: null } acts as an atomic compare-and-swap (CAS).
-    // If count === 0, a concurrent in-flight request already consumed this refresh token.
-    return this.prisma.$transaction(async (tx) => {
+    // 4. Atomic Session Rotation via Compare-and-Swap (CAS) in PostgreSQL
+    let isRaceCondition = false;
+    const rotationResponse = await this.prisma.$transaction(async (tx) => {
       const updateResult = await tx.userSession.updateMany({
         where: { id: session.id, revokedAt: null },
         data: { revokedAt: DateUtil.now() },
       });
 
       if (updateResult.count === 0) {
-        await tx.userSession.updateMany({
-          where: { familyId: session.familyId, revokedAt: null },
-          data: { revokedAt: DateUtil.now() },
-        });
-
-        this.logger.warn(
-          'Concurrent refresh token race detected; revoked entire token family',
-          {
-            step: 'concurrent_rtr_race_detected',
-            userId: session.userId,
-            familyId: session.familyId,
-            reusedJti: session.jti,
-          },
-        );
-
-        throw new UnauthorizedException(
-          'Revoked refresh token reuse detected. All sessions in this lineage have been terminated. Please sign in again.',
-        );
+        // Parallel in-flight request already updated revokedAt milliseconds ago.
+        isRaceCondition = true;
+        return null;
       }
 
       return this.generateAuthResponse(
@@ -289,10 +344,63 @@ export class AuthTokenService extends BaseService {
         tx,
       );
     });
+
+    // 5. Handle CAS collision (parallel requests hitting the transaction at the exact same millisecond)
+    if (isRaceCondition || !rotationResponse) {
+      for (
+        let attempt = 0;
+        attempt < CONCURRENT_ROTATION_MAX_RETRIES;
+        attempt++
+      ) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CONCURRENT_ROTATION_WAIT_MS),
+        );
+        const cached = await this.getCachedRotatedResponse(session.jti);
+        if (cached) {
+          this.logger.debug(
+            'Concurrent refresh race resolved via rotation grace cache',
+            {
+              step: 'concurrent_rtr_race_resolved',
+              userId: session.userId,
+              familyId: session.familyId,
+              jti: session.jti,
+              attempt: attempt + 1,
+            },
+          );
+          return cached;
+        }
+      }
+
+      // If cache never populated after retries, conclude breach or failed rotation
+      await this.prisma.userSession.updateMany({
+        where: { familyId: session.familyId, revokedAt: null },
+        data: { revokedAt: DateUtil.now() },
+      });
+
+      this.logger.warn(
+        'Concurrent refresh token race unresolved; revoked entire token family',
+        {
+          step: 'concurrent_rtr_race_unresolved',
+          userId: session.userId,
+          familyId: session.familyId,
+          reusedJti: session.jti,
+        },
+      );
+
+      throw new UnauthorizedException(
+        'Revoked refresh token reuse detected. All sessions in this lineage have been terminated. Please sign in again.',
+      );
+    }
+
+    // 6. Cache the freshly issued token pair under the consumed JTI for the grace window
+    await this.cacheRotatedResponse(session.jti, rotationResponse);
+
+    return rotationResponse;
   }
 
   /**
    * Revokes active sessions for a user, either targeting a single session lineage or all sessions.
+   * Clears any associated grace cache entries to prevent post-signout bypass.
    *
    * @param userId - ID of the authenticated user.
    * @param refreshToken - Optional specific refresh token to target for revocation.
@@ -302,6 +410,15 @@ export class AuthTokenService extends BaseService {
       try {
         const decoded: unknown = this.jwtService.decode(refreshToken);
         const record = decoded as Record<string, unknown> | null;
+
+        if (typeof record?.jti === 'string') {
+          this.inMemoryGraceCache.delete(record.jti);
+          if (this.redisClient) {
+            await this.redisClient
+              .del(`${AUTH_REFRESH_GRACE_PREFIX}${record.jti}`)
+              .catch(() => {});
+          }
+        }
 
         if (typeof record?.familyId === 'string') {
           await this.prisma.userSession.updateMany({
@@ -319,6 +436,85 @@ export class AuthTokenService extends BaseService {
       where: { userId, revokedAt: null },
       data: { revokedAt: DateUtil.now() },
     });
+  }
+
+  /**
+   * Caches a freshly rotated token response both in-memory and in Redis (Upstash)
+   * to accommodate rapid concurrent refresh requests during the rotation grace window.
+   *
+   * @param consumedJti - The JTI of the consumed/revoked refresh token.
+   * @param response - The generated authentication response containing the new token pair.
+   */
+  private async cacheRotatedResponse(
+    consumedJti: string,
+    response: UserAuthResponseDto,
+  ): Promise<void> {
+    const expiresAt =
+      DateUtil.now().getTime() + ROTATION_GRACE_TTL_SECONDS * 1000;
+
+    // 1. Process-local cache fallback
+    this.inMemoryGraceCache.set(consumedJti, { response, expiresAt });
+
+    // 2. Distributed Redis cache across Cloud Run containers
+    if (this.redisClient) {
+      try {
+        const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
+        await this.redisClient.set(
+          cacheKey,
+          JSON.stringify(response),
+          'EX',
+          ROTATION_GRACE_TTL_SECONDS,
+        );
+      } catch (err) {
+        this.logger.warn(
+          'Failed to cache rotated token pair in Redis, relying on local fallback',
+          {
+            step: 'cache_rotated_token_failed',
+            jti: consumedJti,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
+      }
+    }
+  }
+
+  /**
+   * Retrieves a cached rotated token response if available within the grace window.
+   * Checks the in-memory fallback first, then distributed Redis.
+   *
+   * @param consumedJti - The JTI of the previously rotated refresh token.
+   * @returns The cached authentication response, or null if not found or expired.
+   */
+  private async getCachedRotatedResponse(
+    consumedJti: string,
+  ): Promise<UserAuthResponseDto | null> {
+    // 1. Check in-memory fallback
+    const memoryEntry = this.inMemoryGraceCache.get(consumedJti);
+    if (memoryEntry) {
+      if (memoryEntry.expiresAt > DateUtil.now().getTime()) {
+        return memoryEntry.response;
+      }
+      this.inMemoryGraceCache.delete(consumedJti);
+    }
+
+    // 2. Check distributed Redis
+    if (this.redisClient) {
+      try {
+        const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached) as UserAuthResponseDto;
+        }
+      } catch (err) {
+        this.logger.warn('Failed to retrieve cached rotated token from Redis', {
+          step: 'read_cached_token_failed',
+          jti: consumedJti,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return null;
   }
 
   /**

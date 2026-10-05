@@ -65,11 +65,11 @@ Every issued refresh token is persisted in PostgreSQL as a `UserSession` record:
 
 A fundamental challenge with refresh tokens in mobile environments is token leakage (e.g. device compromise, man-in-the-middle, or malware). If an attacker steals a long-lived refresh token, they could maintain persistent access undetected.
 
-To neutralize this threat, BreathAway implements **Token Family Tracking** with automatic breach containment according to **RFC 6819 §5.2.2.3**:
+To neutralize this threat while accommodating distributed client concurrency, BreathAway implements **Token Family Tracking with an Idempotent 10-Second Grace Window (Leeway)** according to **RFC 6819 §5.2.2.3**:
 
-1. **Lineage Invariant**: When a user logs in, a unique `familyId` is minted. Every subsequent call to `/api/v1/auth/refresh` consumes the current refresh token, marks it revoked (`revokedAt = now()`), and issues a new refresh token carrying the **same** `familyId`.
-2. **Replay Detection**: If an attacker intercepts an already-rotated token (e.g., Token A) and attempts to use it at `/refresh`, the server looks up Token A by its `jti` and detects that `revokedAt !== null`.
-3. **Instant Breach Containment**: Presenting an already-revoked refresh token proves that token leakage or replay has occurred. The server immediately revokes **every token in that entire lineage**:
+1. **Lineage Invariant**: When a user logs in, a unique `familyId` is minted. Every subsequent call to `/api/v1/auth/refresh` consumes the current refresh token, marks it revoked (`revokedAt = now()`), issues a new refresh token carrying the **same** `familyId`, and caches the issued `UserAuthResponseDto` under the consumed `jti` in Upstash Redis (15-second TTL) and local memory fallback.
+2. **Idempotent 10-Second Grace Window (`ROTATION_GRACE_PERIOD_MS = 10_000`)**: If an already-rotated token is presented again within 10 seconds (due to serverless SSR proxy instances, multiple browser tabs, mobile cold starts, `bfcache` restores, or network retries), `AuthTokenService` returns the exact same cached token pair. No new database sessions are created, and no token branches are formed.
+3. **Breach Containment (> 10s)**: If an already-revoked refresh token is presented after the 10-second grace window, the server treats it as token theft or unauthorized replay and immediately terminates **every session in that entire lineage**:
    ```typescript
    await tx.userSession.updateMany({
      where: { familyId: session.familyId, revokedAt: null },
@@ -218,9 +218,10 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Mobile Client
+    actor Client as Client / SSR Proxy / Mobile
     participant AuthC as AuthController
     participant TokenS as AuthTokenService
+    participant Redis as Upstash Redis (15s TTL)
     participant Prisma as PrismaService ($transaction)
 
     Client ->> AuthC: POST /api/v1/auth/refresh { "refreshToken": "..." }
@@ -237,19 +238,33 @@ sequenceDiagram
     deactivate Prisma
 
     alt Token Already Revoked (revokedAt != null)
-        Note over TokenS, Prisma: 🚨 BREACH DETECTED (RFC 6819 §5.2.2.3)<br/>Replayed or stolen refresh token presented!
-        TokenS ->> Prisma: UPDATE UserSession SET revokedAt = now() WHERE familyId = session.familyId AND revokedAt IS NULL
-        TokenS -->> AuthC: 401 Unauthorized ("Token reuse detected; session family terminated")
-        AuthC -->> Client: 401 Unauthorized
+        alt Presented within 10s Grace Window (now - revokedAt <= 10s)
+            TokenS ->> Redis: GET auth:refresh:grace:{session.jti}
+            Redis -->> TokenS: Cached UserAuthResponseDto
+            Note over TokenS, Client: ✅ Grace Window Hit: Return identical cached token pair without revoking family
+            TokenS -->> AuthC: Return cached UserAuthResponseDto
+            AuthC -->> Client: 200 OK (Identical Token Pair)
+        else Presented after Grace Window (> 10s)
+            Note over TokenS, Prisma: 🚨 BREACH DETECTED (RFC 6819 §5.2.2.3)<br/>Replayed or stolen refresh token presented!
+            TokenS ->> Prisma: UPDATE UserSession SET revokedAt = now() WHERE familyId = session.familyId AND revokedAt IS NULL
+            TokenS -->> AuthC: 401 Unauthorized ("Token reuse detected; session family terminated")
+            AuthC -->> Client: 401 Unauthorized
+        end
     else Token Active and Valid
         rect rgb(240, 248, 255)
             Note over TokenS, Prisma: Atomic Rotation in $transaction (Compare-and-Swap)
             TokenS ->> Prisma: CAS Update: updateMany({ id: session.id, revokedAt: null }, { revokedAt: now() })
-            Note over TokenS, Prisma: If count == 0, concurrent race occurred -> revoke family & abort
-            TokenS ->> TokenS: Sign new Access Token & new Refresh Token (same familyId)
-            TokenS ->> Prisma: Insert new UserSession (new jti, new tokenHash, same familyId)
+            alt CAS Collision (count == 0: parallel concurrent request won race)
+                TokenS ->> Redis: Poll GET auth:refresh:grace:{session.jti} (50ms backoff)
+                Redis -->> TokenS: Cached UserAuthResponseDto from winning request
+                TokenS -->> AuthC: Return cached UserAuthResponseDto
+            else CAS Won (count == 1)
+                TokenS ->> TokenS: Sign new Access Token & new Refresh Token (same familyId)
+                TokenS ->> Prisma: Insert new UserSession (new jti, new tokenHash, same familyId)
+                TokenS ->> Redis: SET auth:refresh:grace:{session.jti} (TTL: 15s)
+                TokenS -->> AuthC: Return fresh UserAuthResponseDto
+            end
         end
-        TokenS -->> AuthC: Return fresh UserAuthResponseDto
         deactivate TokenS
         AuthC -->> Client: 200 OK (UserAuthResponseDto)
         deactivate AuthC

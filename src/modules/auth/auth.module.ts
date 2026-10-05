@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
+import Redis from 'ioredis';
 
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
@@ -34,6 +36,19 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtStrategy,
     AuthCredentialService,
     AuthTokenService,
+    // Optional Redis client for distributed rotation grace window caching
+    {
+      provide: 'REDIS_CLIENT',
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (!redisUrl) return null;
+        return new Redis(redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+        });
+      },
+    },
   ],
   exports: [AuthService],
 })
