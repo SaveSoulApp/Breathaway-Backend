@@ -117,17 +117,26 @@
       .email-header__logo {
         display: inline-block;
         margin-bottom: 8px;
+        min-height: 36px;
+        height: 36px;
+        line-height: 36px;
+        text-align: center;
       }
 
       .email-header__logo-img {
+        width: 250px;
+        height: 36px;
+        max-width: 250px;
         max-height: 36px;
-        height: auto;
-        width: auto;
-        max-width: 220px;
         display: block;
         margin: 0 auto;
         border: 0;
         outline: none;
+        color: #FFFFFF;
+        font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
       }
 
       .email-header__tagline {
@@ -289,12 +298,14 @@
          Responsive
          ========================================================================== */
       @media only screen and (max-width: 600px) {
-        .email-wrapper  { padding: 20px 12px !important; }
-        .email-body     { padding: 32px 24px !important; }
-        .email-header   { padding: 28px 24px !important; }
-        .email-footer   { padding: 28px 24px !important; }
-        h1              { font-size: 22px !important; }
-        .email-btn      { display: block !important; text-align: center !important; }
+        .email-wrapper          { padding: 20px 12px !important; }
+        .email-body             { padding: 32px 24px !important; }
+        .email-header           { padding: 28px 24px !important; }
+        .email-footer           { padding: 28px 24px !important; }
+        h1                      { font-size: 22px !important; }
+        .email-btn              { display: block !important; text-align: center !important; }
+        .email-header__logo     { height: 36px !important; min-height: 36px !important; line-height: 36px !important; }
+        .email-header__logo-img { width: 250px !important; height: 36px !important; max-width: 250px !important; max-height: 36px !important; }
       }
     </style>
   </head>

@@ -299,7 +299,7 @@ export class NotificationsService extends BaseService {
     ).replace(/\/+$/, '');
     const logoUrl =
       this.configService.get<string>('EMAIL_LOGO_URL') ||
-      `${appUrl}/images/logo/breathaway-wordmark.png`;
+      'https://okrhhvapirxwelcqfbhi.supabase.co/storage/v1/object/public/public-assets/logo/breathaway-wordmark.png';
 
     await this.emailService.send({
       emailType,
