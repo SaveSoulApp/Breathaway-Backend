@@ -505,6 +505,107 @@ describe('AuthTokenService', () => {
       expect(prisma.userSession.updateMany).toHaveBeenCalledTimes(1);
     });
 
+    it('should simulate a race condition between two parallel requests where the second request polls and receives the correct cached response from the first', async () => {
+      // Arrange
+      const sharedJti = 'concurrent-race-jti';
+      const sharedFamilyId = 'family-concurrent-race';
+      const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${sharedJti}`;
+
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: sharedJti,
+        familyId: sharedFamilyId,
+        token_type: 'refresh',
+      });
+
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-concurrent-race',
+        userId: 'user-auth-123',
+        jti: sharedJti,
+        familyId: sharedFamilyId,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      prisma.user.findFirst.mockResolvedValue(mockUser);
+
+      // Simulate atomic CAS at PostgreSQL layer:
+      // Request 1 wins the atomic CAS (count: 1)
+      // Request 2 loses the atomic CAS (count: 0) because Request 1 has already marked the session revoked
+      prisma.userSession.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      // Mock Redis service storage to simulate async propagation and cross-container isolation
+      const redisStorage: Record<string, string> = {};
+      let pollAttempts = 0;
+
+      redisClient.set.mockImplementation(async (key: string, value: string) => {
+        redisStorage[key] = value;
+        // Simulate cross-container isolation: clear local in-memory cache so Request 2 must rely on Redis
+        (service as any).inMemoryGraceCache.clear();
+        return 'OK';
+      });
+
+      redisClient.get.mockImplementation(async (key: string) => {
+        pollAttempts++;
+        // Simulate cross-container isolation by ensuring in-memory cache remains empty for Request 2
+        (service as any).inMemoryGraceCache.clear();
+
+        // Simulate that on the initial poll attempt (attempt 1), the winning request's write
+        // to Redis was still in-flight, so it returns null.
+        // On attempt 2, the write has completed and Redis returns the cached payload.
+        if (pollAttempts === 1) {
+          return null;
+        }
+        return redisStorage[key] ?? null;
+      });
+
+      // Act: Dispatch both refresh requests concurrently (simulating simultaneous calls from two serverless instances)
+      const [firstResult, secondResult] = await Promise.all([
+        service.refreshToken({ refreshToken: 'shared-race-token' }),
+        service.refreshToken({ refreshToken: 'shared-race-token' }),
+      ]);
+
+      // Assert: Both requests succeed and resolve with the exact same token pair
+      expect(firstResult).toBeDefined();
+      expect(secondResult).toBeDefined();
+      expect(secondResult).toEqual(firstResult);
+
+      // Verify atomic CAS updates were attempted by both requests
+      expect(prisma.userSession.updateMany).toHaveBeenCalledTimes(2);
+      expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: 'session-concurrent-race', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(prisma.userSession.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { id: 'session-concurrent-race', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+
+      // Verify only one new session was created in the database (no branching token trees)
+      expect(prisma.userSession.create).toHaveBeenCalledTimes(1);
+
+      // Verify Redis was written to by the winning request with grace TTL
+      expect(redisClient.set).toHaveBeenCalledWith(
+        cacheKey,
+        JSON.stringify(firstResult),
+        'EX',
+        ROTATION_GRACE_TTL_SECONDS,
+      );
+
+      // Verify the second request indeed polled Redis (twice: once in-flight, once resolved)
+      expect(pollAttempts).toBe(2);
+      expect(redisClient.get).toHaveBeenCalledWith(cacheKey);
+
+      // Verify no session family breach was triggered
+      expect(prisma.userSession.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ familyId: sharedFamilyId }),
+        }),
+      );
+    });
+
     it('should revoke family if CAS race condition cache remains unresolved after retries', async () => {
       // Arrange
       jwtService.verify.mockReturnValue({
