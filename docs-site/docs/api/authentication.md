@@ -152,51 +152,36 @@ By invalidating the entire `familyId` lineage, the backend neutralizes the attac
 
 ---
 
-### ⚡ Race Condition Defense: Atomic Compare-and-Swap (CAS)
+### ⚡ Race Condition Defense: 10-Second Grace Window & Atomic CAS
 
-In mobile environments, when a short-lived access token expires after 15 minutes, multiple asynchronous HTTP requests (e.g. fetching user profile, unread notification count, and new messages) may fail with `401 Unauthorized` at the exact same millisecond.
+In distributed client environments — such as serverless SSR proxy instances, multiple browser tabs, mobile cold starts, `bfcache` restores, and network retries — when a short-lived access token expires after 15 minutes, multiple asynchronous HTTP requests (e.g. fetching user profile, unread notification counts, and discovery cards) may fail with `401 Unauthorized` at the exact same millisecond.
 
-If the mobile client fires multiple parallel `/refresh` requests carrying the same refresh token, a naive check-then-act implementation (`findUnique` followed by `update`) creates a critical race condition:
+If multiple parallel `/refresh` requests land on separate serverless instances carrying the same refresh token, strict zero-tolerance one-time-use RTR would falsely flag the second request as a replay attack and terminate the user's entire session lineage.
 
-1. Request A reads Token 1 (`revokedAt: null`).
-2. Request B reads Token 1 (`revokedAt: null`).
-3. Request A updates Token 1 (`revokedAt: now()`) and succeeds.
-4. Request B attempts to rotate Token 1, detects `revokedAt !== null`, and incorrectly flags Request A as an attacker replay, terminating the user's active session!
+#### The 10-Second Grace Window & Upstash Redis Cache
 
-#### The Prisma Atomic CAS Implementation
+To eliminate false-positive session terminations without sacrificing breach containment:
 
-`AuthTokenService` executes the token revocation using an atomic **Compare-and-Swap (CAS)** pattern wrapped in a Prisma `$transaction`:
+1. **Idempotent 10-Second Leeway (`ROTATION_GRACE_PERIOD_MS = 10_000`)**: When a refresh token rotates, the resulting `UserAuthResponseDto` is cached under `auth:refresh:grace:<consumed_jti>` in Upstash Redis (15-second TTL) and process-local memory.
+2. **Grace Hit**: If any subsequent request presents that consumed token within 10 seconds, `AuthTokenService` returns the exact same cached token pair immediately. No new database writes are performed, and no token tree branches are created.
+3. **Atomic CAS with Concurrency Resolution**: When two requests race at the exact same millisecond:
 
-```typescript
-return this.prisma.$transaction(async (tx) => {
-  // Atomic CAS: Only update if revokedAt is STILL null at the instant of execution
-  const updateResult = await tx.userSession.updateMany({
-    where: { id: session.id, revokedAt: null },
-    data: { revokedAt: DateUtil.now() },
-  });
+   ```typescript
+   // Atomic CAS: Only update if revokedAt is STILL null at the instant of execution
+   const updateResult = await tx.userSession.updateMany({
+     where: { id: session.id, revokedAt: null },
+     data: { revokedAt: DateUtil.now() },
+   });
 
-  if (updateResult.count === 0) {
-    // Another concurrent request already revoked this token!
-    // Trigger breach containment on the lineage.
-    await tx.userSession.updateMany({
-      where: { familyId: session.familyId, revokedAt: null },
-      data: { revokedAt: DateUtil.now() },
-    });
-    throw new UnauthorizedException(
-      'Revoked refresh token reuse detected. All sessions in this lineage have been terminated.',
-    );
-  }
+   if (updateResult.count === 0) {
+     // A parallel request consumed this token milliseconds ago!
+     // Poll Upstash Redis / memory for the winning request's cached response.
+   }
+   ```
 
-  // Issue rotated token pair with the same familyId within the same transaction
-  return this.generateAuthResponse(
-    user,
-    { ...metadata, familyId: session.familyId, isRefresh: true },
-    tx,
-  );
-});
-```
+   Instead of immediately killing the session family, the second request polls the cache (50ms interval, up to 5 attempts) to receive the winning request's response.
 
-#### Mobile Client Concurrency Standard
+4. **Breach Containment (> 10s)**: Any reuse attempt occurring after the 10-second window is recognized as genuine token theft and triggers immediate RFC 6819 §5.2.2.3 family revocation across all devices.
 
 While the backend is completely concurrency-safe via CAS, client applications (iOS and Android) must implement a **refresh mutex/queue lock** in their HTTP network interceptor:
 
@@ -364,17 +349,17 @@ This replaces legacy HTTP Basic Auth and shared static passwords with **Zero-Tru
 
 ### ⚖️ Regular Customer Flow vs. Admin OIDC Flow
 
-| Architectural Aspect | Regular Customer Flow (App Users) | Administrative OIDC Flow (Engineers / Admins) |
-| :--- | :--- | :--- |
-| **Primary Identity Provider** | Firebase Auth (Phone OTP, Apple, Google Sign-In) | Google Accounts (`@gmail.com` or `@mycompany.com`) |
-| **Token Type & Issuer** | BreathAway Custom JWTs (HMAC/RSA issued by Backend) | Google OIDC ID Token issued by `accounts.google.com` |
-| **Token Lifetime** | 15 minutes (Access) / 14 days (Refresh Token Family) | 1 hour (Google standard OIDC lifetime, no refresh flow) |
-| **Client Headers Required** | `x-api-key`, `x-client-id`, `x-user-agent`, `x-device-id` | `@SkipClientIdentity()` applied (No client app headers required) |
-| **Authorization Source** | PostgreSQL database tables (`User`, `UserRole`, status) | Live GCP Project IAM Policy (`roles/owner`, `roles/editor`) |
-| **Revocation Mechanism** | Database session deletion / token blacklist | Removing developer from GCP Project IAM in Google Cloud Console |
-| **Audit Logging Actor** | Internal User ULID (`sub: "01KY9DY8M1GARM..."`) | Verified Google email (`adminEmail: "engineer@company.com"`) |
-| **Audit Sink Destination** | Application database & standard access logs | GCP Cloud Logging & BigQuery Sink (`jsonPayload.adminEmail`) |
-| **Interactive Tooling** | Mobile App / Public Web Client | Terminal (`curl`), Postman, and Admin Swagger UI (`/api/docs/admin`) |
+| Architectural Aspect          | Regular Customer Flow (App Users)                         | Administrative OIDC Flow (Engineers / Admins)                        |
+| :---------------------------- | :-------------------------------------------------------- | :------------------------------------------------------------------- |
+| **Primary Identity Provider** | Firebase Auth (Phone OTP, Apple, Google Sign-In)          | Google Accounts (`@gmail.com` or `@mycompany.com`)                   |
+| **Token Type & Issuer**       | BreathAway Custom JWTs (HMAC/RSA issued by Backend)       | Google OIDC ID Token issued by `accounts.google.com`                 |
+| **Token Lifetime**            | 15 minutes (Access) / 14 days (Refresh Token Family)      | 1 hour (Google standard OIDC lifetime, no refresh flow)              |
+| **Client Headers Required**   | `x-api-key`, `x-client-id`, `x-user-agent`, `x-device-id` | `@SkipClientIdentity()` applied (No client app headers required)     |
+| **Authorization Source**      | PostgreSQL database tables (`User`, `UserRole`, status)   | Live GCP Project IAM Policy (`roles/owner`, `roles/editor`)          |
+| **Revocation Mechanism**      | Database session deletion / token blacklist               | Removing developer from GCP Project IAM in Google Cloud Console      |
+| **Audit Logging Actor**       | Internal User ULID (`sub: "01KY9DY8M1GARM..."`)           | Verified Google email (`adminEmail: "engineer@company.com"`)         |
+| **Audit Sink Destination**    | Application database & standard access logs               | GCP Cloud Logging & BigQuery Sink (`jsonPayload.adminEmail`)         |
+| **Interactive Tooling**       | Mobile App / Public Web Client                            | Terminal (`curl`), Postman, and Admin Swagger UI (`/api/docs/admin`) |
 
 ---
 
@@ -421,7 +406,7 @@ sequenceDiagram
     Admin->>CLI: export TOKEN=$(gcloud auth print-identity-token)
     CLI->>Backend: HTTP POST /v1/notifications/send (Authorization: Bearer <TOKEN>)
     Backend->>Guard: canActivate(context)
-    
+
     Guard->>GoogleJWKS: 1. Cryptographically verify signature & claims (Local/Cached)
     alt Invalid Signature / Expired / Unverified Email
         Guard-->>CLI: 401 Unauthorized
@@ -451,10 +436,12 @@ sequenceDiagram
 ### 💻 Developer Guide: How to Generate and Use Admin Tokens
 
 #### 1. Prerequisites
+
 - The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-dev` / `breathaway-prod`) with the **Editor** or **Owner** role.
 - Google Cloud CLI (`gcloud`) installed locally.
 
 #### 2. Generating the Token
+
 Run the following in your terminal:
 
 ```bash
@@ -469,12 +456,14 @@ export TOKEN=$(gcloud auth print-identity-token)
 > **Why no `--audiences` flag?**: The `--audiences` flag in `gcloud auth print-identity-token` is only permitted for Service Accounts. For human developer accounts, omitting `--audiences` produces a token targeted at the Google Cloud SDK client ID (`32555940559.apps.googleusercontent.com`), which `AdminOidcAuthGuard` natively accepts.
 
 #### 3. Using in Swagger UI
+
 1. Open the Admin Swagger documentation: `http://localhost:3000/api/docs/admin` (or production URL).
 2. Click the green **Authorize** button at the top right.
 3. Paste the token into the **`gcp-oidc (http, Bearer)`** input field and click **Authorize**.
 4. All admin endpoints can now be executed interactively.
 
 #### 4. Using in Postman / Curl
+
 ```bash
 curl -X POST "http://localhost:3000/api/v1/notifications/send" \
   -H "Authorization: Bearer $TOKEN" \
@@ -494,22 +483,28 @@ curl -X POST "http://localhost:3000/api/v1/notifications/send" \
 To enable dynamic IAM evaluation, the GCP project and runtime environment require the following configuration:
 
 #### 1. Enable Cloud Resource Manager API
+
 The GCP Cloud Resource Manager API must be enabled on the project to allow the backend to query project IAM policies:
+
 ```bash
 gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
 ```
 
 #### 2. Service Account Permissions (Cloud Run)
+
 The Cloud Run runtime service account (`backend-service@<project-id>.iam.gserviceaccount.com`) must be granted read access to the project IAM policy:
+
 ```bash
 gcloud projects add-iam-policy-binding <project-id> \
   --member="serviceAccount:backend-service@<project-id>.iam.gserviceaccount.com" \
   --role="roles/browser"
 ```
-*(Alternatively, grant `roles/viewer`).*
+
+_(Alternatively, grant `roles/viewer`)._
 
 #### 3. Local Development (Localhost)
+
 When running the NestJS backend locally on localhost:
+
 - Run `gcloud auth application-default login` so your local Node.js process inherits credentials to query Cloud Resource Manager.
 - Or configure `ADMIN_ALLOWED_EMAILS="your-email@gmail.com"` in your environment variables to bypass cloud IAM API queries locally.
-
