@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
   IsNumber,
   IsObject,
@@ -13,17 +13,22 @@ import { AllowNonWhitelisted } from '@common/decorators';
 /**
  * Order details in Cashfree webhook payload.
  */
+@AllowNonWhitelisted()
 export class CashfreeWebhookOrderDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Our internal order identifier (receipt) passed during creation.',
   })
   @IsString()
-  order_id: string;
+  @IsOptional()
+  order_id?: string;
 
-  @ApiProperty({ description: 'Order amount in decimal currency unit.' })
+  @ApiPropertyOptional({
+    description: 'Order amount in decimal currency unit.',
+  })
   @IsNumber()
-  order_amount: number;
+  @IsOptional()
+  order_amount?: number;
 
   @ApiPropertyOptional()
   @IsString()
@@ -34,16 +39,24 @@ export class CashfreeWebhookOrderDto {
 /**
  * Payment details in Cashfree webhook payload.
  */
+@AllowNonWhitelisted()
 export class CashfreeWebhookPaymentDto {
-  @ApiProperty({ description: 'Cashfree gateway payment identifier.' })
+  @ApiPropertyOptional({ description: 'Cashfree gateway payment identifier.' })
+  @Transform(({ value }: { value: unknown }): string | undefined =>
+    typeof value === 'string' || typeof value === 'number'
+      ? String(value)
+      : undefined,
+  )
   @IsString()
-  cf_payment_id: string;
+  @IsOptional()
+  cf_payment_id?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Payment status, e.g. "SUCCESS", "FAILED", "USER_DROPPED".',
   })
   @IsString()
-  payment_status: string;
+  @IsOptional()
+  payment_status?: string;
 
   @ApiPropertyOptional()
   @IsNumber()
@@ -58,17 +71,24 @@ export class CashfreeWebhookPaymentDto {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
+  payment_message?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
   payment_time?: string;
 }
 
 /**
  * Data payload in Cashfree webhook event.
  */
+@AllowNonWhitelisted()
 export class CashfreeWebhookDataDto {
-  @ApiProperty({ type: () => CashfreeWebhookOrderDto })
+  @ApiPropertyOptional({ type: () => CashfreeWebhookOrderDto })
+  @IsOptional()
   @ValidateNested()
   @Type(() => CashfreeWebhookOrderDto)
-  order: CashfreeWebhookOrderDto;
+  order?: CashfreeWebhookOrderDto;
 
   @ApiPropertyOptional({ type: () => CashfreeWebhookPaymentDto })
   @IsOptional()
@@ -85,17 +105,28 @@ export class CashfreeWebhookDataDto {
  */
 @AllowNonWhitelisted()
 export class CashfreeWebhookRequestDto {
-  @ApiProperty({ type: () => CashfreeWebhookDataDto })
+  @ApiPropertyOptional({ type: () => CashfreeWebhookDataDto })
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => CashfreeWebhookDataDto)
-  data: CashfreeWebhookDataDto;
+  data?: CashfreeWebhookDataDto;
 
-  @ApiProperty({
-    description: 'Event type, e.g. "PAYMENT_SUCCESS_WEBHOOK", "ORDER_PAID".',
+  @ApiPropertyOptional({
+    description:
+      'Event type in Cashfree PG v2, e.g. "PAYMENT_SUCCESS_WEBHOOK", "ORDER_PAID".',
   })
   @IsString()
-  event_type: string;
+  @IsOptional()
+  type?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Event type alias sent by some Cashfree products or older versions.',
+  })
+  @IsString()
+  @IsOptional()
+  event_type?: string;
 
   @ApiPropertyOptional({ description: 'Timestamp of the event.' })
   @IsString()

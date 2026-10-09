@@ -24,6 +24,7 @@ describe('CashfreePaymentHandler', () => {
     eventType: string,
     overrides: Record<string, unknown> = {},
   ): CashfreeWebhookRequestDto => ({
+    type: eventType,
     event_type: eventType,
     event_time: '2026-10-08T12:00:00Z',
     data: {
@@ -98,6 +99,13 @@ describe('CashfreePaymentHandler', () => {
       expect(
         handler.canHandle(mockWebhookDto('PAYMENT_USER_DROPPED_WEBHOOK')),
       ).toBe(true);
+    });
+
+    it('should return true when only type is present (without event_type)', () => {
+      const dto: CashfreeWebhookRequestDto = {
+        type: 'PAYMENT_SUCCESS_WEBHOOK',
+      };
+      expect(handler.canHandle(dto)).toBe(true);
     });
 
     it('should return false for unhandled events like REFUND_SUCCESS', () => {

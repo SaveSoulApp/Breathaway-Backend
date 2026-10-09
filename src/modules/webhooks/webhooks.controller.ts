@@ -218,8 +218,9 @@ export class WebhooksController extends BaseController {
   async handleCashfreeWebhook(
     @Body() dto: CashfreeWebhookRequestDto,
   ): Promise<{ status: string }> {
+    const eventType = dto.type ?? dto.event_type;
     this.logger.debug('Cashfree webhook received', {
-      event: dto.event_type,
+      event: eventType,
       paymentId: dto.data?.payment?.cf_payment_id,
       orderId: dto.data?.order?.order_id,
     });

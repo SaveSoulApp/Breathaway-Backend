@@ -45,12 +45,15 @@ export class CashfreePaymentHandler extends BaseHandler {
   }
 
   canHandle(dto: CashfreeWebhookRequestDto): boolean {
+    const eventType = dto.type ?? dto.event_type;
     return (
-      CAPTURE_EVENTS.has(dto.event_type) || FAILURE_EVENTS.has(dto.event_type)
+      Boolean(eventType) &&
+      (CAPTURE_EVENTS.has(eventType!) || FAILURE_EVENTS.has(eventType!))
     );
   }
 
   async handle(dto: CashfreeWebhookRequestDto): Promise<void> {
+    const eventType = dto.type ?? dto.event_type;
     const orderId = dto.data?.order?.order_id;
     const payment = dto.data?.payment;
     const paymentId = payment?.cf_payment_id
@@ -58,7 +61,7 @@ export class CashfreePaymentHandler extends BaseHandler {
       : undefined;
 
     const ctx = {
-      event: dto.event_type,
+      event: eventType,
       paymentId,
       orderId,
       step: 'cashfree_payment_handler',
@@ -70,7 +73,7 @@ export class CashfreePaymentHandler extends BaseHandler {
     }
 
     // ── Failure path ────────────────────────────────────────────────────────
-    if (FAILURE_EVENTS.has(dto.event_type)) {
+    if (eventType && FAILURE_EVENTS.has(eventType)) {
       await this.handlePaymentFailed(orderId, ctx);
       return;
     }
