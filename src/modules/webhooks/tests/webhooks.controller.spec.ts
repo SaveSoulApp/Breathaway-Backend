@@ -6,7 +6,12 @@ import { LoggerService } from '@core/logger';
 
 import { MetaWebhookDto, RevenueCatWebhookRequestDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
-import { RazorpayWebhookGuard, RevenueCatWebhookGuard } from '../guards';
+import {
+  CashfreeWebhookGuard,
+  RazorpayWebhookGuard,
+  RevenueCatWebhookGuard,
+} from '../guards';
+import { CashfreePaymentHandler } from '../handlers/cashfree-payment.handler';
 import { RazorpayPaymentHandler } from '../handlers/razorpay-payment.handler';
 import { MetaWebhookResult } from '../interfaces/meta-webhook-result.interface';
 import { WebhooksController } from '../webhooks.controller';
@@ -49,6 +54,11 @@ describe('WebhooksController', () => {
       handle: jest.fn().mockResolvedValue(undefined),
     };
 
+    const mockCashfreeHandler = {
+      canHandle: jest.fn().mockReturnValue(true),
+      handle: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
       providers: [
@@ -56,12 +66,15 @@ describe('WebhooksController', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WebhooksService, useValue: mockService },
         { provide: RazorpayPaymentHandler, useValue: mockRazorpayHandler },
+        { provide: CashfreePaymentHandler, useValue: mockCashfreeHandler },
         { provide: LoggerService, useValue: logger },
       ],
     })
       .overrideGuard(RevenueCatWebhookGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(RazorpayWebhookGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(CashfreeWebhookGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 
@@ -245,6 +258,48 @@ describe('WebhooksController', () => {
 
       // Act
       const result = await controller.handleRazorpayWebhook(dto);
+
+      // Assert
+      expect(handler.canHandle).toHaveBeenCalledWith(dto);
+      expect(handler.handle).not.toHaveBeenCalled();
+      expect(result).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('handleCashfreeWebhook', () => {
+    it('should invoke cashfreePaymentHandler when it can handle the event', async () => {
+      // Arrange
+      const dto = {
+        event_type: 'PAYMENT_SUCCESS_WEBHOOK',
+        data: {
+          order: { order_id: 'order_123' },
+          payment: { cf_payment_id: 'pay_123' },
+        },
+      } as any;
+
+      const handler = (controller as any).cashfreePaymentHandler;
+
+      // Act
+      const result = await controller.handleCashfreeWebhook(dto);
+
+      // Assert
+      expect(handler.canHandle).toHaveBeenCalledWith(dto);
+      expect(handler.handle).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ status: 'ok' });
+    });
+
+    it('should return ok without calling handle when handler cannot handle the event', async () => {
+      // Arrange
+      const dto = {
+        event_type: 'UNHANDLED_EVENT',
+        data: {},
+      } as any;
+
+      const handler = (controller as any).cashfreePaymentHandler;
+      handler.canHandle.mockReturnValue(false);
+
+      // Act
+      const result = await controller.handleCashfreeWebhook(dto);
 
       // Assert
       expect(handler.canHandle).toHaveBeenCalledWith(dto);

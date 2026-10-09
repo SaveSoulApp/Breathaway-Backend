@@ -12,3 +12,4 @@ export {
 } from './request/revenuecat-webhook.request.dto';
 
 export { RazorpayWebhookRequestDto } from './request/razorpay-payment-webhook.request.dto';
+export { CashfreeWebhookRequestDto } from './request/cashfree-payment-webhook.request.dto';

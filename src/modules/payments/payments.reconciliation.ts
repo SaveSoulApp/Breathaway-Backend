@@ -26,6 +26,7 @@ import {
   GatewayOrderStatus,
   PaymentGatewayAdapter,
 } from './gateways/payment-gateway.interface';
+import { CashfreeGateway } from './gateways/cashfree/cashfree.gateway';
 import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
 
 /** PENDING orders older than this are eligible for reconciliation. */
@@ -42,8 +43,8 @@ const EXPIRE_AFTER_MINUTES = 30;
  * fires per tick across all Cloud Run instances, and the job does not silently
  * drop when the service scales to zero.
  *
- * This is the **safety net** for payments where the Razorpay webhook was
- * never delivered (network failure, Cloud Run cold-start, dashboard test).
+ * This is the **safety net** for payments where the Razorpay or Cashfree webhook
+ * was never delivered (network failure, Cloud Run cold-start, dashboard test).
  * Without reconciliation, a user who paid might never receive their credits.
  *
  * ## Idempotency
@@ -64,9 +65,13 @@ export class PaymentsReconciliationService extends BaseService {
     private readonly creditsService: CreditsService,
     private readonly transactionsService: TransactionsService,
     private readonly razorpayGateway: RazorpayGateway,
+    private readonly cashfreeGateway: CashfreeGateway,
   ) {
     super(logger);
-    this.gatewayMap = new Map([[razorpayGateway.provider, razorpayGateway]]);
+    this.gatewayMap = new Map<string, PaymentGatewayAdapter>([
+      [razorpayGateway.provider, razorpayGateway],
+      [cashfreeGateway.provider, cashfreeGateway],
+    ]);
     this.isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
   }

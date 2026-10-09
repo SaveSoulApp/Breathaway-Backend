@@ -15,11 +15,17 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import {
+  CashfreeWebhookRequestDto,
   MetaWebhookDto,
   RazorpayWebhookRequestDto,
   RevenueCatWebhookRequestDto,
 } from './dto';
-import { RazorpayWebhookGuard, RevenueCatWebhookGuard } from './guards';
+import {
+  CashfreeWebhookGuard,
+  RazorpayWebhookGuard,
+  RevenueCatWebhookGuard,
+} from './guards';
+import { CashfreePaymentHandler } from './handlers/cashfree-payment.handler';
 import { RazorpayPaymentHandler } from './handlers/razorpay-payment.handler';
 import { WebhooksService } from './webhooks.service';
 
@@ -34,6 +40,7 @@ export class WebhooksController extends BaseController {
     logger: LoggerService,
     private readonly webhookService: WebhooksService,
     private readonly razorpayPaymentHandler: RazorpayPaymentHandler,
+    private readonly cashfreePaymentHandler: CashfreePaymentHandler,
   ) {
     super(logger);
   }
@@ -164,6 +171,61 @@ export class WebhooksController extends BaseController {
 
     if (this.razorpayPaymentHandler.canHandle(dto)) {
       await this.razorpayPaymentHandler.handle(dto);
+    }
+
+    return { status: 'ok' };
+  }
+
+  /**
+   * Receives Cashfree payment notifications and fulfils the corresponding order.
+   *
+   * Protected by `CashfreeWebhookGuard` which verifies the `x-webhook-signature`
+   * Base64 HMAC-SHA256 header against `timestamp + rawBody`.
+   *
+   * Idempotent: a redelivered `PAYMENT_SUCCESS_WEBHOOK` for an already-PAID order is
+   * detected by the `@@unique([gateway, gatewayTransactionId])` constraint on
+   * `Transaction` and silently skipped (returns 200).
+   *
+   * Events this handler does not recognise are acknowledged (200) and ignored.
+   */
+  @Post('payments/cashfree')
+  @UseGuards(CashfreeWebhookGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Handle Cashfree payment webhook events',
+    description:
+      'Signature-verified, unauthenticated endpoint. Fulfils orders on PAYMENT_SUCCESS_WEBHOOK. ' +
+      'Idempotent — redeliveries of already-processed events return 200 without re-granting.',
+  })
+  @ApiHeader({
+    name: 'x-webhook-signature',
+    description: 'Cashfree HMAC-SHA256 webhook signature (base64-encoded).',
+    required: true,
+  })
+  @ApiHeader({
+    name: 'x-webhook-timestamp',
+    description: 'Cashfree webhook timestamp.',
+    required: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Event received and processed.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid Cashfree webhook signature.',
+  })
+  async handleCashfreeWebhook(
+    @Body() dto: CashfreeWebhookRequestDto,
+  ): Promise<{ status: string }> {
+    this.logger.debug('Cashfree webhook received', {
+      event: dto.event_type,
+      paymentId: dto.data?.payment?.cf_payment_id,
+      orderId: dto.data?.order?.order_id,
+    });
+
+    if (this.cashfreePaymentHandler.canHandle(dto)) {
+      await this.cashfreePaymentHandler.handle(dto);
     }
 
     return { status: 'ok' };

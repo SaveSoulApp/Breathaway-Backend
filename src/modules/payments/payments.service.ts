@@ -41,8 +41,12 @@ import {
   PAYMENT_COMPLETED_EVENT,
   PaymentCompletedEvent,
 } from './events/payment-completed.event';
+import { CashfreeGateway } from './gateways/cashfree/cashfree.gateway';
 import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
-import { PaymentGatewayAdapter } from './gateways/payment-gateway.interface';
+import {
+  GatewayOrderStatus,
+  PaymentGatewayAdapter,
+} from './gateways/payment-gateway.interface';
 import { VerifyOrderRequestDto } from './dto/request/verify-order.request.dto';
 
 /**
@@ -74,9 +78,13 @@ export class PaymentsService extends BaseService {
     private readonly ipGeolocationService: IpGeolocationService,
     private readonly identitiesService: IdentitiesService,
     private readonly razorpayGateway: RazorpayGateway,
+    private readonly cashfreeGateway: CashfreeGateway,
   ) {
     super(logger);
-    this.gatewayMap = new Map([[razorpayGateway.provider, razorpayGateway]]);
+    this.gatewayMap = new Map<string, PaymentGatewayAdapter>([
+      [razorpayGateway.provider, razorpayGateway],
+      [cashfreeGateway.provider, cashfreeGateway],
+    ]);
     this.isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
   }
@@ -148,6 +156,7 @@ export class PaymentsService extends BaseService {
       amount: amountInSmallestUnit,
       currency: planPrice.currencyCode,
       receipt,
+      userId,
       userContact: userContact?.phone,
       userName: userContact?.name,
     });
@@ -282,10 +291,49 @@ export class PaymentsService extends BaseService {
       };
     }
 
-    // 3. Verify signature.
+    // 3. Verify signature or gateway status.
     const adapter = this.gatewayMap.get(order.gateway);
     if (!adapter) {
       throw new GatewayNotAvailableException(order.countryCode);
+    }
+
+    if (order.gateway === PaymentGateway.CASHFREE) {
+      const orderStatus = await adapter.fetchOrderStatus(order.gatewayOrderId);
+      if (orderStatus !== GatewayOrderStatus.CAPTURED) {
+        this.logger.warn('Verify payment: Cashfree order not captured', {
+          ...ctx,
+          gateway: order.gateway,
+          orderStatus,
+          step: 'verify_cashfree_status',
+        });
+        throw new UnauthorizedException(
+          'Payment has not been completed or verified',
+        );
+      }
+
+      const capturedPaymentId =
+        (await adapter.fetchCapturedPaymentId?.(order.gatewayOrderId)) ||
+        order.gatewayOrderId;
+
+      const creditsGranted = await this.fulfil({
+        order,
+        gatewayPaymentId: capturedPaymentId,
+        gatewayOrderId: order.gatewayOrderId,
+        ctx,
+        rawPayload: { gateway: 'CASHFREE', method: 'client_verify_poll' },
+      });
+
+      return { status: PaymentOrderStatus.PAID, creditsGranted };
+    }
+
+    if (
+      !dto.razorpay_order_id ||
+      !dto.razorpay_payment_id ||
+      !dto.razorpay_signature
+    ) {
+      throw new UnauthorizedException(
+        'Missing Razorpay verification credentials',
+      );
     }
 
     const signatureValid = adapter.verifySignature({

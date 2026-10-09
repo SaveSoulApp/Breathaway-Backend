@@ -36,6 +36,7 @@ import {
   PaymentCompletedEvent,
 } from '../events/payment-completed.event';
 import { GatewayOrderStatus } from '../gateways/payment-gateway.interface';
+import { CashfreeGateway } from '../gateways/cashfree/cashfree.gateway';
 import { RazorpayGateway } from '../gateways/razorpay/razorpay.gateway';
 import { PaymentsService } from '../payments.service';
 
@@ -49,6 +50,7 @@ describe('PaymentsService', () => {
     Pick<IdentitiesService, 'getUserPhoneNumber'>
   >;
   let razorpayGatewayMock: jest.Mocked<RazorpayGateway>;
+  let cashfreeGatewayMock: jest.Mocked<CashfreeGateway>;
   let eventEmitterMock: { emit: jest.Mock };
 
   const userId = 'user_01J8VXYZ';
@@ -92,6 +94,25 @@ describe('PaymentsService', () => {
       fetchCapturedPaymentId: jest.fn().mockResolvedValue('pay_rzp_456'),
     } as unknown as jest.Mocked<RazorpayGateway>;
 
+    cashfreeGatewayMock = {
+      provider: PaymentGateway.CASHFREE,
+      createOrder: jest.fn().mockResolvedValue({
+        gatewayOrderId: 'order_cf_123',
+        gatewayCreatedAt: DateUtil.now(),
+        action: {
+          type: 'sdk',
+          keyId: 'cf_test_123',
+          gatewayOrderId: 'order_cf_123',
+          paymentSessionId: 'session_cf_123',
+        },
+      }),
+      fetchOrderStatus: jest
+        .fn()
+        .mockResolvedValue(GatewayOrderStatus.CAPTURED),
+      verifySignature: jest.fn().mockReturnValue(false),
+      fetchCapturedPaymentId: jest.fn().mockResolvedValue('pay_cf_456'),
+    } as unknown as jest.Mocked<CashfreeGateway>;
+
     eventEmitterMock = {
       emit: jest.fn(),
     };
@@ -131,6 +152,7 @@ describe('PaymentsService', () => {
         },
         { provide: IdentitiesService, useValue: identitiesServiceMock },
         { provide: RazorpayGateway, useValue: razorpayGatewayMock },
+        { provide: CashfreeGateway, useValue: cashfreeGatewayMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
@@ -206,6 +228,46 @@ describe('PaymentsService', () => {
         }),
         select: { id: true },
       });
+    });
+
+    it('should create order using Cashfree when priority route selects CASHFREE', async () => {
+      // Arrange
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        countryCode: 'IN',
+      });
+      (prisma.subscriptionPlan.findFirst as jest.Mock).mockResolvedValue({
+        id: planId,
+        creditsGranted: 10,
+        validityDays: 30,
+      });
+      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
+        price: new Prisma.Decimal(499),
+        currencyCode: 'INR',
+      });
+      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
+        gateway: PaymentGateway.CASHFREE,
+        priority: 1,
+      });
+      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
+        firstName: 'John',
+      });
+      (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
+        id: orderId,
+      });
+
+      // Act
+      const result = await service.createOrder(userId, { planId });
+
+      // Assert
+      expect(cashfreeGatewayMock.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 49900,
+          currency: 'INR',
+          userId,
+        }),
+      );
+      expect(result.provider).toBe(PaymentGateway.CASHFREE);
+      expect(result.action.paymentSessionId).toBe('session_cf_123');
     });
 
     it('should override user contact when explicit contact is provided in DTO', async () => {
@@ -504,6 +566,76 @@ describe('PaymentsService', () => {
       await expect(
         service.verifyPayment(userId, orderId, verifyDto),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should verify Cashfree order on-demand via fetchOrderStatus and fulfill', async () => {
+      // Arrange
+      (prisma.paymentOrder.findFirst as jest.Mock).mockResolvedValue({
+        id: orderId,
+        userId,
+        planId,
+        amount: 49900,
+        currency: 'INR',
+        countryCode: 'IN',
+        gateway: PaymentGateway.CASHFREE,
+        gatewayOrderId: 'order_cf_123',
+        status: PaymentOrderStatus.PENDING,
+        plan: { id: planId, creditsGranted: 10, validityDays: 30 },
+        transaction: null,
+      });
+
+      cashfreeGatewayMock.fetchOrderStatus.mockResolvedValueOnce(
+        GatewayOrderStatus.CAPTURED,
+      );
+      cashfreeGatewayMock.fetchCapturedPaymentId.mockResolvedValueOnce(
+        'pay_cf_456',
+      );
+      (prisma.paymentOrder.update as jest.Mock).mockResolvedValue({});
+
+      // Act
+      const result = await service.verifyPayment(userId, orderId, {});
+
+      // Assert
+      expect(result).toEqual({
+        status: PaymentOrderStatus.PAID,
+        creditsGranted: 10,
+      });
+      expect(cashfreeGatewayMock.fetchOrderStatus).toHaveBeenCalledWith(
+        'order_cf_123',
+      );
+      expect(transactionsServiceMock.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gateway: PaymentGateway.CASHFREE,
+          gatewayTransactionId: 'pay_cf_456',
+        }),
+        prisma,
+      );
+    });
+
+    it('should throw UnauthorizedException when Cashfree order is not captured', async () => {
+      // Arrange
+      (prisma.paymentOrder.findFirst as jest.Mock).mockResolvedValue({
+        id: orderId,
+        userId,
+        planId,
+        amount: 49900,
+        currency: 'INR',
+        countryCode: 'IN',
+        gateway: PaymentGateway.CASHFREE,
+        gatewayOrderId: 'order_cf_123',
+        status: PaymentOrderStatus.PENDING,
+        plan: { id: planId, creditsGranted: 10, validityDays: 30 },
+        transaction: null,
+      });
+
+      cashfreeGatewayMock.fetchOrderStatus.mockResolvedValueOnce(
+        GatewayOrderStatus.PENDING,
+      );
+
+      // Act & Assert
+      await expect(service.verifyPayment(userId, orderId, {})).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw OrderNotFoundException when order does not exist', async () => {

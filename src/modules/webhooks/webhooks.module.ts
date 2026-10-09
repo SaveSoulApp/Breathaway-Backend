@@ -5,9 +5,14 @@ import { PaymentsModule } from '@modules/payments/payments.module';
 import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
-import { RazorpayWebhookGuard, RevenueCatWebhookGuard } from './guards';
+import {
+  CashfreeWebhookGuard,
+  RazorpayWebhookGuard,
+  RevenueCatWebhookGuard,
+} from './guards';
 import { GenericMessageHandler } from './handlers/generic-message.handler';
 import { OtpVerificationHandler } from './handlers/otp-verification.handler';
+import { CashfreePaymentHandler } from './handlers/cashfree-payment.handler';
 import { RazorpayPaymentHandler } from './handlers/razorpay-payment.handler';
 import { RevenueCatPurchaseHandler } from './handlers/revenuecat-purchase.handler';
 import {
@@ -19,13 +24,13 @@ import { WebhooksService } from './webhooks.service';
 
 /**
  * Inbound webhook surface for every third party that calls us — Meta,
- * RevenueCat (mobile), and Razorpay (web).
+ * RevenueCat (mobile), Razorpay (web), and Cashfree (web).
  *
  * Imports:
  *   - TransactionsModule: records the gateway-side money event.
  *   - CreditsModule: grants the credits a purchase buys.
  *   - SubscriptionsModule: maps a store product ID to its credit allocation.
- *   - PaymentsModule: provides `PaymentsService.fulfil()` used by `RazorpayPaymentHandler`.
+ *   - PaymentsModule: provides `PaymentsService.fulfil()` used by payment webhook handlers.
  */
 @Module({
   imports: [
@@ -39,10 +44,12 @@ import { WebhooksService } from './webhooks.service';
     WebhooksService,
     RevenueCatWebhookGuard,
     RazorpayWebhookGuard,
+    CashfreeWebhookGuard,
     OtpVerificationHandler,
     GenericMessageHandler,
     RevenueCatPurchaseHandler,
     RazorpayPaymentHandler,
+    CashfreePaymentHandler,
     {
       provide: WEBHOOK_MESSAGE_HANDLERS,
       useFactory: (

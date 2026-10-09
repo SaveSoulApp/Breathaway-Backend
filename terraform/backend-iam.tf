@@ -34,3 +34,11 @@ resource "google_project_iam_member" "backend_service_kms_encrypter_decrypter" {
   role    = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member  = "serviceAccount:${google_service_account.backend_service.email}"
 }
+
+# 5. Grant backend-service Browser role to allow reading project IAM policy for Admin OIDC authorization
+resource "google_project_iam_member" "backend_service_browser" {
+  project = var.project_id
+  role    = "roles/browser"
+  member  = "serviceAccount:${google_service_account.backend_service.email}"
+}
+

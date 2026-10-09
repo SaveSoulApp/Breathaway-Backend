@@ -288,6 +288,23 @@ describe('AdminOidcAuthGuard', () => {
       );
     });
 
+    it('should throw ForbiddenException when GCP IAM policy fetch fails with an error', async () => {
+      jest
+        .spyOn(guard['googleAuth'], 'getClient')
+        .mockRejectedValue(new Error('Permission denied'));
+
+      const req: any = {
+        headers: { authorization: 'Bearer valid.google.token' },
+        originalUrl: '/v1/admin/users/123',
+        method: 'DELETE',
+      };
+      const context = createMockExecutionContext(req);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
     it('should authorize serviceAccount members discovered in IAM policy', async () => {
       const saEmail = 'service-runner@test-gcp-project.iam.gserviceaccount.com';
 

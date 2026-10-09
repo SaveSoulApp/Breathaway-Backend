@@ -30,6 +30,8 @@ locals {
     razorpay_key_id           = "razorpay-key-id"
     razorpay_key_secret       = "razorpay-key-secret"
     razorpay_webhook_secret   = "razorpay-webhook-secret"
+    cashfree_app_id           = "cashfree-app-id"
+    cashfree_secret_key       = "cashfree-secret-key"
     liteapp_whatsapp_key      = "liteapp-whatsapp-key"
   }
 

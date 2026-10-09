@@ -229,7 +229,7 @@ export class AdminOidcAuthGuard implements CanActivate {
       }
       return isAuthorized;
     } catch (error: unknown) {
-      this.logger.warn('Failed to query GCP IAM policy for project', {
+      this.logger.error('Failed to query GCP IAM policy for project', {
         step: 'fetch_iam_policy',
         adminEmail: email,
         err: serializeError(error),
