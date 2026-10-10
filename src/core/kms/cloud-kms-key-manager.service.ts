@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
@@ -17,6 +17,7 @@ import { IKeyManager } from './key-manager.interface';
  * - Wrap/unwrap operations delegate to the correct keyId.
  * - Deterministic hashing uses a dedicated stable HMAC key (HMAC_KEY_BASE64),
  *   decoupled from encryption master keys.
+ * - Maintains an in-memory LRU cache of unwrapped DEKs to minimize KMS API latency and cost.
  *
  * ENV EXAMPLE:
  *   KMS_KEY_NAMES={"key-v1":"projects/myproj/locations/asia-south1/keyRings/main/cryptoKeys/key-v1","key-v2":"projects/myproj/locations/asia-south1/keyRings/main/cryptoKeys/key-v2"}
@@ -30,6 +31,13 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   private readonly activeKeyId: string;
   private readonly hmacKey: Buffer;
   private readonly logger: ContextualLogger;
+
+  private readonly unwrappedKeyCache = new Map<
+    string,
+    { key: Buffer; expiresAt: number }
+  >();
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly MAX_CACHE_SIZE = 1000;
 
   constructor(
     private readonly configService: ConfigService,
@@ -80,6 +88,7 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.unwrappedKeyCache.clear();
     await safeCloseClient(this.client, this.logger, 'KMS');
   }
 
@@ -101,17 +110,24 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
     }
 
     const wrappedKey = Buffer.from(result.ciphertext as Buffer);
+    this.cacheUnwrappedKey(wrappedKey, this.activeKeyId, plaintextKey);
     return { wrappedKey, keyId: this.activeKeyId };
   }
 
   /**
    * Decrypts (unwraps) a data key using the correct KMS keyId.
    * Allows decrypting data encrypted with older keys.
+   * Utilizes a short-lived in-memory cache to eliminate redundant KMS roundtrips.
    */
   async unwrapDataKey(wrappedKey: Buffer, keyId: string): Promise<Buffer> {
     const kmsKeyName = this.kmsKeys.get(keyId);
     if (!kmsKeyName) {
       throw new Error(`Unknown keyId: ${keyId}`);
+    }
+
+    const cachedKey = this.getCachedUnwrappedKey(wrappedKey, keyId);
+    if (cachedKey) {
+      return cachedKey;
     }
 
     const [result] = await this.client.decrypt({
@@ -123,7 +139,47 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
       throw new Error('KMS decrypt returned no plaintext');
     }
 
-    return Buffer.from(result.plaintext as Buffer);
+    const plaintextKey = Buffer.from(result.plaintext as Buffer);
+    this.cacheUnwrappedKey(wrappedKey, keyId, plaintextKey);
+    return plaintextKey;
+  }
+
+  private getCacheKey(wrappedKey: Buffer, keyId: string): string {
+    return createHash('sha256').update(keyId).update(wrappedKey).digest('hex');
+  }
+
+  private getCachedUnwrappedKey(
+    wrappedKey: Buffer,
+    keyId: string,
+  ): Buffer | null {
+    const cacheKey = this.getCacheKey(wrappedKey, keyId);
+    const entry = this.unwrappedKeyCache.get(cacheKey);
+    if (!entry) {
+      return null;
+    }
+    if (Date.now() > entry.expiresAt) {
+      this.unwrappedKeyCache.delete(cacheKey);
+      return null;
+    }
+    return entry.key;
+  }
+
+  private cacheUnwrappedKey(
+    wrappedKey: Buffer,
+    keyId: string,
+    plaintextKey: Buffer,
+  ): void {
+    if (this.unwrappedKeyCache.size >= CloudKmsKeyManager.MAX_CACHE_SIZE) {
+      const firstKey = this.unwrappedKeyCache.keys().next().value;
+      if (firstKey) {
+        this.unwrappedKeyCache.delete(firstKey);
+      }
+    }
+    const cacheKey = this.getCacheKey(wrappedKey, keyId);
+    this.unwrappedKeyCache.set(cacheKey, {
+      key: plaintextKey,
+      expiresAt: Date.now() + CloudKmsKeyManager.CACHE_TTL_MS,
+    });
   }
 
   /**

@@ -109,6 +109,40 @@ describe('CloudKmsKeyManager', () => {
       });
     });
 
+    it('should return cached key on subsequent unwrapDataKey calls without calling KMS decrypt', async () => {
+      mockDecrypt.mockResolvedValue([
+        { plaintext: Buffer.from('decrypted-data') },
+      ]);
+
+      const result1 = await manager.unwrapDataKey(
+        Buffer.from('cached-wrapped-data'),
+        'key-v1',
+      );
+      const result2 = await manager.unwrapDataKey(
+        Buffer.from('cached-wrapped-data'),
+        'key-v1',
+      );
+
+      expect(result1.toString()).toBe('decrypted-data');
+      expect(result2.toString()).toBe('decrypted-data');
+      expect(mockDecrypt).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use cached key when key was previously wrapped via wrapDataKey', async () => {
+      const plaintext = Buffer.from('my-ephemeral-key');
+      const ciphertext = Buffer.from('wrapped-ciphertext-bytes');
+      mockEncrypt.mockResolvedValue([{ ciphertext }]);
+
+      const wrapResult = await manager.wrapDataKey(plaintext);
+      const unwrapResult = await manager.unwrapDataKey(
+        wrapResult.wrappedKey,
+        wrapResult.keyId,
+      );
+
+      expect(unwrapResult.toString()).toBe('my-ephemeral-key');
+      expect(mockDecrypt).not.toHaveBeenCalled();
+    });
+
     it('should throw error when keyId is unknown', async () => {
       await expect(
         manager.unwrapDataKey(Buffer.from('wrapped-data'), 'unknown-key'),
