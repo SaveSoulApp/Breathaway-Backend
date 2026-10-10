@@ -457,14 +457,14 @@ export class MatchesService extends BaseService {
       theirIntent: isUserOne ? match.intentTwo : match.intentOne,
       me: {
         id: me.id,
-        firstName: myFirstName ?? me.profile?.firstName,
-        lastName: myLastName ?? me.profile?.lastName,
+        firstName: myFirstName ?? '',
+        lastName: myLastName ?? null,
         gender: me.profile?.gender ?? null,
       },
       otherUser: {
         id: otherUser.id,
-        firstName: otherFirstName ?? otherUser.profile?.firstName,
-        lastName: otherLastName ?? otherUser.profile?.lastName,
+        firstName: otherFirstName ?? '',
+        lastName: otherLastName ?? null,
         gender: otherUser.profile?.gender ?? null,
         label: decryptedLabel,
       },

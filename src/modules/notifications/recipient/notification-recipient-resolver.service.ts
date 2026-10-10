@@ -97,7 +97,7 @@ export class NotificationRecipientResolverService extends BaseService {
           resolvedMap.set(cred.userId, {
             userId: cred.userId,
             email: email.trim().toLowerCase(),
-            firstName: decryptedFirst ?? cred.user?.profile?.firstName,
+            firstName: decryptedFirst ?? undefined,
           });
         }
       } catch (err) {
@@ -164,7 +164,7 @@ export class NotificationRecipientResolverService extends BaseService {
             resolvedMap.set(identity.userId, {
               userId: identity.userId,
               email: email.trim().toLowerCase(),
-              firstName: decryptedFirst ?? identity.user?.profile?.firstName,
+              firstName: decryptedFirst ?? undefined,
             });
           }
         } catch (err) {
@@ -252,7 +252,7 @@ export class NotificationRecipientResolverService extends BaseService {
             userId: cred.userId,
             phoneDigits: formatted.phoneDigits,
             e164Formatted: formatted.e164Formatted,
-            firstName: decryptedFirst ?? cred.user?.profile?.firstName,
+            firstName: decryptedFirst ?? undefined,
           });
         }
       } catch (err) {
@@ -318,7 +318,7 @@ export class NotificationRecipientResolverService extends BaseService {
               userId: identity.userId,
               phoneDigits: formatted.phoneDigits,
               e164Formatted: formatted.e164Formatted,
-              firstName: decryptedFirst ?? identity.user?.profile?.firstName,
+              firstName: decryptedFirst ?? undefined,
             });
           }
         } catch (err) {

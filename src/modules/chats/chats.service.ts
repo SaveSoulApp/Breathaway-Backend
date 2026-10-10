@@ -231,8 +231,8 @@ export class ChatsService extends BaseService {
             ]);
             return {
               userId: p.userId,
-              firstName: decryptedFirst ?? p.firstName,
-              lastName: decryptedLast ?? p.lastName,
+              firstName: decryptedFirst ?? '',
+              lastName: decryptedLast ?? null,
             };
           }),
         );

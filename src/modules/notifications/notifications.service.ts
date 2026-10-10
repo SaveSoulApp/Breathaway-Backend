@@ -212,7 +212,7 @@ export class NotificationsService extends BaseService {
           );
           dto.payload = {
             ...(dto.payload ?? {}),
-            name: decryptedName ?? profile.firstName,
+            name: decryptedName ?? undefined,
           };
         }
       } catch (err) {

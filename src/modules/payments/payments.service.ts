@@ -573,7 +573,7 @@ export class PaymentsService extends BaseService {
 
       const decryptedName = profile?.firstName
         ? ((await this.identityCryptoService.decryptText(profile.firstName)) ??
-          profile.firstName)
+          undefined)
         : undefined;
 
       return {

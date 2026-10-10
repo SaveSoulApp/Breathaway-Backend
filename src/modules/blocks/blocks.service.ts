@@ -393,8 +393,8 @@ export class BlocksService extends BaseService {
       createdAt: block.createdAt,
       blockedUser: {
         id: block.blocked?.id ?? null,
-        firstName: decryptedFirst ?? rawFirst ?? 'Deleted User',
-        lastName: decryptedLast ?? rawLast ?? null,
+        firstName: decryptedFirst ?? 'Deleted User',
+        lastName: decryptedLast ?? null,
         isDeleted,
       },
     };

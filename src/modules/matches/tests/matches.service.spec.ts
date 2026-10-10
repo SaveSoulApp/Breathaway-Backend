@@ -34,16 +34,16 @@ describe('MatchesService', () => {
     userOne: {
       id: currentUserId,
       profile: {
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'enc:v1:key:iv:tag:wrapped:John',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
         gender: null,
       },
     },
     userTwo: {
       id: otherUserId,
       profile: {
-        firstName: 'Jane',
-        lastName: 'Smith',
+        firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
         gender: null,
       },
     },
@@ -56,16 +56,16 @@ describe('MatchesService', () => {
     userOne: {
       id: otherUserId,
       profile: {
-        firstName: 'Jane',
-        lastName: 'Smith',
+        firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
         gender: null,
       },
     },
     userTwo: {
       id: currentUserId,
       profile: {
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'enc:v1:key:iv:tag:wrapped:John',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
         gender: null,
       },
     },

@@ -80,7 +80,7 @@ export class NotificationEventsListener extends BaseService {
       const decrypted = await this.identityCryptoService.decryptText(
         profile.firstName,
       );
-      return decrypted ?? profile.firstName;
+      return decrypted ?? '';
     } catch {
       return '';
     }
@@ -195,8 +195,8 @@ export class NotificationEventsListener extends BaseService {
           : Promise.resolve(null),
       ]);
 
-      const userOneName = decryptedOne ?? profileOne?.firstName ?? 'someone';
-      const userTwoName = decryptedTwo ?? profileTwo?.firstName ?? 'someone';
+      const userOneName = decryptedOne ?? 'someone';
+      const userTwoName = decryptedTwo ?? 'someone';
 
       const userOneDisplayName =
         event.likeOneLabel && event.likeOneLabel.trim() !== ''

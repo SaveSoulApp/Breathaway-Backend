@@ -488,8 +488,8 @@ export class ProfilesService extends BaseService {
 
     return {
       ...profile,
-      firstName: decryptedFirstName ?? profile.firstName,
-      lastName: decryptedLastName ?? profile.lastName,
+      firstName: decryptedFirstName ?? '',
+      lastName: decryptedLastName ?? null,
     };
   }
 
