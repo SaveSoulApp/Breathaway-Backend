@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -111,6 +112,19 @@ describe('MatchResolverService', () => {
         {
           provide: BlocksService,
           useValue: blocksService,
+        },
+        {
+          provide: IdentityCryptoService,
+          useValue: {
+            decryptText: jest.fn().mockImplementation((val?: string | null) => {
+              if (!val) return Promise.resolve(null);
+              if (val.startsWith('enc:v1:')) {
+                const parts = val.split(':');
+                return Promise.resolve(parts[parts.length - 1]);
+              }
+              return Promise.resolve(null);
+            }),
+          },
         },
       ],
     }).compile();

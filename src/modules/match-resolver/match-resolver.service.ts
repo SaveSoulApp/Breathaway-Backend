@@ -4,6 +4,7 @@ import { Like, LikeStatus, Match, MatchStatus } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -43,6 +44,7 @@ export class MatchResolverService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly matchesService: MatchesService,
     private readonly blocksService: BlocksService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -149,14 +151,19 @@ export class MatchResolverService extends BaseService {
         },
       });
 
+      const [decryptedLabelOne, decryptedLabelTwo] = await Promise.all([
+        this.identityCryptoService.decryptText(canonicalLikeOne.label),
+        this.identityCryptoService.decryptText(canonicalLikeTwo.label),
+      ]);
+
       this.eventEmitter.emit(
         MATCH_CREATED_EVENT,
         new MatchCreatedEvent(
           match.id,
           userOneId,
           userTwoId,
-          canonicalLikeOne.label,
-          canonicalLikeTwo.label,
+          decryptedLabelOne,
+          decryptedLabelTwo,
         ),
       );
     } catch (err) {

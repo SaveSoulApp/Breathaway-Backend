@@ -122,6 +122,19 @@ describe('LikesService', () => {
     identityCryptoServiceMock = {
       processPublicValue: jest.fn(),
       processPlatformId: jest.fn(),
+      encryptText: jest
+        .fn()
+        .mockImplementation((val: string) =>
+          Promise.resolve(`enc:v1:test-key:iv:tag:wrapped:${val}`),
+        ),
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(null);
+      }),
     } as unknown as jest.Mocked<IdentityCryptoService>;
 
     identitiesServiceMock = {
@@ -381,6 +394,36 @@ describe('LikesService', () => {
         mockLikeData,
       );
       expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should encrypt label when creating like with a label', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      const encryptedLabel = 'enc:v1:test-key:iv:tag:wrapped:Angela';
+      const createdLike = {
+        ...mockLikeData,
+        label: encryptedLabel,
+      };
+      prisma.like.create.mockResolvedValue(createdLike as any);
+
+      // Act
+      const result = await service.create(userId, {
+        ...dtoWithId,
+        label: 'Angela',
+      });
+
+      // Assert
+      expect(identityCryptoServiceMock.encryptText).toHaveBeenCalledWith(
+        'Angela',
+      );
+      expect(prisma.like.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          label: encryptedLabel,
+        }),
+        select: expect.any(Object),
+      });
+      expect(result.label).toBe('Angela');
     });
 
     it('should upsert (update) an existing WITHDRAWN like row instead of inserting a new one', async () => {
@@ -801,9 +844,10 @@ describe('LikesService', () => {
     it('should update label and return like with decrypted public value', async () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue(mockLikeData);
+      const encryptedLabel = `enc:v1:test-key:iv:tag:wrapped:${updateDto.label}`;
       const updatedLike = {
         ...mockLikeData,
-        label: updateDto.label,
+        label: encryptedLabel,
         targetIdentity: {
           id: 'target-id-123',
           type: IdentityType.EMAIL,
@@ -819,13 +863,17 @@ describe('LikesService', () => {
       const result = await service.updateLabel(likeId, userId, updateDto);
 
       // Assert
+      expect(identityCryptoServiceMock.encryptText).toHaveBeenCalledWith(
+        updateDto.label,
+      );
       expect(prisma.like.update).toHaveBeenCalledWith({
         where: { id: likeId },
-        data: { label: updateDto.label },
+        data: { label: encryptedLabel },
         select: expect.any(Object),
       });
       expect(result).toEqual({
         ...updatedLike,
+        label: updateDto.label,
         targetIdentity: {
           ...updatedLike.targetIdentity,
           publicValue: 'target@example.com',

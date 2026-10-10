@@ -1,4 +1,9 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { IdentityType } from '@prisma/client';
+import { parsePhoneNumberWithError } from 'libphonenumber-js';
+
 import { PlatformId, PublicValue } from '@common/interfaces';
+import { serializeError } from '@common/utils/error.utils';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import {
@@ -8,9 +13,6 @@ import {
 } from '@core/crypto/crypto.utils';
 import type { IKeyManager } from '@core/kms/key-manager.interface';
 import { LoggerService } from '@core/logger';
-import { Inject, Injectable } from '@nestjs/common';
-import { IdentityType } from '@prisma/client';
-import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
 export interface EncryptedValue {
   ciphertextBase64: string;
@@ -263,5 +265,88 @@ export class IdentityCryptoService extends BaseService {
     if (!domain) return '••••';
     const maskedName = name.charAt(0) + '••••' + name.charAt(name.length - 1);
     return `${maskedName}@${domain}`;
+  }
+
+  /**
+   * Encrypts a plaintext string using AES-256-GCM envelope encryption and serializes
+   * the result into a compact string format:
+   * `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`
+   *
+   * @param text - The plaintext string to encrypt.
+   * @returns The serialized compact ciphertext string.
+   */
+  async encryptText(text: string): Promise<string> {
+    const encrypted = await this.encryptPublicValue(text);
+    return `enc:v1:${encrypted.keyId}:${encrypted.ivBase64}:${encrypted.tagBase64}:${encrypted.wrappedKeyBase64}:${encrypted.ciphertextBase64}`;
+  }
+
+  /**
+   * Decrypts a compact encrypted text string back to its original plaintext.
+   *
+   * Expects strictly null/empty or a valid compact ciphertext starting with `enc:v1:`.
+   * Unencrypted strings are rejected (returning null) to enforce strict encryption at rest.
+   * If decryption fails (e.g. key unwrapping error or corrupted tag), logs an error
+   * and returns `null` rather than throwing to prevent blocking entire list queries.
+   *
+   * @param value - The compact ciphertext string (`enc:v1:...`) or null/empty.
+   * @returns The decrypted plaintext string or null.
+   */
+  async decryptText(value?: string | null): Promise<string | null> {
+    if (!value || value.trim() === '') {
+      return null;
+    }
+
+    if (!this.isEncryptedText(value)) {
+      this.logger.warn(
+        'Non-encrypted text passed to decryptText; rejecting unencrypted payload',
+        {
+          step: 'decrypt_text',
+        },
+      );
+      return null;
+    }
+
+    try {
+      const parts = value.split(':');
+      // Format: enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>
+      // Minimum parts: 7 ('enc', 'v1', keyId, iv, tag, wrappedKey, ciphertext)
+      if (parts.length < 7) {
+        this.logger.warn('Malformed compact encrypted text payload', {
+          step: 'decrypt_text',
+          partsCount: parts.length,
+        });
+        return null;
+      }
+
+      const ciphertextBase64 = parts[parts.length - 1];
+      const wrappedKeyBase64 = parts[parts.length - 2];
+      const tagBase64 = parts[parts.length - 3];
+      const ivBase64 = parts[parts.length - 4];
+      const keyId = parts.slice(2, parts.length - 4).join(':');
+
+      return await this.decryptValue(
+        ciphertextBase64,
+        ivBase64,
+        tagBase64,
+        wrappedKeyBase64,
+        keyId,
+      );
+    } catch (err) {
+      this.logger.error('Failed to decrypt compact encrypted text', {
+        step: 'decrypt_text',
+        err: serializeError(err),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Determines whether a given value is a compact encrypted string matching `enc:v1:`.
+   *
+   * @param value - The string to test.
+   * @returns True if the string starts with `enc:v1:`.
+   */
+  isEncryptedText(value?: string | null): boolean {
+    return typeof value === 'string' && value.startsWith('enc:v1:');
   }
 }

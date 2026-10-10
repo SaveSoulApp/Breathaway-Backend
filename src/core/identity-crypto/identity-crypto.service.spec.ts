@@ -285,4 +285,121 @@ describe('IdentityCryptoService', () => {
       expect(keyManager.computeHash).toHaveBeenCalledWith('input-string');
     });
   });
+
+  describe('compact text encryption', () => {
+    describe('encryptText', () => {
+      it('should encrypt text and format as enc:v1:<keyId>:<iv>:<tag>:<wrappedKey>:<ciphertext>', async () => {
+        const fakeDataKey = Buffer.from('data-key');
+        const fakeWrappedKey = Buffer.from('wrapped-key');
+        const fakeCiphertext = Buffer.from('ciphertext');
+        const fakeIv = Buffer.from('iv');
+        const fakeTag = Buffer.from('tag');
+
+        (cryptoUtils.generateDataKey as jest.Mock).mockReturnValue(fakeDataKey);
+        keyManager.wrapDataKey.mockResolvedValue({
+          wrappedKey: fakeWrappedKey,
+          keyId: 'key-v1',
+        });
+        (cryptoUtils.encryptAesGcm as jest.Mock).mockReturnValue({
+          ciphertext: fakeCiphertext,
+          iv: fakeIv,
+          tag: fakeTag,
+        });
+
+        const result = await service.encryptText('Angela from gym');
+
+        const expected = `enc:v1:key-v1:${fakeIv.toString('base64')}:${fakeTag.toString('base64')}:${fakeWrappedKey.toString('base64')}:${fakeCiphertext.toString('base64')}`;
+        expect(result).toBe(expected);
+      });
+    });
+
+    describe('decryptText', () => {
+      it('should return null for null, undefined, or empty strings', async () => {
+        expect(await service.decryptText(null)).toBeNull();
+        expect(await service.decryptText(undefined)).toBeNull();
+        expect(await service.decryptText('')).toBeNull();
+        expect(await service.decryptText('   ')).toBeNull();
+      });
+
+      it('should return null and warn if string does not start with enc:v1:', async () => {
+        const result = await service.decryptText('Angela');
+        expect(result).toBeNull();
+      });
+
+      it('should decrypt valid enc:v1 compact string correctly', async () => {
+        const fakeDataKey = Buffer.from('data-key');
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64 = Buffer.from('wrapped-key').toString('base64');
+        const ciphertextB64 = Buffer.from('ciphertext').toString('base64');
+
+        keyManager.unwrapDataKey.mockResolvedValue(fakeDataKey);
+        (cryptoUtils.decryptAesGcm as jest.Mock).mockReturnValue(
+          'Angela from gym',
+        );
+
+        const compact = `enc:v1:key-v1:${ivB64}:${tagB64}:${wrappedKeyB64}:${ciphertextB64}`;
+        const result = await service.decryptText(compact);
+
+        expect(result).toBe('Angela from gym');
+        expect(keyManager.unwrapDataKey).toHaveBeenCalledWith(
+          Buffer.from(wrappedKeyB64, 'base64'),
+          'key-v1',
+        );
+      });
+
+      it('should handle keyIds containing colons gracefully', async () => {
+        const fakeDataKey = Buffer.from('data-key');
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64 = Buffer.from('wrapped-key').toString('base64');
+        const ciphertextB64 = Buffer.from('ciphertext').toString('base64');
+
+        keyManager.unwrapDataKey.mockResolvedValue(fakeDataKey);
+        (cryptoUtils.decryptAesGcm as jest.Mock).mockReturnValue('Angela');
+
+        const compact = `enc:v1:projects/123/locations/global/keyRings/ring:${ivB64}:${tagB64}:${wrappedKeyB64}:${ciphertextB64}`;
+        const result = await service.decryptText(compact);
+
+        expect(result).toBe('Angela');
+        expect(keyManager.unwrapDataKey).toHaveBeenCalledWith(
+          Buffer.from(wrappedKeyB64, 'base64'),
+          'projects/123/locations/global/keyRings/ring',
+        );
+      });
+
+      it('should return null for malformed enc:v1 payload with fewer than 7 segments', async () => {
+        const result = await service.decryptText('enc:v1:key-v1:short');
+        expect(result).toBeNull();
+      });
+
+      it('should catch decryption errors, log them, and return null safely', async () => {
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64 = Buffer.from('wrapped-key').toString('base64');
+        const ciphertextB64 = Buffer.from('ciphertext').toString('base64');
+
+        keyManager.unwrapDataKey.mockRejectedValue(new Error('KMS error'));
+
+        const compact = `enc:v1:key-v1:${ivB64}:${tagB64}:${wrappedKeyB64}:${ciphertextB64}`;
+        const result = await service.decryptText(compact);
+
+        expect(result).toBeNull();
+      });
+    });
+
+    describe('isEncryptedText', () => {
+      it('should return true for enc:v1: prefixed strings', () => {
+        expect(service.isEncryptedText('enc:v1:key:iv:tag:wrap:cipher')).toBe(
+          true,
+        );
+      });
+
+      it('should return false for plaintext or non-string inputs', () => {
+        expect(service.isEncryptedText('Angela')).toBe(false);
+        expect(service.isEncryptedText(null)).toBe(false);
+        expect(service.isEncryptedText(undefined)).toBe(false);
+      });
+    });
+  });
 });

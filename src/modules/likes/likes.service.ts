@@ -440,6 +440,17 @@ export class LikesService extends BaseService {
 
     let like: CreateLikeResult;
 
+    const normalizedLabel =
+      dto.label !== null &&
+      dto.label !== undefined &&
+      dto.label.trim().length > 0
+        ? dto.label.trim()
+        : null;
+
+    const encryptedLabel = normalizedLabel
+      ? await this.identityCryptoService.encryptText(normalizedLabel)
+      : null;
+
     try {
       like = await this.prisma.$transaction(async (tx) => {
         let persistedLike: CreateLikeResult;
@@ -451,7 +462,7 @@ export class LikesService extends BaseService {
             data: {
               intent: dto.intent,
               status: LikeStatus.PENDING,
-              label: dto.label ?? null,
+              label: encryptedLabel,
               expiresAt,
               deletedAt: null,
             },
@@ -483,7 +494,7 @@ export class LikesService extends BaseService {
               targetIdentityId,
               intent: dto.intent,
               status: LikeStatus.PENDING,
-              label: dto.label ?? null,
+              label: encryptedLabel,
               expiresAt,
             },
             select: {
@@ -574,7 +585,7 @@ export class LikesService extends BaseService {
       new LikeSentEvent(
         userId,
         targetIdentity.publicValueMasked ?? '',
-        dto.label ?? null,
+        normalizedLabel,
         dto.intent,
         like.expiresAt,
       ),
@@ -776,12 +787,16 @@ export class LikesService extends BaseService {
       ...ctx,
     });
 
+    const decryptedLabel = await this.identityCryptoService.decryptText(
+      like.label,
+    );
+
     this.eventEmitter.emit(
       LIKE_WITHDRAWN_EVENT,
       new LikeWithdrawnEvent(
         userId,
         like.targetIdentity?.publicValueMasked ?? '',
-        like.label ?? null,
+        decryptedLabel,
       ),
     );
 
@@ -807,10 +822,11 @@ export class LikesService extends BaseService {
     dto: UpdateLikeLabelRequestDto,
   ) {
     const ctx = { likeId: id, userId };
+    const hasLabel = dto.label !== null && dto.label !== undefined;
     this.logger.log('Like label update started', {
       ...ctx,
       step: 'init',
-      hasLabel: dto.label !== null && dto.label !== undefined,
+      hasLabel,
     });
 
     const like = await this.prisma.like.findFirst({
@@ -831,13 +847,24 @@ export class LikesService extends BaseService {
       currentStatus: like.status,
     });
 
+    const normalizedLabel =
+      dto.label !== null &&
+      dto.label !== undefined &&
+      dto.label.trim().length > 0
+        ? dto.label.trim()
+        : null;
+
+    const encryptedLabel = normalizedLabel
+      ? await this.identityCryptoService.encryptText(normalizedLabel)
+      : null;
+
     // Deliberately allow label updates on any non-deleted status (PENDING, MATCHED, VOIDED)
     // so the user can always personalise their history
     let updated;
     try {
       updated = await this.prisma.like.update({
         where: { id },
-        data: { label: dto.label ?? null },
+        data: { label: encryptedLabel },
         select: LIKE_SELECT,
       });
       this.logger.debug('Like label record updated', {
@@ -855,7 +882,7 @@ export class LikesService extends BaseService {
 
     this.logger.event(LOG_EVENT.LIKE_LABEL_UPDATED, {
       ...ctx,
-      labelCleared: dto.label === null || dto.label === undefined,
+      labelCleared: normalizedLabel === null,
     });
     return this.attachPublicValue(updated);
   }
@@ -905,16 +932,19 @@ export class LikesService extends BaseService {
   }
 
   /**
-   * Delegates publicValue decryption to IdentitiesService (which owns that responsibility)
-   * and attaches the result to the targetIdentity shape returned to the controller.
+   * Delegates publicValue decryption to IdentitiesService and label decryption
+   * to IdentityCryptoService, returning the enriched like shape with decrypted
+   * fields attached for the caller.
    */
   private async attachPublicValue<T extends RawLike>(like: T) {
-    const publicValue = await this.identitiesService.getDecryptedPublicValue(
-      like.targetIdentity.id,
-    );
+    const [publicValue, decryptedLabel] = await Promise.all([
+      this.identitiesService.getDecryptedPublicValue(like.targetIdentity.id),
+      this.identityCryptoService.decryptText(like.label),
+    ]);
 
     return {
       ...like,
+      label: decryptedLabel,
       targetIdentity: {
         ...like.targetIdentity,
         publicValue,

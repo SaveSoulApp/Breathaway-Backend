@@ -9,6 +9,7 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -66,6 +67,7 @@ export class MatchesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -163,8 +165,12 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
+    const data = await Promise.all(
+      matches.map((match) => this.mapToResponseDto(match, userId)),
+    );
+
     return {
-      data: matches.map((match) => this.mapToResponseDto(match, userId)),
+      data,
       meta: {
         page,
         limit,
@@ -257,7 +263,7 @@ export class MatchesService extends BaseService {
       step: 'complete',
     });
 
-    return this.mapToResponseDto(match, userId);
+    return await this.mapToResponseDto(match, userId);
   }
 
   /**
@@ -413,11 +419,15 @@ export class MatchesService extends BaseService {
     return false;
   }
 
-  private mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
+  private async mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
     const myLike = isUserOne ? match.likeOne : match.likeTwo;
+
+    const decryptedLabel = myLike?.label
+      ? await this.identityCryptoService.decryptText(myLike.label)
+      : null;
 
     return {
       id: match.id,
@@ -436,7 +446,7 @@ export class MatchesService extends BaseService {
         firstName: otherUser.profile?.firstName,
         lastName: otherUser.profile?.lastName,
         gender: otherUser.profile?.gender ?? null,
-        label: myLike?.label ?? null,
+        label: decryptedLabel,
       },
     };
   }
