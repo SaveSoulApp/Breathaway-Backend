@@ -165,8 +165,31 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
+    const currentUserProfile = matches[0]
+      ? matches[0].userOneId === userId
+        ? matches[0].userOne.profile
+        : matches[0].userTwo.profile
+      : null;
+
+    const [myFirstName, myLastName] = currentUserProfile
+      ? await Promise.all([
+          currentUserProfile.firstName
+            ? this.identityCryptoService.decryptText(
+                currentUserProfile.firstName,
+              )
+            : Promise.resolve(null),
+          currentUserProfile.lastName
+            ? this.identityCryptoService.decryptText(
+                currentUserProfile.lastName,
+              )
+            : Promise.resolve(null),
+        ])
+      : [null, null];
+
     const data = await Promise.all(
-      matches.map((match) => this.mapToResponseDto(match, userId)),
+      matches.map((match) =>
+        this.mapToResponseDto(match, userId, myFirstName, myLastName),
+      ),
     );
 
     return {
@@ -419,11 +442,19 @@ export class MatchesService extends BaseService {
     return false;
   }
 
-  private async mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
+  private async mapToResponseDto(
+    match: MatchWithUsers,
+    currentUserId: string,
+    cachedMyFirstName?: string | null,
+    cachedMyLastName?: string | null,
+  ) {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
     const myLike = isUserOne ? match.likeOne : match.likeTwo;
+
+    const shouldDecryptMe =
+      cachedMyFirstName === undefined && cachedMyLastName === undefined;
 
     const [
       decryptedLabel,
@@ -435,12 +466,12 @@ export class MatchesService extends BaseService {
       myLike?.label
         ? this.identityCryptoService.decryptText(myLike.label)
         : Promise.resolve(null),
-      me.profile?.firstName
+      shouldDecryptMe && me.profile?.firstName
         ? this.identityCryptoService.decryptText(me.profile.firstName)
-        : Promise.resolve(null),
-      me.profile?.lastName
+        : Promise.resolve(cachedMyFirstName ?? null),
+      shouldDecryptMe && me.profile?.lastName
         ? this.identityCryptoService.decryptText(me.profile.lastName)
-        : Promise.resolve(null),
+        : Promise.resolve(cachedMyLastName ?? null),
       otherUser.profile?.firstName
         ? this.identityCryptoService.decryptText(otherUser.profile.firstName)
         : Promise.resolve(null),
