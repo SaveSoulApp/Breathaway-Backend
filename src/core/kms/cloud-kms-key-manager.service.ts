@@ -170,9 +170,9 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
     plaintextKey: Buffer,
   ): void {
     if (this.unwrappedKeyCache.size >= CloudKmsKeyManager.MAX_CACHE_SIZE) {
-      const firstKey = this.unwrappedKeyCache.keys().next().value;
-      if (firstKey) {
-        this.unwrappedKeyCache.delete(firstKey);
+      for (const key of this.unwrappedKeyCache.keys()) {
+        this.unwrappedKeyCache.delete(key);
+        break;
       }
     }
     const cacheKey = this.getCacheKey(wrappedKey, keyId);
