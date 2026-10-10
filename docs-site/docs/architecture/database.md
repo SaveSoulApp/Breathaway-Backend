@@ -150,12 +150,12 @@ model UserSession {
 
 ### Index Purpose & Query Path Matrix
 
-| Index | Type | Hot-Path Query Purpose |
-| :--- | :--- | :--- |
-| `jti` | B-Tree (`@unique`) | $O(1)$ token lookup during `/api/v1/auth/refresh`. |
-| `tokenHash` | B-Tree (`@unique`) | Prevents duplicate hash collisions; enables forensic hash verification. |
-| `[userId]` | B-Tree (`@@index`) | Enables instant revocation of all user sessions during global signout or account deletion (`onDelete: Cascade`). |
-| `[familyId]` | B-Tree (`@@index`) | Accelerates targeted single-device signouts and instant lineage invalidation during RFC 6819 token reuse breach containment. |
+| Index         | Type               | Hot-Path Query Purpose                                                                                                         |
+| :------------ | :----------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `jti`         | B-Tree (`@unique`) | $O(1)$ token lookup during `/api/v1/auth/refresh`.                                                                             |
+| `tokenHash`   | B-Tree (`@unique`) | Prevents duplicate hash collisions; enables forensic hash verification.                                                        |
+| `[userId]`    | B-Tree (`@@index`) | Enables instant revocation of all user sessions during global signout or account deletion (`onDelete: Cascade`).               |
+| `[familyId]`  | B-Tree (`@@index`) | Accelerates targeted single-device signouts and instant lineage invalidation during RFC 6819 token reuse breach containment.   |
 | `[expiresAt]` | B-Tree (`@@index`) | Powers index-only scans for the weekly Cloud Scheduler data hygiene job (`POST /api/v1/internal/jobs/purge-expired-sessions`). |
 
 ---
@@ -183,6 +183,25 @@ sequenceDiagram
     DB-->>Service: Commit Transaction
     Service-->>Client: Updated Balance & Ledger Reference
 ```
+
+---
+
+## 🔐 Field-Level Envelope Encryption (FLE) for PII
+
+Beyond database-level encryption at rest (Cloud SQL AES-256), BreathAway enforces **Application-Layer Envelope Encryption** via Google Cloud KMS to eliminate exposure risks in database dumps, analytical replicas, and logging pipelines:
+
+| Entity / Column                                                  | Strategy                    | Cipher Details                                                                               | Decryption Context                                                                    |
+| :--------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
+| **`Identity`** (`publicValueCiphertext`, `platformIdCiphertext`) | Dedicated Envelope Columns  | AES-256-GCM data key wrapped by Cloud KMS; deterministic HMAC `publicValueHash` for indexing | Transparently resolved by `IdentitiesService` during authenticated profile resolution |
+| **`Like.label`**                                                 | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted on the fly by `LikesService.attachPublicValue` and `MatchesService`         |
+
+### Why Like Labels are Encrypted
+
+Personal annotations on likes (e.g. _"Angela from gym"_) act as an indirect identifier or side-channel that could otherwise deanonymize target identities even when contact details are encrypted. Storing labels with envelope encryption ensures:
+
+1. **Side-Channel Elimination**: Raw database inspection cannot reveal real-world names associated with target identities.
+2. **GDPR Compliance**: Prevents unconsented third-party PII storage and shields special category relationship data (GDPR Articles 6, 9, 32, and 34).
+3. **Strict Validation**: Unencrypted strings are rejected on read, guaranteeing zero plaintext leakage at rest.
 
 ---
 

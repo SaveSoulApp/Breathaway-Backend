@@ -61,6 +61,20 @@ Identity
    - Query: `SELECT * FROM Identity WHERE publicValueHash = 'target_hash'`.
    - If found, it fetches the record. If it needs the readable value, it decrypts it using the wrapped key and KMS.
 
+### 🔐 Compact Field-Level Envelope Encryption
+
+In addition to multi-column entity encryption for `Identity`, `IdentityCryptoService` provides serialized, single-column envelope encryption for sensitive annotations and metadata across the platform (such as `Like.label`):
+
+- **`encryptText(text: string): Promise<string>`**:
+  Generates an ephemeral AES-256 data key, wraps it via GCP Cloud KMS, encrypts the plaintext using AES-256-GCM, and formats the output into a single string:
+  ```text
+  enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>
+  ```
+- **`decryptText(value?: string | null): Promise<string | null>`**:
+  Strictly validates the `enc:v1:` prefix, unwraps the ephemeral key using KMS, verifies the authentication tag, and decrypts the ciphertext. Rejects unencrypted data with a warning to ensure zero plaintext leakage.
+- **`isEncryptedText(value?: string | null): boolean`**:
+  Validates if a value conforms to the canonical `enc:v1:` encryption format.
+
 ---
 
 ## 🧠 Business Logic & Core Concepts
