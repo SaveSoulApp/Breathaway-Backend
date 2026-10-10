@@ -5,6 +5,7 @@ import { Notification, Prisma } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PreferencesService } from '@modules/preferences/preferences.service';
@@ -65,6 +66,7 @@ export class NotificationsService extends BaseService {
     private readonly emailService: EmailService,
     private readonly whatsAppProvider: WhatsAppProviderService,
     private readonly preferencesService: PreferencesService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(loggerService);
   }
@@ -205,9 +207,12 @@ export class NotificationsService extends BaseService {
           select: { firstName: true },
         });
         if (profile?.firstName) {
+          const decryptedName = await this.identityCryptoService.decryptText(
+            profile.firstName,
+          );
           dto.payload = {
             ...(dto.payload ?? {}),
-            name: profile.firstName,
+            name: decryptedName ?? profile.firstName,
           };
         }
       } catch (err) {

@@ -17,6 +17,7 @@ describe('NotificationRecipientResolverService', () => {
   };
   let mockCryptoService: {
     decryptPublicValue: jest.Mock;
+    decryptText: jest.Mock;
   };
 
   const mockContextualLogger = {
@@ -59,6 +60,14 @@ describe('NotificationRecipientResolverService', () => {
 
     mockCryptoService = {
       decryptPublicValue: jest.fn(),
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(val);
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({

@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
+
 import { BlocksController } from './blocks.controller';
 import { BlocksService } from './blocks.service';
 
@@ -9,6 +12,7 @@ import { BlocksService } from './blocks.service';
  * `isBlocked()` to gate interactions between users without importing the full module.
  */
 @Module({
+  imports: [IdentityCryptoModule],
   controllers: [BlocksController],
   providers: [BlocksService],
   exports: [BlocksService],

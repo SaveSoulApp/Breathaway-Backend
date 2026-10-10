@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { IpGeolocationModule } from '@infrastructure/ip-geolocation';
 import { CreditsModule } from '@modules/credits/credits.module';
 import { IdentitiesModule } from '@modules/identities/identities.module';
@@ -24,6 +25,7 @@ import { PaymentsService } from './payments.service';
  *   `countryCode` on their `User` row.
  * - `IdentitiesModule`: `IdentitiesService` resolves and decrypts the user's verified
  *   phone number for gateway checkout prefill.
+ * - `IdentityCryptoModule`: decrypts user profile firstName for checkout prefill.
  *
  * ## Exports
  * - `PaymentsService`: exported so `WebhooksModule` can call `fulfil()` from the
@@ -36,6 +38,7 @@ import { PaymentsService } from './payments.service';
     TransactionsModule,
     IpGeolocationModule,
     IdentitiesModule,
+    IdentityCryptoModule,
   ],
   controllers: [PaymentsController],
   providers: [

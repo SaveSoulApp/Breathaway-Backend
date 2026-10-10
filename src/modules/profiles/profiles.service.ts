@@ -4,6 +4,7 @@ import { Prisma, UserProfile } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -12,12 +13,12 @@ import {
   ProfileAlreadyExistsException,
   ProfileNotFoundException,
 } from './application/exceptions';
-import { USER_DELETED_EVENT, UserDeletedEvent } from './events';
 import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
   UpdateProfileRequestDto,
 } from './dto';
+import { USER_DELETED_EVENT, UserDeletedEvent } from './events';
 
 /**
  * Owns the business logic for user profile lifecycle — creation, retrieval,
@@ -33,6 +34,7 @@ export class ProfilesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -44,11 +46,12 @@ export class ProfilesService extends BaseService {
    * Enforces a one-profile-per-user constraint by querying before inserting.
    * An ISO 8601 `dateOfBirth` string, if provided, is parsed to a `Date`
    * object before persistence — raw string storage is intentionally avoided.
+   * Encrypts sensitive PII (firstName, lastName) using AES-256-GCM envelope encryption.
    *
    * @param userId - ULID of the authenticated user who owns this profile.
    * @param createProfileDto - Display name, date of birth, and any other
    *                           initial profile fields.
-   * @returns The newly persisted `UserProfile` record.
+   * @returns The newly persisted `UserProfile` record with decrypted fields.
    * @throws {ConflictException} When a profile already exists for the given user.
    */
   async createProfile(
@@ -76,10 +79,23 @@ export class ProfilesService extends BaseService {
     });
 
     try {
+      const [encryptedFirstName, encryptedLastName] = await Promise.all([
+        this.identityCryptoService.encryptText(
+          createProfileDto.firstName.trim(),
+        ),
+        createProfileDto.lastName?.trim()
+          ? this.identityCryptoService.encryptText(
+              createProfileDto.lastName.trim(),
+            )
+          : Promise.resolve(null),
+      ]);
+
       const profile = await this.prisma.userProfile.create({
         data: {
           userId,
           ...createProfileDto,
+          firstName: encryptedFirstName,
+          lastName: encryptedLastName,
           dateOfBirth: createProfileDto.dateOfBirth
             ? DateUtil.parse(createProfileDto.dateOfBirth)
             : null,
@@ -101,7 +117,7 @@ export class ProfilesService extends BaseService {
         ...ctx,
         profileId: profile.id,
       });
-      return profile;
+      return this.decryptProfile(profile);
     } catch (error) {
       this.logger.error('Failed to create profile', {
         ...ctx,
@@ -136,12 +152,14 @@ export class ProfilesService extends BaseService {
       throw new ProfileNotFoundException(userId);
     }
 
+    const decryptedProfile = await this.decryptProfile(profile);
+
     this.logger.debug('Profile fetched successfully', {
       ...ctx,
       step: 'complete',
       profileId: profile.id,
     });
-    return profile;
+    return decryptedProfile;
   }
 
   /**
@@ -168,12 +186,14 @@ export class ProfilesService extends BaseService {
       throw new ProfileNotFoundException(id);
     }
 
+    const decryptedProfile = await this.decryptProfile(profile);
+
     this.logger.debug('Profile fetched successfully', {
       ...ctx,
       step: 'complete',
       userId: profile.userId,
     });
-    return profile;
+    return decryptedProfile;
   }
 
   /**
@@ -183,11 +203,12 @@ export class ProfilesService extends BaseService {
    * an optional field sets it to its default, not its current value.
    * An ISO 8601 `dateOfBirth` string is converted to a `Date` before the
    * update; omitting it explicitly sets the column to `null`.
+   * Encrypts firstName and lastName using AES-256-GCM envelope encryption.
    * Emits a `PROFILE_UPDATED` audit event on success.
    *
    * @param userId - ULID of the authenticated user whose profile to replace.
    * @param updateProfileDto - Complete new field values for the profile.
-   * @returns The updated `UserProfile` record.
+   * @returns The updated `UserProfile` record with decrypted fields.
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async updateProfile(
@@ -214,14 +235,30 @@ export class ProfilesService extends BaseService {
     });
 
     try {
+      const data: Prisma.UserProfileUpdateInput = {
+        ...updateProfileDto,
+        dateOfBirth: updateProfileDto.dateOfBirth
+          ? DateUtil.parse(updateProfileDto.dateOfBirth)
+          : null,
+      };
+
+      if (updateProfileDto.firstName !== undefined) {
+        data.firstName = await this.identityCryptoService.encryptText(
+          updateProfileDto.firstName.trim(),
+        );
+      }
+
+      if (updateProfileDto.lastName !== undefined) {
+        data.lastName = updateProfileDto.lastName?.trim()
+          ? await this.identityCryptoService.encryptText(
+              updateProfileDto.lastName.trim(),
+            )
+          : null;
+      }
+
       const updatedProfile = await this.prisma.userProfile.update({
         where: { userId },
-        data: {
-          ...updateProfileDto,
-          dateOfBirth: updateProfileDto.dateOfBirth
-            ? DateUtil.parse(updateProfileDto.dateOfBirth)
-            : null,
-        },
+        data,
       });
 
       this.logger.debug('Profile record updated', {
@@ -240,7 +277,7 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: updatedProfile.id,
       });
-      return updatedProfile;
+      return this.decryptProfile(updatedProfile);
     } catch (error) {
       this.logger.error('Failed to update profile', {
         ...ctx,
@@ -261,7 +298,7 @@ export class ProfilesService extends BaseService {
    *
    * @param userId - ULID of the authenticated user whose profile to patch.
    * @param patchProfileDto - Subset of profile fields to overwrite.
-   * @returns The patched `UserProfile` record.
+   * @returns The patched `UserProfile` record with decrypted fields.
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async patchProfile(
@@ -292,6 +329,18 @@ export class ProfilesService extends BaseService {
     if (patchProfileDto.dateOfBirth) {
       data.dateOfBirth = DateUtil.parse(patchProfileDto.dateOfBirth);
     }
+    if (patchProfileDto.firstName !== undefined) {
+      data.firstName = await this.identityCryptoService.encryptText(
+        patchProfileDto.firstName.trim(),
+      );
+    }
+    if (patchProfileDto.lastName !== undefined) {
+      data.lastName = patchProfileDto.lastName?.trim()
+        ? await this.identityCryptoService.encryptText(
+            patchProfileDto.lastName.trim(),
+          )
+        : null;
+    }
 
     try {
       const patchedProfile = await this.prisma.userProfile.update({
@@ -315,7 +364,7 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: patchedProfile.id,
       });
-      return patchedProfile;
+      return this.decryptProfile(patchedProfile);
     } catch (error) {
       this.logger.error('Failed to patch profile', {
         ...ctx,
@@ -420,6 +469,28 @@ export class ProfilesService extends BaseService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Decrypts encrypted PII fields (firstName, lastName) on a UserProfile record.
+   * If a field was not encrypted (e.g. legacy/mock data), falls back gracefully.
+   *
+   * @param profile - The raw UserProfile database record.
+   * @returns The UserProfile record with decrypted plaintext fields.
+   */
+  private async decryptProfile(profile: UserProfile): Promise<UserProfile> {
+    const [decryptedFirstName, decryptedLastName] = await Promise.all([
+      this.identityCryptoService.decryptText(profile.firstName),
+      profile.lastName
+        ? this.identityCryptoService.decryptText(profile.lastName)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      ...profile,
+      firstName: decryptedFirstName ?? profile.firstName,
+      lastName: decryptedLastName ?? profile.lastName,
+    };
   }
 
   /**

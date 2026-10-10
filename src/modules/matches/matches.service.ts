@@ -425,9 +425,29 @@ export class MatchesService extends BaseService {
     const otherUser = isUserOne ? match.userTwo : match.userOne;
     const myLike = isUserOne ? match.likeOne : match.likeTwo;
 
-    const decryptedLabel = myLike?.label
-      ? await this.identityCryptoService.decryptText(myLike.label)
-      : null;
+    const [
+      decryptedLabel,
+      myFirstName,
+      myLastName,
+      otherFirstName,
+      otherLastName,
+    ] = await Promise.all([
+      myLike?.label
+        ? this.identityCryptoService.decryptText(myLike.label)
+        : Promise.resolve(null),
+      me.profile?.firstName
+        ? this.identityCryptoService.decryptText(me.profile.firstName)
+        : Promise.resolve(null),
+      me.profile?.lastName
+        ? this.identityCryptoService.decryptText(me.profile.lastName)
+        : Promise.resolve(null),
+      otherUser.profile?.firstName
+        ? this.identityCryptoService.decryptText(otherUser.profile.firstName)
+        : Promise.resolve(null),
+      otherUser.profile?.lastName
+        ? this.identityCryptoService.decryptText(otherUser.profile.lastName)
+        : Promise.resolve(null),
+    ]);
 
     return {
       id: match.id,
@@ -437,14 +457,14 @@ export class MatchesService extends BaseService {
       theirIntent: isUserOne ? match.intentTwo : match.intentOne,
       me: {
         id: me.id,
-        firstName: me.profile?.firstName,
-        lastName: me.profile?.lastName,
+        firstName: myFirstName ?? me.profile?.firstName,
+        lastName: myLastName ?? me.profile?.lastName,
         gender: me.profile?.gender ?? null,
       },
       otherUser: {
         id: otherUser.id,
-        firstName: otherUser.profile?.firstName,
-        lastName: otherUser.profile?.lastName,
+        firstName: otherFirstName ?? otherUser.profile?.firstName,
+        lastName: otherLastName ?? otherUser.profile?.lastName,
         gender: otherUser.profile?.gender ?? null,
         label: decryptedLabel,
       },

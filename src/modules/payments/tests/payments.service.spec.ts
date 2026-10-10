@@ -11,6 +11,7 @@ import {
 import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -117,6 +118,17 @@ describe('PaymentsService', () => {
         }),
     };
 
+    const mockIdentityCryptoService = {
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(val);
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
@@ -133,6 +145,10 @@ describe('PaymentsService', () => {
         { provide: RazorpayGateway, useValue: razorpayGatewayMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: LoggerService, useValue: loggerServiceMock },
+        {
+          provide: IdentityCryptoService,
+          useValue: mockIdentityCryptoService,
+        },
       ],
     }).compile();
 

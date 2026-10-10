@@ -14,6 +14,7 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IpGeolocationService } from '@infrastructure/ip-geolocation';
@@ -74,6 +75,7 @@ export class PaymentsService extends BaseService {
     private readonly ipGeolocationService: IpGeolocationService,
     private readonly identitiesService: IdentitiesService,
     private readonly razorpayGateway: RazorpayGateway,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
     this.gatewayMap = new Map([[razorpayGateway.provider, razorpayGateway]]);
@@ -569,8 +571,13 @@ export class PaymentsService extends BaseService {
           : this.identitiesService.getUserPhoneNumber(userId),
       ]);
 
+      const decryptedName = profile?.firstName
+        ? ((await this.identityCryptoService.decryptText(profile.firstName)) ??
+          profile.firstName)
+        : undefined;
+
       return {
-        name: profile?.firstName,
+        name: decryptedName,
         phone: phone ?? undefined,
       };
     } catch (error) {

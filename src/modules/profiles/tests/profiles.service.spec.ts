@@ -1,13 +1,11 @@
-import {
-  ProfileAlreadyExistsException,
-  ProfileNotFoundException,
-} from '../application/exceptions';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
-import { LOG_EVENT, LoggerService } from '@core/logger';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
@@ -15,30 +13,45 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
 import {
+  ProfileAlreadyExistsException,
+  ProfileNotFoundException,
+} from '../application/exceptions';
+import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
   UpdateProfileRequestDto,
 } from '../dto';
 import { ProfilesService } from '../profiles.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('ProfilesService', () => {
   let service: ProfilesService;
   let prisma: MockPrismaService;
   let loggerServiceMock: jest.Mocked<LoggerService>;
+  let identityCryptoServiceMock: jest.Mocked<IdentityCryptoService>;
 
   const userId = 'user-id-123';
   const profileId = 'profile-id-123';
 
-  const mockUserProfile: UserProfile = {
+  const rawDbProfile: UserProfile = {
+    id: profileId,
+    userId,
+    firstName: 'enc:v1:test-key:iv:tag:wrapped:John',
+    lastName: 'enc:v1:test-key:iv:tag:wrapped:Doe',
+    gender: null,
+    dateOfBirth: DateUtil.parse('1990-01-01'),
+    createdAt: DateUtil.now(),
+    updatedAt: DateUtil.now(),
+  };
+
+  const expectedDecryptedProfile: UserProfile = {
     id: profileId,
     userId,
     firstName: 'John',
     lastName: 'Doe',
     gender: null,
     dateOfBirth: DateUtil.parse('1990-01-01'),
-    createdAt: DateUtil.now(),
-    updatedAt: DateUtil.now(),
+    createdAt: rawDbProfile.createdAt,
+    updatedAt: rawDbProfile.updatedAt,
   };
 
   beforeEach(async () => {
@@ -53,6 +66,22 @@ describe('ProfilesService', () => {
       }),
     } as unknown as jest.Mocked<LoggerService>;
 
+    identityCryptoServiceMock = {
+      encryptText: jest
+        .fn()
+        .mockImplementation((val: string) =>
+          Promise.resolve(`enc:v1:test-key:iv:tag:wrapped:${val}`),
+        ),
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(val);
+      }),
+    } as unknown as jest.Mocked<IdentityCryptoService>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ClsService, useValue: { get: jest.fn() } },
@@ -60,6 +89,10 @@ describe('ProfilesService', () => {
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: IdentityCryptoService,
+          useValue: identityCryptoServiceMock,
+        },
       ],
     }).compile();
 
@@ -78,10 +111,10 @@ describe('ProfilesService', () => {
       dateOfBirth: '1990-01-01T00:00:00.000Z',
     };
 
-    it('should successfully create a profile', async () => {
+    it('should successfully create a profile with encrypted names and return decrypted', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(null);
-      prisma.userProfile.create.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.create.mockResolvedValue(rawDbProfile);
 
       // Act
       const result = await service.createProfile(userId, createDto);
@@ -94,10 +127,12 @@ describe('ProfilesService', () => {
         data: {
           userId,
           ...createDto,
+          firstName: 'enc:v1:test-key:iv:tag:wrapped:John',
+          lastName: 'enc:v1:test-key:iv:tag:wrapped:Doe',
           dateOfBirth: DateUtil.parse(createDto.dateOfBirth!),
         },
       });
-      expect(result).toEqual(mockUserProfile);
+      expect(result).toEqual(expectedDecryptedProfile);
     });
 
     it('should successfully create a profile without dateOfBirth', async () => {
@@ -106,10 +141,14 @@ describe('ProfilesService', () => {
         firstName: 'John',
         lastName: 'Doe',
       };
-      const profileWithoutDob = { ...mockUserProfile, dateOfBirth: null };
+      const rawProfileWithoutDob = { ...rawDbProfile, dateOfBirth: null };
+      const expectedWithoutDob = {
+        ...expectedDecryptedProfile,
+        dateOfBirth: null,
+      };
 
       prisma.userProfile.findUnique.mockResolvedValue(null);
-      prisma.userProfile.create.mockResolvedValue(profileWithoutDob);
+      prisma.userProfile.create.mockResolvedValue(rawProfileWithoutDob);
 
       // Act
       const result = await service.createProfile(userId, dtoWithoutDob);
@@ -119,15 +158,17 @@ describe('ProfilesService', () => {
         data: {
           userId,
           ...dtoWithoutDob,
+          firstName: 'enc:v1:test-key:iv:tag:wrapped:John',
+          lastName: 'enc:v1:test-key:iv:tag:wrapped:Doe',
           dateOfBirth: null,
         },
       });
-      expect(result).toEqual(profileWithoutDob);
+      expect(result).toEqual(expectedWithoutDob);
     });
 
     it('should throw ProfileAlreadyExistsException if profile already exists', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
 
       // Act & Assert
       await expect(service.createProfile(userId, createDto)).rejects.toThrow(
@@ -156,9 +197,9 @@ describe('ProfilesService', () => {
   });
 
   describe('getProfileByUserId', () => {
-    it('should return profile if exists', async () => {
+    it('should return decrypted profile if exists', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
 
       // Act
       const result = await service.getProfileByUserId(userId);
@@ -167,7 +208,7 @@ describe('ProfilesService', () => {
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { userId },
       });
-      expect(result).toEqual(mockUserProfile);
+      expect(result).toEqual(expectedDecryptedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -185,9 +226,9 @@ describe('ProfilesService', () => {
   });
 
   describe('getProfileById', () => {
-    it('should return profile if exists', async () => {
+    it('should return decrypted profile if exists', async () => {
       // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
 
       // Act
       const result = await service.getProfileById(profileId);
@@ -196,7 +237,7 @@ describe('ProfilesService', () => {
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { id: profileId },
       });
-      expect(result).toEqual(mockUserProfile);
+      expect(result).toEqual(expectedDecryptedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -220,15 +261,21 @@ describe('ProfilesService', () => {
       dateOfBirth: '1995-01-01T00:00:00.000Z',
     };
 
-    it('should update and return profile if exists', async () => {
+    it('should update with encrypted names and return decrypted profile', async () => {
       // Arrange
-      const updatedProfile = {
-        ...mockUserProfile,
+      const rawUpdatedProfile: UserProfile = {
+        ...rawDbProfile,
+        firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+        dateOfBirth: DateUtil.parse('1995-01-01'),
+      };
+      const expectedUpdatedProfile: UserProfile = {
+        ...expectedDecryptedProfile,
         firstName: 'Jane',
         dateOfBirth: DateUtil.parse('1995-01-01'),
       };
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.update.mockResolvedValue(updatedProfile);
+
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      prisma.userProfile.update.mockResolvedValue(rawUpdatedProfile);
 
       // Act
       const result = await service.updateProfile(userId, updateDto);
@@ -241,10 +288,12 @@ describe('ProfilesService', () => {
         where: { userId },
         data: {
           ...updateDto,
+          firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+          lastName: 'enc:v1:test-key:iv:tag:wrapped:Doe',
           dateOfBirth: DateUtil.parse(updateDto.dateOfBirth!),
         },
       });
-      expect(result).toEqual(updatedProfile);
+      expect(result).toEqual(expectedUpdatedProfile);
     });
 
     it('should handle update without dateOfBirth', async () => {
@@ -253,13 +302,19 @@ describe('ProfilesService', () => {
         firstName: 'Jane',
         lastName: 'Doe',
       };
-      const updatedProfile = {
-        ...mockUserProfile,
+      const rawUpdatedProfile: UserProfile = {
+        ...rawDbProfile,
+        firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+        dateOfBirth: null,
+      };
+      const expectedUpdatedProfile: UserProfile = {
+        ...expectedDecryptedProfile,
         firstName: 'Jane',
         dateOfBirth: null,
       };
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.update.mockResolvedValue(updatedProfile);
+
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      prisma.userProfile.update.mockResolvedValue(rawUpdatedProfile);
 
       // Act
       const result = await service.updateProfile(userId, dtoWithoutDob);
@@ -269,10 +324,12 @@ describe('ProfilesService', () => {
         where: { userId },
         data: {
           ...dtoWithoutDob,
+          firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+          lastName: 'enc:v1:test-key:iv:tag:wrapped:Doe',
           dateOfBirth: null,
         },
       });
-      expect(result).toEqual(updatedProfile);
+      expect(result).toEqual(expectedUpdatedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -289,7 +346,7 @@ describe('ProfilesService', () => {
     it('should log and rethrow an error if update fails', async () => {
       // Arrange
       const dbError = new Error('Database Error');
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
       prisma.userProfile.update.mockRejectedValue(dbError);
 
       // Act & Assert
@@ -307,11 +364,19 @@ describe('ProfilesService', () => {
       firstName: 'Jane',
     };
 
-    it('should patch and return profile if exists', async () => {
+    it('should patch with encrypted name and return decrypted profile', async () => {
       // Arrange
-      const patchedProfile = { ...mockUserProfile, firstName: 'Jane' };
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.update.mockResolvedValue(patchedProfile);
+      const rawPatchedProfile: UserProfile = {
+        ...rawDbProfile,
+        firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+      };
+      const expectedPatchedProfile: UserProfile = {
+        ...expectedDecryptedProfile,
+        firstName: 'Jane',
+      };
+
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      prisma.userProfile.update.mockResolvedValue(rawPatchedProfile);
 
       // Act
       const result = await service.patchProfile(userId, patchDto);
@@ -322,9 +387,12 @@ describe('ProfilesService', () => {
       });
       expect(prisma.userProfile.update).toHaveBeenCalledWith({
         where: { userId },
-        data: { ...patchDto },
+        data: {
+          ...patchDto,
+          firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
+        },
       });
-      expect(result).toEqual(patchedProfile);
+      expect(result).toEqual(expectedPatchedProfile);
     });
 
     it('should handle patching dateOfBirth', async () => {
@@ -332,12 +400,17 @@ describe('ProfilesService', () => {
       const dtoWithDob: PatchProfileRequestDto = {
         dateOfBirth: '1995-01-01T00:00:00.000Z',
       };
-      const patchedProfile = {
-        ...mockUserProfile,
+      const rawPatchedProfile = {
+        ...rawDbProfile,
         dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
       };
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      prisma.userProfile.update.mockResolvedValue(patchedProfile);
+      const expectedPatchedProfile = {
+        ...expectedDecryptedProfile,
+        dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
+      };
+
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      prisma.userProfile.update.mockResolvedValue(rawPatchedProfile);
 
       // Act
       const result = await service.patchProfile(userId, dtoWithDob);
@@ -349,7 +422,7 @@ describe('ProfilesService', () => {
           dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
         },
       });
-      expect(result).toEqual(patchedProfile);
+      expect(result).toEqual(expectedPatchedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -366,7 +439,7 @@ describe('ProfilesService', () => {
     it('should log and rethrow an error if patch fails', async () => {
       // Arrange
       const dbError = new Error('Database Error');
-      prisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
       prisma.userProfile.update.mockRejectedValue(dbError);
 
       // Act & Assert

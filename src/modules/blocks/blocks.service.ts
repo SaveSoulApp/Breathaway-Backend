@@ -4,6 +4,7 @@ import { AuthCredentialType } from '@prisma/client';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -38,6 +39,7 @@ export class BlocksService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -157,7 +159,7 @@ export class BlocksService extends BaseService {
         ...ctx,
         blockId: reactivatedBlock.id,
       });
-      return this.mapToResponseDto(reactivatedBlock);
+      return await this.mapToResponseDto(reactivatedBlock);
     }
 
     // 5. Create new block
@@ -205,7 +207,7 @@ export class BlocksService extends BaseService {
       ...ctx,
       blockId: newBlock.id,
     });
-    return this.mapToResponseDto(newBlock);
+    return await this.mapToResponseDto(newBlock);
   }
 
   /**
@@ -245,7 +247,7 @@ export class BlocksService extends BaseService {
       },
     });
 
-    return blocks.map((block) => this.mapToResponseDto(block));
+    return Promise.all(blocks.map((block) => this.mapToResponseDto(block)));
   }
 
   /**
@@ -285,7 +287,7 @@ export class BlocksService extends BaseService {
       throw new BlockNotFoundException();
     }
 
-    return this.mapToResponseDto(block);
+    return await this.mapToResponseDto(block);
   }
 
   /**
@@ -372,15 +374,27 @@ export class BlocksService extends BaseService {
   }
 
   // Flattens the nested Prisma profile join into the flat BlockedUser shape.
-  private mapToResponseDto(block: BlockWithProfile) {
+  private async mapToResponseDto(block: BlockWithProfile) {
     const isDeleted = !block.blocked;
+    const rawFirst = block.blocked?.profile?.firstName;
+    const rawLast = block.blocked?.profile?.lastName;
+
+    const [decryptedFirst, decryptedLast] = await Promise.all([
+      rawFirst
+        ? this.identityCryptoService.decryptText(rawFirst)
+        : Promise.resolve(null),
+      rawLast
+        ? this.identityCryptoService.decryptText(rawLast)
+        : Promise.resolve(null),
+    ]);
+
     return {
       id: block.id,
       createdAt: block.createdAt,
       blockedUser: {
         id: block.blocked?.id ?? null,
-        firstName: block.blocked?.profile?.firstName ?? 'Deleted User',
-        lastName: block.blocked?.profile?.lastName ?? null,
+        firstName: decryptedFirst ?? rawFirst ?? 'Deleted User',
+        lastName: decryptedLast ?? rawLast ?? null,
         isDeleted,
       },
     };

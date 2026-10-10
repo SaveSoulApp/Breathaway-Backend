@@ -85,14 +85,19 @@ export class NotificationRecipientResolverService extends BaseService {
       if (!cred.identity) continue;
 
       try {
-        const email = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
+        const [email, decryptedFirst] = await Promise.all([
+          this.identityCryptoService.decryptPublicValue(cred.identity),
+          cred.user?.profile?.firstName
+            ? this.identityCryptoService.decryptText(
+                cred.user.profile.firstName,
+              )
+            : Promise.resolve(null),
+        ]);
         if (email && email.trim() !== '') {
           resolvedMap.set(cred.userId, {
             userId: cred.userId,
             email: email.trim().toLowerCase(),
-            firstName: cred.user?.profile?.firstName,
+            firstName: decryptedFirst ?? cred.user?.profile?.firstName,
           });
         }
       } catch (err) {
@@ -141,18 +146,25 @@ export class NotificationRecipientResolverService extends BaseService {
         if (!identity.userId || resolvedMap.has(identity.userId)) continue;
 
         try {
-          const email = await this.identityCryptoService.decryptPublicValue({
-            publicValueCiphertext: identity.publicValueCiphertext,
-            publicValueIv: identity.publicValueIv,
-            publicValueTag: identity.publicValueTag,
-            publicValueWrappedKey: identity.publicValueWrappedKey,
-            publicValueKeyId: identity.publicValueKeyId,
-          });
+          const [email, decryptedFirst] = await Promise.all([
+            this.identityCryptoService.decryptPublicValue({
+              publicValueCiphertext: identity.publicValueCiphertext,
+              publicValueIv: identity.publicValueIv,
+              publicValueTag: identity.publicValueTag,
+              publicValueWrappedKey: identity.publicValueWrappedKey,
+              publicValueKeyId: identity.publicValueKeyId,
+            }),
+            identity.user?.profile?.firstName
+              ? this.identityCryptoService.decryptText(
+                  identity.user.profile.firstName,
+                )
+              : Promise.resolve(null),
+          ]);
           if (email && email.trim() !== '') {
             resolvedMap.set(identity.userId, {
               userId: identity.userId,
               email: email.trim().toLowerCase(),
-              firstName: identity.user?.profile?.firstName,
+              firstName: decryptedFirst ?? identity.user?.profile?.firstName,
             });
           }
         } catch (err) {
@@ -226,16 +238,21 @@ export class NotificationRecipientResolverService extends BaseService {
       if (!cred.identity) continue;
 
       try {
-        const rawPhone = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
+        const [rawPhone, decryptedFirst] = await Promise.all([
+          this.identityCryptoService.decryptPublicValue(cred.identity),
+          cred.user?.profile?.firstName
+            ? this.identityCryptoService.decryptText(
+                cred.user.profile.firstName,
+              )
+            : Promise.resolve(null),
+        ]);
         const formatted = this.formatPhone(rawPhone);
         if (formatted) {
           resolvedMap.set(cred.userId, {
             userId: cred.userId,
             phoneDigits: formatted.phoneDigits,
             e164Formatted: formatted.e164Formatted,
-            firstName: cred.user?.profile?.firstName,
+            firstName: decryptedFirst ?? cred.user?.profile?.firstName,
           });
         }
       } catch (err) {
@@ -281,20 +298,27 @@ export class NotificationRecipientResolverService extends BaseService {
         if (!identity.userId || resolvedMap.has(identity.userId)) continue;
 
         try {
-          const rawPhone = await this.identityCryptoService.decryptPublicValue({
-            publicValueCiphertext: identity.publicValueCiphertext,
-            publicValueIv: identity.publicValueIv,
-            publicValueTag: identity.publicValueTag,
-            publicValueWrappedKey: identity.publicValueWrappedKey,
-            publicValueKeyId: identity.publicValueKeyId,
-          });
+          const [rawPhone, decryptedFirst] = await Promise.all([
+            this.identityCryptoService.decryptPublicValue({
+              publicValueCiphertext: identity.publicValueCiphertext,
+              publicValueIv: identity.publicValueIv,
+              publicValueTag: identity.publicValueTag,
+              publicValueWrappedKey: identity.publicValueWrappedKey,
+              publicValueKeyId: identity.publicValueKeyId,
+            }),
+            identity.user?.profile?.firstName
+              ? this.identityCryptoService.decryptText(
+                  identity.user.profile.firstName,
+                )
+              : Promise.resolve(null),
+          ]);
           const formatted = this.formatPhone(rawPhone);
           if (formatted) {
             resolvedMap.set(identity.userId, {
               userId: identity.userId,
               phoneDigits: formatted.phoneDigits,
               e164Formatted: formatted.e164Formatted,
-              firstName: identity.user?.profile?.firstName,
+              firstName: decryptedFirst ?? identity.user?.profile?.firstName,
             });
           }
         } catch (err) {

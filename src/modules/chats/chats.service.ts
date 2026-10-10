@@ -6,6 +6,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BlocksService } from '@modules/blocks/blocks.service';
@@ -38,6 +39,7 @@ export class ChatsService extends BaseService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly blocksService: BlocksService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -214,10 +216,26 @@ export class ChatsService extends BaseService {
     }[] = [];
     if (otherUserIds.length > 0) {
       try {
-        profiles = await this.prisma.userProfile.findMany({
+        const rawProfiles = await this.prisma.userProfile.findMany({
           where: { userId: { in: otherUserIds } },
           select: { userId: true, firstName: true, lastName: true },
         });
+
+        profiles = await Promise.all(
+          rawProfiles.map(async (p) => {
+            const [decryptedFirst, decryptedLast] = await Promise.all([
+              this.identityCryptoService.decryptText(p.firstName),
+              p.lastName
+                ? this.identityCryptoService.decryptText(p.lastName)
+                : Promise.resolve(null),
+            ]);
+            return {
+              userId: p.userId,
+              firstName: decryptedFirst ?? p.firstName,
+              lastName: decryptedLast ?? p.lastName,
+            };
+          }),
+        );
       } catch (err: unknown) {
         this.logger.error('Failed to fetch user profiles for chat rooms', {
           userId,

@@ -4,6 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from '@modules/auth/events';
@@ -59,12 +60,13 @@ export class NotificationEventsListener extends BaseService {
     loggerService: LoggerService,
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(loggerService);
   }
 
   /**
-   * Resolves the user's first name from UserProfile for greeting copy.
+   * Resolves and decrypts the user's first name from UserProfile for greeting copy.
    */
   private async resolveUserFirstName(userId: string): Promise<string> {
     try {
@@ -72,7 +74,13 @@ export class NotificationEventsListener extends BaseService {
         where: { userId },
         select: { firstName: true },
       });
-      return profile?.firstName ?? '';
+      if (!profile?.firstName) {
+        return '';
+      }
+      const decrypted = await this.identityCryptoService.decryptText(
+        profile.firstName,
+      );
+      return decrypted ?? profile.firstName;
     } catch {
       return '';
     }
@@ -175,12 +183,20 @@ export class NotificationEventsListener extends BaseService {
         select: { userId: true, firstName: true },
       });
 
-      const userOneName =
-        profiles.find((p) => p.userId === event.userOneId)?.firstName ??
-        'someone';
-      const userTwoName =
-        profiles.find((p) => p.userId === event.userTwoId)?.firstName ??
-        'someone';
+      const profileOne = profiles.find((p) => p.userId === event.userOneId);
+      const profileTwo = profiles.find((p) => p.userId === event.userTwoId);
+
+      const [decryptedOne, decryptedTwo] = await Promise.all([
+        profileOne?.firstName
+          ? this.identityCryptoService.decryptText(profileOne.firstName)
+          : Promise.resolve(null),
+        profileTwo?.firstName
+          ? this.identityCryptoService.decryptText(profileTwo.firstName)
+          : Promise.resolve(null),
+      ]);
+
+      const userOneName = decryptedOne ?? profileOne?.firstName ?? 'someone';
+      const userTwoName = decryptedTwo ?? profileTwo?.firstName ?? 'someone';
 
       const userOneDisplayName =
         event.likeOneLabel && event.likeOneLabel.trim() !== ''
