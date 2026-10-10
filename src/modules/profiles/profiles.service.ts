@@ -117,7 +117,11 @@ export class ProfilesService extends BaseService {
         ...ctx,
         profileId: profile.id,
       });
-      return this.decryptProfile(profile);
+      return {
+        ...profile,
+        firstName: createProfileDto.firstName.trim(),
+        lastName: createProfileDto.lastName?.trim() ?? null,
+      };
     } catch (error) {
       this.logger.error('Failed to create profile', {
         ...ctx,
@@ -277,7 +281,25 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: updatedProfile.id,
       });
-      return this.decryptProfile(updatedProfile);
+      const resolvedFirstName =
+        updateProfileDto.firstName !== undefined
+          ? updateProfileDto.firstName.trim()
+          : ((await this.identityCryptoService.decryptText(
+              updatedProfile.firstName,
+            )) ?? '');
+
+      const resolvedLastName =
+        updateProfileDto.lastName !== undefined
+          ? (updateProfileDto.lastName?.trim() ?? null)
+          : ((await this.identityCryptoService.decryptText(
+              updatedProfile.lastName,
+            )) ?? null);
+
+      return {
+        ...updatedProfile,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+      };
     } catch (error) {
       this.logger.error('Failed to update profile', {
         ...ctx,
@@ -364,7 +386,25 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: patchedProfile.id,
       });
-      return this.decryptProfile(patchedProfile);
+      const resolvedFirstName =
+        patchProfileDto.firstName !== undefined
+          ? patchProfileDto.firstName.trim()
+          : ((await this.identityCryptoService.decryptText(
+              patchedProfile.firstName,
+            )) ?? '');
+
+      const resolvedLastName =
+        patchProfileDto.lastName !== undefined
+          ? (patchProfileDto.lastName?.trim() ?? null)
+          : ((await this.identityCryptoService.decryptText(
+              patchedProfile.lastName,
+            )) ?? null);
+
+      return {
+        ...patchedProfile,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+      };
     } catch (error) {
       this.logger.error('Failed to patch profile', {
         ...ctx,
