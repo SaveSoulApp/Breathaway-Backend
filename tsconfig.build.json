@@ -7,7 +7,7 @@
     "**/*spec.ts",
     "prisma.config.ts",
     "prisma",
-    "docs-site",
+    "docs",
     "scripts"
   ]
 }

@@ -19,7 +19,7 @@ Here is a high-level overview of the repository directories:
 ├── scripts/               # Utility shell scripts (e.g. deployment, testing envs setup)
 ├── terraform/             # Terraform infrastructure definition files (GCP resources)
 ├── test/                  # E2E (End-to-End) testing suites and configuration
-├── docs-site/             # Docusaurus documentation website
+├── docs/                  # Docusaurus documentation website
 ├── src/                   # Main NestJS source code directory
 ├── package.json           # Project configurations and npm script shortcuts
 ├── tsconfig.json          # Global TypeScript configuration

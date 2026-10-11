@@ -222,4 +222,4 @@ All exceptions return standard RFC 7807 `application/problem+json` error respons
 - **Token Service**: [`src/modules/chats/services/supabase-auth.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/services/supabase-auth.service.ts)
 - **Domain Exceptions**: [`src/modules/chats/application/exceptions/`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/application/exceptions/)
 - **Room Utilities**: [`src/modules/chats/utils/chats.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/utils/chats.utils.ts)
-- **Realtime Infrastructure Runbook**: [`docs-site/docs/architecture/supabase-realtime.md`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/docs-site/docs/architecture/supabase-realtime.md)
+- **Realtime Infrastructure Runbook**: [`docs/docs/architecture/supabase-realtime.md`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/docs/docs/architecture/supabase-realtime.md)

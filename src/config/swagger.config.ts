@@ -53,10 +53,7 @@ export function setupSwagger(
   applySwaggerBasicAuth(app, configService);
 
   // Serve Docusaurus site statically under /docs
-  app.use(
-    `/${DOCS_PATH}`,
-    express.static(join(process.cwd(), 'docs-site/build')),
-  );
+  app.use(`/${DOCS_PATH}`, express.static(join(process.cwd(), 'docs/build')));
 
   publicApiDocumentation(app);
   adminApiDocumentation(app);

@@ -31,9 +31,9 @@
     "migrate:local": "cross-env OPERATION_MODE=migration pnpm run prisma:dev -- migrate dev",
     "migrate:dev": "cross-env OPERATION_MODE=migration pnpm run prisma:dev -- migrate deploy",
     "migrate:prod": "cross-env OPERATION_MODE=migration pnpm run prisma:prod -- migrate deploy",
-    "docs:start": "pnpm --filter docs-site run start",
-    "docs:build": "pnpm --filter docs-site run build",
-    "docs:serve": "pnpm --filter docs-site run serve"
+    "docs:start": "pnpm --filter docs run start",
+    "docs:build": "pnpm --filter docs run build",
+    "docs:serve": "pnpm --filter docs run serve"
   },
   "dependencies": {
     "@google-cloud/kms": "^5.5.0",
