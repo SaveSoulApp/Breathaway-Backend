@@ -502,6 +502,61 @@ describe('PaymentsService', () => {
       );
     });
 
+    it('should fall back to default country price and gateway when user country has no price', async () => {
+      // Arrange
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        countryCode: 'FR',
+      });
+      (prisma.subscriptionPlan.findFirst as jest.Mock).mockResolvedValue({
+        id: planId,
+        creditsGranted: 10,
+        validityDays: 30,
+      });
+      // First call for 'FR' returns null, second call for default 'IN' returns price
+      (prisma.subscriptionPlanPrice.findFirst as jest.Mock)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        });
+      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
+        gateway: PaymentGateway.RAZORPAY,
+        priority: 1,
+      });
+      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
+        firstName: 'Pierre',
+      });
+      (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
+        id: orderId,
+      });
+
+      // Act
+      const result = await service.createOrder(userId, { planId });
+
+      // Assert
+      expect(result.amount).toBe(49900);
+      expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
+        where: { planId, countryCode: 'FR' },
+        select: expect.any(Object),
+      });
+      expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
+        where: { planId, countryCode: 'IN' },
+        select: expect.any(Object),
+      });
+      expect(prisma.paymentOrder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          currency: 'INR',
+          countryCode: 'IN',
+          amount: 49900,
+        }),
+        select: { id: true },
+      });
+    });
+
     it('should throw GatewayNotAvailableException when no route is available', async () => {
       // Arrange
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({

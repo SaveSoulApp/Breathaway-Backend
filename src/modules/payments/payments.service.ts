@@ -132,7 +132,7 @@ export class PaymentsService extends BaseService {
       now <= planPrice.discountEndsAt,
     );
 
-    const basePrice = planPrice.originalPrice ?? (planPrice as any).price;
+    const basePrice = planPrice.originalPrice;
     const effectivePrice = isDiscountActive
       ? Number(planPrice.discountedPrice)
       : Number(basePrice);
@@ -146,7 +146,10 @@ export class PaymentsService extends BaseService {
     );
 
     // 3. Select gateway via routing table.
-    const gateway = await this.selectGateway(countryCode, amountInSmallestUnit);
+    const gateway = await this.selectGateway(
+      planPrice.countryCode ?? countryCode,
+      amountInSmallestUnit,
+    );
     const adapter = this.gatewayMap.get(gateway.gateway);
 
     if (!adapter) {
@@ -191,7 +194,7 @@ export class PaymentsService extends BaseService {
         originalAmount: originalAmountInSmallestUnit,
         discountAmount: discountAmountInSmallestUnit,
         currency: planPrice.currencyCode,
-        countryCode,
+        countryCode: planPrice.countryCode ?? countryCode,
         gateway: gateway.gateway,
         status: PaymentOrderStatus.PENDING,
         gatewayOrderId: gatewayResult.gatewayOrderId,
@@ -582,7 +585,11 @@ export class PaymentsService extends BaseService {
   }
 
   private async loadPlanPrice(planId: string, countryCode: string) {
-    const price = await this.prisma.subscriptionPlanPrice.findFirst({
+    const defaultCountryCode = (
+      this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
+    ).toUpperCase();
+
+    let price = await this.prisma.subscriptionPlanPrice.findFirst({
       where: { planId, countryCode },
       select: {
         originalPrice: true,
@@ -590,13 +597,29 @@ export class PaymentsService extends BaseService {
         discountStartsAt: true,
         discountEndsAt: true,
         currencyCode: true,
+        countryCode: true,
       },
     });
+
+    if (!price && countryCode !== defaultCountryCode) {
+      price = await this.prisma.subscriptionPlanPrice.findFirst({
+        where: { planId, countryCode: defaultCountryCode },
+        select: {
+          originalPrice: true,
+          discountedPrice: true,
+          discountStartsAt: true,
+          discountEndsAt: true,
+          currencyCode: true,
+          countryCode: true,
+        },
+      });
+    }
 
     if (!price) {
       this.logger.warn('Create order: no price for country', {
         planId,
         countryCode,
+        defaultCountryCode,
         step: 'load_plan_price',
       });
       throw new SubscriptionPlanPriceNotFoundException();
@@ -606,7 +629,11 @@ export class PaymentsService extends BaseService {
   }
 
   private async selectGateway(countryCode: string, amount: number) {
-    const route = await this.prisma.paymentGatewayRoute.findFirst({
+    const defaultCountryCode = (
+      this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
+    ).toUpperCase();
+
+    let route = await this.prisma.paymentGatewayRoute.findFirst({
       where: {
         countryCode,
         enabled: true,
@@ -621,9 +648,27 @@ export class PaymentsService extends BaseService {
       select: { gateway: true, priority: true },
     });
 
+    if (!route && countryCode !== defaultCountryCode) {
+      route = await this.prisma.paymentGatewayRoute.findFirst({
+        where: {
+          countryCode: defaultCountryCode,
+          enabled: true,
+          OR: [{ minAmount: null }, { minAmount: { lte: amount } }],
+          AND: [
+            {
+              OR: [{ maxAmount: null }, { maxAmount: { gte: amount } }],
+            },
+          ],
+        },
+        orderBy: { priority: 'asc' },
+        select: { gateway: true, priority: true },
+      });
+    }
+
     if (!route) {
       this.logger.warn('No gateway route available', {
         countryCode,
+        defaultCountryCode,
         amount,
         step: 'select_gateway',
       });
