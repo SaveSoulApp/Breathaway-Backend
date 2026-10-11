@@ -39,7 +39,7 @@ sequenceDiagram
     Admin->>CLI: export TOKEN=$(gcloud auth print-identity-token)
     CLI->>App: HTTP Request (Authorization: Bearer <TOKEN>)
     App->>Guard: canActivate(context)
-    
+
     Guard->>GoogleJWKS: 1. Cryptographically verify signature & claims (Local/Cached)
     alt Invalid Signature / Expired / Unverified Email
         Guard-->>CLI: 401 Unauthorized
@@ -80,30 +80,34 @@ sequenceDiagram
 
 ## ⚖️ Customer Flow vs. Admin OIDC Flow
 
-| Aspect | Customer / Mobile User Flow | Administrative OIDC Flow |
-| :--- | :--- | :--- |
-| **Authentication Source** | Firebase Auth (Phone OTP, Apple, Google) | Google Accounts (`@gmail.com` or `@mycompany.com`) |
-| **Token Issued By** | BreathAway Backend (Custom JWT Access/Refresh) | Google Accounts (`accounts.google.com` OIDC token) |
-| **Token Lifetime** | 15 minutes (Access) / 14 days (Refresh Token) | 1 hour (Google standard OIDC token) |
+| Aspect                     | Customer / Mobile User Flow                               | Administrative OIDC Flow                                     |
+| :------------------------- | :-------------------------------------------------------- | :----------------------------------------------------------- |
+| **Authentication Source**  | Firebase Auth (Phone OTP, Apple, Google)                  | Google Accounts (`@gmail.com` or `@mycompany.com`)           |
+| **Token Issued By**        | BreathAway Backend (Custom JWT Access/Refresh)            | Google Accounts (`accounts.google.com` OIDC token)           |
+| **Token Lifetime**         | 15 minutes (Access) / 14 days (Refresh Token)             | 1 hour (Google standard OIDC token)                          |
 | **Client Ingress Headers** | `x-api-key`, `x-client-id`, `x-user-agent`, `x-device-id` | `@SkipClientIdentity()` applied (No client headers required) |
-| **Authorization Source** | PostgreSQL database (`User`, `UserRole`) | GCP Project IAM Policy (`roles/owner`, `roles/editor`) |
-| **Revocation** | Deleting session from DB / token rotation | Removing user from GCP Project IAM in GCP Console |
-| **Audit Actor** | Internal User ULID (`sub`) | Verified Google email (`adminEmail: "engineer@company.com"`) |
-| **Audit Log Target** | Application database & standard access logs | GCP Cloud Logging & BigQuery Log Sink |
+| **Authorization Source**   | PostgreSQL database (`User`, `UserRole`)                  | GCP Project IAM Policy (`roles/owner`, `roles/editor`)       |
+| **Revocation**             | Deleting session from DB / token rotation                 | Removing user from GCP Project IAM in GCP Console            |
+| **Audit Actor**            | Internal User ULID (`sub`)                                | Verified Google email (`adminEmail: "engineer@company.com"`) |
+| **Audit Log Target**       | Application database & standard access logs               | GCP Cloud Logging & BigQuery Log Sink                        |
 
 ---
 
 ## 🔍 Audit Logging & BigQuery Integration
 
 ### Why Plaintext Email in Audit Logs?
+
 For internal administrative operations, logging the plaintext email (`adminEmail`) is standard practice across cloud providers (including Google's own Cloud Audit Logs):
-- **Compliance & Non-Repudiation (SOC 2, ISO 27001, PCI-DSS)**: Audit trails must unambiguously answer *who* performed privileged mutations.
+
+- **Compliance & Non-Repudiation (SOC 2, ISO 27001, PCI-DSS)**: Audit trails must unambiguously answer _who_ performed privileged mutations.
 - **Incident Response Speed**: On-call engineers can immediately identify the acting administrator without offline rainbow table lookups.
 - **Low Entropy of Emails**: Raw SHA-256 hashes of known team emails can be easily inverted using rainbow tables, offering a false sense of security.
 - **Access Protection**: Cloud Logging and BigQuery are strictly protected by GCP IAM (`roles/logging.viewer`, `roles/bigquery.dataViewer`).
 
 ### CLS Context Propagation
+
 `AdminOidcAuthGuard` injects identity claims into Continuation-Local Storage (`nestjs-cls`):
+
 - `adminEmail`: The authenticated administrator's email.
 - `adminSub`: Google's immutable user ID.
 - `adminEmailHash`: SHA-256 hash of the email.
@@ -115,6 +119,7 @@ Any service extending [`BaseService`](file:///Users/mohitmalpani/Business/Breath
 ## 💻 Developer & Operator Runbook
 
 ### Generating an Admin Token
+
 ```bash
 # 1. Log in to Google Cloud with your authorized account
 gcloud auth login
@@ -127,12 +132,14 @@ export TOKEN=$(gcloud auth print-identity-token)
 > Do **not** use the `--audiences` flag with `gcloud auth print-identity-token` for human accounts. `--audiences` is restricted to service accounts. Omitting it generates a token targeted to the Google Cloud SDK client ID (`32555940559.apps.googleusercontent.com`), which `AdminOidcAuthGuard` natively accepts.
 
 ### Using Swagger UI
+
 1. Navigate to `/api/docs/admin` in your browser.
 2. Click **Authorize** at the top right.
 3. Paste the token into the **`gcp-oidc (http, Bearer)`** input field.
 4. Execute operations interactively.
 
 ### GCP Project Configuration Requirements
+
 1. **Enable Cloud Resource Manager API**:
    ```bash
    gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
@@ -151,12 +158,14 @@ export TOKEN=$(gcloud auth print-identity-token)
 ## 🛠 File & Class Definitions
 
 ### Guards
+
 - **[`AdminOidcAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-oidc-auth.guard.ts)**: Primary guard enforcing Google OIDC verification and dynamic GCP IAM authorization.
 - **[`AdminBasicAuthGuard`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/guards/admin-basic-auth.guard.ts)**: Backward-compatible adapter extending `AdminOidcAuthGuard`.
 
 ### Controllers Protected by Admin OIDC
+
 - **[`AdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/admin.controller.ts)**: User account deletion, manual credit adjustments, and developer test authentication (`/api/v1/admin/*`, `/api/v1/admin/dev-login`).
-- **[`SubscriptionsAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/subscriptions/subscriptions-admin.controller.ts)**: Subscription plan and pricing catalog (`/api/v1/admin/subscriptions/*`).
+- **[`SubscriptionsAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/subscriptions/subscriptions-admin.controller.ts)**: Subscription plan, localized geo-pricing, promotional windows, and temporal audit history catalog (`/api/v1/admin/subscriptions/*`). See the detailed [Subscription Plans & Pricing Admin Guide](./subscription-plans-admin.md).
 - **[`PaymentRoutesAdminController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/payments/payment-routes-admin.controller.ts)**: Dynamic payment routing and circuit breaker switches (`/api/v1/admin/payments/routes/*`).
 - **[`SocialIdentitiesController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/social-identities/social-identities.controller.ts)**: Social identity verification (`/api/v1/social-identities/*`).
 - **[`TransactionsController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/transactions/transactions.controller.ts)**: Platform-wide ledger read surface (`/api/v1/admin/transactions/*`).
@@ -165,4 +174,5 @@ export TOKEN=$(gcloud auth print-identity-token)
 - **[`ReportsController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/reports/reports.controller.ts)**: Overall platform metrics and reporting (`/api/v1/reports/*`).
 
 ### Services
+
 - **[`AdminService`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/admin/admin.service.ts)**: Core administrative business logic (cascading soft-deletions, device deactivations).

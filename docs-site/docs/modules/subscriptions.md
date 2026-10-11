@@ -13,6 +13,7 @@ The `SubscriptionsModule` manages plan configurations, user subscriptions, and b
 - **Plan Configuration**: Serves plan definitions (validity, pricing, trial periods, and granted credits).
 - **Billing State Tracking**: Stores user subscriptions and parses updates from store platforms.
 - **Auto-Renewal Execution**: Grants credit balances to users automatically upon subscription renewal logs.
+- **Administrative Pricing & Governance**: Managed via the dedicated [Subscription Plans & Pricing Admin Guide](./subscription-plans-admin.md).
 
 ---
 
