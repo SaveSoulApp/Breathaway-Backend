@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -77,4 +78,14 @@ export class QueryPriceHistoryRequestDto {
   @Min(1)
   @Max(200)
   limit?: number = 100;
+
+  @ApiPropertyOptional({
+    description: 'Chronological sort order by effectiveFrom',
+    enum: ['asc', 'desc'],
+    default: 'desc',
+    example: 'desc',
+  })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc' = 'desc';
 }

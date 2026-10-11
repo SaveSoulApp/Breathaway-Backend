@@ -220,30 +220,40 @@ describe('SubscriptionsAdminController', () => {
         startDate: '2026-01-01T00:00:00Z',
         endDate: '2026-04-30T23:59:59Z',
       };
-      const mockHistory = [
-        {
-          id: 'hist-1',
-          priceId,
-          planId,
-          countryCode: 'IN',
-          currencyCode: CurrencyCode.INR,
-          originalPrice: 399,
-          discountedPrice: null,
-          effectiveFrom: new Date('2026-01-01T00:00:00Z'),
-          effectiveTo: null,
-          changeType: 'INITIAL_PRICE',
-          changedByUserId: 'system',
-          createdAt: new Date('2026-01-01T00:00:00Z'),
+      const mockPaginatedHistory = {
+        data: [
+          {
+            id: 'hist-1',
+            priceId,
+            planId,
+            countryCode: 'IN',
+            currencyCode: CurrencyCode.INR,
+            originalPrice: 399,
+            discountedPrice: null,
+            effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+            effectiveTo: null,
+            changeType: 'INITIAL_PRICE',
+            changedByUserId: 'system',
+            createdAt: new Date('2026-01-01T00:00:00Z'),
+          },
+        ],
+        meta: {
+          page: 1,
+          limit: 100,
+          total: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
         },
-      ];
-      service.getPriceHistory.mockResolvedValue(mockHistory as any);
+      };
+      service.getPriceHistory.mockResolvedValue(mockPaginatedHistory as any);
 
       // Act
       const result = await controller.getPriceHistory(planId, query);
 
       // Assert
       expect(service.getPriceHistory).toHaveBeenCalledWith(planId, query);
-      expect(result).toEqual(mockHistory);
+      expect(result).toEqual(mockPaginatedHistory);
     });
   });
 });

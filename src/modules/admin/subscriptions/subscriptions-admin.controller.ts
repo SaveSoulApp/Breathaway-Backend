@@ -27,8 +27,8 @@ import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard'
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
+  PaginatedSubscriptionPlanPriceHistoryResponseDto,
   QueryPriceHistoryRequestDto,
-  SubscriptionPlanPriceHistoryResponseDto,
   SubscriptionPlanPriceResponseDto,
   SubscriptionPlanResponseDto,
   UpdatePlanPriceRequestDto,
@@ -213,9 +213,9 @@ export class SubscriptionsAdminController extends BaseController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    type: [SubscriptionPlanPriceHistoryResponseDto],
+    type: PaginatedSubscriptionPlanPriceHistoryResponseDto,
   })
-  @SerializeExpose(SubscriptionPlanPriceHistoryResponseDto)
+  @SerializeExpose(PaginatedSubscriptionPlanPriceHistoryResponseDto)
   async getPriceHistory(
     @Param('planId') planId: string,
     @Query() query: QueryPriceHistoryRequestDto,

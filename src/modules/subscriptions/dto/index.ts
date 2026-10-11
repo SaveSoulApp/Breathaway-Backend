@@ -11,6 +11,7 @@ export * from './request/update-plan-price.request.dto';
 export * from './request/verify-purchase.request.dto';
 
 // Response DTOs
+export * from './response/paginated-subscription-plan-price-history.response.dto';
 export * from './response/subscription-plan.response.dto';
 export * from './response/subscription-plan-price.response.dto';
 export * from './response/subscription-plan-price-history.response.dto';

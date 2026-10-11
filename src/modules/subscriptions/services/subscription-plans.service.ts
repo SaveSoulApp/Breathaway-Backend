@@ -970,18 +970,34 @@ export class SubscriptionPlansService extends BaseService {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(200, Math.max(1, query.limit ?? 100));
     const skip = (page - 1) * limit;
+    const sortOrder = query.sortOrder ?? 'desc';
 
-    const history = await this.prisma.subscriptionPlanPriceHistory.findMany({
-      where,
-      orderBy: { effectiveFrom: 'asc' },
-      skip,
-      take: limit,
-    });
+    const [total, history] = await Promise.all([
+      this.prisma.subscriptionPlanPriceHistory.count({ where }),
+      this.prisma.subscriptionPlanPriceHistory.findMany({
+        where,
+        orderBy: { effectiveFrom: sortOrder },
+        skip,
+        take: limit,
+      }),
+    ]);
 
-    return history.map((h) => ({
-      ...h,
-      originalPrice: Number(h.originalPrice),
-      discountedPrice: h.discountedPrice ? Number(h.discountedPrice) : null,
-    }));
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: history.map((h) => ({
+        ...h,
+        originalPrice: Number(h.originalPrice),
+        discountedPrice: h.discountedPrice ? Number(h.discountedPrice) : null,
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 }

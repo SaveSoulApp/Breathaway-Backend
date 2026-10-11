@@ -338,26 +338,23 @@ Administrators and compliance auditors can query the audit history with flexible
 
 #### Query Parameters
 
-| Parameter     | Type      | Required | Description                                                                           |
-| :------------ | :-------- | :------- | :------------------------------------------------------------------------------------ |
-| `countryCode` | `String`  | No       | Filter by ISO 3166-1 alpha-2 country code (e.g., `IN`, `US`).                         |
-| `startDate`   | `ISO8601` | No       | Filter records active on or after this UTC timestamp.                                 |
-| `endDate`     | `ISO8601` | No       | Filter records active on or before this UTC timestamp. Must be `>= startDate`.        |
-| `pointInTime` | `ISO8601` | No       | Reconstruct the exact price configuration that was live at this specific UTC instant. |
-| `page`        | `Integer` | No       | 1-based page index (default: `1`, minimum: `1`).                                      |
-| `limit`       | `Integer` | No       | Maximum items per page (default: `100`, minimum: `1`, maximum: `200`).                |
+| Parameter     | Type      | Required | Description                                                                               |
+| :------------ | :-------- | :------- | :---------------------------------------------------------------------------------------- |
+| `countryCode` | `String`  | No       | Filter by ISO 3166-1 alpha-2 country code (e.g., `IN`, `US`).                             |
+| `startDate`   | `ISO8601` | No       | Filter records active on or after this UTC timestamp.                                     |
+| `endDate`     | `ISO8601` | No       | Filter records active on or before this UTC timestamp. Must be `>= startDate`.            |
+| `pointInTime` | `ISO8601` | No       | Reconstruct the exact price configuration that was live at this specific UTC instant.     |
+| `page`        | `Integer` | No       | 1-based page index (default: `1`, minimum: `1`).                                          |
+| `limit`       | `Integer` | No       | Maximum items per page (default: `100`, minimum: `1`, maximum: `200`).                    |
+| `sortOrder`   | `String`  | No       | Chronological sort order by `effectiveFrom`: `'desc'` (default, latest first) or `'asc'`. |
 
 > [!IMPORTANT]
 > **Date Range Invariant**: If both `startDate` and `endDate` are provided, the system strictly validates `startDate <= endDate`. If an inverted range is supplied (e.g. `startDate=2026-12-01` and `endDate=2026-01-01`), the API immediately rejects the request with HTTP 400 (`InvalidSubscriptionDatesException`).
 
-#### Paginated Response Envelope (`PriceHistoryResponseDto`)
+#### Paginated Response Envelope (`PaginatedSubscriptionPlanPriceHistoryResponseDto`)
 
 ```json
 {
-  "page": 1,
-  "limit": 50,
-  "total": 3,
-  "totalPages": 1,
   "data": [
     {
       "id": "01JM7N89ABCDEF0123456789XY",
@@ -393,7 +390,15 @@ Administrators and compliance auditors can query the audit history with flexible
       "changeReason": "Spring festival promotional discount",
       "createdAt": "2026-04-01T00:00:00.000Z"
     }
-  ]
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 50,
+    "total": 2,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
+  }
 }
 ```
 

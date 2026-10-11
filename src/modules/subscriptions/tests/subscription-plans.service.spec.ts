@@ -969,7 +969,7 @@ describe('SubscriptionPlansService', () => {
 
     it('should fall back to adminEmail from clsService when changedByUserId is not explicitly provided', async () => {
       // Arrange
-      (clsService.get as jest.Mock).mockImplementation((key: string) =>
+      clsService.get.mockImplementation((key: string) =>
         key === 'adminEmail' ? 'admin@example.com' : undefined,
       );
       const dto: CreatePlanPriceRequestDto = {
@@ -1447,6 +1447,7 @@ describe('SubscriptionPlansService', () => {
       ];
 
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.count.mockResolvedValue(2);
       prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue(
         mockHistoryRows as any,
       );
@@ -1459,40 +1460,65 @@ describe('SubscriptionPlansService', () => {
       });
 
       // Assert
+      expect(prisma.subscriptionPlanPriceHistory.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          planId: mockPlan.id,
+          countryCode: 'IN',
+        }),
+      });
       expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
         {
           where: expect.objectContaining({
             planId: mockPlan.id,
             countryCode: 'IN',
           }),
-          orderBy: { effectiveFrom: 'asc' },
+          orderBy: { effectiveFrom: 'desc' },
           skip: 0,
           take: 100,
         },
       );
-      expect(result).toHaveLength(2);
-      expect(result[0].originalPrice).toBe(399);
-      expect(result[1].originalPrice).toBe(499);
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].originalPrice).toBe(399);
+      expect(result.data[1].originalPrice).toBe(499);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 100,
+        total: 2,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
     });
 
-    it('should respect custom page and limit parameters for pagination', async () => {
+    it('should respect custom page, limit, and sortOrder parameters for pagination', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.count.mockResolvedValue(100);
       prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue([]);
 
       // Act
-      await service.getPriceHistory(mockPlan.id, {
+      const result = await service.getPriceHistory(mockPlan.id, {
         page: 3,
         limit: 25,
+        sortOrder: 'asc',
       });
 
       // Assert
       expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          orderBy: { effectiveFrom: 'asc' },
           skip: 50,
           take: 25,
         }),
       );
+      expect(result.meta).toEqual({
+        page: 3,
+        limit: 25,
+        total: 100,
+        totalPages: 4,
+        hasNext: true,
+        hasPrev: true,
+      });
     });
 
     it('should throw InvalidSubscriptionDatesException when startDate is after endDate', async () => {
