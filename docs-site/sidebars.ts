@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'modules/credits',
         'modules/subscriptions',
+        'modules/subscription-plans-admin',
         'modules/payments',
         'modules/webhooks',
         'modules/admin',

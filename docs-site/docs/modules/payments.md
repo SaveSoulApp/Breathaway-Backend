@@ -397,16 +397,43 @@ sequenceDiagram
 
     Svc ->> Prisma: loadActivePlan(planId) [where status: ACTIVE]
     Svc ->> Prisma: loadPlanPrice(planId, countryCode)
+    Note over Svc,Prisma: Fallback: If country price missing, load defaultCountryCode price
+    Svc ->> Svc: Compute effectivePrice, originalAmount, discountAmount
     Svc ->> Prisma: selectGateway(countryCode, amount) [PaymentGatewayRoute query]
+    Note over Svc,Prisma: Fallback: If country route missing, load defaultCountryCode route
 
     Svc ->> Gateway: createOrder({ amount, currency, receipt, userName })
     Gateway -->> Svc: GatewayOrderResult { gatewayOrderId, action }
 
-    Svc ->> Prisma: paymentOrder.create(data: { userId, planId, amount, gateway, status: PENDING })
+    Svc ->> Prisma: paymentOrder.create(data: { userId, planId, amount, originalAmount, discountAmount, gateway, status: PENDING })
     Svc -->> Ctrl: CreateOrderResponseDto
     deactivate Svc
     Ctrl -->> Client: 201 Created { orderId, provider, status, action }
 ```
+
+### 🛡️ The Graceful Checkout Fallback Matrix
+
+To guarantee maximum checkout conversion and prevent international customer drop-off:
+
+1. **Country Resolution Fallback**:
+   - Priority 1: User's profile `countryCode` (from verified phone registration).
+   - Priority 2: Public client IP geolocation via `IpGeolocationService` (IPinfo Lite).
+   - Priority 3: System-level fallback to `DEFAULT_COUNTRY_CODE` (`'IN'`).
+
+2. **Plan Price Regional Fallback**:
+   - If a customer visits from a region (e.g., `DE` or `CA`) that does not yet have an explicit `SubscriptionPlanPrice` row configured in the catalog, `PaymentsService.loadPlanPrice()` automatically falls back to the `defaultCountryCode` (`'IN'`) price row.
+   - The user is billed in the default currency rather than receiving a `404 SubscriptionPlanPriceNotFoundException`.
+
+3. **Payment Gateway Route Regional Fallback**:
+   - If no active, enabled `PaymentGatewayRoute` matches the resolved country and order amount, `PaymentsService.selectGateway()` automatically falls back to the active gateway routes configured for `defaultCountryCode` (`'IN'`).
+   - This prevents `GatewayNotAvailableException` and allows global users to complete checkout via international-capable default gateways (such as Razorpay).
+
+4. **Financial Snapshot & Non-Repudiation**:
+   - When creating `PaymentOrder`, the backend freezes three monetary figures in integer smallest currency units (paise/cents):
+     - `amount`: Final net payable amount submitted to the payment gateway.
+     - `originalAmount`: Regular retail anchor price.
+     - `discountAmount`: Promotional savings (`originalAmount - amount`).
+   - This permanent record guarantees ledger reconciliation and accounting transparency even if marketing changes the plan price later.
 
 ---
 

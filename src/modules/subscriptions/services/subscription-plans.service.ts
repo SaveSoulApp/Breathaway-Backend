@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
+import {
+  CurrencyCode,
+  Prisma,
+  StorePlatform,
+  SubscriptionPlanStatus,
+  SubscriptionPriceChangeType,
+} from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -9,18 +16,92 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { AuditActionType } from '@modules/audit/dto';
 
-import { SubscriptionPlanNotFoundException } from '../application/exceptions';
+import {
+  InvalidPlanPriceException,
+  InvalidSubscriptionDatesException,
+  SubscriptionPlanNotFoundException,
+  SubscriptionPlanPriceNotFoundException,
+} from '../application/exceptions';
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
+  QueryPriceHistoryRequestDto,
+  UpdatePlanPriceRequestDto,
   UpdatePlanRequestDto,
 } from '../dto';
+
+const PLAN_PRICE_SELECT = {
+  id: true,
+  currencyCode: true,
+  countryCode: true,
+  originalPrice: true,
+  discountedPrice: true,
+  discountStartsAt: true,
+  discountEndsAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+function formatPriceForDisplay(
+  price: {
+    id: string;
+    currencyCode: CurrencyCode;
+    countryCode: string;
+    originalPrice: Prisma.Decimal | number;
+    discountedPrice?: Prisma.Decimal | number | null;
+    discountStartsAt?: Date | null;
+    discountEndsAt?: Date | null;
+  },
+  now = new Date(),
+) {
+  const isDiscountActive = Boolean(
+    price.discountedPrice !== null &&
+    price.discountedPrice !== undefined &&
+    price.discountStartsAt &&
+    price.discountEndsAt &&
+    now >= new Date(price.discountStartsAt) &&
+    now <= new Date(price.discountEndsAt),
+  );
+
+  const originalPrice = Number(price.originalPrice);
+  const effectivePrice = isDiscountActive
+    ? Number(price.discountedPrice)
+    : originalPrice;
+
+  let discountPercentage: number | undefined;
+  let savingsAmount: number | undefined;
+
+  if (isDiscountActive && originalPrice > effectivePrice) {
+    savingsAmount = Math.round((originalPrice - effectivePrice) * 100) / 100;
+    discountPercentage = Math.round(
+      ((originalPrice - effectivePrice) / originalPrice) * 100,
+    );
+  }
+
+  return {
+    id: price.id,
+    currencyCode: price.currencyCode,
+    countryCode: price.countryCode,
+    originalPrice,
+    discountedPrice:
+      price.discountedPrice !== null && price.discountedPrice !== undefined
+        ? Number(price.discountedPrice)
+        : null,
+    effectivePrice,
+    price: effectivePrice,
+    isDiscountActive,
+    discountPercentage,
+    savingsAmount,
+    discountStartsAt: price.discountStartsAt ?? null,
+    discountEndsAt: price.discountEndsAt ?? null,
+  };
+}
 
 /**
  * Manages the lifecycle and querying of subscription plans and their localized pricing.
  *
  * Supports creating new tiers, updating existing plan properties, and managing
- * the varying prices across different currency and country combinations.
+ * varying prices across different currency and country combinations with temporal audit history.
  */
 @Injectable()
 export class SubscriptionPlansService extends BaseService {
@@ -29,8 +110,20 @@ export class SubscriptionPlansService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly ipGeolocationService: IpGeolocationService,
+    private readonly clsService?: ClsService,
   ) {
     super(logger);
+  }
+
+  private resolveActorUserId(providedUserId?: string): string {
+    if (providedUserId && providedUserId !== 'system') {
+      return providedUserId;
+    }
+    const clsAdminEmail = this.clsService?.get<string>('adminEmail');
+    if (clsAdminEmail) {
+      return clsAdminEmail;
+    }
+    return providedUserId || 'system';
   }
 
   /**
@@ -40,7 +133,6 @@ export class SubscriptionPlansService extends BaseService {
    */
   async listAllPlans() {
     const plans = await this.prisma.subscriptionPlan.findMany({
-      // Use select instead of include to avoid fetching unused internal columns.
       select: {
         id: true,
         name: true,
@@ -56,18 +148,17 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          select: {
-            id: true,
-            currencyCode: true,
-            price: true,
-            countryCode: true,
-          },
+          select: PLAN_PRICE_SELECT,
         },
       },
       orderBy: { sortOrder: 'asc' },
     });
 
-    return plans;
+    const now = new Date();
+    return plans.map((plan) => ({
+      ...plan,
+      prices: plan.prices.map((p) => formatPriceForDisplay(p, now)),
+    }));
   }
 
   /**
@@ -75,18 +166,10 @@ export class SubscriptionPlansService extends BaseService {
    * with prices localized to the caller's geographic region.
    *
    * Country code resolution hierarchy:
-   * 1. Authenticated user's profile countryCode from User table (if userId provided and countryCode is not null).
-   * 2. Explicit query parameter `countryCode` if provided (e.g. from currency switcher).
-   * 3. Country resolved from client public IP address via IPinfo Lite (if unauthenticated or user country is null).
+   * 1. Authenticated user's profile countryCode from User table.
+   * 2. Explicit query parameter `countryCode` if provided.
+   * 3. Country resolved from client public IP address via IPinfo Lite.
    * 4. Config default `DEFAULT_COUNTRY_CODE` (defaults to 'IN').
-   *
-   * If an active plan lacks a price row for the resolved country, falls back to the default
-   * country price row so plans never render without pricing.
-   *
-   * @param userId - Optional authenticated user ID.
-   * @param clientIp - Optional public IP address of the calling client.
-   * @param countryCode - Optional ISO 3166-1 alpha-2 country code explicitly requested.
-   * @returns Active plans sorted by sortOrder with prices localized for the resolved region.
    */
   async listActivePlans(
     userId?: string | null,
@@ -152,23 +235,19 @@ export class SubscriptionPlansService extends BaseService {
         updatedAt: true,
         prices: {
           where: { countryCode: { in: targetCountries } },
-          select: {
-            id: true,
-            currencyCode: true,
-            price: true,
-            countryCode: true,
-          },
+          select: PLAN_PRICE_SELECT,
         },
       },
       orderBy: { sortOrder: 'asc' },
     });
 
+    const now = new Date();
     return plans.map((plan) => {
       const resolvedPrices = plan.prices.filter(
         (price) => price.countryCode === resolvedCountryCode,
       );
 
-      const activePrices =
+      const rawActivePrices =
         resolvedPrices.length > 0
           ? resolvedPrices
           : plan.prices.filter(
@@ -177,17 +256,13 @@ export class SubscriptionPlansService extends BaseService {
 
       return {
         ...plan,
-        prices: activePrices,
+        prices: rawActivePrices.map((p) => formatPriceForDisplay(p, now)),
       };
     });
   }
 
   /**
    * Fetches a single subscription plan by its internal UUID.
-   *
-   * @param id - Internal UUID of the plan.
-   * @returns The requested plan along with all its configured prices.
-   * @throws {SubscriptionPlanNotFoundException} When no plan is found.
    */
   async getPlanById(id: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
@@ -207,12 +282,7 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          select: {
-            id: true,
-            currencyCode: true,
-            price: true,
-            countryCode: true,
-          },
+          select: PLAN_PRICE_SELECT,
         },
       },
     });
@@ -227,19 +297,15 @@ export class SubscriptionPlansService extends BaseService {
       );
     }
 
-    return plan;
+    const now = new Date();
+    return {
+      ...plan,
+      prices: plan.prices.map((p) => formatPriceForDisplay(p, now)),
+    };
   }
 
   /**
    * Resolves a subscription plan using the store-specific product ID.
-   *
-   * Used heavily during purchase verification and webhook handling to map an Apple
-   * or Google product identifier back to our internal business tier.
-   *
-   * @param platform - The storefront (APPLE or GOOGLE).
-   * @param productId - The product ID registered in the respective storefront.
-   * @returns The internal plan mapped to this product.
-   * @throws {SubscriptionPlanNotFoundException} When no plan is configured for the given product ID.
    */
   async getPlanByStoreProductId(platform: StorePlatform, productId: string) {
     const where =
@@ -264,12 +330,7 @@ export class SubscriptionPlansService extends BaseService {
         createdAt: true,
         updatedAt: true,
         prices: {
-          select: {
-            id: true,
-            currencyCode: true,
-            price: true,
-            countryCode: true,
-          },
+          select: PLAN_PRICE_SELECT,
         },
       },
     });
@@ -285,22 +346,15 @@ export class SubscriptionPlansService extends BaseService {
       );
     }
 
-    return plan;
+    const now = new Date();
+    return {
+      ...plan,
+      prices: plan.prices.map((p) => formatPriceForDisplay(p, now)),
+    };
   }
 
   /**
-   * Resolves a plan from a store product ID without knowing which storefront it
-   * came from.
-   *
-   * Aggregator webhooks (RevenueCat) report a single `product_id` and a store
-   * value that may be neither Apple nor Google — a Test Store purchase reports
-   * `TEST_STORE` — so there is no platform to switch on. Matching either column
-   * also reflects how these products are configured in practice: the same
-   * identifier is registered across every storefront.
-   *
-   * @param productId - The product ID as reported by the gateway.
-   * @returns The internal plan mapped to this product.
-   * @throws {SubscriptionPlanNotFoundException} When no plan is configured for the product ID.
+   * Resolves a plan from a store product ID without knowing which storefront it came from.
    */
   async getPlanByProductId(productId: string) {
     const plan = await this.prisma.subscriptionPlan.findFirst({
@@ -334,13 +388,9 @@ export class SubscriptionPlansService extends BaseService {
 
   /**
    * Provisions a new subscription tier in the system.
-   *
-   * Automatically logs an audit event for traceability.
-   *
-   * @param dto - Configuration for the new plan including credits and validity.
-   * @returns The newly created plan.
    */
-  async createPlan(dto: CreatePlanRequestDto) {
+  async createPlan(dto: CreatePlanRequestDto, changedByUserId = 'system') {
+    const actorUserId = this.resolveActorUserId(changedByUserId);
     let plan;
     try {
       plan = await this.prisma.subscriptionPlan.create({
@@ -370,12 +420,7 @@ export class SubscriptionPlansService extends BaseService {
           createdAt: true,
           updatedAt: true,
           prices: {
-            select: {
-              id: true,
-              currencyCode: true,
-              price: true,
-              countryCode: true,
-            },
+            select: PLAN_PRICE_SELECT,
           },
         },
       });
@@ -395,27 +440,28 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_CREATED,
-      userId: 'system',
+      userId: actorUserId,
       resourceId: plan.id,
       metadata: { planName: plan.name, slug: plan.slug },
     });
 
-    return plan;
+    const now = new Date();
+    return {
+      ...plan,
+      prices: plan.prices.map((p) => formatPriceForDisplay(p, now)),
+    };
   }
 
   /**
    * Modifies an existing subscription tier.
-   *
-   * Does not cascade changes to active subscriptions (e.g., changing credits granted
-   * only affects future renewals or purchases). Logs an audit event.
-   *
-   * @param id - Internal UUID of the plan to modify.
-   * @param dto - Partial payload of fields to update.
-   * @returns The updated plan.
-   * @throws {SubscriptionPlanNotFoundException} When the target plan does not exist.
    */
-  async updatePlan(id: string, dto: UpdatePlanRequestDto) {
+  async updatePlan(
+    id: string,
+    dto: UpdatePlanRequestDto,
+    changedByUserId = 'system',
+  ) {
     await this.getPlanById(id);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
     let plan;
     try {
@@ -460,12 +506,7 @@ export class SubscriptionPlansService extends BaseService {
           createdAt: true,
           updatedAt: true,
           prices: {
-            select: {
-              id: true,
-              currencyCode: true,
-              price: true,
-              countryCode: true,
-            },
+            select: PLAN_PRICE_SELECT,
           },
         },
       });
@@ -485,34 +526,97 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
-      userId: 'system',
+      userId: actorUserId,
       resourceId: plan.id,
       metadata: { updatedFields: Object.keys(dto) },
     });
 
-    return plan;
+    const now = new Date();
+    return {
+      ...plan,
+      prices: plan.prices.map((p) => formatPriceForDisplay(p, now)),
+    };
   }
 
   /**
-   * Attaches a new localized price to an existing subscription plan.
-   *
-   * @param planId - UUID of the target plan.
-   * @param dto - Currency, country, and price amount.
-   * @returns The newly created price record.
-   * @throws {SubscriptionPlanNotFoundException} When the target plan does not exist.
+   * Attaches a new localized price to an existing subscription plan and establishes
+   * its initial temporal audit record.
    */
-  async addPlanPrice(planId: string, dto: CreatePlanPriceRequestDto) {
+  async addPlanPrice(
+    planId: string,
+    dto: CreatePlanPriceRequestDto,
+    changedByUserId = 'system',
+  ) {
     await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
+    const originalPrice = dto.originalPrice;
+    if (!originalPrice || originalPrice <= 0) {
+      throw new InvalidPlanPriceException(
+        'originalPrice must be greater than 0',
+      );
+    }
+
+    let discountedPrice: number | null = null;
+    let discountStartsAt: Date | null = null;
+    let discountEndsAt: Date | null = null;
+
+    if (dto.discountedPrice !== undefined && dto.discountedPrice !== null) {
+      discountedPrice = dto.discountedPrice;
+      if (discountedPrice <= 0 || discountedPrice >= originalPrice) {
+        throw new InvalidPlanPriceException(
+          'discountedPrice must be greater than 0 and less than originalPrice',
+        );
+      }
+      if (!dto.discountStartsAt || !dto.discountEndsAt) {
+        throw new InvalidPlanPriceException(
+          'Both discountStartsAt and discountEndsAt are required when setting a discountedPrice',
+        );
+      }
+      discountStartsAt = new Date(dto.discountStartsAt);
+      discountEndsAt = new Date(dto.discountEndsAt);
+      if (discountStartsAt >= discountEndsAt) {
+        throw new InvalidPlanPriceException(
+          'discountStartsAt must be before discountEndsAt',
+        );
+      }
+    }
+
+    const now = new Date();
     let price;
     try {
-      price = await this.prisma.subscriptionPlanPrice.create({
-        data: {
-          planId,
-          currencyCode: dto.currencyCode,
-          price: dto.price,
-          countryCode: dto.countryCode,
-        },
+      price = await this.prisma.$transaction(async (tx) => {
+        const createdPrice = await tx.subscriptionPlanPrice.create({
+          data: {
+            planId,
+            currencyCode: dto.currencyCode,
+            countryCode: dto.countryCode,
+            originalPrice,
+            discountedPrice,
+            discountStartsAt,
+            discountEndsAt,
+          },
+        });
+
+        await tx.subscriptionPlanPriceHistory.create({
+          data: {
+            priceId: createdPrice.id,
+            planId,
+            countryCode: dto.countryCode,
+            currencyCode: dto.currencyCode,
+            originalPrice,
+            discountedPrice,
+            discountStartsAt,
+            discountEndsAt,
+            effectiveFrom: now,
+            effectiveTo: null,
+            changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
+            changedByUserId: actorUserId,
+            changeReason: dto.reason ?? 'Initial price creation',
+          },
+        });
+
+        return createdPrice;
       });
     } catch (error) {
       this.logger.error('Failed to add plan price', {
@@ -530,18 +634,225 @@ export class SubscriptionPlansService extends BaseService {
       step: 'complete',
     });
 
-    return price;
+    this.emitAuditLog({
+      actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_CREATED,
+      userId: actorUserId,
+      resourceId: price.id,
+      metadata: {
+        planId,
+        countryCode: dto.countryCode,
+        currencyCode: dto.currencyCode,
+        originalPrice,
+        discountedPrice,
+        reason: dto.reason,
+      },
+    });
+
+    return formatPriceForDisplay(price, now);
   }
 
   /**
-   * Detaches a localized price from a subscription plan.
-   *
-   * @param planId - UUID of the target plan.
-   * @param priceId - UUID of the price record to remove.
-   * @throws {SubscriptionPlanNotFoundException} When the plan or price record does not exist.
+   * Modifies an existing localized price configuration (e.g. Base Price hike or promotional discount),
+   * closing the previous temporal interval and establishing a new audit trail record.
    */
-  async removePlanPrice(planId: string, priceId: string) {
+  async updatePlanPrice(
+    planId: string,
+    priceId: string,
+    dto: UpdatePlanPriceRequestDto,
+    changedByUserId = 'system',
+  ) {
     await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
+
+    const existingPrice = await this.prisma.subscriptionPlanPrice.findFirst({
+      where: { id: priceId, planId },
+    });
+
+    if (!existingPrice) {
+      this.logger.warn('Update plan price failed: price not found', {
+        planId,
+        priceId,
+        step: 'fetch_price',
+      });
+      throw new SubscriptionPlanPriceNotFoundException(
+        `Price entry "${priceId}" not found for plan "${planId}"`,
+      );
+    }
+
+    const newOriginalPrice =
+      dto.originalPrice !== undefined
+        ? dto.originalPrice
+        : Number(existingPrice.originalPrice);
+
+    if (newOriginalPrice <= 0) {
+      throw new InvalidPlanPriceException(
+        'originalPrice must be greater than 0',
+      );
+    }
+
+    const newDiscountedPrice: number | null =
+      dto.discountedPrice !== undefined
+        ? dto.discountedPrice
+        : existingPrice.discountedPrice
+          ? Number(existingPrice.discountedPrice)
+          : null;
+
+    let newDiscountStartsAt: Date | null =
+      dto.discountStartsAt !== undefined
+        ? dto.discountStartsAt
+          ? new Date(dto.discountStartsAt)
+          : null
+        : existingPrice.discountStartsAt;
+
+    let newDiscountEndsAt: Date | null =
+      dto.discountEndsAt !== undefined
+        ? dto.discountEndsAt
+          ? new Date(dto.discountEndsAt)
+          : null
+        : existingPrice.discountEndsAt;
+
+    if (newDiscountedPrice !== null) {
+      if (newDiscountedPrice <= 0 || newDiscountedPrice >= newOriginalPrice) {
+        throw new InvalidPlanPriceException(
+          'discountedPrice must be greater than 0 and less than originalPrice',
+        );
+      }
+      if (!newDiscountStartsAt || !newDiscountEndsAt) {
+        throw new InvalidPlanPriceException(
+          'Both discountStartsAt and discountEndsAt are required when setting a discountedPrice',
+        );
+      }
+      if (newDiscountStartsAt >= newDiscountEndsAt) {
+        throw new InvalidPlanPriceException(
+          'discountStartsAt must be before discountEndsAt',
+        );
+      }
+    } else {
+      newDiscountStartsAt = null;
+      newDiscountEndsAt = null;
+    }
+
+    // Determine changeType
+    let changeType: SubscriptionPriceChangeType =
+      SubscriptionPriceChangeType.PRICE_UPDATED;
+    if (
+      dto.originalPrice !== undefined &&
+      dto.originalPrice > Number(existingPrice.originalPrice)
+    ) {
+      changeType = SubscriptionPriceChangeType.BASE_PRICE_INCREASE;
+    } else if (
+      dto.originalPrice !== undefined &&
+      dto.originalPrice < Number(existingPrice.originalPrice)
+    ) {
+      changeType = SubscriptionPriceChangeType.BASE_PRICE_DECREASE;
+    } else if (
+      dto.discountedPrice !== undefined &&
+      dto.discountedPrice !== null &&
+      !existingPrice.discountedPrice
+    ) {
+      changeType = SubscriptionPriceChangeType.PROMO_SCHEDULED;
+    } else if (
+      dto.discountedPrice === null &&
+      existingPrice.discountedPrice !== null
+    ) {
+      changeType = SubscriptionPriceChangeType.PROMO_ENDED;
+    } else if (
+      dto.discountedPrice !== undefined ||
+      dto.discountStartsAt !== undefined ||
+      dto.discountEndsAt !== undefined
+    ) {
+      changeType = SubscriptionPriceChangeType.PROMO_UPDATED;
+    }
+
+    const now = new Date();
+    let updatedPrice;
+    try {
+      updatedPrice = await this.prisma.$transaction(async (tx) => {
+        // Close prior open interval in history
+        await tx.subscriptionPlanPriceHistory.updateMany({
+          where: { priceId, effectiveTo: null },
+          data: { effectiveTo: now },
+        });
+
+        // Update current price row
+        const price = await tx.subscriptionPlanPrice.update({
+          where: { id: priceId },
+          data: {
+            originalPrice: newOriginalPrice,
+            discountedPrice: newDiscountedPrice,
+            discountStartsAt: newDiscountStartsAt,
+            discountEndsAt: newDiscountEndsAt,
+          },
+        });
+
+        // Insert new interval into history
+        await tx.subscriptionPlanPriceHistory.create({
+          data: {
+            priceId,
+            planId,
+            countryCode: existingPrice.countryCode,
+            currencyCode: existingPrice.currencyCode,
+            originalPrice: newOriginalPrice,
+            discountedPrice: newDiscountedPrice,
+            discountStartsAt: newDiscountStartsAt,
+            discountEndsAt: newDiscountEndsAt,
+            effectiveFrom: now,
+            effectiveTo: null,
+            changeType,
+            changedByUserId: actorUserId,
+            changeReason: dto.reason ?? null,
+          },
+        });
+
+        return price;
+      });
+    } catch (error) {
+      this.logger.error('Failed to update plan price', {
+        planId,
+        priceId,
+        step: 'persist_update_price',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.log('Plan price updated successfully', {
+      planId,
+      priceId,
+      changeType,
+      step: 'complete',
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_UPDATED,
+      userId: actorUserId,
+      resourceId: priceId,
+      metadata: {
+        planId,
+        changeType,
+        previousOriginalPrice: Number(existingPrice.originalPrice),
+        newOriginalPrice,
+        previousDiscountedPrice: existingPrice.discountedPrice
+          ? Number(existingPrice.discountedPrice)
+          : null,
+        newDiscountedPrice,
+        reason: dto.reason,
+      },
+    });
+
+    return formatPriceForDisplay(updatedPrice, now);
+  }
+
+  /**
+   * Detaches a localized price from a subscription plan and closes its active audit interval.
+   */
+  async removePlanPrice(
+    planId: string,
+    priceId: string,
+    changedByUserId = 'system',
+  ) {
+    await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
     const price = await this.prisma.subscriptionPlanPrice.findFirst({
       where: { id: priceId, planId },
@@ -553,14 +864,40 @@ export class SubscriptionPlansService extends BaseService {
         priceId,
         step: 'remove_price',
       });
-      throw new SubscriptionPlanNotFoundException(
+      throw new SubscriptionPlanPriceNotFoundException(
         `Price entry "${priceId}" not found for plan "${planId}"`,
       );
     }
 
+    const now = new Date();
     try {
-      await this.prisma.subscriptionPlanPrice.delete({
-        where: { id: priceId },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.subscriptionPlanPriceHistory.updateMany({
+          where: { priceId, effectiveTo: null },
+          data: { effectiveTo: now },
+        });
+
+        await tx.subscriptionPlanPriceHistory.create({
+          data: {
+            priceId: null,
+            planId,
+            countryCode: price.countryCode,
+            currencyCode: price.currencyCode,
+            originalPrice: price.originalPrice,
+            discountedPrice: price.discountedPrice,
+            discountStartsAt: price.discountStartsAt,
+            discountEndsAt: price.discountEndsAt,
+            effectiveFrom: now,
+            effectiveTo: now,
+            changeType: SubscriptionPriceChangeType.PRICE_DELETED,
+            changedByUserId: actorUserId,
+            changeReason: 'Price configuration deleted',
+          },
+        });
+
+        await tx.subscriptionPlanPrice.delete({
+          where: { id: priceId },
+        });
       });
     } catch (error) {
       this.logger.error('Failed to remove plan price', {
@@ -577,5 +914,90 @@ export class SubscriptionPlansService extends BaseService {
       priceId,
       step: 'complete',
     });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_DELETED,
+      userId: actorUserId,
+      resourceId: priceId,
+      metadata: {
+        planId,
+        countryCode: price.countryCode,
+        currencyCode: price.currencyCode,
+      },
+    });
+  }
+
+  /**
+   * Queries temporal price history across any date range or for a specific point in time.
+   */
+  async getPriceHistory(planId: string, query: QueryPriceHistoryRequestDto) {
+    await this.getPlanById(planId);
+
+    if (query.startDate && query.endDate) {
+      const start = new Date(query.startDate);
+      const end = new Date(query.endDate);
+      if (start > end) {
+        throw new InvalidSubscriptionDatesException(
+          'startDate must be on or before endDate',
+        );
+      }
+    }
+
+    const where: Prisma.SubscriptionPlanPriceHistoryWhereInput = {
+      planId,
+      ...(query.countryCode && { countryCode: query.countryCode }),
+    };
+
+    if (query.pointInTime) {
+      const pit = new Date(query.pointInTime);
+      where.effectiveFrom = { lte: pit };
+      where.OR = [{ effectiveTo: null }, { effectiveTo: { gt: pit } }];
+    } else if (query.startDate || query.endDate) {
+      if (query.startDate && query.endDate) {
+        const start = new Date(query.startDate);
+        const end = new Date(query.endDate);
+        where.effectiveFrom = { lte: end };
+        where.OR = [{ effectiveTo: null }, { effectiveTo: { gte: start } }];
+      } else if (query.startDate) {
+        const start = new Date(query.startDate);
+        where.OR = [{ effectiveTo: null }, { effectiveTo: { gte: start } }];
+      } else if (query.endDate) {
+        const end = new Date(query.endDate);
+        where.effectiveFrom = { lte: end };
+      }
+    }
+
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(200, Math.max(1, query.limit ?? 100));
+    const skip = (page - 1) * limit;
+    const sortOrder = query.sortOrder ?? 'desc';
+
+    const [total, history] = await Promise.all([
+      this.prisma.subscriptionPlanPriceHistory.count({ where }),
+      this.prisma.subscriptionPlanPriceHistory.findMany({
+        where,
+        orderBy: { effectiveFrom: sortOrder },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: history.map((h) => ({
+        ...h,
+        originalPrice: Number(h.originalPrice),
+        discountedPrice: h.discountedPrice ? Number(h.discountedPrice) : null,
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 }

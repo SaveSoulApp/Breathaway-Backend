@@ -69,7 +69,7 @@ describe('SubscriptionsController (e2e)', () => {
       data: {
         planId: plan.id,
         currencyCode: CurrencyCode.INR,
-        price: 799,
+        originalPrice: 799,
         countryCode: 'IN',
       },
     });
@@ -77,7 +77,7 @@ describe('SubscriptionsController (e2e)', () => {
       data: {
         planId: plan.id,
         currencyCode: CurrencyCode.USD,
-        price: 9.99,
+        originalPrice: 9.99,
         countryCode: 'US',
       },
     });

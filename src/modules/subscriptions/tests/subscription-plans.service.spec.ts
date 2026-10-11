@@ -1,7 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
+import {
+  StorePlatform,
+  SubscriptionPlanStatus,
+  SubscriptionPriceChangeType,
+} from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -15,6 +19,7 @@ import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
+  InvalidSubscriptionDatesException,
   SubscriptionPlanNotFoundException,
   SubscriptionPlanPriceNotFoundException,
 } from '../application/exceptions';
@@ -31,6 +36,7 @@ describe('SubscriptionPlansService', () => {
   let eventEmitter: jest.Mocked<EventEmitter2>;
   let configService: jest.Mocked<ConfigService>;
   let ipGeolocationService: { getCountryCodeByIp: jest.Mock };
+  let clsService: { get: jest.Mock };
 
   const mockLoggerService = {
     forContext: jest.fn().mockReturnValue({
@@ -61,7 +67,11 @@ describe('SubscriptionPlansService', () => {
     id: 'price-uuid-222',
     planId: 'plan-uuid-111',
     currencyCode: 'USD' as any,
+    originalPrice: 9.99 as any,
     price: 9.99 as any,
+    discountedPrice: null,
+    discountStartsAt: null,
+    discountEndsAt: null,
     countryCode: 'US',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -73,7 +83,10 @@ describe('SubscriptionPlansService', () => {
     };
 
     const mockClsService = {
-      get: jest.fn().mockReturnValue('mock-ip'),
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'clientIp') return 'mock-ip';
+        return undefined;
+      }),
     };
 
     const mockConfigService = {
@@ -104,6 +117,14 @@ describe('SubscriptionPlansService', () => {
     eventEmitter = module.get(EventEmitter2);
     configService = module.get(ConfigService);
     ipGeolocationService = module.get(IpGeolocationService);
+    clsService = module.get(ClsService);
+
+    prisma.$transaction.mockImplementation(async (callback: any) => {
+      if (typeof callback === 'function') {
+        return callback(prisma);
+      }
+      return Promise.all(callback);
+    });
   });
 
   afterEach(() => {
@@ -138,8 +159,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -190,8 +216,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -238,8 +269,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -282,8 +318,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -324,8 +365,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -368,8 +414,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -408,8 +459,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -423,13 +479,21 @@ describe('SubscriptionPlansService', () => {
       const usPrice = {
         id: 'p-us',
         currencyCode: 'USD',
+        originalPrice: 9.99,
         price: 9.99,
+        discountedPrice: null,
+        discountStartsAt: null,
+        discountEndsAt: null,
         countryCode: 'US',
       };
       const inPrice = {
         id: 'p-in',
         currencyCode: 'INR',
+        originalPrice: 799,
         price: 799,
+        discountedPrice: null,
+        discountStartsAt: null,
+        discountEndsAt: null,
         countryCode: 'IN',
       };
 
@@ -455,9 +519,17 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(result).toHaveLength(2);
       // plan-1 has US price -> returns US price
-      expect(result[0].prices).toEqual([usPrice]);
+      expect(result[0].prices[0]).toMatchObject({
+        id: 'p-us',
+        effectivePrice: 9.99,
+        countryCode: 'US',
+      });
       // plan-2 only has IN price -> falls back to IN default price
-      expect(result[1].prices).toEqual([inPrice]);
+      expect(result[1].prices[0]).toMatchObject({
+        id: 'p-in',
+        effectivePrice: 799,
+        countryCode: 'IN',
+      });
     });
   });
 
@@ -490,8 +562,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -544,8 +621,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -584,8 +666,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -664,8 +751,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -721,8 +813,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -751,8 +848,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -763,6 +865,29 @@ describe('SubscriptionPlansService', () => {
         expect.objectContaining({
           actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
           resourceId: 'plan-uuid-111',
+          userId: 'system',
+        }),
+      );
+    });
+
+    it('should attribute audit log to admin when changedByUserId is passed', async () => {
+      // Arrange
+      const dto: UpdatePlanRequestDto = { name: 'VIP Plan' };
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlan.update.mockResolvedValue({
+        ...mockPlan,
+        name: 'VIP Plan',
+      });
+
+      // Act
+      await service.updatePlan('plan-uuid-111', dto, 'admin@example.com');
+
+      // Assert
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        AUDIT_LOG_EVENT,
+        expect.objectContaining({
+          actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
+          userId: 'admin@example.com',
         }),
       );
     });
@@ -773,7 +898,7 @@ describe('SubscriptionPlansService', () => {
       // Arrange
       const dto: CreatePlanPriceRequestDto = {
         currencyCode: 'EUR',
-        price: 8.99,
+        originalPrice: 8.99,
         countryCode: 'FR',
       };
 
@@ -808,8 +933,13 @@ describe('SubscriptionPlansService', () => {
             select: {
               id: true,
               currencyCode: true,
-              price: true,
               countryCode: true,
+              originalPrice: true,
+              discountedPrice: true,
+              discountStartsAt: true,
+              discountEndsAt: true,
+              createdAt: true,
+              updatedAt: true,
             },
           },
         },
@@ -818,16 +948,57 @@ describe('SubscriptionPlansService', () => {
         data: {
           planId: 'plan-uuid-111',
           currencyCode: dto.currencyCode,
-          price: dto.price,
+          originalPrice: dto.originalPrice,
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
           countryCode: dto.countryCode,
         },
       });
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          planId: 'plan-uuid-111',
+          countryCode: 'FR',
+          originalPrice: 8.99,
+          changedByUserId: 'system',
+          changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
+        }),
+      });
       expect(result.id).toBe('new-price-id');
+    });
+
+    it('should fall back to adminEmail from clsService when changedByUserId is not explicitly provided', async () => {
+      // Arrange
+      clsService.get.mockImplementation((key: string) =>
+        key === 'adminEmail' ? 'admin@example.com' : undefined,
+      );
+      const dto: CreatePlanPriceRequestDto = {
+        currencyCode: 'EUR',
+        originalPrice: 8.99,
+        countryCode: 'FR',
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.create.mockResolvedValue({
+        ...mockPrice,
+        id: 'new-price-id',
+        ...dto,
+      } as any);
+
+      // Act
+      await service.addPlanPrice('plan-uuid-111', dto);
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changedByUserId: 'admin@example.com',
+        }),
+      });
     });
   });
 
   describe('removePlanPrice', () => {
-    it('should find the price entry for plan and delete it', async () => {
+    it('should find the price entry for plan and delete it while preserving history with PRICE_DELETED', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
       prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(mockPrice);
@@ -838,6 +1009,19 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
         where: { id: 'price-uuid-222', planId: 'plan-uuid-111' },
+      });
+      expect(
+        prisma.subscriptionPlanPriceHistory.updateMany,
+      ).toHaveBeenCalledWith({
+        where: { priceId: 'price-uuid-222', effectiveTo: null },
+        data: { effectiveTo: expect.any(Date) },
+      });
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          priceId: null,
+          planId: 'plan-uuid-111',
+          changeType: SubscriptionPriceChangeType.PRICE_DELETED,
+        }),
       });
       expect(prisma.subscriptionPlanPrice.delete).toHaveBeenCalledWith({
         where: { id: 'price-uuid-222' },
@@ -853,7 +1037,7 @@ describe('SubscriptionPlansService', () => {
       await expect(
         service.removePlanPrice('plan-uuid-111', 'invalid-price-id'),
       ).rejects.toThrow(
-        new SubscriptionPlanNotFoundException(
+        new SubscriptionPlanPriceNotFoundException(
           'Price entry "invalid-price-id" not found for plan "plan-uuid-111"',
         ),
       );
@@ -961,7 +1145,7 @@ describe('SubscriptionPlansService', () => {
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
       const dto: CreatePlanPriceRequestDto = {
         currencyCode: 'USD' as any,
-        price: 9.99,
+        originalPrice: 9.99,
         countryCode: 'US',
       };
       const dbError = new Error('Prisma price create error');
@@ -971,6 +1155,390 @@ describe('SubscriptionPlansService', () => {
       await expect(service.addPlanPrice(mockPlan.id, dto)).rejects.toThrow(
         dbError,
       );
+    });
+  });
+
+  describe('promotions and price calculation', () => {
+    it('should calculate active promotional discount correctly with percentage and savings', async () => {
+      // Arrange
+      const now = new Date();
+      const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const future = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      const promoPrice = {
+        id: 'promo-p1',
+        currencyCode: 'INR',
+        countryCode: 'IN',
+        originalPrice: 399,
+        discountedPrice: 299,
+        discountStartsAt: past,
+        discountEndsAt: future,
+      };
+
+      const planWithPromo = {
+        ...mockPlan,
+        id: 'plan-promo',
+        prices: [promoPrice],
+      };
+
+      prisma.subscriptionPlan.findMany.mockResolvedValue([
+        planWithPromo,
+      ] as any);
+
+      // Act
+      const result = await service.listActivePlans(null, undefined, 'IN');
+
+      // Assert
+      expect(result).toHaveLength(1);
+      const priceResult = result[0].prices[0];
+      expect(priceResult.isDiscountActive).toBe(true);
+      expect(priceResult.originalPrice).toBe(399);
+      expect(priceResult.effectivePrice).toBe(299);
+      expect(priceResult.discountPercentage).toBe(25);
+      expect(priceResult.savingsAmount).toBe(100);
+    });
+
+    it('should fall back to originalPrice when promotional discount has expired', async () => {
+      // Arrange
+      const pastStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const pastEnd = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const expiredPromoPrice = {
+        id: 'promo-expired',
+        currencyCode: 'INR',
+        countryCode: 'IN',
+        originalPrice: 399,
+        discountedPrice: 299,
+        discountStartsAt: pastStart,
+        discountEndsAt: pastEnd,
+      };
+
+      const planWithExpired = {
+        ...mockPlan,
+        prices: [expiredPromoPrice],
+      };
+
+      prisma.subscriptionPlan.findMany.mockResolvedValue([
+        planWithExpired,
+      ] as any);
+
+      // Act
+      const result = await service.listActivePlans(null, undefined, 'IN');
+
+      // Assert
+      const priceResult = result[0].prices[0];
+      expect(priceResult.isDiscountActive).toBe(false);
+      expect(priceResult.originalPrice).toBe(399);
+      expect(priceResult.effectivePrice).toBe(399);
+      expect(priceResult.discountPercentage).toBeUndefined();
+    });
+  });
+
+  describe('updatePlanPrice', () => {
+    it('should update base price from 399 to 499, close old history row, and open new history row with BASE_PRICE_INCREASE', async () => {
+      // Arrange
+      const existingPrice = {
+        id: 'price-123',
+        planId: mockPlan.id,
+        countryCode: 'IN',
+        currencyCode: 'INR',
+        originalPrice: 399,
+        discountedPrice: null,
+        discountStartsAt: null,
+        discountEndsAt: null,
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
+      prisma.subscriptionPlanPrice.update.mockResolvedValue({
+        ...existingPrice,
+        originalPrice: 499,
+      } as any);
+
+      // Act
+      const result = await service.updatePlanPrice(
+        mockPlan.id,
+        'price-123',
+        {
+          originalPrice: 499,
+          reason: 'Annual base price hike',
+        },
+        'admin-user-1',
+      );
+
+      // Assert
+      expect(
+        prisma.subscriptionPlanPriceHistory.updateMany,
+      ).toHaveBeenCalledWith({
+        where: { priceId: 'price-123', effectiveTo: null },
+        data: { effectiveTo: expect.any(Date) },
+      });
+      expect(prisma.subscriptionPlanPrice.update).toHaveBeenCalledWith({
+        where: { id: 'price-123' },
+        data: {
+          originalPrice: 499,
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+        },
+      });
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          priceId: 'price-123',
+          planId: mockPlan.id,
+          originalPrice: 499,
+          changeType: 'BASE_PRICE_INCREASE',
+          changedByUserId: 'admin-user-1',
+          changeReason: 'Annual base price hike',
+          effectiveTo: null,
+        }),
+      });
+      expect(result.effectivePrice).toBe(499);
+    });
+
+    it('should schedule promotional discount window with PROMO_SCHEDULED changeType', async () => {
+      // Arrange
+      const existingPrice = {
+        id: 'price-123',
+        planId: mockPlan.id,
+        countryCode: 'IN',
+        currencyCode: 'INR',
+        originalPrice: 399,
+        discountedPrice: null,
+        discountStartsAt: null,
+        discountEndsAt: null,
+      };
+
+      const startsAt = new Date('2026-11-01T00:00:00Z');
+      const endsAt = new Date('2026-11-07T23:59:59Z');
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
+      prisma.subscriptionPlanPrice.update.mockResolvedValue({
+        ...existingPrice,
+        discountedPrice: 299,
+        discountStartsAt: startsAt,
+        discountEndsAt: endsAt,
+      } as any);
+
+      // Act
+      const result = await service.updatePlanPrice(
+        mockPlan.id,
+        'price-123',
+        {
+          discountedPrice: 299,
+          discountStartsAt: startsAt.toISOString(),
+          discountEndsAt: endsAt.toISOString(),
+          reason: 'Diwali promo sale',
+        },
+        'admin-user-1',
+      );
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changeType: 'PROMO_SCHEDULED',
+          discountedPrice: 299,
+          changeReason: 'Diwali promo sale',
+        }),
+      });
+      expect(result.discountedPrice).toBe(299);
+    });
+
+    it('should set changeType to PROMO_UPDATED when only promotional dates are modified', async () => {
+      // Arrange
+      const existingPrice = {
+        id: 'price-123',
+        planId: mockPlan.id,
+        countryCode: 'IN',
+        currencyCode: 'INR',
+        originalPrice: 399,
+        discountedPrice: 299,
+        discountStartsAt: new Date('2026-04-01T00:00:00Z'),
+        discountEndsAt: new Date('2026-04-10T00:00:00Z'),
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
+      prisma.subscriptionPlanPrice.update.mockResolvedValue({
+        ...existingPrice,
+        discountEndsAt: new Date('2026-04-15T00:00:00Z'),
+      } as any);
+
+      // Act
+      await service.updatePlanPrice(mockPlan.id, 'price-123', {
+        discountEndsAt: '2026-04-15T00:00:00Z',
+        reason: 'Extending sale window',
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changeType: SubscriptionPriceChangeType.PROMO_UPDATED,
+          changeReason: 'Extending sale window',
+        }),
+      });
+    });
+
+    it('should throw InvalidPlanPriceException when discountedPrice >= originalPrice', async () => {
+      // Arrange
+      const existingPrice = {
+        id: 'price-123',
+        planId: mockPlan.id,
+        countryCode: 'IN',
+        currencyCode: 'INR',
+        originalPrice: 399,
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
+
+      // Act & Assert
+      await expect(
+        service.updatePlanPrice(mockPlan.id, 'price-123', {
+          discountedPrice: 400,
+          discountStartsAt: new Date().toISOString(),
+          discountEndsAt: new Date(Date.now() + 10000).toISOString(),
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('getPriceHistory', () => {
+    it('should query price history within a date range', async () => {
+      // Arrange
+      const mockHistoryRows = [
+        {
+          id: 'hist-1',
+          priceId: 'price-1',
+          planId: mockPlan.id,
+          countryCode: 'IN',
+          currencyCode: 'INR',
+          originalPrice: 399,
+          discountedPrice: null,
+          effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+          effectiveTo: new Date('2026-03-01T00:00:00Z'),
+          changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
+          changedByUserId: 'system',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          id: 'hist-2',
+          priceId: 'price-1',
+          planId: mockPlan.id,
+          countryCode: 'IN',
+          currencyCode: 'INR',
+          originalPrice: 499,
+          discountedPrice: null,
+          effectiveFrom: new Date('2026-03-01T00:00:00Z'),
+          effectiveTo: null,
+          changeType: SubscriptionPriceChangeType.BASE_PRICE_INCREASE,
+          changedByUserId: 'admin-1',
+          createdAt: new Date('2026-03-01T00:00:00Z'),
+        },
+      ];
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.count.mockResolvedValue(2);
+      prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue(
+        mockHistoryRows as any,
+      );
+
+      // Act
+      const result = await service.getPriceHistory(mockPlan.id, {
+        countryCode: 'IN',
+        startDate: '2026-01-01T00:00:00Z',
+        endDate: '2026-04-30T23:59:59Z',
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          planId: mockPlan.id,
+          countryCode: 'IN',
+        }),
+      });
+      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
+        {
+          where: expect.objectContaining({
+            planId: mockPlan.id,
+            countryCode: 'IN',
+          }),
+          orderBy: { effectiveFrom: 'desc' },
+          skip: 0,
+          take: 100,
+        },
+      );
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].originalPrice).toBe(399);
+      expect(result.data[1].originalPrice).toBe(499);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 100,
+        total: 2,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
+    });
+
+    it('should respect custom page, limit, and sortOrder parameters for pagination', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.count.mockResolvedValue(100);
+      prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue([]);
+
+      // Act
+      const result = await service.getPriceHistory(mockPlan.id, {
+        page: 3,
+        limit: 25,
+        sortOrder: 'asc',
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { effectiveFrom: 'asc' },
+          skip: 50,
+          take: 25,
+        }),
+      );
+      expect(result.meta).toEqual({
+        page: 3,
+        limit: 25,
+        total: 100,
+        totalPages: 4,
+        hasNext: true,
+        hasPrev: true,
+      });
+    });
+
+    it('should throw InvalidSubscriptionDatesException when startDate is after endDate', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+
+      // Act & Assert
+      await expect(
+        service.getPriceHistory(mockPlan.id, {
+          startDate: '2026-05-01T00:00:00Z',
+          endDate: '2026-01-01T00:00:00Z',
+        }),
+      ).rejects.toThrow(
+        new InvalidSubscriptionDatesException(
+          'startDate must be on or before endDate',
+        ),
+      );
+      expect(
+        prisma.subscriptionPlanPriceHistory.findMany,
+      ).not.toHaveBeenCalled();
     });
   });
 });
