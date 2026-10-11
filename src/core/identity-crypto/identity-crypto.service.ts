@@ -383,7 +383,9 @@ export class IdentityCryptoService extends BaseService {
       return [];
     }
 
-    const results: (string | null)[] = new Array(values.length).fill(null);
+    const results: (string | null)[] = new Array<string | null>(
+      values.length,
+    ).fill(null);
     const validItems: {
       index: number;
       parsed: ParsedEncryptedText;
