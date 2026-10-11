@@ -296,8 +296,8 @@ describe('AuthController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: seededUserId,
+        accessToken: expect.any(String),
+        userId: seededUserId,
       });
     });
 
@@ -377,11 +377,11 @@ describe('AuthController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: expect.any(String),
+        accessToken: expect.any(String),
+        userId: expect.any(String),
       });
 
-      allCreatedUserIds.push(res.body.user_id as string);
+      allCreatedUserIds.push(res.body.userId as string);
     });
 
     it('200 – auto-signs-in an existing verified user', async () => {
@@ -430,8 +430,8 @@ describe('AuthController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: user.id,
+        accessToken: expect.any(String),
+        userId: user.id,
       });
     });
 
@@ -534,8 +534,8 @@ describe('AuthController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: seededUserId,
+        accessToken: expect.any(String),
+        userId: seededUserId,
       });
     });
 
@@ -600,7 +600,7 @@ describe('AuthController (e2e)', () => {
       expect(res.status).toBe(409);
     });
 
-    it('404 – user not found for an expired/invalid JWT sub', async () => {
+    it('401 – user not found for an invalid JWT sub', async () => {
       const ghostJwt = jwtService.sign({
         sub: 'non-existent-user-id',
         iss: configService.get<string>('JWT_ISSUER'),
@@ -617,7 +617,7 @@ describe('AuthController (e2e)', () => {
         .set('authorization', `Bearer ${ghostJwt}`)
         .send({ uid: 'test-uid', uidToken: 'mock-token' });
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(401);
     });
 
     it('401 – missing JWT header', async () => {
@@ -662,8 +662,8 @@ describe('AuthController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        access_token: expect.any(String),
-        user_id: seededUserId,
+        accessToken: expect.any(String),
+        userId: seededUserId,
       });
     });
 

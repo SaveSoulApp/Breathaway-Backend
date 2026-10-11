@@ -13,6 +13,12 @@ export async function cleanupTestUsers(
   if (userIds.length === 0) return;
 
   // Delete in FK dependency order: child tables first
+  await prisma.paymentOrder.deleteMany({
+    where: { userId: { in: userIds } },
+  });
+  await prisma.notification.deleteMany({
+    where: { userId: { in: userIds } },
+  });
   await prisma.transaction.deleteMany({
     where: { userId: { in: userIds } },
   });
@@ -70,13 +76,16 @@ export async function cleanupOrphanedIdentities(
 
 /**
  * Cleans up test-created subscription plans and their price entries.
- * Deletes any userSubscriptions referencing the plan first to avoid FK violations.
+ * Deletes any userSubscriptions and paymentOrders referencing the plan first to avoid FK violations.
  */
 export async function cleanupTestSubscriptionPlans(
   prisma: PrismaService,
   planIds: string[],
 ): Promise<void> {
   if (planIds.length === 0) return;
+  await prisma.paymentOrder.deleteMany({
+    where: { planId: { in: planIds } },
+  });
   await prisma.userSubscription.deleteMany({
     where: { planId: { in: planIds } },
   });
@@ -98,5 +107,18 @@ export async function cleanupTestTransactions(
   if (transactionIds.length === 0) return;
   await prisma.transaction.deleteMany({
     where: { id: { in: transactionIds } },
+  });
+}
+
+/**
+ * Cleans up test-created payment gateway routes.
+ */
+export async function cleanupTestPaymentRoutes(
+  prisma: PrismaService,
+  routeIds: string[],
+): Promise<void> {
+  if (routeIds.length === 0) return;
+  await prisma.paymentGatewayRoute.deleteMany({
+    where: { id: { in: routeIds } },
   });
 }

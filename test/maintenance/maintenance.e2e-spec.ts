@@ -66,7 +66,7 @@ describe('MaintenanceController (e2e)', () => {
     it('rejects unauthenticated requests lacking Bearer token (401)', async () => {
       // Act
       const res = await request(app.getHttpServer()).post(
-        '/api/v1/internal/jobs/expire-likes',
+        '/api/v1/internal/jobs/expire-bundles',
       );
 
       // Assert
@@ -76,7 +76,7 @@ describe('MaintenanceController (e2e)', () => {
     it('rejects requests with invalid Bearer token (401)', async () => {
       // Act
       const res = await request(app.getHttpServer())
-        .post('/api/v1/internal/jobs/expire-likes')
+        .post('/api/v1/internal/jobs/expire-bundles')
         .set('Authorization', 'Bearer invalid-token');
 
       // Assert
@@ -85,18 +85,6 @@ describe('MaintenanceController (e2e)', () => {
   });
 
   describe('Internal Maintenance Jobs (POST /api/v1/internal/jobs/...) ', () => {
-    it('POST /api/v1/internal/jobs/expire-likes - voids pending likes past TTL (200)', async () => {
-      // Act
-      const res = await request(app.getHttpServer())
-        .post('/api/v1/internal/jobs/expire-likes')
-        .set('Authorization', `Bearer ${validOidcToken}`);
-
-      // Assert
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('voidedCount');
-      expect(typeof res.body.voidedCount).toBe('number');
-    });
-
     it('POST /api/v1/internal/jobs/expire-bundles - fans out credit bundle expiration (200)', async () => {
       // Act
       const res = await request(app.getHttpServer())
@@ -134,6 +122,29 @@ describe('MaintenanceController (e2e)', () => {
       expect(res.body).toHaveProperty('totalUsersEnqueued');
       expect(typeof res.body.batchesPublished).toBe('number');
       expect(typeof res.body.totalUsersEnqueued).toBe('number');
+    });
+
+    it('POST /api/v1/internal/jobs/reconcile-payments - reconciles stale payment orders (200)', async () => {
+      // Act
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/internal/jobs/reconcile-payments')
+        .set('Authorization', `Bearer ${validOidcToken}`);
+
+      // Assert
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('total');
+      expect(res.body).toHaveProperty('settled');
+      expect(typeof res.body.total).toBe('number');
+    });
+
+    it('POST /api/v1/internal/jobs/purge-expired-sessions - purges expired user sessions (204)', async () => {
+      // Act
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/internal/jobs/purge-expired-sessions')
+        .set('Authorization', `Bearer ${validOidcToken}`);
+
+      // Assert
+      expect(res.status).toBe(204);
     });
   });
 });

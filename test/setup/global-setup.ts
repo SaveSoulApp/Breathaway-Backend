@@ -38,6 +38,20 @@ export default async function globalSetup(): Promise<void> {
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';
 
+  // Ensure test environment variables for payment gateways and external providers
+  process.env.RAZORPAY_KEY_ID =
+    process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_key_id';
+  process.env.RAZORPAY_KEY_SECRET =
+    process.env.RAZORPAY_KEY_SECRET || 'rzp_test_mock_key_secret';
+  process.env.RAZORPAY_WEBHOOK_SECRET =
+    process.env.RAZORPAY_WEBHOOK_SECRET || 'rzp_test_mock_webhook_secret';
+  process.env.CASHFREE_APP_ID =
+    process.env.CASHFREE_APP_ID || 'cf_test_mock_app_id';
+  process.env.CASHFREE_SECRET_KEY =
+    process.env.CASHFREE_SECRET_KEY || 'cf_test_mock_secret_key';
+  process.env.INSTAGRAM_ACCESS_TOKEN =
+    process.env.INSTAGRAM_ACCESS_TOKEN || 'test_instagram_token_12345';
+
   // Run pending migrations against the test database.
   // `prisma migrate deploy` is idempotent — safe to call on every run.
   // It also implicitly creates the schema if it does not yet exist.

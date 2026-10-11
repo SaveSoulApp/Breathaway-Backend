@@ -19,7 +19,12 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
   providers: [
     {
       provide: GcpSecretManagerService,
-      useValue: { upsertSecret: jest.fn() },
+      useValue: {
+        upsertSecret: jest
+          .fn()
+          .mockResolvedValue('projects/test/secrets/test/versions/1'),
+        getSecret: jest.fn().mockRejectedValue(new Error('Secret not found')),
+      },
     },
   ],
   exports: [GcpSecretManagerService],
@@ -57,7 +62,7 @@ describe('InstagramController (e2e)', () => {
       mockedAxios.get.mockResolvedValueOnce(mockResponse);
 
       const res = await authedRequest(app)
-        .get('/api/v1/instagram/refresh-token?token=old-token')
+        .get('/api/v1/instagram/refresh-token?token=valid-old-token')
         .set('authorization', adminAuthHeader);
 
       expect(res.status).toBe(200);
@@ -68,7 +73,7 @@ describe('InstagramController (e2e)', () => {
         {
           params: {
             grant_type: 'ig_refresh_token',
-            access_token: 'old-token',
+            access_token: 'valid-old-token',
           },
         },
       );
@@ -77,7 +82,7 @@ describe('InstagramController (e2e)', () => {
 
     it('401 – unauthorized if admin auth missing', async () => {
       const res = await authedRequest(app).get(
-        '/api/v1/instagram/refresh-token?token=old-token',
+        '/api/v1/instagram/refresh-token?token=valid-old-token',
       );
       expect(res.status).toBe(401);
     });
@@ -88,7 +93,7 @@ describe('InstagramController (e2e)', () => {
       });
 
       const res = await authedRequest(app)
-        .get('/api/v1/instagram/refresh-token?token=old-token')
+        .get('/api/v1/instagram/refresh-token?token=valid-old-token')
         .set('authorization', adminAuthHeader);
 
       expect(res.status).toBe(502);
