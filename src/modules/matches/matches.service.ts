@@ -163,8 +163,10 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
+    const data = matches.map((match) => this.mapToResponseDto(match, userId));
+
     return {
-      data: matches.map((match) => this.mapToResponseDto(match, userId)),
+      data,
       meta: {
         page,
         limit,
@@ -427,14 +429,14 @@ export class MatchesService extends BaseService {
       theirIntent: isUserOne ? match.intentTwo : match.intentOne,
       me: {
         id: me.id,
-        firstName: me.profile?.firstName,
-        lastName: me.profile?.lastName,
+        firstName: me.profile?.firstName ?? '',
+        lastName: me.profile?.lastName ?? null,
         gender: me.profile?.gender ?? null,
       },
       otherUser: {
         id: otherUser.id,
-        firstName: otherUser.profile?.firstName,
-        lastName: otherUser.profile?.lastName,
+        firstName: otherUser.profile?.firstName ?? '',
+        lastName: otherUser.profile?.lastName ?? null,
         gender: otherUser.profile?.gender ?? null,
         label: myLike?.label ?? null,
       },

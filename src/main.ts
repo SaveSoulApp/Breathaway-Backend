@@ -7,7 +7,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { ClsService } from 'nestjs-cls';
 
-import { TimezoneResponseInterceptor } from '@common/interceptors';
+import {
+  DecryptionInterceptor,
+  TimezoneResponseInterceptor,
+} from '@common/interceptors';
 import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
 import { LoggerService, LoggingInterceptor } from '@core/logger';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
@@ -39,6 +42,7 @@ function configureInterceptors(app: INestApplication): void {
   app.useGlobalInterceptors(
     app.get(LoggingInterceptor),
     app.get(TimezoneResponseInterceptor),
+    app.get(DecryptionInterceptor),
   );
 }
 

@@ -14,7 +14,10 @@ import { AppValidationPipe } from '@core/pipes';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TimezoneResponseInterceptor } from './common/interceptors';
+import {
+  DecryptionInterceptor,
+  TimezoneResponseInterceptor,
+} from './common/interceptors';
 import { configureMiddleware, MiddlewareModule } from './common/middlewares';
 import { corsConfig } from './config/cors.config';
 import {
@@ -22,6 +25,7 @@ import {
   envValidationSchema,
 } from './config/env.validation';
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
+import { IdentityCryptoModule } from './core/identity-crypto/identity-crypto.module';
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -135,6 +139,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     MiddlewareModule,
     PrismaModule,
     GcpSecretManagerModule,
+    IdentityCryptoModule,
     EventEmitterModule.forRoot(),
 
     //Business Modules
@@ -169,6 +174,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
   controllers: [AppController],
   providers: [
     AppService,
+    DecryptionInterceptor,
     TimezoneResponseInterceptor,
     {
       provide: APP_PIPE,

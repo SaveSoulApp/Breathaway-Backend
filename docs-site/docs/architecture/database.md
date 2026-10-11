@@ -150,12 +150,12 @@ model UserSession {
 
 ### Index Purpose & Query Path Matrix
 
-| Index | Type | Hot-Path Query Purpose |
-| :--- | :--- | :--- |
-| `jti` | B-Tree (`@unique`) | $O(1)$ token lookup during `/api/v1/auth/refresh`. |
-| `tokenHash` | B-Tree (`@unique`) | Prevents duplicate hash collisions; enables forensic hash verification. |
-| `[userId]` | B-Tree (`@@index`) | Enables instant revocation of all user sessions during global signout or account deletion (`onDelete: Cascade`). |
-| `[familyId]` | B-Tree (`@@index`) | Accelerates targeted single-device signouts and instant lineage invalidation during RFC 6819 token reuse breach containment. |
+| Index         | Type               | Hot-Path Query Purpose                                                                                                         |
+| :------------ | :----------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `jti`         | B-Tree (`@unique`) | $O(1)$ token lookup during `/api/v1/auth/refresh`.                                                                             |
+| `tokenHash`   | B-Tree (`@unique`) | Prevents duplicate hash collisions; enables forensic hash verification.                                                        |
+| `[userId]`    | B-Tree (`@@index`) | Enables instant revocation of all user sessions during global signout or account deletion (`onDelete: Cascade`).               |
+| `[familyId]`  | B-Tree (`@@index`) | Accelerates targeted single-device signouts and instant lineage invalidation during RFC 6819 token reuse breach containment.   |
 | `[expiresAt]` | B-Tree (`@@index`) | Powers index-only scans for the weekly Cloud Scheduler data hygiene job (`POST /api/v1/internal/jobs/purge-expired-sessions`). |
 
 ---
@@ -183,6 +183,26 @@ sequenceDiagram
     DB-->>Service: Commit Transaction
     Service-->>Client: Updated Balance & Ledger Reference
 ```
+
+---
+
+## 🔐 Field-Level Envelope Encryption (FLE) for PII
+
+Beyond database-level encryption at rest (Cloud SQL / Supabase AES-256), BreathAway enforces **Application-Layer Envelope Encryption** via Google Cloud KMS to eliminate exposure risks in database dumps, analytical replicas, and logging pipelines:
+
+| Entity / Column                                                  | Strategy                    | Cipher Details                                                                               | Decryption Context                                                                                                                            |
+| :--------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Identity`** (`publicValueCiphertext`, `platformIdCiphertext`) | Dedicated Envelope Columns  | AES-256-GCM data key wrapped by Cloud KMS; deterministic HMAC `publicValueHash` for indexing | Transparently resolved by `IdentitiesService` during authenticated profile resolution                                                         |
+| **`Like.label`**                                                 | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted on the fly by `LikesService.attachPublicValue` and `MatchesService`                                                                 |
+| **`UserProfile`** (`firstName`, `lastName`)                      | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted transparently by `ProfilesService`, `DecryptionInterceptor`, `NotificationsModule`, `MatchesService`, `ChatsService`, `BlocksService`, and `PaymentsService` |
+
+### Why Like Labels & Profile Names are Encrypted
+
+1. **Like Labels (Side-Channel Elimination)**: Personal annotations on likes (e.g. _"Angela from gym"_) act as an indirect identifier or side-channel that could otherwise deanonymize target identities even when contact details are encrypted. Storing labels with envelope encryption ensures raw database inspection cannot reveal real-world names associated with target identities.
+2. **User Profile Names (Zero-Knowledge Invariant)**: Storing customer names (`firstName`, `lastName`) under application-level envelope encryption prevents plaintext PII exposure across database snapshots, replication streams, support tooling, and hosting provider infrastructure (Supabase/PostgreSQL).
+3. **GDPR & Privacy Compliance**: Prevents unconsented third-party PII storage and shields personal names and relationship data (GDPR Articles 5, 6, 9, 25, 32, and 34).
+4. **KMS Key Isolation**: Decryption requires authorized IAM access to Google Cloud KMS. Even in the event of an arbitrary database dump exfiltration, ciphertext cannot be decrypted without GCP KMS credentials.
+5. **Batch Decryption & Interceptor Pipeline**: High-throughput list queries leverage `IdentityCryptoService.decryptBatch()` (KMS key deduplication with in-memory DEK caching), while outbound HTTP responses are automatically processed by `DecryptionInterceptor`.
 
 ---
 

@@ -81,31 +81,38 @@ export class NotificationRecipientResolverService extends BaseService {
       },
     });
 
-    for (const cred of credentials) {
-      if (!cred.identity) continue;
+    await Promise.all(
+      credentials.map(async (cred) => {
+        if (!cred.identity) return;
 
-      try {
-        const email = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
-        if (email && email.trim() !== '') {
-          resolvedMap.set(cred.userId, {
-            userId: cred.userId,
-            email: email.trim().toLowerCase(),
-            firstName: cred.user?.profile?.firstName,
-          });
+        try {
+          const [email, decryptedFirst] = await Promise.all([
+            this.identityCryptoService.decryptPublicValue(cred.identity),
+            cred.user?.profile?.firstName
+              ? this.identityCryptoService.decryptText(
+                  cred.user.profile.firstName,
+                )
+              : Promise.resolve(null),
+          ]);
+          if (email && email.trim() !== '') {
+            resolvedMap.set(cred.userId, {
+              userId: cred.userId,
+              email: email.trim().toLowerCase(),
+              firstName: decryptedFirst ?? undefined,
+            });
+          }
+        } catch (err) {
+          this.logger.error(
+            'Failed to decrypt user email address from AuthCredential',
+            {
+              userId: cred.userId,
+              step: 'decrypt_email_credential',
+              err: serializeError(err),
+            },
+          );
         }
-      } catch (err) {
-        this.logger.error(
-          'Failed to decrypt user email address from AuthCredential',
-          {
-            userId: cred.userId,
-            step: 'decrypt_email_credential',
-            err: serializeError(err),
-          },
-        );
-      }
-    }
+      }),
+    );
 
     // 2. Fallback: Query Identity records for remaining users
     const remainingUserIds = uniqueUserIds.filter((id) => !resolvedMap.has(id));
@@ -137,35 +144,44 @@ export class NotificationRecipientResolverService extends BaseService {
         },
       });
 
-      for (const identity of identities) {
-        if (!identity.userId || resolvedMap.has(identity.userId)) continue;
+      await Promise.all(
+        identities.map(async (identity) => {
+          if (!identity.userId || resolvedMap.has(identity.userId)) return;
 
-        try {
-          const email = await this.identityCryptoService.decryptPublicValue({
-            publicValueCiphertext: identity.publicValueCiphertext,
-            publicValueIv: identity.publicValueIv,
-            publicValueTag: identity.publicValueTag,
-            publicValueWrappedKey: identity.publicValueWrappedKey,
-            publicValueKeyId: identity.publicValueKeyId,
-          });
-          if (email && email.trim() !== '') {
-            resolvedMap.set(identity.userId, {
-              userId: identity.userId,
-              email: email.trim().toLowerCase(),
-              firstName: identity.user?.profile?.firstName,
-            });
+          try {
+            const [email, decryptedFirst] = await Promise.all([
+              this.identityCryptoService.decryptPublicValue({
+                publicValueCiphertext: identity.publicValueCiphertext,
+                publicValueIv: identity.publicValueIv,
+                publicValueTag: identity.publicValueTag,
+                publicValueWrappedKey: identity.publicValueWrappedKey,
+                publicValueKeyId: identity.publicValueKeyId,
+              }),
+              identity.user?.profile?.firstName
+                ? this.identityCryptoService.decryptText(
+                    identity.user.profile.firstName,
+                  )
+                : Promise.resolve(null),
+            ]);
+            if (email && email.trim() !== '') {
+              resolvedMap.set(identity.userId, {
+                userId: identity.userId,
+                email: email.trim().toLowerCase(),
+                firstName: decryptedFirst ?? undefined,
+              });
+            }
+          } catch (err) {
+            this.logger.error(
+              'Failed to decrypt user email address from Identity',
+              {
+                userId: identity.userId,
+                step: 'decrypt_email_identity',
+                err: serializeError(err),
+              },
+            );
           }
-        } catch (err) {
-          this.logger.error(
-            'Failed to decrypt user email address from Identity',
-            {
-              userId: identity.userId,
-              step: 'decrypt_email_identity',
-              err: serializeError(err),
-            },
-          );
-        }
-      }
+        }),
+      );
     }
 
     return resolvedMap;
@@ -222,30 +238,37 @@ export class NotificationRecipientResolverService extends BaseService {
       },
     });
 
-    for (const cred of credentials) {
-      if (!cred.identity) continue;
+    await Promise.all(
+      credentials.map(async (cred) => {
+        if (!cred.identity) return;
 
-      try {
-        const rawPhone = await this.identityCryptoService.decryptPublicValue(
-          cred.identity,
-        );
-        const formatted = this.formatPhone(rawPhone);
-        if (formatted) {
-          resolvedMap.set(cred.userId, {
+        try {
+          const [rawPhone, decryptedFirst] = await Promise.all([
+            this.identityCryptoService.decryptPublicValue(cred.identity),
+            cred.user?.profile?.firstName
+              ? this.identityCryptoService.decryptText(
+                  cred.user.profile.firstName,
+                )
+              : Promise.resolve(null),
+          ]);
+          const formatted = this.formatPhone(rawPhone);
+          if (formatted) {
+            resolvedMap.set(cred.userId, {
+              userId: cred.userId,
+              phoneDigits: formatted.phoneDigits,
+              e164Formatted: formatted.e164Formatted,
+              firstName: decryptedFirst ?? undefined,
+            });
+          }
+        } catch (err) {
+          this.logger.warn('Failed to decrypt user phone from AuthCredential', {
             userId: cred.userId,
-            phoneDigits: formatted.phoneDigits,
-            e164Formatted: formatted.e164Formatted,
-            firstName: cred.user?.profile?.firstName,
+            step: 'decrypt_phone_credential',
+            err: serializeError(err),
           });
         }
-      } catch (err) {
-        this.logger.warn('Failed to decrypt user phone from AuthCredential', {
-          userId: cred.userId,
-          step: 'decrypt_phone_credential',
-          err: serializeError(err),
-        });
-      }
-    }
+      }),
+    );
 
     // 2. Fallback: Query Identity records for remaining users
     const remainingUserIds = uniqueUserIds.filter((id) => !resolvedMap.has(id));
@@ -277,34 +300,43 @@ export class NotificationRecipientResolverService extends BaseService {
         },
       });
 
-      for (const identity of identities) {
-        if (!identity.userId || resolvedMap.has(identity.userId)) continue;
+      await Promise.all(
+        identities.map(async (identity) => {
+          if (!identity.userId || resolvedMap.has(identity.userId)) return;
 
-        try {
-          const rawPhone = await this.identityCryptoService.decryptPublicValue({
-            publicValueCiphertext: identity.publicValueCiphertext,
-            publicValueIv: identity.publicValueIv,
-            publicValueTag: identity.publicValueTag,
-            publicValueWrappedKey: identity.publicValueWrappedKey,
-            publicValueKeyId: identity.publicValueKeyId,
-          });
-          const formatted = this.formatPhone(rawPhone);
-          if (formatted) {
-            resolvedMap.set(identity.userId, {
+          try {
+            const [rawPhone, decryptedFirst] = await Promise.all([
+              this.identityCryptoService.decryptPublicValue({
+                publicValueCiphertext: identity.publicValueCiphertext,
+                publicValueIv: identity.publicValueIv,
+                publicValueTag: identity.publicValueTag,
+                publicValueWrappedKey: identity.publicValueWrappedKey,
+                publicValueKeyId: identity.publicValueKeyId,
+              }),
+              identity.user?.profile?.firstName
+                ? this.identityCryptoService.decryptText(
+                    identity.user.profile.firstName,
+                  )
+                : Promise.resolve(null),
+            ]);
+            const formatted = this.formatPhone(rawPhone);
+            if (formatted) {
+              resolvedMap.set(identity.userId, {
+                userId: identity.userId,
+                phoneDigits: formatted.phoneDigits,
+                e164Formatted: formatted.e164Formatted,
+                firstName: decryptedFirst ?? undefined,
+              });
+            }
+          } catch (err) {
+            this.logger.warn('Failed to decrypt user phone from Identity', {
               userId: identity.userId,
-              phoneDigits: formatted.phoneDigits,
-              e164Formatted: formatted.e164Formatted,
-              firstName: identity.user?.profile?.firstName,
+              step: 'decrypt_phone_identity',
+              err: serializeError(err),
             });
           }
-        } catch (err) {
-          this.logger.warn('Failed to decrypt user phone from Identity', {
-            userId: identity.userId,
-            step: 'decrypt_phone_identity',
-            err: serializeError(err),
-          });
-        }
-      }
+        }),
+      );
     }
 
     return resolvedMap;

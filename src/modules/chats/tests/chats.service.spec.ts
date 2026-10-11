@@ -6,6 +6,7 @@ import { MatchStatus } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import { ClsService } from 'nestjs-cls';
 
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -96,6 +97,17 @@ describe('ChatsService', () => {
       isBlocked: jest.fn().mockResolvedValue(false),
     };
 
+    const mockIdentityCryptoService = {
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(val);
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatsService,
@@ -104,6 +116,10 @@ describe('ChatsService', () => {
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: BlocksService, useValue: blocksService },
+        {
+          provide: IdentityCryptoService,
+          useValue: mockIdentityCryptoService,
+        },
         {
           provide: ConfigService,
           useValue: {

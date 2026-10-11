@@ -1,7 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { MatchNotFoundException } from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntentType, MatchStatus } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LOG_EVENT, LoggerService } from '@core/logger';
@@ -11,8 +11,8 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 
+import { MatchNotFoundException } from '../application/exceptions';
 import { MatchesService } from '../matches.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('MatchesService', () => {
   let service: MatchesService;
@@ -33,16 +33,16 @@ describe('MatchesService', () => {
     userOne: {
       id: currentUserId,
       profile: {
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'enc:v1:key:iv:tag:wrapped:John',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
         gender: null,
       },
     },
     userTwo: {
       id: otherUserId,
       profile: {
-        firstName: 'Jane',
-        lastName: 'Smith',
+        firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
         gender: null,
       },
     },
@@ -55,16 +55,16 @@ describe('MatchesService', () => {
     userOne: {
       id: otherUserId,
       profile: {
-        firstName: 'Jane',
-        lastName: 'Smith',
+        firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
         gender: null,
       },
     },
     userTwo: {
       id: currentUserId,
       profile: {
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'enc:v1:key:iv:tag:wrapped:John',
+        lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
         gender: null,
       },
     },
@@ -78,14 +78,14 @@ describe('MatchesService', () => {
     theirIntent: IntentType.CASUAL,
     me: {
       id: currentUserId,
-      firstName: 'John',
-      lastName: 'Doe',
+      firstName: 'enc:v1:key:iv:tag:wrapped:John',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
       gender: null,
     },
     otherUser: {
       id: otherUserId,
-      firstName: 'Jane',
-      lastName: 'Smith',
+      firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
       gender: null,
       label: null,
     },
@@ -99,14 +99,14 @@ describe('MatchesService', () => {
     theirIntent: IntentType.CASUAL,
     me: {
       id: currentUserId,
-      firstName: 'John',
-      lastName: 'Doe',
+      firstName: 'enc:v1:key:iv:tag:wrapped:John',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
       gender: null,
     },
     otherUser: {
       id: otherUserId,
-      firstName: 'Jane',
-      lastName: 'Smith',
+      firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
       gender: null,
       label: null,
     },

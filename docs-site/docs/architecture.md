@@ -54,12 +54,15 @@ Every endpoint must have validation schema classes using `class-validator` and `
 - **Request DTOs**: Named `[action]-[entity].request.dto.ts`. Used to filter, sanitize, and validate incoming query parameters or request bodies.
 - **Response DTOs**: Named `[entity].response.dto.ts`. Used with interceptors to ensure no internal schema columns or fields leak to the client.
 
-### 3. Hashed & Encrypted PII (Privacy)
+### 3. Hashed & Encrypted PII (Zero-Plaintext Privacy)
 
-To comply with global privacy standards, personal identifiable information (PII) is encrypted at rest.
+To comply with global privacy standards (GDPR Articles 5, 25, 32, 34), personal identifiable information (PII) is encrypted at rest using application-layer envelope encryption backed by Google Cloud KMS:
 
-- Hashing: Fields like email addresses and phone numbers are hashed using SHA-256 for lookup/indexing purposes (`valueHash`).
-- Encryption: The original values are encrypted using AES-256-GCM (`publicValueCiphertext`, `publicValueIv`, `publicValueTag`). The encryption key is protected using Google Cloud KMS.
+- **Hashed Identifiers**: Lookup identifiers like email addresses and phone numbers are hashed using SHA-256 (`publicValueHash`) for indexability.
+- **Dedicated Envelope Columns**: Raw contact handles in `Identity` (`publicValueCiphertext`, `publicValueWrappedKey`, `publicValueIv`, `publicValueTag`) are stored across dedicated envelope columns.
+- **Compact Envelope Columns**: Direct customer names (`UserProfile.firstName`, `UserProfile.lastName`) and romantic annotations (`Like.label`) are serialized as self-describing compact envelopes (`enc:v1:...`) in PostgreSQL `TEXT` columns.
+- **Zero-Plaintext Invariant**: Plaintext is never persisted in Supabase/PostgreSQL, protecting database dumps, replicas, and logs from PII exposure.
+- **Deep Dive**: See the dedicated [Database & Prisma ORM Architecture](./architecture/database.md#-field-level-envelope-encryption-fle-for-pii) guide.
 
 ### 4. Decoupled Domain Events
 

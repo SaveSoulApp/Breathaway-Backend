@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { BlocksModule } from '@modules/blocks/blocks.module';
 import { MatchesModule } from '@modules/matches/matches.module';
 
@@ -17,13 +18,14 @@ import { MatchResolverService } from './match-resolver.service';
  *     and access to the canonical match record.
  *   - BlocksModule: provides BlocksService so the resolver can suppress matches
  *     between users who have blocked each other.
+ *   - IdentityCryptoModule: decrypts like labels before emitting MatchCreatedEvent.
  *
  * Exports:
  *   - MatchResolverService: consumed by LikesModule to trigger match evaluation
  *     after each successful like without creating a circular dependency.
  */
 @Module({
-  imports: [MatchesModule, BlocksModule],
+  imports: [MatchesModule, BlocksModule, IdentityCryptoModule],
   providers: [MatchResolverService],
   exports: [MatchResolverService],
 })

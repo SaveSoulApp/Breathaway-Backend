@@ -1,4 +1,9 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { IdentityType } from '@prisma/client';
+import { parsePhoneNumberWithError } from 'libphonenumber-js';
+
 import { PlatformId, PublicValue } from '@common/interfaces';
+import { serializeError } from '@common/utils/error.utils';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import {
@@ -8,9 +13,6 @@ import {
 } from '@core/crypto/crypto.utils';
 import type { IKeyManager } from '@core/kms/key-manager.interface';
 import { LoggerService } from '@core/logger';
-import { Inject, Injectable } from '@nestjs/common';
-import { IdentityType } from '@prisma/client';
-import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
 export interface EncryptedValue {
   ciphertextBase64: string;
@@ -18,6 +20,14 @@ export interface EncryptedValue {
   tagBase64: string;
   wrappedKeyBase64: string;
   keyId: string;
+}
+
+export interface ParsedEncryptedText {
+  keyId: string;
+  ivBase64: string;
+  tagBase64: string;
+  wrappedKeyBase64: string;
+  ciphertextBase64: string;
 }
 
 /**
@@ -263,5 +273,228 @@ export class IdentityCryptoService extends BaseService {
     if (!domain) return '••••';
     const maskedName = name.charAt(0) + '••••' + name.charAt(name.length - 1);
     return `${maskedName}@${domain}`;
+  }
+
+  /**
+   * Encrypts a plaintext string using AES-256-GCM envelope encryption and serializes
+   * the result into a compact string format:
+   * `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`
+   *
+   * @param text - The plaintext string to encrypt.
+   * @returns The serialized compact ciphertext string.
+   */
+  async encryptText(text: string): Promise<string> {
+    const encrypted = await this.encryptPublicValue(text);
+    return `enc:v1:${encrypted.keyId}:${encrypted.ivBase64}:${encrypted.tagBase64}:${encrypted.wrappedKeyBase64}:${encrypted.ciphertextBase64}`;
+  }
+
+  /**
+   * Parses a serialized compact ciphertext string into its component parts.
+   * Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`
+   *
+   * @param value - The compact ciphertext string to parse.
+   * @returns Parsed components or null if malformed or not matching the format.
+   */
+  public parseEncryptedText(value?: string | null): ParsedEncryptedText | null {
+    if (!this.isEncryptedText(value)) {
+      return null;
+    }
+
+    const parts = (value as string).split(':');
+    // Minimum parts: 7 ('enc', 'v1', keyId, iv, tag, wrappedKey, ciphertext)
+    if (parts.length < 7) {
+      return null;
+    }
+
+    return {
+      ciphertextBase64: parts[parts.length - 1],
+      wrappedKeyBase64: parts[parts.length - 2],
+      tagBase64: parts[parts.length - 3],
+      ivBase64: parts[parts.length - 4],
+      keyId: parts.slice(2, parts.length - 4).join(':'),
+    };
+  }
+
+  /**
+   * Decrypts a compact encrypted text string back to its original plaintext.
+   *
+   * Expects strictly null/empty or a valid compact ciphertext starting with `enc:v1:`.
+   * Unencrypted strings are rejected (returning null) to enforce strict encryption at rest.
+   * If decryption fails (e.g. key unwrapping error or corrupted tag), logs an error
+   * and returns `null` rather than throwing to prevent blocking entire list queries.
+   *
+   * @param value - The compact ciphertext string (`enc:v1:...`) or null/empty.
+   * @returns The decrypted plaintext string or null.
+   */
+  async decryptText(value?: string | null): Promise<string | null> {
+    if (!value || value.trim() === '') {
+      return null;
+    }
+
+    if (!this.isEncryptedText(value)) {
+      this.logger.warn(
+        'Non-encrypted text passed to decryptText; rejecting unencrypted payload',
+        {
+          step: 'decrypt_text',
+        },
+      );
+      return null;
+    }
+
+    const parsed = this.parseEncryptedText(value);
+    if (!parsed) {
+      this.logger.warn('Malformed compact encrypted text payload', {
+        step: 'decrypt_text',
+      });
+      return null;
+    }
+
+    try {
+      return await this.decryptValue(
+        parsed.ciphertextBase64,
+        parsed.ivBase64,
+        parsed.tagBase64,
+        parsed.wrappedKeyBase64,
+        parsed.keyId,
+      );
+    } catch (err) {
+      this.logger.error('Failed to decrypt compact encrypted text', {
+        step: 'decrypt_text',
+        err: serializeError(err),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Decrypts a batch of compact encrypted text strings (`enc:v1:...`) in parallel.
+   *
+   * Deduplicates KMS key unwraps across items with identical wrapped keys,
+   * performs AES-256-GCM decryptions concurrently, and preserves input order.
+   * Invalid or failed items return `null` without throwing to maintain high availability.
+   *
+   * @param values - Array of compact ciphertext strings (`enc:v1:...`) or null/empty.
+   * @returns Array of decrypted plaintext strings or nulls, corresponding 1-to-1 with input values.
+   */
+  async decryptBatch(
+    values: (string | null | undefined)[],
+  ): Promise<(string | null)[]> {
+    if (!values || values.length === 0) {
+      return [];
+    }
+
+    const results: (string | null)[] = new Array<string | null>(
+      values.length,
+    ).fill(null);
+    const validItems: {
+      index: number;
+      parsed: ParsedEncryptedText;
+      keyComposite: string;
+    }[] = [];
+
+    const keyCompositeMap = new Map<
+      string,
+      { wrappedKeyBase64: string; keyId: string }
+    >();
+
+    for (let i = 0; i < values.length; i++) {
+      const val = values[i];
+      if (!val || val.trim() === '') {
+        continue;
+      }
+
+      if (!this.isEncryptedText(val)) {
+        this.logger.warn(
+          'Non-encrypted text passed to decryptBatch; rejecting unencrypted payload',
+          {
+            step: 'decrypt_batch',
+            index: i,
+          },
+        );
+        continue;
+      }
+
+      const parsed = this.parseEncryptedText(val);
+      if (!parsed) {
+        this.logger.warn('Malformed compact encrypted text payload in batch', {
+          step: 'decrypt_batch',
+          index: i,
+        });
+        continue;
+      }
+
+      const keyComposite = `${parsed.keyId}:::${parsed.wrappedKeyBase64}`;
+      validItems.push({ index: i, parsed, keyComposite });
+
+      if (!keyCompositeMap.has(keyComposite)) {
+        keyCompositeMap.set(keyComposite, {
+          wrappedKeyBase64: parsed.wrappedKeyBase64,
+          keyId: parsed.keyId,
+        });
+      }
+    }
+
+    if (validItems.length === 0) {
+      return results;
+    }
+
+    // Step 2: Unwrap unique data keys concurrently (leveraging in-memory DEK cache)
+    const unwrappedKeys = new Map<string, Buffer | null>();
+    await Promise.all(
+      Array.from(keyCompositeMap.entries()).map(
+        async ([composite, { wrappedKeyBase64, keyId }]) => {
+          try {
+            const wrapped = Buffer.from(wrappedKeyBase64, 'base64');
+            const dataKey = await this.keyManager.unwrapDataKey(wrapped, keyId);
+            unwrappedKeys.set(composite, dataKey);
+          } catch (err) {
+            this.logger.error('Failed to unwrap data key for batch item', {
+              step: 'decrypt_batch_unwrap',
+              keyId,
+              err: serializeError(err),
+            });
+            unwrappedKeys.set(composite, null);
+          }
+        },
+      ),
+    );
+
+    // Step 3: Decrypt AES-256-GCM ciphertexts
+    for (const item of validItems) {
+      const dataKey = unwrappedKeys.get(item.keyComposite);
+      if (!dataKey) {
+        results[item.index] = null;
+        continue;
+      }
+
+      try {
+        const plaintext = decryptAesGcm(
+          Buffer.from(item.parsed.ciphertextBase64, 'base64'),
+          Buffer.from(item.parsed.ivBase64, 'base64'),
+          Buffer.from(item.parsed.tagBase64, 'base64'),
+          dataKey,
+        );
+        results[item.index] = plaintext;
+      } catch (err) {
+        this.logger.error('Failed to decrypt batch item ciphertext', {
+          step: 'decrypt_batch_aes',
+          index: item.index,
+          err: serializeError(err),
+        });
+        results[item.index] = null;
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Determines whether a given value is a compact encrypted string matching `enc:v1:`.
+   *
+   * @param value - The string to test.
+   * @returns True if the string starts with `enc:v1:`.
+   */
+  isEncryptedText(value?: string | null): boolean {
+    return typeof value === 'string' && value.startsWith('enc:v1:');
   }
 }
