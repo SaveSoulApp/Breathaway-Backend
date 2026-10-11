@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Prisma, UserProfile } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
@@ -89,6 +89,9 @@ export class ProfilesService extends BaseService {
             )
           : Promise.resolve(null),
       ]);
+
+      this.assertEncryptedName(encryptedFirstName, 'firstName');
+      this.assertEncryptedName(encryptedLastName, 'lastName');
 
       const profile = await this.prisma.userProfile.create({
         data: {
@@ -260,6 +263,13 @@ export class ProfilesService extends BaseService {
           : null;
       }
 
+      if (data.firstName !== undefined) {
+        this.assertEncryptedName(data.firstName as string, 'firstName');
+      }
+      if (data.lastName !== undefined) {
+        this.assertEncryptedName(data.lastName as string, 'lastName');
+      }
+
       const updatedProfile = await this.prisma.userProfile.update({
         where: { userId },
         data,
@@ -362,6 +372,13 @@ export class ProfilesService extends BaseService {
             patchProfileDto.lastName.trim(),
           )
         : null;
+    }
+
+    if (data.firstName !== undefined) {
+      this.assertEncryptedName(data.firstName as string, 'firstName');
+    }
+    if (data.lastName !== undefined) {
+      this.assertEncryptedName(data.lastName as string, 'lastName');
     }
 
     try {
@@ -513,7 +530,6 @@ export class ProfilesService extends BaseService {
 
   /**
    * Decrypts encrypted PII fields (firstName, lastName) on a UserProfile record.
-   * If a field was not encrypted (e.g. legacy/mock data), falls back gracefully.
    *
    * @param profile - The raw UserProfile database record.
    * @returns The UserProfile record with decrypted plaintext fields.
@@ -531,6 +547,32 @@ export class ProfilesService extends BaseService {
       firstName: decryptedFirstName ?? '',
       lastName: decryptedLastName ?? null,
     };
+  }
+
+  /**
+   * Asserts that a name value to be persisted is either empty or in encrypted `enc:v1:` format.
+   * Prevents raw unencrypted PII strings from being saved to the database.
+   *
+   * @param value - The value to validate.
+   * @param fieldName - The name of the field for error reporting.
+   * @throws {InternalServerErrorException} If an unencrypted non-null string is detected.
+   */
+  private assertEncryptedName(
+    value: string | null | undefined,
+    fieldName: string,
+  ): void {
+    if (value && !this.identityCryptoService.isEncryptedText(value)) {
+      this.logger.error(
+        'Security invariant violation: Attempted to persist unencrypted profile name',
+        {
+          step: 'assert_encrypted_name',
+          fieldName,
+        },
+      );
+      throw new InternalServerErrorException(
+        `Security violation: Attempted to persist unencrypted ${fieldName}`,
+      );
+    }
   }
 
   /**

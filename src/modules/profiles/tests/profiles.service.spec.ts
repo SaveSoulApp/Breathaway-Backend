@@ -1,3 +1,4 @@
+import { InternalServerErrorException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfile } from '@prisma/client';
@@ -78,8 +79,14 @@ describe('ProfilesService', () => {
           const parts = val.split(':');
           return Promise.resolve(parts[parts.length - 1]);
         }
-        return Promise.resolve(val);
+        return Promise.resolve(null);
       }),
+      isEncryptedText: jest
+        .fn()
+        .mockImplementation(
+          (val?: string | null) =>
+            typeof val === 'string' && val.startsWith('enc:v1:'),
+        ),
     } as unknown as jest.Mocked<IdentityCryptoService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -193,6 +200,20 @@ describe('ProfilesService', () => {
       expect(
         loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException if firstName is not properly encrypted', async () => {
+      // Arrange
+      prisma.userProfile.findUnique.mockResolvedValue(null);
+      identityCryptoServiceMock.encryptText.mockResolvedValueOnce(
+        'unencrypted-plain-text',
+      );
+
+      // Act & Assert
+      await expect(service.createProfile(userId, createDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      expect(prisma.userProfile.create).not.toHaveBeenCalled();
     });
   });
 
@@ -357,6 +378,20 @@ describe('ProfilesService', () => {
         loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
     });
+
+    it('should throw InternalServerErrorException if updated name is not properly encrypted', async () => {
+      // Arrange
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      identityCryptoServiceMock.encryptText.mockResolvedValueOnce(
+        'unencrypted-plain-text',
+      );
+
+      // Act & Assert
+      await expect(service.updateProfile(userId, updateDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      expect(prisma.userProfile.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('patchProfile', () => {
@@ -449,6 +484,20 @@ describe('ProfilesService', () => {
       expect(
         loggerServiceMock.forContext('ProfilesService').error,
       ).toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException if patched name is not properly encrypted', async () => {
+      // Arrange
+      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
+      identityCryptoServiceMock.encryptText.mockResolvedValueOnce(
+        'unencrypted-plain-text',
+      );
+
+      // Act & Assert
+      await expect(service.patchProfile(userId, patchDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      expect(prisma.userProfile.update).not.toHaveBeenCalled();
     });
   });
 
