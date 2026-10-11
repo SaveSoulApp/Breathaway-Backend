@@ -17,6 +17,7 @@ import { AuditActionType } from '@modules/audit/dto';
 
 import {
   InvalidPlanPriceException,
+  InvalidSubscriptionDatesException,
   SubscriptionPlanNotFoundException,
   SubscriptionPlanPriceNotFoundException,
 } from '../application/exceptions';
@@ -906,6 +907,16 @@ export class SubscriptionPlansService extends BaseService {
   async getPriceHistory(planId: string, query: QueryPriceHistoryRequestDto) {
     await this.getPlanById(planId);
 
+    if (query.startDate && query.endDate) {
+      const start = new Date(query.startDate);
+      const end = new Date(query.endDate);
+      if (start > end) {
+        throw new InvalidSubscriptionDatesException(
+          'startDate must be on or before endDate',
+        );
+      }
+    }
+
     const where: Prisma.SubscriptionPlanPriceHistoryWhereInput = {
       planId,
       ...(query.countryCode && { countryCode: query.countryCode }),
@@ -930,9 +941,15 @@ export class SubscriptionPlansService extends BaseService {
       }
     }
 
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(200, Math.max(1, query.limit ?? 100));
+    const skip = (page - 1) * limit;
+
     const history = await this.prisma.subscriptionPlanPriceHistory.findMany({
       where,
       orderBy: { effectiveFrom: 'asc' },
+      skip,
+      take: limit,
     });
 
     return history.map((h) => ({

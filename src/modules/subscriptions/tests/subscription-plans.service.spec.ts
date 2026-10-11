@@ -19,6 +19,7 @@ import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
+  InvalidSubscriptionDatesException,
   SubscriptionPlanNotFoundException,
   SubscriptionPlanPriceNotFoundException,
 } from '../application/exceptions';
@@ -1362,11 +1363,53 @@ describe('SubscriptionPlansService', () => {
             countryCode: 'IN',
           }),
           orderBy: { effectiveFrom: 'asc' },
+          skip: 0,
+          take: 100,
         },
       );
       expect(result).toHaveLength(2);
       expect(result[0].originalPrice).toBe(399);
       expect(result[1].originalPrice).toBe(499);
+    });
+
+    it('should respect custom page and limit parameters for pagination', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue([]);
+
+      // Act
+      await service.getPriceHistory(mockPlan.id, {
+        page: 3,
+        limit: 25,
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 50,
+          take: 25,
+        }),
+      );
+    });
+
+    it('should throw InvalidSubscriptionDatesException when startDate is after endDate', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+
+      // Act & Assert
+      await expect(
+        service.getPriceHistory(mockPlan.id, {
+          startDate: '2026-05-01T00:00:00Z',
+          endDate: '2026-01-01T00:00:00Z',
+        }),
+      ).rejects.toThrow(
+        new InvalidSubscriptionDatesException(
+          'startDate must be on or before endDate',
+        ),
+      );
+      expect(
+        prisma.subscriptionPlanPriceHistory.findMany,
+      ).not.toHaveBeenCalled();
     });
   });
 });

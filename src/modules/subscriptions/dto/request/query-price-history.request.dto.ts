@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsDateString, IsOptional, IsString, Length } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class QueryPriceHistoryRequestDto {
   @ApiPropertyOptional({
@@ -43,4 +51,30 @@ export class QueryPriceHistoryRequestDto {
   @IsOptional()
   @IsDateString()
   pointInTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'Page number (1-based)',
+    default: 1,
+    minimum: 1,
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    description: 'Number of history records per page',
+    default: 100,
+    minimum: 1,
+    maximum: 200,
+    example: 100,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number = 100;
 }
