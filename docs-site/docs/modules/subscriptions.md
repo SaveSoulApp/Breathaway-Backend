@@ -50,6 +50,29 @@ Defines the categories of log events captured in `SubscriptionEvent`:
 
 - **`INITIAL_PURCHASE`**, `RENEWAL`, `CANCELLATION`, `GRACE_PERIOD_ENTERED`, `BILLING_RECOVERY`, `REFUND`, `EXPIRY`, `REVOCATION`.
 
+### 5. SubscriptionPriceChangeType
+
+Classifies price audit events in `SubscriptionPlanPriceHistory`:
+
+- **`INITIAL_PRICE`**: Created upon initial regional pricing configuration.
+- **`BASE_PRICE_INCREASE`**: Permanent base anchor price hike.
+- **`BASE_PRICE_DECREASE`**: Permanent base anchor price reduction.
+- **`PROMO_SCHEDULED`**: Promotional discount window scheduled (`discountedPrice`, `discountStartsAt`, `discountEndsAt`).
+- **`PROMO_ENDED`**: Promotion cleared or expired.
+- **`PROMO_UPDATED`**: Active promotion discount or date window revised.
+- **`PRICE_UPDATED`**: Generic price metadata modification.
+- **`PRICE_DELETED`**: Regional pricing row decommissioned (closed in history).
+
+---
+
+## 🗄️ Core Database Models
+
+- **`SubscriptionPlan`**: Represents product tiers (`name`, `creditsGranted`, `validityDays`, `appleProductId`, `googleProductId`, `sortOrder`, `isActive`).
+- **`SubscriptionPlanPrice`**: Multi-currency geo-pricing rows per country/currency (`originalPrice`, `discountedPrice`, `discountStartsAt`, `discountEndsAt`). Unique by `[planId, countryCode, currencyCode]`.
+- **`SubscriptionPlanPriceHistory`**: Immutable bi-temporal audit snapshots (`effectiveFrom`, `effectiveTo`, `changeType`, `changedByUserId`, `changeReason`). Foreign key `priceId` is nullable with `ON DELETE SET NULL` to preserve historical integrity.
+- **`UserSubscription`**: User entitlement tracking (`status`, `expiresAt`, `currentPeriodEnd`, `autoRenew`).
+- **`SubscriptionEvent`**: Idempotent audit logs of store billing events (`storeEventId` unique constraint).
+
 ---
 
 ## 🧠 Business Logic & Core Concepts

@@ -278,30 +278,134 @@ When an admin updates a price row:
 
 ### Snapshot Fields in History
 
-| History Column     | Description                                                                                                                                                                                   |
-| :----------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | Unique history record ULID.                                                                                                                                                                   |
-| `priceId`          | Foreign key referencing `SubscriptionPlanPrice` (`String?`, `ON DELETE SET NULL`). Nullable so deleting a price never cascades or deletes audit history.                                    |
-| `planId`           | Foreign key referencing `SubscriptionPlan`.                                                                                                                                                   |
-| `countryCode`      | ISO 2-letter country code (`IN`, `US`, etc.).                                                                                                                                                 |
-| `currencyCode`     | Currency code (`INR`, `USD`, etc.).                                                                                                                                                           |
-| `originalPrice`    | Regular anchor price snapshotted at that interval.                                                                                                                                            |
-| `discountedPrice`  | Promotional price snapshotted (or `null`).                                                                                                                                                    |
-| `discountStartsAt` | Promotional window start timestamp (or `null`).                                                                                                                                               |
-| `discountEndsAt`   | Promotional window end timestamp (or `null`).                                                                                                                                                 |
-| `effectiveFrom`    | UTC timestamp when this configuration became authoritative.                                                                                                                                   |
-| `effectiveTo`      | UTC timestamp when superseded (`null` = currently active).                                                                                                                                    |
-| `changeType`       | `SubscriptionPriceChangeType` enum (`INITIAL_PRICE`, `BASE_PRICE_INCREASE`, `BASE_PRICE_DECREASE`, `PROMO_SCHEDULED`, `PROMO_ENDED`, `PROMO_UPDATED`, `PRICE_UPDATED`, `PRICE_DELETED`).   |
-| `changedByUserId`  | Google OIDC email of the administrator who made the change (resolved from `@CurrentAdminEmail()` with CLS fallback).                                                                         |
-| `changeReason`     | Audit justification string explaining why the price was modified.                                                                                                                             |
+| History Column     | Description                                                                                                                                              |
+| :----------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | Unique history record ULID.                                                                                                                              |
+| `priceId`          | Foreign key referencing `SubscriptionPlanPrice` (`String?`, `ON DELETE SET NULL`). Nullable so deleting a price never cascades or deletes audit history. |
+| `planId`           | Foreign key referencing `SubscriptionPlan` (`ON DELETE CASCADE`).                                                                                        |
+| `countryCode`      | ISO 3166-1 alpha-2 country code (`IN`, `US`, etc.).                                                                                                      |
+| `currencyCode`     | Currency code (`INR`, `USD`, etc.).                                                                                                                      |
+| `originalPrice`    | Regular anchor price snapshotted at that interval.                                                                                                       |
+| `discountedPrice`  | Promotional price snapshotted (or `null`).                                                                                                               |
+| `discountStartsAt` | Promotional window start timestamp (or `null`).                                                                                                          |
+| `discountEndsAt`   | Promotional window end timestamp (or `null`).                                                                                                            |
+| `effectiveFrom`    | UTC timestamp when this configuration became authoritative.                                                                                              |
+| `effectiveTo`      | UTC timestamp when superseded (`null` = currently active).                                                                                               |
+| `changeType`       | `SubscriptionPriceChangeType` enum value classifying the business event.                                                                                 |
+| `changedByUserId`  | Google OIDC email of the administrator who made the change (resolved from `@CurrentAdminEmail()` with CLS fallback).                                     |
+| `changeReason`     | Audit justification string explaining why the price was modified.                                                                                        |
 
-### Querying the Audit Trail
+### The `SubscriptionPriceChangeType` State Enum
 
-Administrators can query the audit history via `GET /api/v1/admin/subscriptions/plans/:planId/prices/history`:
+Every price alteration is automatically categorized by the business logic into one of 8 strongly typed enum variants:
 
-- **Pagination**: Supports `page` (default: `1`, minimum: `1`) and `limit` (default: `100`, minimum: `1`, maximum: `200`).
-- **Date Range Query**: `?countryCode=IN&startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&page=1&limit=50`. Requires `startDate <= endDate`; inverted date ranges reject with HTTP 400 (`InvalidSubscriptionDatesException`).
-- **Point-in-Time Query**: `?countryCode=IN&pointInTime=2026-02-14T12:00:00Z` reconstructs the exact active price configuration at that historical moment.
+| Enum Variant          | Trigger & Business Semantics                                                                                                                |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
+| `INITIAL_PRICE`       | Generated when an administrator creates a new regional price row (`POST .../prices`).                                                       |
+| `BASE_PRICE_INCREASE` | Generated when the regular retail price is raised (`newOriginalPrice > oldOriginalPrice`).                                                  |
+| `BASE_PRICE_DECREASE` | Generated when the regular retail price is lowered (`newOriginalPrice < oldOriginalPrice`).                                                 |
+| `PROMO_SCHEDULED`     | Generated when a new promotional discount window (`discountedPrice`, `discountStartsAt`, `discountEndsAt`) is scheduled.                    |
+| `PROMO_ENDED`         | Generated when an active promotion is terminated or cleared by setting promo fields to `null`.                                              |
+| `PROMO_UPDATED`       | Generated when an existing promotion's discounted price or validity timestamps are revised.                                                 |
+| `PRICE_UPDATED`       | General catch-all update if modifications affect secondary price metadata without altering price tiers.                                     |
+| `PRICE_DELETED`       | Generated when an administrator deletes a price row (`DELETE .../prices/:priceId`), closing its validity interval while preserving history. |
+
+### Referential Integrity & Audit Durability
+
+```prisma
+model SubscriptionPlanPriceHistory {
+  id      String                 @id @default(ulid())
+  priceId String?
+  price   SubscriptionPlanPrice? @relation(fields: [priceId], references: [id], onDelete: SetNull)
+
+  planId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  ...
+  @@index([planId, countryCode, effectiveFrom, effectiveTo])
+  @@index([planId, effectiveFrom, effectiveTo])
+  @@index([priceId, effectiveFrom])
+}
+```
+
+1. **`priceId` Nullable with `ON DELETE SET NULL`**: If a pricing tier is decommissioned and deleted via `DELETE /api/v1/admin/subscriptions/plans/:planId/prices/:priceId`, the database sets `priceId = NULL` on historical rows instead of deleting them. The immutable audit trail of past sales, pricing, and administrative attribution is preserved indefinitely for tax and regulatory audits.
+2. **Composite Query Indexes**:
+   - `@@index([planId, countryCode, effectiveFrom, effectiveTo])`: Enables sub-millisecond range evaluations and point-in-time lookups for regional auditing.
+   - `@@index([planId, effectiveFrom, effectiveTo])`: Optimizes catalog-wide pricing scans across all countries for a specific plan.
+
+### Querying the Audit Trail (`GET /api/v1/admin/subscriptions/plans/:planId/prices/history`)
+
+Administrators and compliance auditors can query the audit history with flexible filters and standard pagination:
+
+#### Query Parameters
+
+| Parameter     | Type      | Required | Description                                                                           |
+| :------------ | :-------- | :------- | :------------------------------------------------------------------------------------ |
+| `countryCode` | `String`  | No       | Filter by ISO 3166-1 alpha-2 country code (e.g., `IN`, `US`).                         |
+| `startDate`   | `ISO8601` | No       | Filter records active on or after this UTC timestamp.                                 |
+| `endDate`     | `ISO8601` | No       | Filter records active on or before this UTC timestamp. Must be `>= startDate`.        |
+| `pointInTime` | `ISO8601` | No       | Reconstruct the exact price configuration that was live at this specific UTC instant. |
+| `page`        | `Integer` | No       | 1-based page index (default: `1`, minimum: `1`).                                      |
+| `limit`       | `Integer` | No       | Maximum items per page (default: `100`, minimum: `1`, maximum: `200`).                |
+
+> [!IMPORTANT]
+> **Date Range Invariant**: If both `startDate` and `endDate` are provided, the system strictly validates `startDate <= endDate`. If an inverted range is supplied (e.g. `startDate=2026-12-01` and `endDate=2026-01-01`), the API immediately rejects the request with HTTP 400 (`InvalidSubscriptionDatesException`).
+
+#### Paginated Response Envelope (`PriceHistoryResponseDto`)
+
+```json
+{
+  "page": 1,
+  "limit": 50,
+  "total": 3,
+  "totalPages": 1,
+  "data": [
+    {
+      "id": "01JM7N89ABCDEF0123456789XY",
+      "priceId": "01JM7N80ABCDEF0123456789AB",
+      "planId": "01JM7N70ABCDEF012345678901",
+      "countryCode": "IN",
+      "currencyCode": "INR",
+      "originalPrice": 499.0,
+      "discountedPrice": null,
+      "discountStartsAt": null,
+      "discountEndsAt": null,
+      "effectiveFrom": "2026-04-11T00:00:00.000Z",
+      "effectiveTo": null,
+      "changeType": "BASE_PRICE_INCREASE",
+      "changedByUserId": "lead-engineer@breathaway.app",
+      "changeReason": "Annual base price increase from 399 to 499 approved by Finance",
+      "createdAt": "2026-04-11T00:00:00.000Z"
+    },
+    {
+      "id": "01JM7N85ABCDEF0123456789CD",
+      "priceId": "01JM7N80ABCDEF0123456789AB",
+      "planId": "01JM7N70ABCDEF012345678901",
+      "countryCode": "IN",
+      "currencyCode": "INR",
+      "originalPrice": 399.0,
+      "discountedPrice": 299.0,
+      "discountStartsAt": "2026-04-01T00:00:00.000Z",
+      "discountEndsAt": "2026-04-10T23:59:59.000Z",
+      "effectiveFrom": "2026-04-01T00:00:00.000Z",
+      "effectiveTo": "2026-04-11T00:00:00.000Z",
+      "changeType": "PROMO_SCHEDULED",
+      "changedByUserId": "lead-engineer@breathaway.app",
+      "changeReason": "Spring festival promotional discount",
+      "createdAt": "2026-04-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Identity Resolution via `@CurrentAdminEmail()`
+
+Administrative identity attribution in price mutations is handled by the custom `@CurrentAdminEmail()` parameter decorator:
+
+1. Resolves `req.user.email` from the verified Google OIDC identity token claims.
+2. Falls back to Continuation-Local Storage (`cls.get('adminEmail')`) established by `AdminOidcAuthGuard`.
+3. Falls back to `'system'` for automated background tasks.
+
+This eliminates reliance on spoofable client headers and ensures tamper-proof audit trails.
 
 ---
 
@@ -444,10 +548,66 @@ When configuring promotional pricing (`originalPrice` vs `discountedPrice`), ope
 2. **Definite Promotional Windows**: Always set explicit `discountStartsAt` and `discountEndsAt` UTC timestamps. Running perpetual "limited time discounts" that never expire is classified as deceptive advertising in multiple jurisdictions.
 3. **Audit Trail Preservation**: Never attempt to delete `SubscriptionPlanPriceHistory` rows. Tax and trade regulatory authorities may request historical pricing records during platform audits.
 
-### Postman Administrative Testing
+### Postman Administrative Testing Suite
 
-All 7 administrative subscription plan endpoints are pre-configured in the project Postman collection under **APIs** ➔ **Admin** ➔ **SubscriptionPlans**:
+All 7 administrative subscription plan endpoints are cataloged in the project Postman workspace under **APIs** ➔ **Admin** ➔ **SubscriptionPlans**.
 
-- **Environment Variable**: Use the `Development` environment with `{{Base_Url}}` set to your target server.
-- **Admin Token**: Generate a Google OIDC identity token via `gcloud auth print-identity-token` and store it in `{{DevGcpToken}}`.
-- **Public Token**: For public-facing endpoints under `Public/Subscriptions`, authenticate as a test user and store the token in `{{AccessToken}}`.
+#### Authentication & Environment Configuration
+
+| Scope                | Header                                  | Description                                                                                                                   |
+| :------------------- | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Admin Endpoints**  | `Authorization: Bearer {{DevGcpToken}}` | Generated using Google Cloud SDK: `export DevGcpToken=$(gcloud auth print-identity-token)`. Verified by `AdminOidcAuthGuard`. |
+| **Public Endpoints** | `Authorization: Bearer {{AccessToken}}` | Standard JWT bearer issued by `/api/v1/auth/*` for customer mobile/web sessions.                                              |
+| **Base URL**         | `{{Base_Url}}`                          | Points to local dev (`http://localhost:3000`) or Cloud Run staging/production environment.                                    |
+
+#### The 7 Administrative Endpoints
+
+| #   | Operation                       | HTTP Method & Path                                                 | Purpose & Notes                                                                                            |
+| :-- | :------------------------------ | :----------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| 1   | **Create Subscription Plan**    | `POST /api/v1/admin/subscriptions/plans`                           | Creates a new product plan tier (`name`, `creditsGranted`, `validityDays`, `slug`, etc.).                  |
+| 2   | **List All Subscription Plans** | `GET /api/v1/admin/subscriptions/plans`                            | Returns all plans in the catalog, including inactive and archived tiers.                                   |
+| 3   | **Update Subscription Plan**    | `PATCH /api/v1/admin/subscriptions/plans/:id`                      | Updates marketing metadata, credits, validity, store product IDs, or toggle `isActive`.                    |
+| 4   | **Add Plan Regional Price**     | `POST /api/v1/admin/subscriptions/plans/:planId/prices`            | Creates localized price for country/currency; auto-records `INITIAL_PRICE` history.                        |
+| 5   | **Update Price / Promo**        | `PATCH /api/v1/admin/subscriptions/plans/:planId/prices/:priceId`  | Modifies base price or schedules promotional sale; auto-records typed history audit.                       |
+| 6   | **Delete Plan Price**           | `DELETE /api/v1/admin/subscriptions/plans/:planId/prices/:priceId` | Deletes price tier; closes history interval (`effectiveTo = now()`, `priceId = null`).                     |
+| 7   | **View Price Audit History**    | `GET /api/v1/admin/subscriptions/plans/:planId/prices/history`     | Queries bi-temporal audit trail with `countryCode`, `startDate`, `endDate`, `pointInTime`, and pagination. |
+
+---
+
+## 9. 🗄️ Database Migration Safety & Zero-Data-Loss Protocol
+
+When modifying Prisma schemas in production or staging environments, strict protocols must be observed to prevent database drift and accidental data loss.
+
+### Prisma Migration Checksum Invalidation
+
+Prisma Migrate computes a SHA-256 hash of each `migration.sql` file upon execution and records it in the database table `_prisma_migrations`.
+
+- **The Anti-Pattern**: If a developer retroactively modifies an already-applied migration file in `prisma/migrations/`, Prisma detects a checksum mismatch on the next `npx prisma migrate dev` execution.
+- **The Danger**: Prisma reports `Drift detected: Your database schema is not in sync with your migration history` and prompts to reset the database (`We need to reset the "public" schema... All data will be lost`).
+
+### The Forward-Only Incremental Migration Standard
+
+To modify existing tables or enums safely without resetting the database:
+
+1. **Never edit an already-applied `migration.sql`**: Leave applied migration directories immutable.
+2. **Author an incremental migration**: Create a new timestamped migration directory under `prisma/migrations/` containing only the delta:
+   ```bash
+   prisma/migrations/<YYYYMMDDHHMMSS>_<descriptive_name>/migration.sql
+   ```
+3. **Safe PostgreSQL Enum Casting**:
+   When changing a column from `TEXT` or a previous type to a custom PostgreSQL `ENUM`, direct alterations will fail if data exists. Always supply the `USING` cast expression:
+   ```sql
+   ALTER TABLE "SubscriptionPlanPriceHistory"
+     ALTER COLUMN "changeType" TYPE "SubscriptionPriceChangeType"
+     USING ("changeType"::"SubscriptionPriceChangeType");
+   ```
+4. **Audit Durability on Foreign Keys**:
+   When referencing rows that may be decommissioned, use `ON DELETE SET NULL`:
+   ```sql
+   ALTER TABLE "SubscriptionPlanPriceHistory"
+     ADD CONSTRAINT "SubscriptionPlanPriceHistory_priceId_fkey"
+     FOREIGN KEY ("priceId") REFERENCES "SubscriptionPlanPrice"("id")
+     ON DELETE SET NULL ON UPDATE CASCADE;
+   ```
+5. **Execute Safely**:
+   Run `npx prisma migrate dev` locally or `npx prisma migrate deploy` in CI/CD. Prisma verifies the hash of all previously applied migrations, detects the new pending forward migration, and applies it cleanly with zero data loss.
