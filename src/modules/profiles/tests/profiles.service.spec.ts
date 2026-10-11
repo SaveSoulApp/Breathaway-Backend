@@ -218,7 +218,7 @@ describe('ProfilesService', () => {
   });
 
   describe('getProfileByUserId', () => {
-    it('should return decrypted profile if exists', async () => {
+    it('should return profile record if exists', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
 
@@ -229,7 +229,7 @@ describe('ProfilesService', () => {
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { userId },
       });
-      expect(result).toEqual(expectedDecryptedProfile);
+      expect(result).toEqual(rawDbProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -247,7 +247,7 @@ describe('ProfilesService', () => {
   });
 
   describe('getProfileById', () => {
-    it('should return decrypted profile if exists', async () => {
+    it('should return profile record if exists', async () => {
       // Arrange
       prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
 
@@ -258,7 +258,7 @@ describe('ProfilesService', () => {
       expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
         where: { id: profileId },
       });
-      expect(result).toEqual(expectedDecryptedProfile);
+      expect(result).toEqual(rawDbProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -314,7 +314,7 @@ describe('ProfilesService', () => {
           dateOfBirth: DateUtil.parse(updateDto.dateOfBirth!),
         },
       });
-      expect(result).toEqual(expectedUpdatedProfile);
+      expect(result).toEqual(rawUpdatedProfile);
     });
 
     it('should handle update without dateOfBirth', async () => {
@@ -326,11 +326,6 @@ describe('ProfilesService', () => {
       const rawUpdatedProfile: UserProfile = {
         ...rawDbProfile,
         firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
-        dateOfBirth: null,
-      };
-      const expectedUpdatedProfile: UserProfile = {
-        ...expectedDecryptedProfile,
-        firstName: 'Jane',
         dateOfBirth: null,
       };
 
@@ -350,7 +345,7 @@ describe('ProfilesService', () => {
           dateOfBirth: null,
         },
       });
-      expect(result).toEqual(expectedUpdatedProfile);
+      expect(result).toEqual(rawUpdatedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {
@@ -427,7 +422,7 @@ describe('ProfilesService', () => {
           firstName: 'enc:v1:test-key:iv:tag:wrapped:Jane',
         },
       });
-      expect(result).toEqual(expectedPatchedProfile);
+      expect(result).toEqual(rawPatchedProfile);
     });
 
     it('should handle patching dateOfBirth', async () => {
@@ -437,10 +432,6 @@ describe('ProfilesService', () => {
       };
       const rawPatchedProfile = {
         ...rawDbProfile,
-        dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
-      };
-      const expectedPatchedProfile = {
-        ...expectedDecryptedProfile,
         dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
       };
 
@@ -457,7 +448,7 @@ describe('ProfilesService', () => {
           dateOfBirth: DateUtil.parse(dtoWithDob.dateOfBirth!),
         },
       });
-      expect(result).toEqual(expectedPatchedProfile);
+      expect(result).toEqual(rawPatchedProfile);
     });
 
     it('should throw ProfileNotFoundException if profile does not exist', async () => {

@@ -159,14 +159,12 @@ export class ProfilesService extends BaseService {
       throw new ProfileNotFoundException(userId);
     }
 
-    const decryptedProfile = await this.decryptProfile(profile);
-
     this.logger.debug('Profile fetched successfully', {
       ...ctx,
       step: 'complete',
       profileId: profile.id,
     });
-    return decryptedProfile;
+    return profile;
   }
 
   /**
@@ -193,14 +191,12 @@ export class ProfilesService extends BaseService {
       throw new ProfileNotFoundException(id);
     }
 
-    const decryptedProfile = await this.decryptProfile(profile);
-
     this.logger.debug('Profile fetched successfully', {
       ...ctx,
       step: 'complete',
       userId: profile.userId,
     });
-    return decryptedProfile;
+    return profile;
   }
 
   /**
@@ -291,25 +287,8 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: updatedProfile.id,
       });
-      const resolvedFirstName =
-        updateProfileDto.firstName !== undefined
-          ? updateProfileDto.firstName.trim()
-          : ((await this.identityCryptoService.decryptText(
-              updatedProfile.firstName,
-            )) ?? '');
 
-      const resolvedLastName =
-        updateProfileDto.lastName !== undefined
-          ? (updateProfileDto.lastName?.trim() ?? null)
-          : ((await this.identityCryptoService.decryptText(
-              updatedProfile.lastName,
-            )) ?? null);
-
-      return {
-        ...updatedProfile,
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-      };
+      return updatedProfile;
     } catch (error) {
       this.logger.error('Failed to update profile', {
         ...ctx,
@@ -403,25 +382,8 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: patchedProfile.id,
       });
-      const resolvedFirstName =
-        patchProfileDto.firstName !== undefined
-          ? patchProfileDto.firstName.trim()
-          : ((await this.identityCryptoService.decryptText(
-              patchedProfile.firstName,
-            )) ?? '');
 
-      const resolvedLastName =
-        patchProfileDto.lastName !== undefined
-          ? (patchProfileDto.lastName?.trim() ?? null)
-          : ((await this.identityCryptoService.decryptText(
-              patchedProfile.lastName,
-            )) ?? null);
-
-      return {
-        ...patchedProfile,
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-      };
+      return patchedProfile;
     } catch (error) {
       this.logger.error('Failed to patch profile', {
         ...ctx,
@@ -526,27 +488,6 @@ export class ProfilesService extends BaseService {
       });
       throw error;
     }
-  }
-
-  /**
-   * Decrypts encrypted PII fields (firstName, lastName) on a UserProfile record.
-   *
-   * @param profile - The raw UserProfile database record.
-   * @returns The UserProfile record with decrypted plaintext fields.
-   */
-  private async decryptProfile(profile: UserProfile): Promise<UserProfile> {
-    const [decryptedFirstName, decryptedLastName] = await Promise.all([
-      this.identityCryptoService.decryptText(profile.firstName),
-      profile.lastName
-        ? this.identityCryptoService.decryptText(profile.lastName)
-        : Promise.resolve(null),
-    ]);
-
-    return {
-      ...profile,
-      firstName: decryptedFirstName ?? '',
-      lastName: decryptedLastName ?? null,
-    };
   }
 
   /**
