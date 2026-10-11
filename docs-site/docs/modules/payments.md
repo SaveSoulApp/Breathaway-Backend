@@ -55,11 +55,14 @@ src/modules/payments/
 │   ├── payment-completed.event.ts                 # Strongly typed domain event
 │   └── index.ts
 ├── gateways/
+│   ├── cashfree/
+│   │   └── cashfree.gateway.ts                    # Cashfree Node PG SDK implementation
 │   ├── payment-gateway.interface.ts               # Core PaymentGatewayAdapter contract
 │   ├── razorpay/
 │   │   └── razorpay.gateway.ts                    # Razorpay Node SDK implementation
 │   └── index.ts
 ├── tests/
+│   ├── cashfree.gateway.spec.ts                   # Cashfree adapter & session creation tests
 │   ├── payment-routes-admin.controller.spec.ts    # Route management controller tests
 │   ├── payment-routes.service.spec.ts             # Route CRUD, re-ranking & validation tests
 │   ├── payments.controller.spec.ts                # HTTP endpoint & controller unit tests
@@ -95,7 +98,7 @@ Tracks the lifecycle state of a payment order:
 Supported gateway providers:
 
 - **`RAZORPAY`**: Primary web checkout adapter for Indian and international cards/UPI.
-- **`CASHFREE`**: Secondary Indian checkout provider (planned).
+- **`CASHFREE`**: Alternative Indian checkout provider for cards/UPI/NetBanking (Cashfree PG v2).
 - **`DECENTRO`**: Direct bank UPI collection gateway (planned).
 - **`EASEBUZZ`**: Alternate Indian merchant aggregator (planned).
 - **`REVENUECAT`**: Mobile in-app purchase aggregator (iOS App Store / Google Play).
@@ -125,6 +128,8 @@ Initializes a payment order for the requested subscription plan. The backend det
 
 #### Response Body (`CreateOrderResponseDto`)
 
+**Razorpay Example:**
+
 ```json
 {
   "orderId": "01J90ABC1234DEF5678GHI90JK",
@@ -140,6 +145,23 @@ Initializes a payment order for the requested subscription plan. The backend det
       "name": "Jane",
       "contact": "+919876543210"
     }
+  }
+}
+```
+
+**Cashfree Example:**
+
+```json
+{
+  "orderId": "01J90ABC1234DEF5678GHI90JK",
+  "provider": "CASHFREE",
+  "status": "PENDING",
+  "amount": 49900,
+  "currency": "INR",
+  "action": {
+    "type": "sdk",
+    "gatewayOrderId": "order_1234567890",
+    "paymentSessionId": "session_G39G4qQ7w_Q8bWbA9w..."
   }
 }
 ```
@@ -166,12 +188,17 @@ Returns the current status of an order. The web app polls this endpoint after th
 
 ### 3. Verify Payment (Client-Side Callback)
 
-Submits the signature payload returned by the gateway checkout SDK to trigger immediate verification and fulfillment.
+Submits payment completion to trigger immediate verification and fulfillment:
+
+- **For Razorpay**: Submits the signature payload returned by Razorpay checkout SDK (`razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature`).
+- **For Cashfree**: Submits an empty JSON body `{}` (the backend queries Cashfree's server status directly and resolves the captured transaction ID).
 
 - **Endpoint**: `POST /api/v1/payments/orders/:orderId/verify`
 - **Authentication**: Bearer JWT
 
 #### Request Body (`VerifyOrderRequestDto`)
+
+**For Razorpay:**
 
 ```json
 {
@@ -179,6 +206,12 @@ Submits the signature payload returned by the gateway checkout SDK to trigger im
   "razorpay_payment_id": "pay_PZzFNjKiHwPLnZ",
   "razorpay_signature": "a1b2c3d4e5f67890abcdef1234567890abcdef12"
 }
+```
+
+**For Cashfree:**
+
+```json
+{}
 ```
 
 #### Response Body (`VerifyOrderResponseDto`)
@@ -406,11 +439,11 @@ export interface PaymentGatewayAdapter {
 
 The frontend branches solely on `action.type`, keeping checkout UI decoupled:
 
-| Action Type     | Typical Gateways         | Frontend Handling                           | Action Payload Fields                   |
-| :-------------- | :----------------------- | :------------------------------------------ | :-------------------------------------- |
-| **`sdk`**       | Razorpay, Cashfree       | Opens client SDK modal with publishable key | `keyId`, `gatewayOrderId`, `prefill`    |
-| **`redirect`**  | Decentro, UPI Intent     | Redirects browser window to hosted checkout | `url`                                   |
-| **`form_post`** | NetBanking / Legacy Bank | Injects and submits a hidden HTML form      | `url`, `fields: Record<string, string>` |
+| Action Type     | Typical Gateways         | Frontend Handling                                         | Action Payload Fields                                    |
+| :-------------- | :----------------------- | :-------------------------------------------------------- | :------------------------------------------------------- |
+| **`sdk`**       | Razorpay, Cashfree       | Opens client SDK modal with publishable key or session ID | `keyId`, `gatewayOrderId`, `prefill`, `paymentSessionId` |
+| **`redirect`**  | Decentro, UPI Intent     | Redirects browser window to hosted checkout               | `url`                                                    |
+| **`form_post`** | NetBanking / Legacy Bank | Injects and submits a hidden HTML form                    | `url`, `fields: Record<string, string>`                  |
 
 ---
 
@@ -455,7 +488,7 @@ Domain exceptions in `application/exceptions/` are automatically mapped to stand
 | **`OrderNotFoundException`**                 | `404 Not Found`           | The `orderId` was not found or does not belong to the authenticated user.  |
 | **`OrderAlreadyPaidException`**              | `409 Conflict`            | Attempted manual verification on an order that has already been fulfilled. |
 | **`GatewayNotAvailableException`**           | `503 Service Unavailable` | No active `PaymentGatewayRoute` is configured for the country and amount.  |
-| **`GatewayOrderCreationException`**          | `502 Bad Gateway`         | The upstream gateway (e.g. Razorpay) rejected order creation.              |
+| **`GatewayOrderCreationException`**          | `502 Bad Gateway`         | The upstream gateway (e.g. Razorpay, Cashfree) rejected order creation.    |
 | **`UnauthorizedException`**                  | `401 Unauthorized`        | Invalid HMAC-SHA256 signature in `POST /verify`.                           |
 | **`RouteNotFoundException`**                 | `404 Not Found`           | The requested payment route ID does not exist.                             |
 | **`RouteAlreadyExistsException`**            | `409 Conflict`            | A route already exists for the given [countryCode, gateway] pair.          |
@@ -474,6 +507,9 @@ All runtime secrets and parameters are retrieved via NestJS `ConfigService`:
 | `RAZORPAY_KEY_ID`         | Sandbox / Prod | Publishable key surfaced to client SDK.                            | `rzp_test_...` / `rzp_live_...`           |
 | `RAZORPAY_KEY_SECRET`     | Sandbox / Prod | Secret key for order creation & signature verification.            | `SecretManager(projects/.../secrets/...)` |
 | `RAZORPAY_WEBHOOK_SECRET` | Sandbox / Prod | Shared secret for validating inbound webhook HMAC.                 | `SecretManager(projects/.../secrets/...)` |
+| `CASHFREE_APP_ID`         | Sandbox / Prod | Cashfree App ID / Client ID for PG orders API.                     | `SecretManager(projects/.../secrets/...)` |
+| `CASHFREE_SECRET_KEY`     | Sandbox / Prod | Cashfree Secret Key for PG API and webhook HMAC verification.      | `SecretManager(projects/.../secrets/...)` |
+| `CASHFREE_ENVIRONMENT`    | Sandbox / Prod | Cashfree SDK environment (`SANDBOX` or `PRODUCTION`).              | `SANDBOX` / `PRODUCTION`                  |
 | `DEFAULT_COUNTRY_CODE`    | All            | Fallback ISO-3166-1 alpha-2 code when geolocation fails.           | `IN`                                      |
 | `CREDIT_EXPIRY_DAYS`      | All            | Default validity duration for granted credits if plan specifies 0. | `90`                                      |
 
@@ -487,3 +523,4 @@ The module ships with comprehensive unit tests for all components:
 - **`payments.service.spec.ts`**: Tests server-side price derivation, IP geolocation resolution, atomic Prisma `$transaction` execution, duplicate event idempotency (P2002/P2025), and domain event emissions.
 - **`payments.reconciliation.spec.ts`**: Tests stale order polling (>15 min), auto-expiration of orders (>30 min), gateway status synchronization, and concurrent race-condition absorption.
 - **`razorpay.gateway.spec.ts`**: Tests Razorpay SDK parameter construction, order translation, HMAC-SHA256 signature verification, and gateway status normalization.
+- **`cashfree.gateway.spec.ts`**: Tests Cashfree SDK initialization, decimal currency translation (`params.amount / 100`), payment session ID generation, order status mapping (`PAID` -> `CAPTURED`), and captured payment ID resolution.
