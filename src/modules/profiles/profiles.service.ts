@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Prisma, UserProfile } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -12,12 +13,12 @@ import {
   ProfileAlreadyExistsException,
   ProfileNotFoundException,
 } from './application/exceptions';
-import { USER_DELETED_EVENT, UserDeletedEvent } from './events';
 import {
   CreateProfileRequestDto,
   PatchProfileRequestDto,
   UpdateProfileRequestDto,
 } from './dto';
+import { USER_DELETED_EVENT, UserDeletedEvent } from './events';
 
 /**
  * Owns the business logic for user profile lifecycle — creation, retrieval,
@@ -33,6 +34,7 @@ export class ProfilesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -44,11 +46,12 @@ export class ProfilesService extends BaseService {
    * Enforces a one-profile-per-user constraint by querying before inserting.
    * An ISO 8601 `dateOfBirth` string, if provided, is parsed to a `Date`
    * object before persistence — raw string storage is intentionally avoided.
+   * Encrypts sensitive PII (firstName, lastName) using AES-256-GCM envelope encryption.
    *
    * @param userId - ULID of the authenticated user who owns this profile.
    * @param createProfileDto - Display name, date of birth, and any other
    *                           initial profile fields.
-   * @returns The newly persisted `UserProfile` record.
+   * @returns The newly persisted `UserProfile` record with decrypted fields.
    * @throws {ConflictException} When a profile already exists for the given user.
    */
   async createProfile(
@@ -76,10 +79,26 @@ export class ProfilesService extends BaseService {
     });
 
     try {
+      const [encryptedFirstName, encryptedLastName] = await Promise.all([
+        this.identityCryptoService.encryptText(
+          createProfileDto.firstName.trim(),
+        ),
+        createProfileDto.lastName?.trim()
+          ? this.identityCryptoService.encryptText(
+              createProfileDto.lastName.trim(),
+            )
+          : Promise.resolve(null),
+      ]);
+
+      this.assertEncryptedName(encryptedFirstName, 'firstName');
+      this.assertEncryptedName(encryptedLastName, 'lastName');
+
       const profile = await this.prisma.userProfile.create({
         data: {
           userId,
           ...createProfileDto,
+          firstName: encryptedFirstName,
+          lastName: encryptedLastName,
           dateOfBirth: createProfileDto.dateOfBirth
             ? DateUtil.parse(createProfileDto.dateOfBirth)
             : null,
@@ -101,7 +120,11 @@ export class ProfilesService extends BaseService {
         ...ctx,
         profileId: profile.id,
       });
-      return profile;
+      return {
+        ...profile,
+        firstName: createProfileDto.firstName.trim(),
+        lastName: createProfileDto.lastName?.trim() ?? null,
+      };
     } catch (error) {
       this.logger.error('Failed to create profile', {
         ...ctx,
@@ -183,11 +206,12 @@ export class ProfilesService extends BaseService {
    * an optional field sets it to its default, not its current value.
    * An ISO 8601 `dateOfBirth` string is converted to a `Date` before the
    * update; omitting it explicitly sets the column to `null`.
+   * Encrypts firstName and lastName using AES-256-GCM envelope encryption.
    * Emits a `PROFILE_UPDATED` audit event on success.
    *
    * @param userId - ULID of the authenticated user whose profile to replace.
    * @param updateProfileDto - Complete new field values for the profile.
-   * @returns The updated `UserProfile` record.
+   * @returns The updated `UserProfile` record with decrypted fields.
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async updateProfile(
@@ -214,14 +238,37 @@ export class ProfilesService extends BaseService {
     });
 
     try {
+      const data: Prisma.UserProfileUpdateInput = {
+        ...updateProfileDto,
+        dateOfBirth: updateProfileDto.dateOfBirth
+          ? DateUtil.parse(updateProfileDto.dateOfBirth)
+          : null,
+      };
+
+      if (updateProfileDto.firstName !== undefined) {
+        data.firstName = await this.identityCryptoService.encryptText(
+          updateProfileDto.firstName.trim(),
+        );
+      }
+
+      if (updateProfileDto.lastName !== undefined) {
+        data.lastName = updateProfileDto.lastName?.trim()
+          ? await this.identityCryptoService.encryptText(
+              updateProfileDto.lastName.trim(),
+            )
+          : null;
+      }
+
+      if (data.firstName !== undefined) {
+        this.assertEncryptedName(data.firstName as string, 'firstName');
+      }
+      if (data.lastName !== undefined) {
+        this.assertEncryptedName(data.lastName as string, 'lastName');
+      }
+
       const updatedProfile = await this.prisma.userProfile.update({
         where: { userId },
-        data: {
-          ...updateProfileDto,
-          dateOfBirth: updateProfileDto.dateOfBirth
-            ? DateUtil.parse(updateProfileDto.dateOfBirth)
-            : null,
-        },
+        data,
       });
 
       this.logger.debug('Profile record updated', {
@@ -240,6 +287,7 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: updatedProfile.id,
       });
+
       return updatedProfile;
     } catch (error) {
       this.logger.error('Failed to update profile', {
@@ -261,7 +309,7 @@ export class ProfilesService extends BaseService {
    *
    * @param userId - ULID of the authenticated user whose profile to patch.
    * @param patchProfileDto - Subset of profile fields to overwrite.
-   * @returns The patched `UserProfile` record.
+   * @returns The patched `UserProfile` record with decrypted fields.
    * @throws {NotFoundException} When no profile exists for the given user.
    */
   async patchProfile(
@@ -292,6 +340,25 @@ export class ProfilesService extends BaseService {
     if (patchProfileDto.dateOfBirth) {
       data.dateOfBirth = DateUtil.parse(patchProfileDto.dateOfBirth);
     }
+    if (patchProfileDto.firstName !== undefined) {
+      data.firstName = await this.identityCryptoService.encryptText(
+        patchProfileDto.firstName.trim(),
+      );
+    }
+    if (patchProfileDto.lastName !== undefined) {
+      data.lastName = patchProfileDto.lastName?.trim()
+        ? await this.identityCryptoService.encryptText(
+            patchProfileDto.lastName.trim(),
+          )
+        : null;
+    }
+
+    if (data.firstName !== undefined) {
+      this.assertEncryptedName(data.firstName as string, 'firstName');
+    }
+    if (data.lastName !== undefined) {
+      this.assertEncryptedName(data.lastName as string, 'lastName');
+    }
 
     try {
       const patchedProfile = await this.prisma.userProfile.update({
@@ -315,6 +382,7 @@ export class ProfilesService extends BaseService {
         step: 'complete',
         profileId: patchedProfile.id,
       });
+
       return patchedProfile;
     } catch (error) {
       this.logger.error('Failed to patch profile', {
@@ -419,6 +487,32 @@ export class ProfilesService extends BaseService {
         err: serializeError(error),
       });
       throw error;
+    }
+  }
+
+  /**
+   * Asserts that a name value to be persisted is either empty or in encrypted `enc:v1:` format.
+   * Prevents raw unencrypted PII strings from being saved to the database.
+   *
+   * @param value - The value to validate.
+   * @param fieldName - The name of the field for error reporting.
+   * @throws {InternalServerErrorException} If an unencrypted non-null string is detected.
+   */
+  private assertEncryptedName(
+    value: string | null | undefined,
+    fieldName: string,
+  ): void {
+    if (value && !this.identityCryptoService.isEncryptedText(value)) {
+      this.logger.error(
+        'Security invariant violation: Attempted to persist unencrypted profile name',
+        {
+          step: 'assert_encrypted_name',
+          fieldName,
+        },
+      );
+      throw new InternalServerErrorException(
+        `Security violation: Attempted to persist unencrypted ${fieldName}`,
+      );
     }
   }
 

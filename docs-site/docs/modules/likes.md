@@ -98,11 +98,15 @@ sequenceDiagram
 
     rect rgb(240, 255, 240)
     Note over Service, DB: Phase 5: Atomic Persistence & Credit Deduction ($transaction)
+    opt Personal Label Provided
+        Service->>Crypto: encryptText(dto.label)
+        Crypto-->>Service: encryptedLabel (enc:v1:...)
+    end
     Service->>DB: $transaction(async tx => ...)
     alt Reusable Like Row Exists (Resurrection)
-        Service->>DB: tx.like.update(status: PENDING, deletedAt: null, expiresAt, intent, label)
+        Service->>DB: tx.like.update(status: PENDING, deletedAt: null, expiresAt, intent, label: encryptedLabel)
     else Fresh Like
-        Service->>DB: tx.like.create(senderUserId, targetIdentityId, status: PENDING, expiresAt, ...)
+        Service->>DB: tx.like.create(senderUserId, targetIdentityId, status: PENDING, expiresAt, label: encryptedLabel)
     end
     Service->>Credits: consumeCredits({ userId, amount: CREDITS_PER_LIKE, referenceId: like.id }, tx)
     Credits->>DB: tx.creditLedgerEntry.create(...) + tx.creditAccount.update(...)
@@ -112,15 +116,20 @@ sequenceDiagram
     rect rgb(255, 240, 255)
     Note over Service, Resolver: Phase 6: Non-Blocking Asynchronous Match Resolution
     Service->>Resolver: resolveFromLike(like) [Async / Non-blocking]
-    Note over Resolver, DB: Checks target user for mutual reverse like, intent compatibility, and active blocks.<br/>If mutual, creates Match atomically and dispatches push notifications.
+    Note over Resolver, DB: Checks target user for mutual reverse like, intent compatibility, and active blocks.<br/>If mutual, decrypts labels, creates Match atomically, and dispatches push notifications.
     end
 
     rect rgb(245, 245, 255)
     Note over Service, Client: Phase 7: Audit Logging & Decrypted Response Hydration
     Service->>Audit: emitAuditLog(LIKE_CREATED)
-    Service->>Identities: getDecryptedPublicValue(targetIdentityId)
-    Identities-->>Service: decrypted publicValue
-    Service-->>Controller: Hydrated Like with targetIdentity publicValue
+    par Parallel Field Decryption
+        Service->>Identities: getDecryptedPublicValue(targetIdentityId)
+        Identities-->>Service: decrypted publicValue
+    and
+        Service->>Crypto: decryptText(like.label)
+        Crypto-->>Service: decrypted label
+    end
+    Service-->>Controller: Hydrated Like with targetIdentity publicValue & decrypted label
     Controller-->>Client: 201 Created (LikeResponseDto)
     end
 ```
@@ -135,11 +144,11 @@ sequenceDiagram
    - Rejects existing active `PENDING` likes with `AlreadyLikedException`.
    - Checks for reusable soft-deleted, withdrawn, or voided rows to prepare for resurrection.
    - Verifies whether an `ACTIVE` match already exists between the two users, aborting with `AlreadyMatchedException` before any credits are deducted.
-6. **Phase 5 (Atomic Transaction)**: Inside a Prisma `$transaction`:
-   - Either updates an existing inactive row back to `PENDING` (preserving row ID and audit trail) or inserts a new row.
+6. **Phase 5 (Atomic Transaction & Label Envelope Encryption)**: If the client passed an optional personal `label`, `LikesService` encrypts it via `IdentityCryptoService.encryptText()` using AES-256-GCM envelope encryption wrapped by GCP Cloud KMS before persisting. Inside a Prisma `$transaction`:
+   - Either updates an existing inactive row back to `PENDING` (preserving row ID and audit trail) or inserts a new row with the encrypted ciphertext.
    - Atomically deducts credits via `CreditsService.consumeCredits`, appending an immutable ledger entry.
-7. **Phase 6 (Asynchronous Match Resolution)**: Calls `MatchResolverService.resolveFromLike` without blocking the HTTP response. If the counterpart previously liked this user with compatible intent, a mutual match is instantiated.
-8. **Phase 7 (Response Hydration & Audit)**: Emits `LIKE_CREATED` audit event, decrypts the target identity's `publicValue` via `IdentitiesService`, and returns `LikeResponseDto` with HTTP 201.
+7. **Phase 6 (Asynchronous Match Resolution)**: Calls `MatchResolverService.resolveFromLike` without blocking the HTTP response. If the counterpart previously liked this user with compatible intent, a mutual match is instantiated and both participants' labels are decrypted prior to dispatching notifications.
+8. **Phase 7 (Response Hydration & Audit)**: Emits `LIKE_CREATED` audit event, concurrently decrypts the target identity's `publicValue` via `IdentitiesService` and the personal `label` via `IdentityCryptoService.decryptText()`, and returns `LikeResponseDto` with HTTP 201.
 
 ---
 
@@ -192,9 +201,41 @@ If the user subsequently attempts to like the same identity again:
 
 After a like is successfully persisted, the `LikesService` asynchronously delegates to the `MatchResolverService`. This design ensures that the critical path (deducting credits and saving the intent) is fast and isolated from the heavy logic of evaluating mutual connections. Failures in the resolver do not roll back the like creation.
 
-### 6. Persistent Annotations (Labels)
+### 6. Persistent Annotations (Labels) & Compact Envelope Encryption
 
 Users can attach a personal string `label` to a like (e.g., "Sarah from the gym"). Business logic dictates that these labels can be updated at any time, even if the like transitions to a `MATCHED` or `VOIDED` state, allowing users to continually personalize their history.
+
+#### 🛡 Security Threat Model & Side-Channel Mitigation
+
+BreathAway implements end-to-end envelope encryption for all target identifiers in the `Identity` table (`publicValueCiphertext`, `publicValueWrappedKey`, etc.). However, if a user sends a like to an unverified phone number and sets `label = "Angela"`, storing this label in plaintext in the database would create a **severe cryptographic side-channel deanonymization vulnerability**:
+
+- Anyone inspecting a database snapshot, analytical replica, or query log could link the target identity row directly to the person's real name.
+- Under GDPR (Articles 6, 9, 14, and 32), storing unconsented third-party PII and romantic intent in plaintext constitutes an immediate compliance violation.
+
+#### 🔐 Compact Envelope Encryption Format
+
+To eliminate this risk, `LikesModule` never persists labels in plaintext. Instead, it utilizes `IdentityCryptoService.encryptText()`, which generates a fresh 256-bit ephemeral Data Encryption Key (DEK), wraps it via Google Cloud KMS, encrypts the label using AES-256-GCM, and serializes the result into a single compact string stored directly in PostgreSQL's `label` column:
+
+```text
+enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>
+```
+
+| Segment              | Description                                                    |
+| :------------------- | :------------------------------------------------------------- |
+| `enc`                | Canonical schema indicator marking field-level encryption.     |
+| `v1`                 | Cryptographic scheme version for future cipher rotation.       |
+| `<keyId>`            | KMS master key identifier used to wrap the ephemeral data key. |
+| `<ivBase64>`         | 12-byte initialization vector (Base64-encoded).                |
+| `<tagBase64>`        | 16-byte GCM authentication tag verifying ciphertext integrity. |
+| `<wrappedKeyBase64>` | AES-256 data key wrapped (encrypted) by GCP KMS.               |
+| `<ciphertextBase64>` | AES-256-GCM encrypted label payload.                           |
+
+#### ⚡ Strict Encryption Enforcement & Decryption Flow
+
+- **Strict Format Enforcement**: Any non-null string stored in `label` must match the `enc:v1:` prefix. Legacy or unencrypted strings are strictly rejected by `IdentityCryptoService.decryptText()` (logging a security warning and returning `null`), guaranteeing that unencrypted text is never exposed.
+- **On-the-Fly Decryption**: When returning likes to the client (`POST /api/v1/likes`, `GET /api/v1/likes`, `GET /api/v1/likes/:id`, `PATCH /api/v1/likes/:id/label`), `LikesService.attachPublicValue` decrypts the label concurrently with the target identity.
+- **Cross-Domain Match Decryption**: When a user views their matches (`GET /api/v1/matches`), `MatchesService` automatically decrypts `myLike.label` so the sender sees their personal note under `otherUser.label`.
+- **Notification Sanitization**: `MatchResolverService` decrypts labels prior to emitting `MatchCreatedEvent`, providing clean plaintext names to downstream notification handlers while keeping the database 100% encrypted at rest.
 
 ---
 

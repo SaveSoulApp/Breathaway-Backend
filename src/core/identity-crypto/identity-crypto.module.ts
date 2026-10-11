@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+
+import { DecryptionInterceptor } from '@common/interceptors';
 import { KmsModule } from '@core/kms/kms.module';
+
 import { IdentityCryptoService } from './identity-crypto.service';
 
 /**
@@ -13,10 +16,11 @@ import { IdentityCryptoService } from './identity-crypto.service';
  *
  * Exports:
  *   - IdentityCryptoService: Exposed for identity workflows to securely encrypt and decrypt PII.
+ *   - DecryptionInterceptor: Automatically decrypts encrypted response payloads in controller endpoints.
  */
 @Module({
   imports: [KmsModule],
-  providers: [IdentityCryptoService],
-  exports: [IdentityCryptoService],
+  providers: [IdentityCryptoService, DecryptionInterceptor],
+  exports: [IdentityCryptoService, DecryptionInterceptor],
 })
 export class IdentityCryptoModule {}

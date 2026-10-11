@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DevicePlatform } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -65,6 +66,17 @@ describe('NotificationEventsListener', () => {
       dispatch: jest.fn().mockResolvedValue(undefined),
     };
 
+    const mockIdentityCryptoService = {
+      decryptText: jest.fn().mockImplementation((val?: string | null) => {
+        if (!val) return Promise.resolve(null);
+        if (val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return Promise.resolve(parts[parts.length - 1]);
+        }
+        return Promise.resolve(val);
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationEventsListener,
@@ -73,6 +85,10 @@ describe('NotificationEventsListener', () => {
         { provide: LoggerService, useValue: mockLogger },
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: IdentityCryptoService,
+          useValue: mockIdentityCryptoService,
+        },
       ],
     }).compile();
 
