@@ -123,12 +123,16 @@ Multiple backend modules consume user profile names for push notifications, mess
 
 ---
 
-### 🛡 Backward Compatibility & Fallback Policy
+---
 
-To ensure zero-downtime deployments and resilience across environments:
+### 🛡 Strict Zero-Plaintext Invariant & Validation Guard
 
-- If a profile name does not start with the canonical `enc:` prefix (e.g. existing records in staging prior to migration or test fixtures), `IdentityCryptoService.decryptText()` gracefully returns the string as-is without throwing errors.
-- Any new write or update through `ProfilesService` automatically encrypts the payload, ensuring progressive self-healing migration of legacy records upon their next modification.
+To eliminate any chance of accidental plaintext PII leakage:
+
+- **Strict Encryption Assertion**: `ProfilesService` enforces runtime validation guards (`assertEncryptedName`) on `createProfile`, `updateProfile`, and `patchProfile`. If a name is not strictly in the `enc:v1:...` format, persistence is halted with an `InternalServerErrorException`.
+- **Zero Plaintext Fallback**: Database values are strictly `null` or `enc:v1:...`. `IdentityCryptoService.decryptText()` and `decryptBatch()` reject non-encrypted inputs, returning `null` instead of leaking unencrypted strings.
+- **High-Throughput Batch Decryption (`decryptBatch`)**: APIs returning multiple records (matches, chat rooms, blocks) utilize `IdentityCryptoService.decryptBatch()` to deduplicate KMS unwraps across identical data encryption keys and execute AES-256-GCM decryptions concurrently.
+- **Automatic Decryption Interceptor (`DecryptionInterceptor`)**: Outgoing response payloads are intercepted by `DecryptionInterceptor` (or the `@DecryptResponse()` decorator), which recursively collects all `enc:v1:` strings, executes a single batch decryption, and transparently hydrates plaintext fields before serialization to the client.
 
 ---
 

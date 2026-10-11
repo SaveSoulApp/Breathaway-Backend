@@ -194,7 +194,7 @@ Beyond database-level encryption at rest (Cloud SQL / Supabase AES-256), BreathA
 | :--------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`Identity`** (`publicValueCiphertext`, `platformIdCiphertext`) | Dedicated Envelope Columns  | AES-256-GCM data key wrapped by Cloud KMS; deterministic HMAC `publicValueHash` for indexing | Transparently resolved by `IdentitiesService` during authenticated profile resolution                                                         |
 | **`Like.label`**                                                 | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted on the fly by `LikesService.attachPublicValue` and `MatchesService`                                                                 |
-| **`UserProfile`** (`firstName`, `lastName`)                      | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted transparently by `ProfilesService`, `NotificationsModule`, `MatchesService`, `ChatsService`, `BlocksService`, and `PaymentsService` |
+| **`UserProfile`** (`firstName`, `lastName`)                      | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted transparently by `ProfilesService`, `DecryptionInterceptor`, `NotificationsModule`, `MatchesService`, `ChatsService`, `BlocksService`, and `PaymentsService` |
 
 ### Why Like Labels & Profile Names are Encrypted
 
@@ -202,6 +202,7 @@ Beyond database-level encryption at rest (Cloud SQL / Supabase AES-256), BreathA
 2. **User Profile Names (Zero-Knowledge Invariant)**: Storing customer names (`firstName`, `lastName`) under application-level envelope encryption prevents plaintext PII exposure across database snapshots, replication streams, support tooling, and hosting provider infrastructure (Supabase/PostgreSQL).
 3. **GDPR & Privacy Compliance**: Prevents unconsented third-party PII storage and shields personal names and relationship data (GDPR Articles 5, 6, 9, 25, 32, and 34).
 4. **KMS Key Isolation**: Decryption requires authorized IAM access to Google Cloud KMS. Even in the event of an arbitrary database dump exfiltration, ciphertext cannot be decrypted without GCP KMS credentials.
+5. **Batch Decryption & Interceptor Pipeline**: High-throughput list queries leverage `IdentityCryptoService.decryptBatch()` (KMS key deduplication with in-memory DEK caching), while outbound HTTP responses are automatically processed by `DecryptionInterceptor`.
 
 ---
 
