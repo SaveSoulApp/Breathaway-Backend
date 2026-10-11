@@ -43,7 +43,9 @@ describe('SubscriptionsAdminController', () => {
       listAllPlans: jest.fn(),
       updatePlan: jest.fn(),
       addPlanPrice: jest.fn(),
+      updatePlanPrice: jest.fn(),
       removePlanPrice: jest.fn(),
+      getPriceHistory: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -145,6 +147,33 @@ describe('SubscriptionsAdminController', () => {
     });
   });
 
+  describe('updatePlanPrice', () => {
+    it('should update a localized price and return updated object', async () => {
+      // Arrange
+      const dto = {
+        originalPrice: 499,
+        reason: 'Base price increase',
+      };
+      const updatedPrice = {
+        ...mockPrice,
+        originalPrice: 499,
+        effectivePrice: 499,
+      };
+      service.updatePlanPrice.mockResolvedValue(updatedPrice as any);
+
+      // Act
+      const result = await controller.updatePlanPrice(planId, priceId, dto);
+
+      // Assert
+      expect(service.updatePlanPrice).toHaveBeenCalledWith(
+        planId,
+        priceId,
+        dto,
+      );
+      expect(result).toEqual(updatedPrice);
+    });
+  });
+
   describe('removePlanPrice', () => {
     it('should remove a localized price and return void', async () => {
       // Arrange
@@ -155,6 +184,40 @@ describe('SubscriptionsAdminController', () => {
 
       // Assert
       expect(service.removePlanPrice).toHaveBeenCalledWith(planId, priceId);
+    });
+  });
+
+  describe('getPriceHistory', () => {
+    it('should query price history and return chronological records', async () => {
+      // Arrange
+      const query = {
+        startDate: '2026-01-01T00:00:00Z',
+        endDate: '2026-04-30T23:59:59Z',
+      };
+      const mockHistory = [
+        {
+          id: 'hist-1',
+          priceId,
+          planId,
+          countryCode: 'IN',
+          currencyCode: CurrencyCode.INR,
+          originalPrice: 399,
+          discountedPrice: null,
+          effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+          effectiveTo: null,
+          changeType: 'INITIAL_PRICE',
+          changedByUserId: 'system',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ];
+      service.getPriceHistory.mockResolvedValue(mockHistory as any);
+
+      // Act
+      const result = await controller.getPriceHistory(planId, query);
+
+      // Assert
+      expect(service.getPriceHistory).toHaveBeenCalledWith(planId, query);
+      expect(result).toEqual(mockHistory);
     });
   });
 });

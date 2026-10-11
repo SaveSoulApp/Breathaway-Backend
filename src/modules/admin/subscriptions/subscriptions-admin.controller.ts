@@ -8,6 +8,8 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,6 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { SerializeExpose } from '@common/interceptors';
@@ -25,8 +28,11 @@ import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard'
 import {
   CreatePlanPriceRequestDto,
   CreatePlanRequestDto,
+  QueryPriceHistoryRequestDto,
+  SubscriptionPlanPriceHistoryResponseDto,
   SubscriptionPlanPriceResponseDto,
   SubscriptionPlanResponseDto,
+  UpdatePlanPriceRequestDto,
   UpdatePlanRequestDto,
 } from '@modules/subscriptions/dto';
 import { SubscriptionPlansService } from '@modules/subscriptions/services/subscription-plans.service';
@@ -34,7 +40,8 @@ import { SubscriptionPlansService } from '@modules/subscriptions/services/subscr
 /**
  * Handles HTTP operations for the /admin/subscriptions resource.
  *
- * Exposes administrative endpoints to manage subscription plans and their localized pricing.
+ * Exposes administrative endpoints to manage subscription plans, localized pricing,
+ * promotional discount windows, and temporal price audit history.
  * Requires Google OIDC Bearer Auth with GCP IAM administrative authorization.
  */
 @ApiTags('Admin - Subscriptions')
@@ -91,12 +98,9 @@ export class SubscriptionsAdminController extends BaseController {
   /**
    * Updates properties of an existing subscription plan.
    *
-   * Does not affect active user subscriptions already on this plan, except for UI presentation.
-   *
    * @param id - UUID of the subscription plan to update.
    * @param dto - Fields to update.
    * @returns The updated subscription plan.
-   * @throws {NotFoundException} When no plan exists with the given id.
    */
   @Patch('plans/:id')
   @HttpCode(HttpStatus.OK)
@@ -114,9 +118,8 @@ export class SubscriptionsAdminController extends BaseController {
    * Adds a localized price entry to an existing subscription plan.
    *
    * @param planId - UUID of the subscription plan.
-   * @param dto - Currency, country code, and price amount.
+   * @param dto - Currency, country code, originalPrice, optional promotional discount, and audit reason.
    * @returns The newly created price entry.
-   * @throws {NotFoundException} When the subscription plan does not exist.
    */
   @Post('plans/:planId/prices')
   @HttpCode(HttpStatus.CREATED)
@@ -129,16 +132,55 @@ export class SubscriptionsAdminController extends BaseController {
   async addPlanPrice(
     @Param('planId') planId: string,
     @Body() dto: CreatePlanPriceRequestDto,
+    @Req() req?: Request & { adminUser?: { email: string } },
   ) {
-    return this.subscriptionPlansService.addPlanPrice(planId, dto);
+    const adminUser = req?.adminUser?.email;
+    return adminUser
+      ? this.subscriptionPlansService.addPlanPrice(planId, dto, adminUser)
+      : this.subscriptionPlansService.addPlanPrice(planId, dto);
   }
 
   /**
-   * Removes a localized price entry from a subscription plan.
+   * Updates an existing price entry, such as a base price increase/decrease or
+   * scheduling/clearing a promotional discount window.
+   *
+   * @param planId - UUID of the subscription plan.
+   * @param priceId - UUID of the price entry to modify.
+   * @param dto - Price changes, promotional parameters, and audit reason.
+   * @returns The updated price entry with resolved effective pricing.
+   */
+  @Patch('plans/:planId/prices/:priceId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a price entry, base price hike, or promotional discount',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SubscriptionPlanPriceResponseDto,
+  })
+  @SerializeExpose(SubscriptionPlanPriceResponseDto)
+  async updatePlanPrice(
+    @Param('planId') planId: string,
+    @Param('priceId') priceId: string,
+    @Body() dto: UpdatePlanPriceRequestDto,
+    @Req() req?: Request & { adminUser?: { email: string } },
+  ) {
+    const adminUser = req?.adminUser?.email;
+    return adminUser
+      ? this.subscriptionPlansService.updatePlanPrice(
+          planId,
+          priceId,
+          dto,
+          adminUser,
+        )
+      : this.subscriptionPlansService.updatePlanPrice(planId, priceId, dto);
+  }
+
+  /**
+   * Removes a localized price entry from a subscription plan and closes its active audit interval.
    *
    * @param planId - UUID of the subscription plan.
    * @param priceId - UUID of the price entry to remove.
-   * @throws {NotFoundException} When the plan or price entry does not exist.
    */
   @Delete('plans/:planId/prices/:priceId')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -147,7 +189,42 @@ export class SubscriptionsAdminController extends BaseController {
   async removePlanPrice(
     @Param('planId') planId: string,
     @Param('priceId') priceId: string,
+    @Req() req?: Request & { adminUser?: { email: string } },
   ): Promise<void> {
-    await this.subscriptionPlansService.removePlanPrice(planId, priceId);
+    const adminUser = req?.adminUser?.email;
+    if (adminUser) {
+      await this.subscriptionPlansService.removePlanPrice(
+        planId,
+        priceId,
+        adminUser,
+      );
+    } else {
+      await this.subscriptionPlansService.removePlanPrice(planId, priceId);
+    }
+  }
+
+  /**
+   * Queries the temporal price audit history for a plan across any date range or at a specific point in time.
+   *
+   * @param planId - UUID of the subscription plan.
+   * @param query - Date range (startDate, endDate) or pointInTime filter.
+   * @returns Chronological list of price configurations and audit records.
+   */
+  @Get('plans/:planId/prices/history')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Query price audit history across date ranges or at a point in time',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: [SubscriptionPlanPriceHistoryResponseDto],
+  })
+  @SerializeExpose(SubscriptionPlanPriceHistoryResponseDto)
+  async getPriceHistory(
+    @Param('planId') planId: string,
+    @Query() query: QueryPriceHistoryRequestDto,
+  ) {
+    return this.subscriptionPlansService.getPriceHistory(planId, query);
   }
 }

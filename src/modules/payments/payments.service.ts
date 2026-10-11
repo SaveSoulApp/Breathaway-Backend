@@ -123,8 +123,27 @@ export class PaymentsService extends BaseService {
     await this.loadActivePlan(dto.planId);
     const planPrice = await this.loadPlanPrice(dto.planId, countryCode);
 
+    const now = new Date();
+    const isDiscountActive = Boolean(
+      planPrice.discountedPrice !== null &&
+      planPrice.discountStartsAt !== null &&
+      planPrice.discountEndsAt !== null &&
+      now >= planPrice.discountStartsAt &&
+      now <= planPrice.discountEndsAt,
+    );
+
+    const basePrice = planPrice.originalPrice ?? (planPrice as any).price;
+    const effectivePrice = isDiscountActive
+      ? Number(planPrice.discountedPrice)
+      : Number(basePrice);
+
     // Convert Decimal price to integer paise (multiply by 100 and round).
-    const amountInSmallestUnit = Math.round(Number(planPrice.price) * 100);
+    const amountInSmallestUnit = Math.round(effectivePrice * 100);
+    const originalAmountInSmallestUnit = Math.round(Number(basePrice) * 100);
+    const discountAmountInSmallestUnit = Math.max(
+      0,
+      originalAmountInSmallestUnit - amountInSmallestUnit,
+    );
 
     // 3. Select gateway via routing table.
     const gateway = await this.selectGateway(countryCode, amountInSmallestUnit);
@@ -169,6 +188,8 @@ export class PaymentsService extends BaseService {
         userId,
         planId: dto.planId,
         amount: amountInSmallestUnit,
+        originalAmount: originalAmountInSmallestUnit,
+        discountAmount: discountAmountInSmallestUnit,
         currency: planPrice.currencyCode,
         countryCode,
         gateway: gateway.gateway,
@@ -187,6 +208,8 @@ export class PaymentsService extends BaseService {
         gateway: gateway.gateway,
         planId: dto.planId,
         amount: amountInSmallestUnit,
+        originalAmount: originalAmountInSmallestUnit,
+        discountAmount: discountAmountInSmallestUnit,
         currency: planPrice.currencyCode,
         countryCode,
       },
@@ -561,7 +584,13 @@ export class PaymentsService extends BaseService {
   private async loadPlanPrice(planId: string, countryCode: string) {
     const price = await this.prisma.subscriptionPlanPrice.findFirst({
       where: { planId, countryCode },
-      select: { price: true, currencyCode: true },
+      select: {
+        originalPrice: true,
+        discountedPrice: true,
+        discountStartsAt: true,
+        discountEndsAt: true,
+        currencyCode: true,
+      },
     });
 
     if (!price) {
