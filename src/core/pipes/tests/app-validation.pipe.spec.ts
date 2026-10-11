@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { IsNumber, IsString } from 'class-validator';
 
 import { AllowNonWhitelisted } from '@common/decorators/allow-non-whitelisted.decorator';
+import { CashfreeWebhookRequestDto } from '@modules/webhooks/dto/request/cashfree-payment-webhook.request.dto';
 import { RevenueCatWebhookRequestDto } from '@modules/webhooks/dto/request/revenuecat-webhook.request.dto';
 
 import { AppValidationPipe } from '../app-validation.pipe';
@@ -153,6 +154,67 @@ describe('AppValidationPipe', () => {
           some_future_field: { nested: true },
         }),
       });
+    });
+
+    it('should accept CashfreeWebhookRequestDto carrying PG v2 payload and extra fields', async () => {
+      // Arrange
+      const payload = {
+        type: 'PAYMENT_SUCCESS_WEBHOOK',
+        event_time: '2026-10-09T18:51:27+05:30',
+        data: {
+          order: {
+            order_id: 'order_123',
+            order_amount: 399.0,
+            order_currency: 'INR',
+            order_tags: null,
+          },
+          payment: {
+            cf_payment_id: 1453002795,
+            payment_status: 'SUCCESS',
+            payment_amount: 399.0,
+            payment_currency: 'INR',
+            bank_reference: '234928698581',
+          },
+          customer_details: {
+            customer_email: 'test@example.com',
+          },
+          payment_gateway_details: {
+            gateway_name: 'CASHFREE',
+          },
+        },
+      };
+
+      // Act
+      const result = (await pipe.transform(payload, {
+        type: 'body',
+        metatype: CashfreeWebhookRequestDto,
+      })) as CashfreeWebhookRequestDto;
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.type).toBe('PAYMENT_SUCCESS_WEBHOOK');
+      expect(result.data?.order?.order_id).toBe('order_123');
+      expect(result.data?.payment?.cf_payment_id).toBe('1453002795');
+      expect(result.data?.payment?.payment_status).toBe('SUCCESS');
+    });
+
+    it('should accept CashfreeWebhookRequestDto carrying a test ping payload without error', async () => {
+      // Arrange
+      const payload = {
+        type: 'TEST_WEBHOOK',
+        event_time: '2026-10-09T18:51:27+05:30',
+        data: {},
+      };
+
+      // Act
+      const result = (await pipe.transform(payload, {
+        type: 'body',
+        metatype: CashfreeWebhookRequestDto,
+      })) as CashfreeWebhookRequestDto;
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.type).toBe('TEST_WEBHOOK');
     });
   });
 });

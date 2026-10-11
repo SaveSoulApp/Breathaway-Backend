@@ -1,5 +1,3 @@
-import { DateUtil } from '@common/utils/date.utils';
-import { LoggerService } from '@core/logger';
 import {
   ArgumentsHost,
   Catch,
@@ -10,6 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
+
+import { DateUtil } from '@common/utils/date.utils';
+import { LoggerService } from '@core/logger';
 import { DOMAIN_EXCEPTION_HTTP_MAP } from '@shared/domain/exceptions/domain-exception.map';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
 
@@ -57,6 +58,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       request.method,
       request.url,
       requestId,
+      resolved.invalidParams,
     );
 
     response
@@ -174,6 +176,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     method: string,
     url: string,
     requestId: string | undefined,
+    invalidParams?: string[],
   ): void {
     const requestStart = this.cls.isActive()
       ? this.cls.get<number | undefined>('requestStart')
@@ -206,6 +209,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.warn(`Request failed: ${method} ${url}`, {
         ...meta,
         error: message,
+        ...(invalidParams && { invalidParams }),
       });
     }
   }

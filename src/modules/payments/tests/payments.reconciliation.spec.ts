@@ -24,6 +24,7 @@ import {
   PaymentCompletedEvent,
 } from '../events/payment-completed.event';
 import { GatewayOrderStatus } from '../gateways/payment-gateway.interface';
+import { CashfreeGateway } from '../gateways/cashfree/cashfree.gateway';
 import { RazorpayGateway } from '../gateways/razorpay/razorpay.gateway';
 import { PaymentsReconciliationService } from '../payments.reconciliation';
 
@@ -33,6 +34,7 @@ describe('PaymentsReconciliationService', () => {
   let creditsServiceMock: jest.Mocked<CreditsService>;
   let transactionsServiceMock: jest.Mocked<TransactionsService>;
   let razorpayGatewayMock: jest.Mocked<RazorpayGateway>;
+  let cashfreeGatewayMock: jest.Mocked<CashfreeGateway>;
   let eventEmitterMock: { emit: jest.Mock };
 
   beforeEach(async () => {
@@ -53,6 +55,14 @@ describe('PaymentsReconciliationService', () => {
       verifySignature: jest.fn(),
       fetchCapturedPaymentId: jest.fn().mockResolvedValue('pay_rzp_rec_456'),
     } as unknown as jest.Mocked<RazorpayGateway>;
+
+    cashfreeGatewayMock = {
+      provider: PaymentGateway.CASHFREE,
+      createOrder: jest.fn(),
+      fetchOrderStatus: jest.fn(),
+      verifySignature: jest.fn(),
+      fetchCapturedPaymentId: jest.fn().mockResolvedValue('pay_cf_rec_456'),
+    } as unknown as jest.Mocked<CashfreeGateway>;
 
     eventEmitterMock = {
       emit: jest.fn(),
@@ -87,6 +97,7 @@ describe('PaymentsReconciliationService', () => {
         { provide: CreditsService, useValue: creditsServiceMock },
         { provide: TransactionsService, useValue: transactionsServiceMock },
         { provide: RazorpayGateway, useValue: razorpayGatewayMock },
+        { provide: CashfreeGateway, useValue: cashfreeGatewayMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],

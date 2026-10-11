@@ -42,6 +42,14 @@ export class PaymentActionDto {
   @Expose()
   prefill?: { contact?: string; name?: string };
 
+  @ApiPropertyOptional({
+    description:
+      '[sdk only] Cashfree payment session ID required by Cashfree Web/Mobile Checkout SDK.',
+    example: 'session_G39G4qQ7w_Q8bWbA9w...',
+  })
+  @Expose()
+  paymentSessionId?: string;
+
   // ── redirect fields ─────────────────────────────────────────────────────────
 
   @ApiPropertyOptional({

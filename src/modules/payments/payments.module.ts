@@ -6,6 +6,7 @@ import { CreditsModule } from '@modules/credits/credits.module';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 
+import { CashfreeGateway } from './gateways/cashfree/cashfree.gateway';
 import { RazorpayGateway } from './gateways/razorpay/razorpay.gateway';
 import { PaymentRoutesService } from './payment-routes.service';
 import { PaymentsController } from './payments.controller';
@@ -29,7 +30,7 @@ import { PaymentsService } from './payments.service';
  *
  * ## Exports
  * - `PaymentsService`: exported so `WebhooksModule` can call `fulfil()` from the
- *   Razorpay webhook handler without duplicating the fulfillment logic.
+ *   Razorpay/Cashfree webhook handlers without duplicating the fulfillment logic.
  * - `PaymentRoutesService`: exported for administrative operations (`AdminModule`) and tests.
  */
 @Module({
@@ -46,11 +47,14 @@ import { PaymentsService } from './payments.service';
     PaymentsReconciliationService,
     PaymentRoutesService,
     RazorpayGateway,
+    CashfreeGateway,
   ],
   exports: [
     PaymentsService,
     PaymentRoutesService,
     PaymentsReconciliationService,
+    CashfreeGateway,
+    RazorpayGateway,
   ],
 })
 export class PaymentsModule {}

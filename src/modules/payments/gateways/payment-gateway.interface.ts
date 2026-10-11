@@ -10,10 +10,14 @@ export interface GatewayCreateOrderParams {
   currency: string;
   /** Unique receipt / reference for the order (our internal orderId). */
   receipt: string;
+  /** Authenticated user identifier (required by Cashfree as customer_id). */
+  userId?: string;
   /** Optional user contact for prefill. */
   userContact?: string;
   /** Optional user name for prefill. */
   userName?: string;
+  /** Optional user email for prefill. */
+  userEmail?: string;
 }
 
 /**
@@ -29,6 +33,8 @@ export type GatewayOrderAction =
       gatewayOrderId: string;
       /** Prefill data for the checkout form. */
       prefill?: { contact?: string; name?: string };
+      /** Cashfree payment session ID required by Cashfree Web Checkout SDK. */
+      paymentSessionId?: string;
     }
   | {
       type: 'redirect';

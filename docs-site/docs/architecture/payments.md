@@ -34,8 +34,8 @@ flowchart TD
         PC["PaymentsController"]
         PS["PaymentsService"]
         DRE["Dynamic Routing Engine<br/>(PaymentGatewayRoute)"]
-        GA["Gateway Adapter Layer<br/>(RazorpayGateway / Cashfree / Decentro)"]
-        WH["WebhooksController<br/>(RazorpayPaymentHandler)"]
+        GA["Gateway Adapter Layer<br/>(RazorpayGateway / CashfreeGateway)"]
+        WH["WebhooksController<br/>(Razorpay / Cashfree Handlers)"]
         REC["PaymentsReconciliationService<br/>(@Cron Safety Net)"]
         EE["EventEmitter2<br/>(Decoupled Domain Events)"]
     end
@@ -50,7 +50,9 @@ flowchart TD
     subgraph ExternalGateways["External Payment Providers"]
         RZP_API["Razorpay Orders API"]
         RZP_HOOK["Razorpay Webhook Delivery"]
-        RZP_POLL["Razorpay Status Polling API"]
+        CF_API["Cashfree Orders API"]
+        CF_HOOK["Cashfree Webhook Delivery"]
+        POLL_API["Gateway Status Polling APIs"]
     end
 
     subgraph NotificationLayer["Asynchronous Notifications"]
@@ -65,21 +67,24 @@ flowchart TD
     DRE --> PGR
     PS -->|"Initialize order"| GA
     GA -->|"Create gateway order"| RZP_API
+    GA -->|"Create order & session"| CF_API
     PS -->|"Insert PENDING order"| PO
-    PS -->|"Return action (SDK config + keyId)"| UI
+    PS -->|"Return action (SDK config / session)"| UI
 
     UI -->|"2. Open modal"| SDK
     SDK -->|"User completes payment"| RZP_API
+    SDK -->|"User completes payment"| CF_API
 
     %% Dual path fulfillment
     SDK -->|"3a. Callback with signature"| UI
     UI -->|"POST /payments/orders/:id/verify"| PC
-    PC -->|"Server-side HMAC check & fulfil"| PS
+    PC -->|"Server-side HMAC / status check & fulfil"| PS
 
     RZP_HOOK -->|"3b. payment.captured webhook"| WH
+    CF_HOOK -->|"3b. PAYMENT_SUCCESS_WEBHOOK"| WH
     WH -->|"Verify HMAC & fulfil"| PS
 
-    REC -->|"3c. Sweep stale orders (>15m)"| RZP_POLL
+    REC -->|"3c. Sweep stale orders (>15m)"| POLL_API
     REC -->|"Auto-settle"| PS
 
     %% Database transaction
@@ -378,14 +383,14 @@ To prevent accidental misconfigurations that could make checkout inaccessible fo
 
 ## 🛡 Security Architecture & Threat Model
 
-| Threat / Attack Vector          | Mitigation Strategy                               | Implementation Detail                                                                                                                                                 |
-| :------------------------------ | :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Price Tampering in Browser**  | Price omitted from client request entirely        | Client submits only `planId`. Amount is fetched directly from database `SubscriptionPlanPrice` by country code.                                                       |
-| **Forged Payment Verification** | Server-side HMAC-SHA256 signature check           | Client callback is validated by computing `HMAC-SHA256(order_id + "\|" + payment_id, secret)` and matching using `crypto.timingSafeEqual`.                            |
-| **Timing Side-Channel Attacks** | Constant-time buffer comparison                   | `crypto.timingSafeEqual` prevents attackers from inferring signatures through byte-comparison response latencies.                                                     |
-| **Forged Webhook Delivery**     | Cryptographic payload verification                | `RazorpayWebhookGuard` validates `X-Razorpay-Signature` against the raw byte payload buffer before body parsing.                                                      |
-| **Leaked API Keys**             | Strict separation of public vs secret credentials | Publishable key (`keyId`) is sent to frontend; secret key (`keySecret`) and webhook secret are injected into Cloud Run from **GCP Secret Manager** and never exposed. |
-| **Replay Attacks**              | Unique database constraints & timestamp guards    | Deduplication on `(gateway, gatewayTransactionId)` rejects replayed webhooks.                                                                                         |
+| Threat / Attack Vector          | Mitigation Strategy                               | Implementation Detail                                                                                                                                                                                                      |
+| :------------------------------ | :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Price Tampering in Browser**  | Price omitted from client request entirely        | Client submits only `planId`. Amount is fetched directly from database `SubscriptionPlanPrice` by country code.                                                                                                            |
+| **Forged Payment Verification** | Server-side HMAC-SHA256 signature check           | Client callback is validated by computing `HMAC-SHA256(order_id + "\|" + payment_id, secret)` and matching using `crypto.timingSafeEqual`.                                                                                 |
+| **Timing Side-Channel Attacks** | Constant-time buffer comparison                   | `crypto.timingSafeEqual` prevents attackers from inferring signatures through byte-comparison response latencies.                                                                                                          |
+| **Forged Webhook Delivery**     | Cryptographic payload verification                | `RazorpayWebhookGuard` validates `X-Razorpay-Signature` against raw bytes. `CashfreeWebhookGuard` validates `x-webhook-signature` Base64 HMAC against `timestamp + rawBody` with 5-minute replay tolerance.                |
+| **Leaked API Keys**             | Strict separation of public vs secret credentials | Publishable key (`keyId`) or session token (`paymentSessionId`) is sent to frontend; secret keys (`RAZORPAY_KEY_SECRET`, `CASHFREE_SECRET_KEY`) are injected into Cloud Run from **GCP Secret Manager** and never exposed. |
+| **Replay Attacks**              | Unique database constraints & timestamp guards    | Deduplication on `(gateway, gatewayTransactionId)` rejects replayed webhooks.                                                                                                                                              |
 
 ---
 
