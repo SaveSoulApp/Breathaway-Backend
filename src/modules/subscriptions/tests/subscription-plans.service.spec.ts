@@ -1014,7 +1014,7 @@ describe('SubscriptionPlansService', () => {
       await expect(
         service.removePlanPrice('plan-uuid-111', 'invalid-price-id'),
       ).rejects.toThrow(
-        new SubscriptionPlanNotFoundException(
+        new SubscriptionPlanPriceNotFoundException(
           'Price entry "invalid-price-id" not found for plan "plan-uuid-111"',
         ),
       );
@@ -1324,6 +1324,43 @@ describe('SubscriptionPlansService', () => {
         }),
       });
       expect(result.discountedPrice).toBe(299);
+    });
+
+    it('should set changeType to PROMO_UPDATED when only promotional dates are modified', async () => {
+      // Arrange
+      const existingPrice = {
+        id: 'price-123',
+        planId: mockPlan.id,
+        countryCode: 'IN',
+        currencyCode: 'INR',
+        originalPrice: 399,
+        discountedPrice: 299,
+        discountStartsAt: new Date('2026-04-01T00:00:00Z'),
+        discountEndsAt: new Date('2026-04-10T00:00:00Z'),
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
+      prisma.subscriptionPlanPrice.update.mockResolvedValue({
+        ...existingPrice,
+        discountEndsAt: new Date('2026-04-15T00:00:00Z'),
+      } as any);
+
+      // Act
+      await service.updatePlanPrice(mockPlan.id, 'price-123', {
+        discountEndsAt: '2026-04-15T00:00:00Z',
+        reason: 'Extending sale window',
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changeType: SubscriptionPriceChangeType.PROMO_UPDATED,
+          changeReason: 'Extending sale window',
+        }),
+      });
     });
 
     it('should throw InvalidPlanPriceException when discountedPrice >= originalPrice', async () => {

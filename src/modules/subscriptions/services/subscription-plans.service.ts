@@ -684,7 +684,7 @@ export class SubscriptionPlansService extends BaseService {
       );
     }
 
-    let newDiscountedPrice: number | null =
+    const newDiscountedPrice: number | null =
       dto.discountedPrice !== undefined
         ? dto.discountedPrice
         : existingPrice.discountedPrice
@@ -750,7 +750,11 @@ export class SubscriptionPlansService extends BaseService {
       existingPrice.discountedPrice !== null
     ) {
       changeType = SubscriptionPriceChangeType.PROMO_ENDED;
-    } else if (dto.discountedPrice !== undefined) {
+    } else if (
+      dto.discountedPrice !== undefined ||
+      dto.discountStartsAt !== undefined ||
+      dto.discountEndsAt !== undefined
+    ) {
       changeType = SubscriptionPriceChangeType.PROMO_UPDATED;
     }
 
@@ -854,7 +858,7 @@ export class SubscriptionPlansService extends BaseService {
         priceId,
         step: 'remove_price',
       });
-      throw new SubscriptionPlanNotFoundException(
+      throw new SubscriptionPlanPriceNotFoundException(
         `Price entry "${priceId}" not found for plan "${planId}"`,
       );
     }
