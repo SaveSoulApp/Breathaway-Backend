@@ -1,7 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { StorePlatform, SubscriptionPlanStatus } from '@prisma/client';
+import {
+  StorePlatform,
+  SubscriptionPlanStatus,
+  SubscriptionPriceChangeType,
+} from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -927,7 +931,7 @@ describe('SubscriptionPlansService', () => {
   });
 
   describe('removePlanPrice', () => {
-    it('should find the price entry for plan and delete it', async () => {
+    it('should find the price entry for plan and delete it while preserving history with PRICE_DELETED', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
       prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(mockPrice);
@@ -938,6 +942,19 @@ describe('SubscriptionPlansService', () => {
       // Assert
       expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
         where: { id: 'price-uuid-222', planId: 'plan-uuid-111' },
+      });
+      expect(
+        prisma.subscriptionPlanPriceHistory.updateMany,
+      ).toHaveBeenCalledWith({
+        where: { priceId: 'price-uuid-222', effectiveTo: null },
+        data: { effectiveTo: expect.any(Date) },
+      });
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          priceId: null,
+          planId: 'plan-uuid-111',
+          changeType: SubscriptionPriceChangeType.PRICE_DELETED,
+        }),
       });
       expect(prisma.subscriptionPlanPrice.delete).toHaveBeenCalledWith({
         where: { id: 'price-uuid-222' },
@@ -1097,7 +1114,9 @@ describe('SubscriptionPlansService', () => {
         prices: [promoPrice],
       };
 
-      prisma.subscriptionPlan.findMany.mockResolvedValue([planWithPromo] as any);
+      prisma.subscriptionPlan.findMany.mockResolvedValue([
+        planWithPromo,
+      ] as any);
 
       // Act
       const result = await service.listActivePlans(null, undefined, 'IN');
@@ -1132,7 +1151,9 @@ describe('SubscriptionPlansService', () => {
         prices: [expiredPromoPrice],
       };
 
-      prisma.subscriptionPlan.findMany.mockResolvedValue([planWithExpired] as any);
+      prisma.subscriptionPlan.findMany.mockResolvedValue([
+        planWithExpired,
+      ] as any);
 
       // Act
       const result = await service.listActivePlans(null, undefined, 'IN');
@@ -1161,7 +1182,9 @@ describe('SubscriptionPlansService', () => {
       };
 
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
-      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(existingPrice as any);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
       prisma.subscriptionPlanPrice.update.mockResolvedValue({
         ...existingPrice,
         originalPrice: 499,
@@ -1179,7 +1202,9 @@ describe('SubscriptionPlansService', () => {
       );
 
       // Assert
-      expect(prisma.subscriptionPlanPriceHistory.updateMany).toHaveBeenCalledWith({
+      expect(
+        prisma.subscriptionPlanPriceHistory.updateMany,
+      ).toHaveBeenCalledWith({
         where: { priceId: 'price-123', effectiveTo: null },
         data: { effectiveTo: expect.any(Date) },
       });
@@ -1223,7 +1248,9 @@ describe('SubscriptionPlansService', () => {
       const endsAt = new Date('2026-11-07T23:59:59Z');
 
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
-      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(existingPrice as any);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
       prisma.subscriptionPlanPrice.update.mockResolvedValue({
         ...existingPrice,
         discountedPrice: 299,
@@ -1266,7 +1293,9 @@ describe('SubscriptionPlansService', () => {
       };
 
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
-      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(existingPrice as any);
+      prisma.subscriptionPlanPrice.findFirst.mockResolvedValue(
+        existingPrice as any,
+      );
 
       // Act & Assert
       await expect(
@@ -1293,7 +1322,7 @@ describe('SubscriptionPlansService', () => {
           discountedPrice: null,
           effectiveFrom: new Date('2026-01-01T00:00:00Z'),
           effectiveTo: new Date('2026-03-01T00:00:00Z'),
-          changeType: 'INITIAL_PRICE',
+          changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
           changedByUserId: 'system',
           createdAt: new Date('2026-01-01T00:00:00Z'),
         },
@@ -1307,7 +1336,7 @@ describe('SubscriptionPlansService', () => {
           discountedPrice: null,
           effectiveFrom: new Date('2026-03-01T00:00:00Z'),
           effectiveTo: null,
-          changeType: 'BASE_PRICE_INCREASE',
+          changeType: SubscriptionPriceChangeType.BASE_PRICE_INCREASE,
           changedByUserId: 'admin-1',
           createdAt: new Date('2026-03-01T00:00:00Z'),
         },
@@ -1326,13 +1355,15 @@ describe('SubscriptionPlansService', () => {
       });
 
       // Assert
-      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith({
-        where: expect.objectContaining({
-          planId: mockPlan.id,
-          countryCode: 'IN',
-        }),
-        orderBy: { effectiveFrom: 'asc' },
-      });
+      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
+        {
+          where: expect.objectContaining({
+            planId: mockPlan.id,
+            countryCode: 'IN',
+          }),
+          orderBy: { effectiveFrom: 'asc' },
+        },
+      );
       expect(result).toHaveLength(2);
       expect(result[0].originalPrice).toBe(399);
       expect(result[1].originalPrice).toBe(499);

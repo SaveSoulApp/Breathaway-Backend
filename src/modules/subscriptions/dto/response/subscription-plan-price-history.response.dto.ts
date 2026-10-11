@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CurrencyCode } from '@prisma/client';
+import { CurrencyCode, SubscriptionPriceChangeType } from '@prisma/client';
 import { Expose, Type } from 'class-transformer';
 
 export class SubscriptionPlanPriceHistoryResponseDto {
@@ -7,9 +7,12 @@ export class SubscriptionPlanPriceHistoryResponseDto {
   @Expose()
   id: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'ID of the pricing configuration (null if deleted)',
+    nullable: true,
+  })
   @Expose()
-  priceId: string;
+  priceId?: string | null;
 
   @ApiProperty()
   @Expose()
@@ -70,12 +73,13 @@ export class SubscriptionPlanPriceHistoryResponseDto {
   effectiveTo?: Date | null;
 
   @ApiProperty({
+    enum: SubscriptionPriceChangeType,
     description:
-      'Type of change: INITIAL_PRICE, BASE_PRICE_INCREASE, BASE_PRICE_DECREASE, PROMO_SCHEDULED, PROMO_ENDED, PROMO_UPDATED',
+      'Type of change: INITIAL_PRICE, BASE_PRICE_INCREASE, BASE_PRICE_DECREASE, PROMO_SCHEDULED, PROMO_ENDED, PROMO_UPDATED, PRICE_UPDATED, PRICE_DELETED',
     example: 'BASE_PRICE_INCREASE',
   })
   @Expose()
-  changeType: string;
+  changeType: SubscriptionPriceChangeType;
 
   @ApiProperty({
     description: 'Actor user ID who made or authorized the change',

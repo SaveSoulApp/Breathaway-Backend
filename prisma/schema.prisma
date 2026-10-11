@@ -592,6 +592,17 @@ enum SubscriptionEventType {
   EXPIRY
 }
 
+enum SubscriptionPriceChangeType {
+  INITIAL_PRICE
+  BASE_PRICE_INCREASE
+  BASE_PRICE_DECREASE
+  PROMO_SCHEDULED
+  PROMO_ENDED
+  PROMO_UPDATED
+  PRICE_UPDATED
+  PRICE_DELETED
+}
+
 model SubscriptionPlan {
   id String @id @default(ulid())
 
@@ -610,6 +621,7 @@ model SubscriptionPlan {
   status    SubscriptionPlanStatus @default(ACTIVE)
 
   prices        SubscriptionPlanPrice[]
+  priceHistory  SubscriptionPlanPriceHistory[]
   subscriptions UserSubscription[]
   paymentOrders PaymentOrder[]
 
@@ -653,10 +665,12 @@ model SubscriptionPlanPrice {
 model SubscriptionPlanPriceHistory {
   id String @id @default(ulid())
 
-  priceId String
-  price   SubscriptionPlanPrice @relation(fields: [priceId], references: [id], onDelete: Cascade)
+  priceId String?
+  price   SubscriptionPlanPrice? @relation(fields: [priceId], references: [id], onDelete: SetNull)
 
-  planId       String
+  planId String
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
   countryCode  String       @db.Char(2)
   currencyCode CurrencyCode
 
@@ -670,14 +684,15 @@ model SubscriptionPlanPriceHistory {
   /// End of the interval (null means currently active)
   effectiveTo   DateTime? @db.Timestamptz
 
-  /// Audit metadata: INITIAL_PRICE, BASE_PRICE_INCREASE, BASE_PRICE_DECREASE, PROMO_SCHEDULED, PROMO_ENDED, PROMO_UPDATED
-  changeType      String
+  /// Audit metadata: INITIAL_PRICE, BASE_PRICE_INCREASE, BASE_PRICE_DECREASE, PROMO_SCHEDULED, PROMO_ENDED, PROMO_UPDATED, PRICE_DELETED
+  changeType      SubscriptionPriceChangeType
   changedByUserId String
   changeReason    String?
 
   createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([planId, countryCode, effectiveFrom, effectiveTo])
+  @@index([planId, effectiveFrom, effectiveTo])
   @@index([priceId, effectiveFrom])
 }
 

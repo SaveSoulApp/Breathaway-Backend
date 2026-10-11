@@ -5,6 +5,7 @@ import {
   Prisma,
   StorePlatform,
   SubscriptionPlanStatus,
+  SubscriptionPriceChangeType,
 } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
@@ -588,7 +589,7 @@ export class SubscriptionPlansService extends BaseService {
             discountEndsAt,
             effectiveFrom: now,
             effectiveTo: null,
-            changeType: 'INITIAL_PRICE',
+            changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
             changedByUserId,
             changeReason: dto.reason ?? 'Initial price creation',
           },
@@ -710,30 +711,31 @@ export class SubscriptionPlansService extends BaseService {
     }
 
     // Determine changeType
-    let changeType = 'PRICE_UPDATED';
+    let changeType: SubscriptionPriceChangeType =
+      SubscriptionPriceChangeType.PRICE_UPDATED;
     if (
       dto.originalPrice !== undefined &&
       dto.originalPrice > Number(existingPrice.originalPrice)
     ) {
-      changeType = 'BASE_PRICE_INCREASE';
+      changeType = SubscriptionPriceChangeType.BASE_PRICE_INCREASE;
     } else if (
       dto.originalPrice !== undefined &&
       dto.originalPrice < Number(existingPrice.originalPrice)
     ) {
-      changeType = 'BASE_PRICE_DECREASE';
+      changeType = SubscriptionPriceChangeType.BASE_PRICE_DECREASE;
     } else if (
       dto.discountedPrice !== undefined &&
       dto.discountedPrice !== null &&
       !existingPrice.discountedPrice
     ) {
-      changeType = 'PROMO_SCHEDULED';
+      changeType = SubscriptionPriceChangeType.PROMO_SCHEDULED;
     } else if (
       dto.discountedPrice === null &&
       existingPrice.discountedPrice !== null
     ) {
-      changeType = 'PROMO_ENDED';
+      changeType = SubscriptionPriceChangeType.PROMO_ENDED;
     } else if (dto.discountedPrice !== undefined) {
-      changeType = 'PROMO_UPDATED';
+      changeType = SubscriptionPriceChangeType.PROMO_UPDATED;
     }
 
     const now = new Date();
@@ -846,6 +848,24 @@ export class SubscriptionPlansService extends BaseService {
         await tx.subscriptionPlanPriceHistory.updateMany({
           where: { priceId, effectiveTo: null },
           data: { effectiveTo: now },
+        });
+
+        await tx.subscriptionPlanPriceHistory.create({
+          data: {
+            priceId: null,
+            planId,
+            countryCode: price.countryCode,
+            currencyCode: price.currencyCode,
+            originalPrice: price.originalPrice,
+            discountedPrice: price.discountedPrice,
+            discountStartsAt: price.discountStartsAt,
+            discountEndsAt: price.discountEndsAt,
+            effectiveFrom: now,
+            effectiveTo: now,
+            changeType: SubscriptionPriceChangeType.PRICE_DELETED,
+            changedByUserId,
+            changeReason: 'Price configuration deleted',
+          },
         });
 
         await tx.subscriptionPlanPrice.delete({
