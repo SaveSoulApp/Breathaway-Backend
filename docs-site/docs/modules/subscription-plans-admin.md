@@ -278,28 +278,29 @@ When an admin updates a price row:
 
 ### Snapshot Fields in History
 
-| History Column     | Description                                                                                                                                    |
-| :----------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | Unique history record ULID.                                                                                                                    |
-| `priceId`          | Foreign key referencing `SubscriptionPlanPrice`.                                                                                               |
-| `planId`           | Foreign key referencing `SubscriptionPlan`.                                                                                                    |
-| `countryCode`      | ISO 2-letter country code (`IN`, `US`, etc.).                                                                                                  |
-| `currencyCode`     | Currency code (`INR`, `USD`, etc.).                                                                                                            |
-| `originalPrice`    | Regular anchor price snapshotted at that interval.                                                                                             |
-| `discountedPrice`  | Promotional price snapshotted (or `null`).                                                                                                     |
-| `discountStartsAt` | Promotional window start timestamp (or `null`).                                                                                                |
-| `discountEndsAt`   | Promotional window end timestamp (or `null`).                                                                                                  |
-| `effectiveFrom`    | UTC timestamp when this configuration became authoritative.                                                                                    |
-| `effectiveTo`      | UTC timestamp when superseded (`null` = currently active).                                                                                     |
-| `changeType`       | Change classification enum (`INITIAL_PRICE`, `BASE_PRICE_INCREASE`, `BASE_PRICE_DECREASE`, `PROMO_SCHEDULED`, `PROMO_ENDED`, `PROMO_UPDATED`). |
-| `changedByUserId`  | Google OIDC email of the administrator who made the change.                                                                                    |
-| `changeReason`     | Mandatory audit justification string.                                                                                                          |
+| History Column     | Description                                                                                                                                                                                   |
+| :----------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | Unique history record ULID.                                                                                                                                                                   |
+| `priceId`          | Foreign key referencing `SubscriptionPlanPrice` (`String?`, `ON DELETE SET NULL`). Nullable so deleting a price never cascades or deletes audit history.                                    |
+| `planId`           | Foreign key referencing `SubscriptionPlan`.                                                                                                                                                   |
+| `countryCode`      | ISO 2-letter country code (`IN`, `US`, etc.).                                                                                                                                                 |
+| `currencyCode`     | Currency code (`INR`, `USD`, etc.).                                                                                                                                                           |
+| `originalPrice`    | Regular anchor price snapshotted at that interval.                                                                                                                                            |
+| `discountedPrice`  | Promotional price snapshotted (or `null`).                                                                                                                                                    |
+| `discountStartsAt` | Promotional window start timestamp (or `null`).                                                                                                                                               |
+| `discountEndsAt`   | Promotional window end timestamp (or `null`).                                                                                                                                                 |
+| `effectiveFrom`    | UTC timestamp when this configuration became authoritative.                                                                                                                                   |
+| `effectiveTo`      | UTC timestamp when superseded (`null` = currently active).                                                                                                                                    |
+| `changeType`       | `SubscriptionPriceChangeType` enum (`INITIAL_PRICE`, `BASE_PRICE_INCREASE`, `BASE_PRICE_DECREASE`, `PROMO_SCHEDULED`, `PROMO_ENDED`, `PROMO_UPDATED`, `PRICE_UPDATED`, `PRICE_DELETED`).   |
+| `changedByUserId`  | Google OIDC email of the administrator who made the change (resolved from `@CurrentAdminEmail()` with CLS fallback).                                                                         |
+| `changeReason`     | Audit justification string explaining why the price was modified.                                                                                                                             |
 
 ### Querying the Audit Trail
 
 Administrators can query the audit history via `GET /api/v1/admin/subscriptions/plans/:planId/prices/history`:
 
-- **Date Range Query**: `?countryCode=IN&startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z`
+- **Pagination**: Supports `page` (default: `1`, minimum: `1`) and `limit` (default: `100`, minimum: `1`, maximum: `200`).
+- **Date Range Query**: `?countryCode=IN&startDate=2026-01-01T00:00:00Z&endDate=2026-12-31T23:59:59Z&page=1&limit=50`. Requires `startDate <= endDate`; inverted date ranges reject with HTTP 400 (`InvalidSubscriptionDatesException`).
 - **Point-in-Time Query**: `?countryCode=IN&pointInTime=2026-02-14T12:00:00Z` reconstructs the exact active price configuration at that historical moment.
 
 ---
