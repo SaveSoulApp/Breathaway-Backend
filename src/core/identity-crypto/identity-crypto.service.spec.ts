@@ -1,11 +1,13 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IdentityCryptoService } from './identity-crypto.service';
-import { LoggerService } from '@core/logger';
-import { IKeyManager } from '@core/kms/key-manager.interface';
-import { IdentityType } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
+import { IdentityType } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
+
 import * as cryptoUtils from '@core/crypto/crypto.utils';
+import { IKeyManager } from '@core/kms/key-manager.interface';
+import { LoggerService } from '@core/logger';
+
+import { IdentityCryptoService } from './identity-crypto.service';
 
 jest.mock('@core/crypto/crypto.utils', () => ({
   generateDataKey: jest.fn(),
@@ -385,6 +387,157 @@ describe('IdentityCryptoService', () => {
         const result = await service.decryptText(compact);
 
         expect(result).toBeNull();
+      });
+    });
+
+    describe('parseEncryptedText', () => {
+      it('should return null for non-encrypted strings or null', () => {
+        expect(service.parseEncryptedText(null)).toBeNull();
+        expect(service.parseEncryptedText('plain-text')).toBeNull();
+        expect(service.parseEncryptedText('enc:v1:too:short')).toBeNull();
+      });
+
+      it('should parse valid compact encrypted text including composite keyId', () => {
+        const parsed = service.parseEncryptedText(
+          'enc:v1:gcp:kms:key:ivVal:tagVal:wrapVal:cipherVal',
+        );
+        expect(parsed).toEqual({
+          keyId: 'gcp:kms:key',
+          ivBase64: 'ivVal',
+          tagBase64: 'tagVal',
+          wrappedKeyBase64: 'wrapVal',
+          ciphertextBase64: 'cipherVal',
+        });
+      });
+    });
+
+    describe('decryptBatch', () => {
+      it('should return an empty array when given an empty array', async () => {
+        const result = await service.decryptBatch([]);
+        expect(result).toEqual([]);
+      });
+
+      it('should return null for null, undefined, empty, or unencrypted items', async () => {
+        const result = await service.decryptBatch([
+          null,
+          undefined,
+          '',
+          '   ',
+          'plaintext',
+          'enc:v1:short',
+        ]);
+        expect(result).toEqual([null, null, null, null, null, null]);
+      });
+
+      it('should decrypt a batch in original order and deduplicate KMS unwrap calls for identical wrapped keys', async () => {
+        const fakeDataKey1 = Buffer.from('data-key-1');
+        const fakeDataKey2 = Buffer.from('data-key-2');
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64_1 = Buffer.from('wrapped-key-1').toString('base64');
+        const wrappedKeyB64_2 = Buffer.from('wrapped-key-2').toString('base64');
+        const ciphertextB64_1 = Buffer.from('ciphertext-1').toString('base64');
+        const ciphertextB64_2 = Buffer.from('ciphertext-2').toString('base64');
+        const ciphertextB64_3 = Buffer.from('ciphertext-3').toString('base64');
+
+        keyManager.unwrapDataKey.mockImplementation(
+          (wrapped: Buffer, keyId: string) => {
+            if (wrapped.toString('base64') === wrappedKeyB64_1) {
+              return Promise.resolve(fakeDataKey1);
+            }
+            return Promise.resolve(fakeDataKey2);
+          },
+        );
+
+        (cryptoUtils.decryptAesGcm as jest.Mock).mockImplementation(
+          (ciphertext: Buffer, iv: Buffer, tag: Buffer, dataKey: Buffer) => {
+            if (ciphertext.toString('base64') === ciphertextB64_1) {
+              return 'Alice';
+            }
+            if (ciphertext.toString('base64') === ciphertextB64_2) {
+              return 'Bob';
+            }
+            if (ciphertext.toString('base64') === ciphertextB64_3) {
+              return 'Charlie';
+            }
+            return 'Unknown';
+          },
+        );
+
+        // item 1 and item 3 share wrappedKeyB64_1 (same key)
+        const item1 = `enc:v1:key-1:${ivB64}:${tagB64}:${wrappedKeyB64_1}:${ciphertextB64_1}`;
+        const item2 = `enc:v1:key-2:${ivB64}:${tagB64}:${wrappedKeyB64_2}:${ciphertextB64_2}`;
+        const item3 = `enc:v1:key-1:${ivB64}:${tagB64}:${wrappedKeyB64_1}:${ciphertextB64_3}`;
+
+        const results = await service.decryptBatch([
+          item1,
+          null,
+          item2,
+          'plaintext',
+          item3,
+        ]);
+
+        expect(results).toEqual(['Alice', null, 'Bob', null, 'Charlie']);
+
+        // Verify deduplication: unwrapDataKey should be called only TWICE (once for key-1, once for key-2)
+        expect(keyManager.unwrapDataKey).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle partial KMS unwrap failures gracefully without failing the entire batch', async () => {
+        const fakeDataKey2 = Buffer.from('data-key-2');
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64_1 = Buffer.from('wrapped-key-1').toString('base64');
+        const wrappedKeyB64_2 = Buffer.from('wrapped-key-2').toString('base64');
+        const ciphertextB64_1 = Buffer.from('ciphertext-1').toString('base64');
+        const ciphertextB64_2 = Buffer.from('ciphertext-2').toString('base64');
+
+        keyManager.unwrapDataKey.mockImplementation(
+          (wrapped: Buffer, keyId: string) => {
+            if (wrapped.toString('base64') === wrappedKeyB64_1) {
+              return Promise.reject(new Error('KMS error on key 1'));
+            }
+            return Promise.resolve(fakeDataKey2);
+          },
+        );
+
+        (cryptoUtils.decryptAesGcm as jest.Mock).mockReturnValue('Bob');
+
+        const item1 = `enc:v1:key-1:${ivB64}:${tagB64}:${wrappedKeyB64_1}:${ciphertextB64_1}`;
+        const item2 = `enc:v1:key-2:${ivB64}:${tagB64}:${wrappedKeyB64_2}:${ciphertextB64_2}`;
+
+        const results = await service.decryptBatch([item1, item2]);
+
+        expect(results).toEqual([null, 'Bob']);
+      });
+
+      it('should handle partial AES-GCM decryption errors gracefully', async () => {
+        const fakeDataKey = Buffer.from('data-key');
+        const ivB64 = Buffer.from('iv').toString('base64');
+        const tagB64 = Buffer.from('tag').toString('base64');
+        const wrappedKeyB64 = Buffer.from('wrapped-key').toString('base64');
+        const ciphertextB64_1 = Buffer.from('corrupt').toString('base64');
+        const ciphertextB64_2 = Buffer.from('valid').toString('base64');
+
+        keyManager.unwrapDataKey.mockResolvedValue(fakeDataKey);
+
+        (cryptoUtils.decryptAesGcm as jest.Mock).mockImplementation(
+          (ciphertext: Buffer) => {
+            if (ciphertext.toString('base64') === ciphertextB64_1) {
+              throw new Error(
+                'Unsupported state or unable to authenticate data',
+              );
+            }
+            return 'DecryptedValid';
+          },
+        );
+
+        const item1 = `enc:v1:key-1:${ivB64}:${tagB64}:${wrappedKeyB64}:${ciphertextB64_1}`;
+        const item2 = `enc:v1:key-1:${ivB64}:${tagB64}:${wrappedKeyB64}:${ciphertextB64_2}`;
+
+        const results = await service.decryptBatch([item1, item2]);
+
+        expect(results).toEqual([null, 'DecryptedValid']);
       });
     });
 
