@@ -865,6 +865,29 @@ describe('SubscriptionPlansService', () => {
         expect.objectContaining({
           actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
           resourceId: 'plan-uuid-111',
+          userId: 'system',
+        }),
+      );
+    });
+
+    it('should attribute audit log to admin when changedByUserId is passed', async () => {
+      // Arrange
+      const dto: UpdatePlanRequestDto = { name: 'VIP Plan' };
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlan.update.mockResolvedValue({
+        ...mockPlan,
+        name: 'VIP Plan',
+      });
+
+      // Act
+      await service.updatePlan('plan-uuid-111', dto, 'admin@example.com');
+
+      // Assert
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        AUDIT_LOG_EVENT,
+        expect.objectContaining({
+          actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
+          userId: 'admin@example.com',
         }),
       );
     });

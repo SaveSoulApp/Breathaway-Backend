@@ -389,7 +389,8 @@ export class SubscriptionPlansService extends BaseService {
   /**
    * Provisions a new subscription tier in the system.
    */
-  async createPlan(dto: CreatePlanRequestDto) {
+  async createPlan(dto: CreatePlanRequestDto, changedByUserId = 'system') {
+    const actorUserId = this.resolveActorUserId(changedByUserId);
     let plan;
     try {
       plan = await this.prisma.subscriptionPlan.create({
@@ -439,7 +440,7 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_CREATED,
-      userId: 'system',
+      userId: actorUserId,
       resourceId: plan.id,
       metadata: { planName: plan.name, slug: plan.slug },
     });
@@ -454,8 +455,13 @@ export class SubscriptionPlansService extends BaseService {
   /**
    * Modifies an existing subscription tier.
    */
-  async updatePlan(id: string, dto: UpdatePlanRequestDto) {
+  async updatePlan(
+    id: string,
+    dto: UpdatePlanRequestDto,
+    changedByUserId = 'system',
+  ) {
     await this.getPlanById(id);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
     let plan;
     try {
@@ -520,7 +526,7 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_UPDATED,
-      userId: 'system',
+      userId: actorUserId,
       resourceId: plan.id,
       metadata: { updatedFields: Object.keys(dto) },
     });

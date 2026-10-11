@@ -71,7 +71,7 @@ describe('SubscriptionsAdminController', () => {
   });
 
   describe('createPlan', () => {
-    it('should create plan and return it', async () => {
+    it('should create plan with adminEmail and return it', async () => {
       // Arrange
       const dto = {
         name: 'New Tier',
@@ -85,10 +85,10 @@ describe('SubscriptionsAdminController', () => {
       service.createPlan.mockResolvedValue(mockPlan as any);
 
       // Act
-      const result = await controller.createPlan(dto);
+      const result = await controller.createPlan(dto, 'admin@example.com');
 
       // Assert
-      expect(service.createPlan).toHaveBeenCalledWith(dto);
+      expect(service.createPlan).toHaveBeenCalledWith(dto, 'admin@example.com');
       expect(result).toEqual(mockPlan);
     });
   });
@@ -108,7 +108,7 @@ describe('SubscriptionsAdminController', () => {
   });
 
   describe('updatePlan', () => {
-    it('should update plan and return updated object', async () => {
+    it('should update plan with adminEmail and return updated object', async () => {
       // Arrange
       const dto = {
         name: 'Updated Tier',
@@ -120,10 +120,18 @@ describe('SubscriptionsAdminController', () => {
       } as any);
 
       // Act
-      const result = await controller.updatePlan(planId, dto);
+      const result = await controller.updatePlan(
+        planId,
+        dto,
+        'admin@example.com',
+      );
 
       // Assert
-      expect(service.updatePlan).toHaveBeenCalledWith(planId, dto);
+      expect(service.updatePlan).toHaveBeenCalledWith(
+        planId,
+        dto,
+        'admin@example.com',
+      );
       expect(result.name).toBe('Updated Tier');
     });
   });

@@ -73,8 +73,11 @@ export class SubscriptionsAdminController extends BaseController {
     type: SubscriptionPlanResponseDto,
   })
   @SerializeExpose(SubscriptionPlanResponseDto)
-  async createPlan(@Body() dto: CreatePlanRequestDto) {
-    return this.subscriptionPlansService.createPlan(dto);
+  async createPlan(
+    @Body() dto: CreatePlanRequestDto,
+    @CurrentAdminEmail() adminEmail?: string,
+  ) {
+    return this.subscriptionPlansService.createPlan(dto, adminEmail);
   }
 
   /**
@@ -109,8 +112,12 @@ export class SubscriptionsAdminController extends BaseController {
     type: SubscriptionPlanResponseDto,
   })
   @SerializeExpose(SubscriptionPlanResponseDto)
-  async updatePlan(@Param('id') id: string, @Body() dto: UpdatePlanRequestDto) {
-    return this.subscriptionPlansService.updatePlan(id, dto);
+  async updatePlan(
+    @Param('id') id: string,
+    @Body() dto: UpdatePlanRequestDto,
+    @CurrentAdminEmail() adminEmail?: string,
+  ) {
+    return this.subscriptionPlansService.updatePlan(id, dto, adminEmail);
   }
 
   /**
