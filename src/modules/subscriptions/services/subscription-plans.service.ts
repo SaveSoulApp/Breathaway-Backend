@@ -7,6 +7,7 @@ import {
   SubscriptionPlanStatus,
   SubscriptionPriceChangeType,
 } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -109,8 +110,20 @@ export class SubscriptionPlansService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly ipGeolocationService: IpGeolocationService,
+    private readonly clsService?: ClsService,
   ) {
     super(logger);
+  }
+
+  private resolveActorUserId(providedUserId?: string): string {
+    if (providedUserId && providedUserId !== 'system') {
+      return providedUserId;
+    }
+    const clsAdminEmail = this.clsService?.get<string>('adminEmail');
+    if (clsAdminEmail) {
+      return clsAdminEmail;
+    }
+    return providedUserId || 'system';
   }
 
   /**
@@ -529,8 +542,9 @@ export class SubscriptionPlansService extends BaseService {
     changedByUserId = 'system',
   ) {
     await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
-    const originalPrice = dto.originalPrice ?? (dto as any).price;
+    const originalPrice = dto.originalPrice;
     if (!originalPrice || originalPrice <= 0) {
       throw new InvalidPlanPriceException(
         'originalPrice must be greater than 0',
@@ -591,7 +605,7 @@ export class SubscriptionPlansService extends BaseService {
             effectiveFrom: now,
             effectiveTo: null,
             changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
-            changedByUserId,
+            changedByUserId: actorUserId,
             changeReason: dto.reason ?? 'Initial price creation',
           },
         });
@@ -616,7 +630,7 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_CREATED,
-      userId: changedByUserId,
+      userId: actorUserId,
       resourceId: price.id,
       metadata: {
         planId,
@@ -642,6 +656,7 @@ export class SubscriptionPlansService extends BaseService {
     changedByUserId = 'system',
   ) {
     await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
     const existingPrice = await this.prisma.subscriptionPlanPrice.findFirst({
       where: { id: priceId, planId },
@@ -774,7 +789,7 @@ export class SubscriptionPlansService extends BaseService {
             effectiveFrom: now,
             effectiveTo: null,
             changeType,
-            changedByUserId,
+            changedByUserId: actorUserId,
             changeReason: dto.reason ?? null,
           },
         });
@@ -800,7 +815,7 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_UPDATED,
-      userId: changedByUserId,
+      userId: actorUserId,
       resourceId: priceId,
       metadata: {
         planId,
@@ -827,6 +842,7 @@ export class SubscriptionPlansService extends BaseService {
     changedByUserId = 'system',
   ) {
     await this.getPlanById(planId);
+    const actorUserId = this.resolveActorUserId(changedByUserId);
 
     const price = await this.prisma.subscriptionPlanPrice.findFirst({
       where: { id: priceId, planId },
@@ -864,7 +880,7 @@ export class SubscriptionPlansService extends BaseService {
             effectiveFrom: now,
             effectiveTo: now,
             changeType: SubscriptionPriceChangeType.PRICE_DELETED,
-            changedByUserId,
+            changedByUserId: actorUserId,
             changeReason: 'Price configuration deleted',
           },
         });
@@ -891,7 +907,7 @@ export class SubscriptionPlansService extends BaseService {
 
     this.emitAuditLog({
       actionType: AuditActionType.SUBSCRIPTION_PLAN_PRICE_DELETED,
-      userId: changedByUserId,
+      userId: actorUserId,
       resourceId: priceId,
       metadata: {
         planId,

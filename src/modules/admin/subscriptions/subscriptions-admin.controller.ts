@@ -9,7 +9,6 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -18,8 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Request } from 'express';
 
+import { CurrentAdminEmail } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
@@ -132,12 +131,9 @@ export class SubscriptionsAdminController extends BaseController {
   async addPlanPrice(
     @Param('planId') planId: string,
     @Body() dto: CreatePlanPriceRequestDto,
-    @Req() req?: Request & { adminUser?: { email: string } },
+    @CurrentAdminEmail() adminEmail?: string,
   ) {
-    const adminUser = req?.adminUser?.email;
-    return adminUser
-      ? this.subscriptionPlansService.addPlanPrice(planId, dto, adminUser)
-      : this.subscriptionPlansService.addPlanPrice(planId, dto);
+    return this.subscriptionPlansService.addPlanPrice(planId, dto, adminEmail);
   }
 
   /**
@@ -163,17 +159,14 @@ export class SubscriptionsAdminController extends BaseController {
     @Param('planId') planId: string,
     @Param('priceId') priceId: string,
     @Body() dto: UpdatePlanPriceRequestDto,
-    @Req() req?: Request & { adminUser?: { email: string } },
+    @CurrentAdminEmail() adminEmail?: string,
   ) {
-    const adminUser = req?.adminUser?.email;
-    return adminUser
-      ? this.subscriptionPlansService.updatePlanPrice(
-          planId,
-          priceId,
-          dto,
-          adminUser,
-        )
-      : this.subscriptionPlansService.updatePlanPrice(planId, priceId, dto);
+    return this.subscriptionPlansService.updatePlanPrice(
+      planId,
+      priceId,
+      dto,
+      adminEmail,
+    );
   }
 
   /**
@@ -189,18 +182,13 @@ export class SubscriptionsAdminController extends BaseController {
   async removePlanPrice(
     @Param('planId') planId: string,
     @Param('priceId') priceId: string,
-    @Req() req?: Request & { adminUser?: { email: string } },
+    @CurrentAdminEmail() adminEmail?: string,
   ): Promise<void> {
-    const adminUser = req?.adminUser?.email;
-    if (adminUser) {
-      await this.subscriptionPlansService.removePlanPrice(
-        planId,
-        priceId,
-        adminUser,
-      );
-    } else {
-      await this.subscriptionPlansService.removePlanPrice(planId, priceId);
-    }
+    await this.subscriptionPlansService.removePlanPrice(
+      planId,
+      priceId,
+      adminEmail,
+    );
   }
 
   /**

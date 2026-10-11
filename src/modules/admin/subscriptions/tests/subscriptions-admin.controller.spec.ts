@@ -129,26 +129,34 @@ describe('SubscriptionsAdminController', () => {
   });
 
   describe('addPlanPrice', () => {
-    it('should add a localized price and return it', async () => {
+    it('should add a localized price with adminEmail and return it', async () => {
       // Arrange
       const dto = {
         currencyCode: CurrencyCode.EUR,
-        price: 8.99,
+        originalPrice: 8.99,
         countryCode: 'DE',
       };
       service.addPlanPrice.mockResolvedValue(mockPrice as any);
 
       // Act
-      const result = await controller.addPlanPrice(planId, dto);
+      const result = await controller.addPlanPrice(
+        planId,
+        dto,
+        'admin@example.com',
+      );
 
       // Assert
-      expect(service.addPlanPrice).toHaveBeenCalledWith(planId, dto);
+      expect(service.addPlanPrice).toHaveBeenCalledWith(
+        planId,
+        dto,
+        'admin@example.com',
+      );
       expect(result).toEqual(mockPrice);
     });
   });
 
   describe('updatePlanPrice', () => {
-    it('should update a localized price and return updated object', async () => {
+    it('should update a localized price with adminEmail and return updated object', async () => {
       // Arrange
       const dto = {
         originalPrice: 499,
@@ -162,28 +170,38 @@ describe('SubscriptionsAdminController', () => {
       service.updatePlanPrice.mockResolvedValue(updatedPrice as any);
 
       // Act
-      const result = await controller.updatePlanPrice(planId, priceId, dto);
+      const result = await controller.updatePlanPrice(
+        planId,
+        priceId,
+        dto,
+        'admin@example.com',
+      );
 
       // Assert
       expect(service.updatePlanPrice).toHaveBeenCalledWith(
         planId,
         priceId,
         dto,
+        'admin@example.com',
       );
       expect(result).toEqual(updatedPrice);
     });
   });
 
   describe('removePlanPrice', () => {
-    it('should remove a localized price and return void', async () => {
+    it('should remove a localized price with adminEmail and return void', async () => {
       // Arrange
       service.removePlanPrice.mockResolvedValue(undefined);
 
       // Act
-      await controller.removePlanPrice(planId, priceId);
+      await controller.removePlanPrice(planId, priceId, 'admin@example.com');
 
       // Assert
-      expect(service.removePlanPrice).toHaveBeenCalledWith(planId, priceId);
+      expect(service.removePlanPrice).toHaveBeenCalledWith(
+        planId,
+        priceId,
+        'admin@example.com',
+      );
     });
   });
 

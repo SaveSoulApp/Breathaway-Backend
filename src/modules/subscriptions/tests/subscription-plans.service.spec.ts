@@ -36,6 +36,7 @@ describe('SubscriptionPlansService', () => {
   let eventEmitter: jest.Mocked<EventEmitter2>;
   let configService: jest.Mocked<ConfigService>;
   let ipGeolocationService: { getCountryCodeByIp: jest.Mock };
+  let clsService: { get: jest.Mock };
 
   const mockLoggerService = {
     forContext: jest.fn().mockReturnValue({
@@ -82,7 +83,10 @@ describe('SubscriptionPlansService', () => {
     };
 
     const mockClsService = {
-      get: jest.fn().mockReturnValue('mock-ip'),
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'clientIp') return 'mock-ip';
+        return undefined;
+      }),
     };
 
     const mockConfigService = {
@@ -113,6 +117,7 @@ describe('SubscriptionPlansService', () => {
     eventEmitter = module.get(EventEmitter2);
     configService = module.get(ConfigService);
     ipGeolocationService = module.get(IpGeolocationService);
+    clsService = module.get(ClsService);
 
     prisma.$transaction.mockImplementation(async (callback: any) => {
       if (typeof callback === 'function') {
@@ -870,7 +875,7 @@ describe('SubscriptionPlansService', () => {
       // Arrange
       const dto: CreatePlanPriceRequestDto = {
         currencyCode: 'EUR',
-        price: 8.99,
+        originalPrice: 8.99,
         countryCode: 'FR',
       };
 
@@ -920,14 +925,52 @@ describe('SubscriptionPlansService', () => {
         data: {
           planId: 'plan-uuid-111',
           currencyCode: dto.currencyCode,
-          originalPrice: dto.price,
+          originalPrice: dto.originalPrice,
           discountedPrice: null,
           discountStartsAt: null,
           discountEndsAt: null,
           countryCode: dto.countryCode,
         },
       });
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          planId: 'plan-uuid-111',
+          countryCode: 'FR',
+          originalPrice: 8.99,
+          changedByUserId: 'system',
+          changeType: SubscriptionPriceChangeType.INITIAL_PRICE,
+        }),
+      });
       expect(result.id).toBe('new-price-id');
+    });
+
+    it('should fall back to adminEmail from clsService when changedByUserId is not explicitly provided', async () => {
+      // Arrange
+      (clsService.get as jest.Mock).mockImplementation((key: string) =>
+        key === 'adminEmail' ? 'admin@example.com' : undefined,
+      );
+      const dto: CreatePlanPriceRequestDto = {
+        currencyCode: 'EUR',
+        originalPrice: 8.99,
+        countryCode: 'FR',
+      };
+
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPrice.create.mockResolvedValue({
+        ...mockPrice,
+        id: 'new-price-id',
+        ...dto,
+      } as any);
+
+      // Act
+      await service.addPlanPrice('plan-uuid-111', dto);
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changedByUserId: 'admin@example.com',
+        }),
+      });
     });
   });
 
@@ -1079,7 +1122,7 @@ describe('SubscriptionPlansService', () => {
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
       const dto: CreatePlanPriceRequestDto = {
         currencyCode: 'USD' as any,
-        price: 9.99,
+        originalPrice: 9.99,
         countryCode: 'US',
       };
       const dbError = new Error('Prisma price create error');
