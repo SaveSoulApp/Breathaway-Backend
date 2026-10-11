@@ -9,7 +9,6 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -67,7 +66,6 @@ export class MatchesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
-    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -165,32 +163,7 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
-    const currentUserProfile = matches[0]
-      ? matches[0].userOneId === userId
-        ? matches[0].userOne.profile
-        : matches[0].userTwo.profile
-      : null;
-
-    const [myFirstName, myLastName] = currentUserProfile
-      ? await Promise.all([
-          currentUserProfile.firstName
-            ? this.identityCryptoService.decryptText(
-                currentUserProfile.firstName,
-              )
-            : Promise.resolve(null),
-          currentUserProfile.lastName
-            ? this.identityCryptoService.decryptText(
-                currentUserProfile.lastName,
-              )
-            : Promise.resolve(null),
-        ])
-      : [null, null];
-
-    const data = await Promise.all(
-      matches.map((match) =>
-        this.mapToResponseDto(match, userId, myFirstName, myLastName),
-      ),
-    );
+    const data = matches.map((match) => this.mapToResponseDto(match, userId));
 
     return {
       data,
@@ -286,7 +259,7 @@ export class MatchesService extends BaseService {
       step: 'complete',
     });
 
-    return await this.mapToResponseDto(match, userId);
+    return this.mapToResponseDto(match, userId);
   }
 
   /**
@@ -442,43 +415,11 @@ export class MatchesService extends BaseService {
     return false;
   }
 
-  private async mapToResponseDto(
-    match: MatchWithUsers,
-    currentUserId: string,
-    cachedMyFirstName?: string | null,
-    cachedMyLastName?: string | null,
-  ) {
+  private mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
     const myLike = isUserOne ? match.likeOne : match.likeTwo;
-
-    const shouldDecryptMe =
-      cachedMyFirstName === undefined && cachedMyLastName === undefined;
-
-    const [
-      decryptedLabel,
-      myFirstName,
-      myLastName,
-      otherFirstName,
-      otherLastName,
-    ] = await Promise.all([
-      myLike?.label
-        ? this.identityCryptoService.decryptText(myLike.label)
-        : Promise.resolve(null),
-      shouldDecryptMe && me.profile?.firstName
-        ? this.identityCryptoService.decryptText(me.profile.firstName)
-        : Promise.resolve(cachedMyFirstName ?? null),
-      shouldDecryptMe && me.profile?.lastName
-        ? this.identityCryptoService.decryptText(me.profile.lastName)
-        : Promise.resolve(cachedMyLastName ?? null),
-      otherUser.profile?.firstName
-        ? this.identityCryptoService.decryptText(otherUser.profile.firstName)
-        : Promise.resolve(null),
-      otherUser.profile?.lastName
-        ? this.identityCryptoService.decryptText(otherUser.profile.lastName)
-        : Promise.resolve(null),
-    ]);
 
     return {
       id: match.id,
@@ -488,16 +429,16 @@ export class MatchesService extends BaseService {
       theirIntent: isUserOne ? match.intentTwo : match.intentOne,
       me: {
         id: me.id,
-        firstName: myFirstName ?? '',
-        lastName: myLastName ?? null,
+        firstName: me.profile?.firstName ?? '',
+        lastName: me.profile?.lastName ?? null,
         gender: me.profile?.gender ?? null,
       },
       otherUser: {
         id: otherUser.id,
-        firstName: otherFirstName ?? '',
-        lastName: otherLastName ?? null,
+        firstName: otherUser.profile?.firstName ?? '',
+        lastName: otherUser.profile?.lastName ?? null,
         gender: otherUser.profile?.gender ?? null,
-        label: decryptedLabel,
+        label: myLike?.label ?? null,
       },
     };
   }

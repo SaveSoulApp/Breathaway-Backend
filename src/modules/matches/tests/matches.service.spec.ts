@@ -4,7 +4,6 @@ import { IntentType, MatchStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -79,14 +78,14 @@ describe('MatchesService', () => {
     theirIntent: IntentType.CASUAL,
     me: {
       id: currentUserId,
-      firstName: 'John',
-      lastName: 'Doe',
+      firstName: 'enc:v1:key:iv:tag:wrapped:John',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
       gender: null,
     },
     otherUser: {
       id: otherUserId,
-      firstName: 'Jane',
-      lastName: 'Smith',
+      firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
       gender: null,
       label: null,
     },
@@ -100,14 +99,14 @@ describe('MatchesService', () => {
     theirIntent: IntentType.CASUAL,
     me: {
       id: currentUserId,
-      firstName: 'John',
-      lastName: 'Doe',
+      firstName: 'enc:v1:key:iv:tag:wrapped:John',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Doe',
       gender: null,
     },
     otherUser: {
       id: otherUserId,
-      firstName: 'Jane',
-      lastName: 'Smith',
+      firstName: 'enc:v1:key:iv:tag:wrapped:Jane',
+      lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
       gender: null,
       label: null,
     },
@@ -131,19 +130,6 @@ describe('MatchesService', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },
-        {
-          provide: IdentityCryptoService,
-          useValue: {
-            decryptText: jest.fn().mockImplementation((val?: string | null) => {
-              if (!val) return Promise.resolve(null);
-              if (val.startsWith('enc:v1:')) {
-                const parts = val.split(':');
-                return Promise.resolve(parts[parts.length - 1]);
-              }
-              return Promise.resolve(null);
-            }),
-          },
-        },
         { provide: LoggerService, useValue: loggerServiceMock },
       ],
     }).compile();
