@@ -9,6 +9,8 @@ import request from 'supertest';
 import { LoggerService } from '@core/logger';
 import { AppValidationPipe } from '@core/pipes';
 import { RevenueCatWebhookGuard } from '@modules/webhooks/guards/revenuecat-webhook.guard';
+import { CashfreePaymentHandler } from '@modules/webhooks/handlers/cashfree-payment.handler';
+import { RazorpayPaymentHandler } from '@modules/webhooks/handlers/razorpay-payment.handler';
 import { WebhooksController } from '@modules/webhooks/webhooks.controller';
 import { WebhooksService } from '@modules/webhooks/webhooks.service';
 
@@ -54,6 +56,8 @@ describe('RevenueCat webhook behaviour (e2e)', () => {
       controllers: [WebhooksController],
       providers: [
         { provide: WebhooksService, useValue: webhooksService },
+        { provide: RazorpayPaymentHandler, useValue: {} },
+        { provide: CashfreePaymentHandler, useValue: {} },
         RevenueCatWebhookGuard,
         {
           provide: ConfigService,

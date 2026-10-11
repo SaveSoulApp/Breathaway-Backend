@@ -188,12 +188,18 @@ describe('ProfilesController (e2e)', () => {
 
       expect(deletedUser?.deletedAt).not.toBeNull();
 
-      // Verify profile still exists
+      // Verify profile row still exists in DB for audit/recovery
+      const profileInDb = await prisma.userProfile.findUnique({
+        where: { userId: seededUserId },
+      });
+      expect(profileInDb).not.toBeNull();
+
+      // Verify soft-deleted user cannot access their profile via API (rejected by JwtStrategy)
       const checkRes = await authedRequest(app)
         .get('/api/v1/profiles')
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(checkRes.status).toBe(200);
+      expect(checkRes.status).toBe(401);
     });
 
     it('GET /api/v1/profiles - rejects unauthenticated request (401)', async () => {

@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+
+import { GcpSecretManagerModule } from '@core/gcp-secret-manager/gcp-secret-manager.module';
+
 import { InstagramController } from './instagram.controller';
 import { InstagramService } from './instagram.service';
 
@@ -12,6 +15,7 @@ import { InstagramService } from './instagram.service';
  *     to GCP Secret Manager.
  */
 @Module({
+  imports: [GcpSecretManagerModule],
   controllers: [InstagramController],
   providers: [InstagramService],
   exports: [InstagramService],

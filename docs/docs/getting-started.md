@@ -26,7 +26,7 @@ Clone the repository and install dependencies from the root directory:
 pnpm install
 ```
 
-This command will install the dependencies for both the root NestJS backend and the `/docs-site` documentation website since it is configured as a pnpm workspace.
+This command will install the dependencies for both the root NestJS backend and the `/docs` documentation website since it is configured as a pnpm workspace.
 
 ---
 

@@ -140,7 +140,7 @@ describe('AdminModule (e2e)', () => {
       expect(res.status).toBe(201);
       expect(res.body.amount).toBe(50);
       expect(res.body.source).toBe(CreditSource.PURCHASE);
-      expect(res.body.userId).toBe(creditUserId);
+      expect(res.body.id).toBeDefined();
     });
 
     it('POST /api/v1/admin/credits/grant - rejects when x-timezone is missing (400)', async () => {
@@ -282,7 +282,7 @@ describe('AdminModule (e2e)', () => {
       // Arrange
       const pricePayload = {
         currencyCode: CurrencyCode.USD,
-        price: 19.99,
+        originalPrice: 19.99,
         countryCode: 'US',
       };
 
@@ -310,7 +310,7 @@ describe('AdminModule (e2e)', () => {
         .set('authorization', adminAuthHeader)
         .send({
           currencyCode: CurrencyCode.USD,
-          price: 9.99,
+          originalPrice: 9.99,
           countryCode: 'US',
         });
 

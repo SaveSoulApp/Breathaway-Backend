@@ -10,7 +10,14 @@ import { OAuth2Client } from 'google-auth-library';
 import { ClsModule, ClsService } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
+import {
+  DecryptionInterceptor,
+  TimezoneResponseInterceptor,
+} from '@common/interceptors';
 import { GlobalExceptionFilter } from '@core/exception-filters/global-exception.filter';
+import { GcpSecretManagerModule } from '@core/gcp-secret-manager/gcp-secret-manager.module';
+import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
+import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { LoggerModule, LoggerService } from '@core/logger';
 import { AppValidationPipe } from '@core/pipes';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
@@ -96,6 +103,18 @@ export async function createAuthTestApp(
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';
+  process.env.RAZORPAY_KEY_ID =
+    process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_key_id';
+  process.env.RAZORPAY_KEY_SECRET =
+    process.env.RAZORPAY_KEY_SECRET || 'rzp_test_mock_key_secret';
+  process.env.RAZORPAY_WEBHOOK_SECRET =
+    process.env.RAZORPAY_WEBHOOK_SECRET || 'rzp_test_mock_webhook_secret';
+  process.env.CASHFREE_APP_ID =
+    process.env.CASHFREE_APP_ID || 'cf_test_mock_app_id';
+  process.env.CASHFREE_SECRET_KEY =
+    process.env.CASHFREE_SECRET_KEY || 'cf_test_mock_secret_key';
+  process.env.INSTAGRAM_ACCESS_TOKEN =
+    process.env.INSTAGRAM_ACCESS_TOKEN || 'test_instagram_token_12345';
 
   // Prevent actual GCP PubSub calls
   jest
@@ -153,6 +172,8 @@ export async function createAuthTestApp(
       }),
       LoggerModule,
       PrismaModule,
+      GcpSecretManagerModule,
+      IdentityCryptoModule,
       FirebaseModule,
       AuthModule,
       PubSubModule,
@@ -183,6 +204,8 @@ export async function createAuthTestApp(
         provide: APP_GUARD,
         useClass: ClientIdentityGuard,
       },
+      DecryptionInterceptor,
+      TimezoneResponseInterceptor,
     ],
   })
     .overrideProvider(FirebaseService)
@@ -194,6 +217,16 @@ export async function createAuthTestApp(
     .overrideProvider(PubSubPublisherService)
     .useValue({
       publish: jest.fn().mockResolvedValue('mock-message-id'),
+      onModuleDestroy: jest.fn().mockResolvedValue(undefined),
+    })
+    .overrideProvider(GcpSecretManagerService)
+    .useValue({
+      upsertSecret: jest
+        .fn()
+        .mockResolvedValue('projects/test/secrets/test/versions/1'),
+      getSecret: jest
+        .fn()
+        .mockRejectedValue(new Error('Secret not found in test')),
       onModuleDestroy: jest.fn().mockResolvedValue(undefined),
     })
     .overrideProvider('REDIS_CLIENT')
@@ -240,6 +273,10 @@ export async function createAuthTestApp(
       app.get(ClsService),
     ),
     new PrismaExceptionFilter(logger, app.get(ClsService)),
+  );
+  app.useGlobalInterceptors(
+    app.get(TimezoneResponseInterceptor),
+    app.get(DecryptionInterceptor),
   );
   app.useGlobalPipes(new AppValidationPipe());
   app.enableVersioning({

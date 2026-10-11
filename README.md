@@ -153,7 +153,7 @@ pnpm run test:cov
 
 ## 📖 Documentation (Docusaurus)
 
-The project includes a comprehensive technical documentation site built with Docusaurus, located in the `docs-site` directory.
+The project includes a comprehensive technical documentation site built with Docusaurus, located in the `docs` directory.
 
 ### Running the Docs Locally
 

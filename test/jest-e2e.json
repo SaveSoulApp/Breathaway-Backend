@@ -15,5 +15,7 @@
     "^@shared/(.*)$": "<rootDir>/src/shared/$1",
     "^@modules/(.*)$": "<rootDir>/src/modules/$1"
   },
-  "globalSetup": "<rootDir>/test/setup/global-setup.ts"
+  "globalSetup": "<rootDir>/test/setup/global-setup.ts",
+  "maxWorkers": 1,
+  "forceExit": true
 }
