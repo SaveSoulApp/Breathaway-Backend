@@ -932,19 +932,18 @@ export class LikesService extends BaseService {
   }
 
   /**
-   * Delegates publicValue decryption to IdentitiesService and label decryption
-   * to IdentityCryptoService, returning the enriched like shape with decrypted
-   * fields attached for the caller.
+   * Delegates publicValue decryption to IdentitiesService, returning the enriched
+   * like shape with decrypted publicValue attached for the caller.
+   * Like label decryption is handled automatically by DecryptionInterceptor.
    */
   private async attachPublicValue<T extends RawLike>(like: T) {
-    const [publicValue, decryptedLabel] = await Promise.all([
-      this.identitiesService.getDecryptedPublicValue(like.targetIdentity.id),
-      this.identityCryptoService.decryptText(like.label),
-    ]);
+    const publicValue = await this.identitiesService.getDecryptedPublicValue(
+      like.targetIdentity.id,
+    );
 
     return {
       ...like,
-      label: decryptedLabel,
+      label: like.label,
       targetIdentity: {
         ...like.targetIdentity,
         publicValue,

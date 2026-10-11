@@ -423,7 +423,7 @@ describe('LikesService', () => {
         }),
         select: expect.any(Object),
       });
-      expect(result.label).toBe('Angela');
+      expect(result.label).toBe(encryptedLabel);
     });
 
     it('should upsert (update) an existing WITHDRAWN like row instead of inserting a new one', async () => {
@@ -873,7 +873,7 @@ describe('LikesService', () => {
       });
       expect(result).toEqual({
         ...updatedLike,
-        label: updateDto.label,
+        label: encryptedLabel,
         targetIdentity: {
           ...updatedLike.targetIdentity,
           publicValue: 'target@example.com',
