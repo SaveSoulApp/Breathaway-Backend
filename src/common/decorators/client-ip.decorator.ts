@@ -7,8 +7,9 @@ import { extractClientIp } from '@common/utils/request.utils';
  * Extracts the public client IP address from the incoming HTTP request.
  *
  * In GCP Cloud Run and environments behind Google Cloud Load Balancing or reverse proxies,
- * the client's public IP address is provided as the first (leftmost) entry in the
- * `X-Forwarded-For` request header. Falls back to `req.ip` or `req.socket.remoteAddress`.
+ * Express is configured with `trust proxy: 1` to resolve the verified public client IP in `req.ip`.
+ * For raw or mock requests, falls back to the rightmost entry in the `X-Forwarded-For` header
+ * (the IP appended by the trusted proxy) or `req.socket.remoteAddress`.
  *
  * @returns The resolved client IP string, or `undefined` if not detectable.
  */

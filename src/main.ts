@@ -24,8 +24,8 @@ import { setupSwagger } from './config/swagger.config';
  * Disables CSP for Swagger asset delivery and enables cross-origin resource policy for browser clients.
  */
 function configureSecurity(app: NestExpressApplication): void {
-  // Trust reverse proxy (GCP Cloud Load Balancing / Cloud Run) to populate req.ip and X-Forwarded-* headers
-  app.set('trust proxy', true);
+  // Trust immediate reverse proxy hop (GCP Cloud Run edge) to safely derive req.ip without spoofing (SEC-07)
+  app.set('trust proxy', 1);
 
   app.use(
     helmet({
