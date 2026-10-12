@@ -396,6 +396,20 @@ describe('TransactionsService', () => {
         }),
       );
     });
+
+    it('defensively clamps limit to 100 when passed a larger value', async () => {
+      const result = await service.findAll({
+        page: 1,
+        limit: 10000,
+      });
+
+      expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        }),
+      );
+      expect(result.meta.limit).toBe(100);
+    });
   });
 
   describe('findOne', () => {

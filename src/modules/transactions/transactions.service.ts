@@ -255,7 +255,9 @@ export class TransactionsService extends BaseService {
       search,
     } = query;
 
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
 
     const where: Prisma.TransactionWhereInput = {};
 
@@ -297,21 +299,21 @@ export class TransactionsService extends BaseService {
         where,
         orderBy,
         skip,
-        take: limit,
+        take: safeLimit,
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / safeLimit);
 
     return {
       data: rows.map((row) => this.toResponse(row)),
       meta: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
       },
     };
   }

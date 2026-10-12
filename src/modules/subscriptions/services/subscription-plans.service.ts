@@ -968,7 +968,7 @@ export class SubscriptionPlansService extends BaseService {
     }
 
     const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(200, Math.max(1, query.limit ?? 100));
+    const limit = Math.min(100, Math.max(1, query.limit ?? 100));
     const skip = (page - 1) * limit;
     const sortOrder = query.sortOrder ?? 'desc';
 

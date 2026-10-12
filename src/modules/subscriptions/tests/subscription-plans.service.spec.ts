@@ -1521,6 +1521,26 @@ describe('SubscriptionPlansService', () => {
       });
     });
 
+    it('should defensively clamp limit to 100 when passed a larger value', async () => {
+      // Arrange
+      prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscriptionPlanPriceHistory.count.mockResolvedValue(200);
+      prisma.subscriptionPlanPriceHistory.findMany.mockResolvedValue([]);
+
+      // Act
+      const result = await service.getPriceHistory(mockPlan.id, {
+        limit: 10000,
+      });
+
+      // Assert
+      expect(prisma.subscriptionPlanPriceHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        }),
+      );
+      expect(result.meta.limit).toBe(100);
+    });
+
     it('should throw InvalidSubscriptionDatesException when startDate is after endDate', async () => {
       // Arrange
       prisma.subscriptionPlan.findUnique.mockResolvedValue(mockPlan);

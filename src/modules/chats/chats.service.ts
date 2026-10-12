@@ -123,7 +123,7 @@ export class ChatsService extends BaseService {
   }
 
   async getRooms(userId: string, dto: GetRoomsRequestDto) {
-    const { limit = 20 } = dto;
+    const limit = Math.min(100, Math.max(1, dto.limit ?? 20));
 
     let data;
     let error;
@@ -277,7 +277,8 @@ export class ChatsService extends BaseService {
     // Enforce participant authorization before fetching messages
     await this.assertRoomParticipant(userId, roomId);
 
-    const { cursor, limit = 20 } = dto;
+    const { cursor } = dto;
+    const limit = Math.min(100, Math.max(1, dto.limit ?? 20));
 
     let query = this.supabase
       .from('Message')
