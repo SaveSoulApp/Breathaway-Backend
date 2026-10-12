@@ -33,6 +33,7 @@ export SECRET_RAZORPAY_WEBHOOK_SECRET="razorpay-webhook-secret"
 export SECRET_CASHFREE_APP_ID="cashfree-app-id"
 export SECRET_CASHFREE_SECRET_KEY="cashfree-secret-key"
 export SECRET_LITEAPP_WHATSAPP_KEY="liteapp-whatsapp-key"
+export SECRET_META_APP_SECRET="meta-app-secret"
 
 # Cloud Run Secret Mappings (<ENV_VAR_NAME>=<SECRET_NAME>:latest)
 COMMON_SECRETS=(
@@ -63,4 +64,5 @@ COMMON_SECRETS=(
     "CASHFREE_APP_ID=${SECRET_CASHFREE_APP_ID}:latest"
     "CASHFREE_SECRET_KEY=${SECRET_CASHFREE_SECRET_KEY}:latest"
     "LITEAPP_WHATSAPP_KEY=${SECRET_LITEAPP_WHATSAPP_KEY}:latest"
+    "META_APP_SECRET=${SECRET_META_APP_SECRET}:latest"
 )

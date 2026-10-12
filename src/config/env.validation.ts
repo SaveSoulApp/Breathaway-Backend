@@ -56,6 +56,7 @@ export const envValidationSchema = Joi.object({
   FIREBASE_PROJECT_ID: Joi.string().default('breathaway-dev-37fd5'),
   AUDIT_PUBSUB_TOPIC: Joi.string().default('audit-logs-topic'),
   META_VERIFY_TOKEN: Joi.string().optional(),
+  META_APP_SECRET: Joi.string().optional(),
 
   // Authentication & Security
   JWT_EXPIRES_IN: Joi.string().default('15m'),
