@@ -246,35 +246,6 @@ describe('ProfilesService', () => {
     });
   });
 
-  describe('getProfileById', () => {
-    it('should return profile record if exists', async () => {
-      // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(rawDbProfile);
-
-      // Act
-      const result = await service.getProfileById(profileId);
-
-      // Assert
-      expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { id: profileId },
-      });
-      expect(result).toEqual(rawDbProfile);
-    });
-
-    it('should throw ProfileNotFoundException if profile does not exist', async () => {
-      // Arrange
-      prisma.userProfile.findUnique.mockResolvedValue(null);
-
-      // Act & Assert
-      await expect(service.getProfileById(profileId)).rejects.toThrow(
-        ProfileNotFoundException,
-      );
-      expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { id: profileId },
-      });
-    });
-  });
-
   describe('updateProfile', () => {
     const updateDto: UpdateProfileRequestDto = {
       firstName: 'Jane',

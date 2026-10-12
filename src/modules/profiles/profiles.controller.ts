@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Param,
   Patch,
   Post,
   Put,
@@ -14,7 +13,6 @@ import {
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -110,34 +108,6 @@ export class ProfilesController extends BaseController {
    */
   async getMyProfile(@CurrentUserId() userId: string) {
     return this.profilesService.getProfileByUserId(userId);
-  }
-
-  @Get(':id')
-  @ApiOperation({ summary: 'Get profile by ID' })
-  @ApiParam({ name: 'id', description: 'Profile ID (ULID)' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Profile retrieved successfully',
-    type: ProfileResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Profile not found',
-  })
-  @SerializeExpose(ProfileResponseDto)
-  /**
-   * Returns a profile by its ULID, regardless of which user owns it.
-   *
-   * Intended for scenarios where the caller knows a profile ID directly
-   * (e.g., social graph lookups). Authentication is still required, but
-   * the returned profile may belong to a different user.
-   *
-   * @param id - ULID of the profile to retrieve.
-   * @returns The matching `ProfileResponseDto`.
-   * @throws {NotFoundException} When no profile exists with the given ID.
-   */
-  async getProfileById(@Param('id') id: string) {
-    return this.profilesService.getProfileById(id);
   }
 
   @Put()

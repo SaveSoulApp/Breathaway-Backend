@@ -34,7 +34,6 @@ describe('ProfilesController', () => {
     const mockService = {
       createProfile: jest.fn(),
       getProfileByUserId: jest.fn(),
-      getProfileById: jest.fn(),
       updateProfile: jest.fn(),
       patchProfile: jest.fn(),
       deleteProfile: jest.fn(),
@@ -96,20 +95,6 @@ describe('ProfilesController', () => {
 
       // Assert
       expect(service.getProfileByUserId).toHaveBeenCalledWith(userId);
-      expect(result).toEqual(mockUserProfile);
-    });
-  });
-
-  describe('getProfileById', () => {
-    it('should retrieve and return the profile by id', async () => {
-      // Arrange
-      service.getProfileById.mockResolvedValue(mockUserProfile);
-
-      // Act
-      const result = await controller.getProfileById(profileId);
-
-      // Assert
-      expect(service.getProfileById).toHaveBeenCalledWith(profileId);
       expect(result).toEqual(mockUserProfile);
     });
   });

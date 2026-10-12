@@ -138,9 +138,7 @@ export class ProfilesService extends BaseService {
   /**
    * Retrieves the profile belonging to the authenticated user.
    *
-   * Looks up by `userId` (the unique FK on the profile record), not by
-   * the profile's own primary key — use `getProfileById` when the profile
-   * ULID is known instead.
+   * Looks up by `userId` (the unique FK on the profile record).
    *
    * @param userId - ULID of the user whose profile to fetch.
    * @returns The `UserProfile` record associated with the user.
@@ -163,38 +161,6 @@ export class ProfilesService extends BaseService {
       ...ctx,
       step: 'complete',
       profileId: profile.id,
-    });
-    return profile;
-  }
-
-  /**
-   * Retrieves a profile by its own primary key (ULID).
-   *
-   * Intended for public-facing lookups where the caller knows the profile ID
-   * but not necessarily the owning user's ID (e.g., viewing another user's
-   * public profile).
-   *
-   * @param id - ULID of the profile record to fetch.
-   * @returns The matching `UserProfile` record.
-   * @throws {NotFoundException} When no profile exists with the given ID.
-   */
-  async getProfileById(id: string): Promise<UserProfile> {
-    const ctx = { profileId: id };
-    this.logger.debug('Fetching profile by ID', { ...ctx, step: 'fetch' });
-
-    const profile = await this.prisma.userProfile.findUnique({
-      where: { id },
-    });
-
-    if (!profile) {
-      this.logger.warn('Profile not found by ID', { ...ctx, step: 'fetch' });
-      throw new ProfileNotFoundException(id);
-    }
-
-    this.logger.debug('Profile fetched successfully', {
-      ...ctx,
-      step: 'complete',
-      userId: profile.userId,
     });
     return profile;
   }
