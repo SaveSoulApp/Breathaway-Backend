@@ -4,10 +4,12 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -56,6 +58,7 @@ export class AdminController extends BaseController {
     private readonly adminService: AdminService,
     private readonly creditsService: CreditsService,
     private readonly authService: AuthService,
+    private readonly configService: ConfigService,
   ) {
     super(logger);
   }
@@ -142,14 +145,15 @@ export class AdminController extends BaseController {
   /**
    * Bypasses standard external OAuth or OTP checks to authenticate a developer during testing.
    *
-   * Callable only by authorized GCP administrators via Google Cloud ID tokens.
+   * Callable only by authorized GCP administrators via Google Cloud ID tokens in non-production environments.
+   * In production, this endpoint is strictly blocked with a 404 NotFoundException to prevent account impersonation (SEC-03).
    *
    * @param dto - The developer user's identifier (email or phone).
    * @param clientIp - Optional client IP address from request headers.
    * @param userAgent - Optional client user-agent string.
    * @param deviceId - Optional unique device identifier.
    * @returns The authenticated user details and JWT access and refresh tokens.
-   * @throws {NotFoundException} When no user exists with the provided developer credential.
+   * @throws {NotFoundException} When running in production or when no user exists with the provided credential.
    */
   @Post('dev-login')
   @Throttle(AUTH_DEV_LOGIN_THROTTLE)
@@ -157,7 +161,7 @@ export class AdminController extends BaseController {
   @ApiOperation({
     summary: 'Developer login for testing purposes (Admin)',
     description:
-      'Bypasses OAuth/OTP checks to authenticate a developer during testing. Requires GCP OIDC ID token with admin permissions.',
+      'Bypasses OAuth/OTP checks to authenticate a developer during testing. Requires GCP OIDC ID token with admin permissions. Disabled in production environments.',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -165,16 +169,34 @@ export class AdminController extends BaseController {
     type: UserAuthResponseDto,
   })
   @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description:
+      'Endpoint not available in production, or developer credential not found.',
+  })
+  @ApiResponse({
     status: HttpStatus.TOO_MANY_REQUESTS,
     description: 'Too many dev-login attempts; rate limit exceeded',
   })
   @SerializeExpose(UserAuthResponseDto)
-  devLogin(
+  async devLogin(
     @Body() dto: DevLoginRequestDto,
     @ClientIp() clientIp?: string,
     @UserAgent() userAgent?: string,
     @DeviceId() deviceId?: string,
-  ) {
+  ): Promise<UserAuthResponseDto> {
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
+    const deploymentEnv = this.configService.get<string>('DEPLOYMENT_ENV');
+
+    if (nodeEnv === 'production' || deploymentEnv === 'production') {
+      this.logger.warn('Blocked dev-login attempt in production environment', {
+        step: 'dev_login_blocked',
+        nodeEnv,
+        deploymentEnv,
+        clientIp,
+      });
+      throw new NotFoundException('Endpoint not available in production');
+    }
+
     return this.authService.devLogin(dto, {
       ipAddress: clientIp,
       userAgent,

@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreditSource, CurrencyCode, IdentityType } from '@prisma/client';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -420,6 +421,28 @@ describe('AdminModule (e2e)', () => {
         .send({ identifier });
 
       expect(res.status).toBe(401);
+    });
+
+    it('404 – blocks dev-login in production environment (SEC-03)', async () => {
+      const configService = app.get(ConfigService);
+      const getSpy = jest
+        .spyOn(configService, 'get')
+        .mockImplementation((key: string) => {
+          if (key === 'NODE_ENV') return 'production';
+          return undefined;
+        });
+
+      const res = await authedRequest(app)
+        .post('/api/v1/admin/dev-login')
+        .set('authorization', adminAuthHeader)
+        .send({ identifier });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain(
+        'Endpoint not available in production',
+      );
+
+      getSpy.mockRestore();
     });
   });
 });
