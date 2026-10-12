@@ -4,7 +4,6 @@ import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import helmet from 'helmet';
 import { ClsService } from 'nestjs-cls';
 
 import {
@@ -17,23 +16,8 @@ import { PrismaExceptionFilter } from '@infrastructure/database/exception-filter
 
 import { AppModule } from './app.module';
 import { configureCors } from './config/cors.config';
+import { configureSecurity } from './config/security.config';
 import { setupSwagger } from './config/swagger.config';
-
-/**
- * Configures HTTP security headers via Helmet and reverse proxy trust.
- * Disables CSP for Swagger asset delivery and enables cross-origin resource policy for browser clients.
- */
-function configureSecurity(app: NestExpressApplication): void {
-  // Trust immediate reverse proxy hop (GCP Cloud Run edge) to safely derive req.ip without spoofing (SEC-07)
-  app.set('trust proxy', 1);
-
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    }),
-  );
-}
 
 /**
  * Registers global response and logging interceptors.

@@ -4,12 +4,12 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { SWAGGER_PROTECTED_PATHS } from './swagger.constants';
+import { isDocumentationPath } from './swagger.constants';
 
 /**
  * Applies an HTTP Basic Auth middleware that guards all Swagger UI routes.
  *
- * - Only intercepts requests matching `SWAGGER_PATHS`; all other routes pass through.
+ * - Only intercepts requests matching `SWAGGER_PROTECTED_PATHS`; all other routes pass through.
  * - Uses `timingSafeEqual` to prevent timing-based brute-force attacks on credentials.
  * - Credentials are resolved via `ConfigService` (backed by GCP Secret Manager in production).
  * - Responds with `WWW-Authenticate: Basic` to trigger the browser's native login dialog.
@@ -32,13 +32,7 @@ export function applySwaggerBasicAuth(
 
   app.use(
     (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
-      const url = req.url ?? '';
-      const isSwaggerRoute = SWAGGER_PROTECTED_PATHS.some(
-        (path) =>
-          url === `/${path}` ||
-          url.startsWith(`/${path}/`) ||
-          url.startsWith(`/${path}-`),
-      );
+      const isSwaggerRoute = isDocumentationPath(req.url);
 
       if (!isSwaggerRoute) {
         next();
