@@ -61,6 +61,13 @@ describe('Error Utilities & PII Scrubbing (LOG-02)', () => {
       expect(scrubPii(input)).toBe(input);
     });
 
+    it('should truncate strings exceeding MAX_SCRUB_TEXT_LENGTH to prevent ReDoS', () => {
+      const longInput = 'A'.repeat(9000) + ' customer@example.com';
+      const scrubbed = scrubPii(longInput);
+      expect(scrubbed).toContain('... [TRUNCATED]');
+      expect(scrubbed.length).toBeLessThan(longInput.length);
+    });
+
     it('should return empty string for null, undefined, or non-string inputs', () => {
       expect(scrubPii(null)).toBe('');
       expect(scrubPii(undefined)).toBe('');
@@ -253,6 +260,41 @@ describe('Error Utilities & PII Scrubbing (LOG-02)', () => {
           },
         },
       });
+    });
+
+    it('should handle circular references safely without throwing RangeError', () => {
+      const circular: Record<string, unknown> = {
+        action: 'CIRCULAR_EVENT',
+      };
+      circular.self = circular;
+
+      const sanitized = sanitizeAuditMetadata(circular);
+
+      expect(sanitized?.action).toBe('CIRCULAR_EVENT');
+      expect(sanitized?.self).toBe('[Circular]');
+    });
+
+    it('should preserve Date instances as ISO strings', () => {
+      const date = new Date('2026-10-12T10:00:00.000Z');
+      const metadata = {
+        action: 'USER_REGISTERED',
+        createdAt: date,
+      };
+
+      const sanitized = sanitizeAuditMetadata(metadata);
+
+      expect(sanitized?.createdAt).toBe('2026-10-12T10:00:00.000Z');
+    });
+
+    it('should preserve Buffer instances without decomposing into index keys', () => {
+      const metadata = {
+        action: 'RAW_PAYLOAD',
+        payload: Buffer.from('hello world', 'utf8'),
+      };
+
+      const sanitized = sanitizeAuditMetadata(metadata);
+
+      expect(sanitized?.payload).toBe('[Binary Data]');
     });
 
     it('should return undefined or empty for empty input', () => {

@@ -209,6 +209,21 @@ describe('AdminController', () => {
       expect(authService.devLogin).not.toHaveBeenCalled();
     });
 
+    it('should throw NotFoundException when NODE_ENV or DEPLOYMENT_ENV has uppercase or whitespace', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return ' PRODUCTION ';
+        return 'development';
+      });
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      // Act & Assert
+      await expect(
+        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(authService.devLogin).not.toHaveBeenCalled();
+    });
+
     it('should attach dev-login throttling metadata to /dev-login', () => {
       // Act
       const shortLimit = reflector.get(

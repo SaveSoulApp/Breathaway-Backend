@@ -1,4 +1,32 @@
 /**
+ * Normalizes an IP string by trimming whitespace and stripping any trailing port suffix.
+ * Handles IPv4 ("203.0.113.195:443" -> "203.0.113.195") and bracketed IPv6 ("[2001:db8::1]:8080" -> "2001:db8::1").
+ *
+ * @param ip - Raw IP string potentially with port or surrounding whitespace.
+ * @returns Clean IP string, or undefined if invalid or empty.
+ */
+function cleanIp(ip?: string): string | undefined {
+  if (!ip) return undefined;
+  const trimmed = ip.trim();
+  if (!trimmed) return undefined;
+
+  // Bracketed IPv6 with optional port: [2001:db8::1]:8080 or [2001:db8::1]
+  if (trimmed.startsWith('[')) {
+    const closeBracketIndex = trimmed.indexOf(']');
+    if (closeBracketIndex !== -1) {
+      return trimmed.slice(1, closeBracketIndex);
+    }
+  }
+
+  // IPv4 with port: 192.168.1.1:8080
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(trimmed)) {
+    return trimmed.split(':')[0];
+  }
+
+  return trimmed;
+}
+
+/**
  * Extracts the verified public client IP address from an incoming HTTP request.
  *
  * In GCP Cloud Run and serverless reverse-proxy environments, Express is configured
@@ -24,31 +52,28 @@ export function extractClientIp(req: {
   if (!req) return undefined;
 
   // 1. Prefer Express's trusted proxy-resolved IP
-  if (req.ip) return req.ip;
+  if (req.ip) {
+    const cleanedExpressIp = cleanIp(req.ip);
+    if (cleanedExpressIp) return cleanedExpressIp;
+  }
 
   // 2. Direct socket address when no forwarding proxy headers exist
   const forwarded = req.headers?.['x-forwarded-for'];
   const realIp = req.headers?.['x-real-ip'];
 
   if (!forwarded && !realIp && req.socket?.remoteAddress) {
-    return req.socket.remoteAddress;
+    return cleanIp(req.socket.remoteAddress);
   }
 
   // 3. Reverse-proxy header extraction (rightmost IP in the chain)
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    const parts = forwarded
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-    const clientIp = parts[parts.length - 1];
-    if (clientIp) return clientIp;
-  } else if (Array.isArray(forwarded) && forwarded.length > 0) {
-    const lastEntry = forwarded[forwarded.length - 1];
-    if (lastEntry) {
-      const parts = lastEntry
+  if (forwarded) {
+    const rawList = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
+    if (typeof rawList === 'string' && rawList.length > 0) {
+      const parts = rawList
         .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
+        .map((entry) => cleanIp(entry))
+        .filter((entry): entry is string => Boolean(entry && entry.length > 0));
+
       const clientIp = parts[parts.length - 1];
       if (clientIp) return clientIp;
     }
@@ -56,10 +81,10 @@ export function extractClientIp(req: {
 
   // 4. X-Real-IP fallback
   if (typeof realIp === 'string' && realIp.length > 0) {
-    const trimmed = realIp.trim();
-    if (trimmed) return trimmed;
+    const cleanedRealIp = cleanIp(realIp);
+    if (cleanedRealIp) return cleanedRealIp;
   }
 
   // 5. Final fallback to socket remote address
-  return req.socket?.remoteAddress;
+  return cleanIp(req.socket?.remoteAddress);
 }

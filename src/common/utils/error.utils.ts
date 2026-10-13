@@ -68,6 +68,17 @@ const ALLOWED_AUDIT_ACTOR_KEYS = new Set([
 ]);
 
 /**
+ * Maximum string length processed by regex PII scrubbing to prevent ReDoS / CPU spikes (LOG-02).
+ * Longer strings are truncated safely before regex substitution.
+ */
+const MAX_SCRUB_TEXT_LENGTH = 8192;
+
+/**
+ * Maximum recursion depth when sanitizing metadata structures.
+ */
+const MAX_SANITIZE_DEPTH = 8;
+
+/**
  * Scrubs sensitive PII (emails, phone numbers, auth tokens, secrets in URLs) from text strings.
  * Used to sanitize error messages, stack traces, and query strings before logging or auditing.
  *
@@ -79,7 +90,12 @@ export function scrubPii(text?: string | null): string {
     return '';
   }
 
-  return text
+  const bounded =
+    text.length > MAX_SCRUB_TEXT_LENGTH
+      ? text.slice(0, MAX_SCRUB_TEXT_LENGTH) + '... [TRUNCATED]'
+      : text;
+
+  return bounded
     .replace(SECRET_PARAM_REGEX, (_match, prefix) => `${prefix}[REDACTED]`)
     .replace(EMAIL_PARAM_REGEX, (_match, prefix) => `${prefix}[REDACTED_EMAIL]`)
     .replace(PHONE_PARAM_REGEX, (_match, prefix) => `${prefix}[REDACTED_PHONE]`)
@@ -97,11 +113,26 @@ export function scrubPii(text?: string | null): string {
 
 /**
  * Recursively sanitizes a value, scrubbing PII from strings, serializing embedded errors,
- * and censoring sensitive credential keys.
+ * censoring sensitive credential keys, and defending against circular references.
  */
-function sanitizeValue(val: unknown, keyName?: string): unknown {
-  if (val === null || val === undefined) {
+function sanitizeValue(
+  val: unknown,
+  keyName?: string,
+  seen: WeakSet<object> = new WeakSet(),
+  depth = 0,
+): unknown {
+  if (val === null || val === undefined || depth > MAX_SANITIZE_DEPTH) {
     return val;
+  }
+
+  // Preserve Date instances as ISO strings
+  if (val instanceof Date) {
+    return val.toISOString();
+  }
+
+  // Preserve Buffers safely without decomposing into numeric index objects
+  if (Buffer.isBuffer(val)) {
+    return '[Binary Data]';
   }
 
   // Preserve authorized audit actor keys (e.g. adminEmail) without destructive regex replacement
@@ -125,16 +156,20 @@ function sanitizeValue(val: unknown, keyName?: string): unknown {
     return scrubPii(val);
   }
 
-  // Recurse on arrays
-  if (Array.isArray(val)) {
-    return val.map((item) => sanitizeValue(item));
-  }
-
-  // Recurse on plain objects
+  // Handle arrays and objects with circular reference guard
   if (typeof val === 'object') {
+    if (seen.has(val)) {
+      return '[Circular]';
+    }
+    seen.add(val);
+
+    if (Array.isArray(val)) {
+      return val.map((item) => sanitizeValue(item, undefined, seen, depth + 1));
+    }
+
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
-      result[k] = sanitizeValue(v, k);
+      result[k] = sanitizeValue(v, k, seen, depth + 1);
     }
     return result;
   }

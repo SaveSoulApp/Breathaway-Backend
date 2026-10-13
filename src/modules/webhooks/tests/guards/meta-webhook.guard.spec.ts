@@ -3,11 +3,21 @@ import { createHmac } from 'crypto';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { LoggerService } from '@core/logger';
+
 import { MetaWebhookGuard } from '../../guards/meta-webhook.guard';
 
 describe('MetaWebhookGuard', () => {
   let guard: MetaWebhookGuard;
   let configService: jest.Mocked<ConfigService>;
+  let loggerService: jest.Mocked<LoggerService>;
+  let contextualLogger: {
+    warn: jest.Mock;
+    debug: jest.Mock;
+    info: jest.Mock;
+    error: jest.Mock;
+    log: jest.Mock;
+  };
   const mockSecret = 'meta_app_secret_test_123';
 
   beforeEach(() => {
@@ -19,7 +29,19 @@ describe('MetaWebhookGuard', () => {
       get: jest.fn(),
     } as unknown as jest.Mocked<ConfigService>;
 
-    guard = new MetaWebhookGuard(configService);
+    contextualLogger = {
+      warn: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+      log: jest.fn(),
+    };
+
+    loggerService = {
+      forContext: jest.fn().mockReturnValue(contextualLogger),
+    } as unknown as jest.Mocked<LoggerService>;
+
+    guard = new MetaWebhookGuard(configService, loggerService);
   });
 
   const createMockContext = (
@@ -89,6 +111,10 @@ describe('MetaWebhookGuard', () => {
       const result = guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('request.rawBody is missing'),
+        { step: 'raw_body_missing_fallback' },
+      );
     });
 
     it('should return true when signature is case-insensitive (e.g. uppercase SHA256=)', () => {
@@ -161,6 +187,18 @@ describe('MetaWebhookGuard', () => {
     it('should throw UnauthorizedException when signature length does not match', () => {
       const context = createMockContext(
         { 'x-hub-signature-256': 'sha256=short' },
+        { object: 'instagram' },
+        Buffer.from('{}', 'utf8'),
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException('Invalid Meta webhook signature'),
+      );
+    });
+
+    it('should throw UnauthorizedException when signature lacks sha256= prefix', () => {
+      const context = createMockContext(
+        { 'x-hub-signature-256': 'md5=invalid_prefix_signature' },
         { object: 'instagram' },
         Buffer.from('{}', 'utf8'),
       );

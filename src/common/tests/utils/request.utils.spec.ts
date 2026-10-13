@@ -66,4 +66,39 @@ describe('extractClientIp', () => {
     };
     expect(extractClientIp(req)).toBe('127.0.0.1');
   });
+
+  it('should strip IPv4 port numbers from x-forwarded-for', () => {
+    const req = {
+      headers: {
+        'x-forwarded-for': '10.0.0.1:8080, 203.0.113.195:443',
+      },
+    };
+    expect(extractClientIp(req)).toBe('203.0.113.195');
+  });
+
+  it('should strip IPv4 port numbers from req.ip', () => {
+    const req = {
+      headers: {},
+      ip: '203.0.113.195:443',
+    };
+    expect(extractClientIp(req)).toBe('203.0.113.195');
+  });
+
+  it('should strip bracketed IPv6 port numbers', () => {
+    const req = {
+      headers: {
+        'x-forwarded-for': '[2001:db8::1]:8080',
+      },
+    };
+    expect(extractClientIp(req)).toBe('2001:db8::1');
+  });
+
+  it('should handle sparse arrays and empty elements in x-forwarded-for', () => {
+    const req = {
+      headers: {
+        'x-forwarded-for': ['203.0.113.195', '', '   '],
+      },
+    };
+    expect(extractClientIp(req)).toBe('203.0.113.195');
+  });
 });

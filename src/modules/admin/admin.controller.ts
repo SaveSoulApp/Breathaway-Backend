@@ -184,8 +184,14 @@ export class AdminController extends BaseController {
     @UserAgent() userAgent?: string,
     @DeviceId() deviceId?: string,
   ): Promise<UserAuthResponseDto> {
-    const nodeEnv = this.configService.get<string>('NODE_ENV');
-    const deploymentEnv = this.configService.get<string>('DEPLOYMENT_ENV');
+    const nodeEnv = this.configService
+      .get<string>('NODE_ENV')
+      ?.toLowerCase()
+      .trim();
+    const deploymentEnv = this.configService
+      .get<string>('DEPLOYMENT_ENV')
+      ?.toLowerCase()
+      .trim();
 
     if (nodeEnv === 'production' || deploymentEnv === 'production') {
       this.logger.warn('Blocked dev-login attempt in production environment', {
