@@ -4,6 +4,7 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -60,23 +61,23 @@ export class MetaWebhookGuard extends BaseGuard implements CanActivate {
 
     const appSecret = this.configService.getOrThrow<string>('META_APP_SECRET');
 
-    // The raw body Buffer is attached to the request by the global rawBody middleware
+    // The raw body Buffer is attached to the request by the global rawBody middleware (configured in main.ts)
     const rawBodyBuffer = (request as Request & { rawBody?: Buffer }).rawBody;
-    if (!rawBodyBuffer && typeof request.body !== 'string') {
-      this.logger.warn(
-        'request.rawBody is missing; falling back to JSON.stringify(request.body) which may cause HMAC mismatch if JSON serialization varies',
-        { step: 'raw_body_missing_fallback' },
-      );
-    }
-
     const rawBody =
       rawBodyBuffer ??
-      Buffer.from(
-        typeof request.body === 'string'
-          ? request.body
-          : JSON.stringify(request.body ?? {}),
-        'utf8',
+      (typeof request.body === 'string'
+        ? Buffer.from(request.body, 'utf8')
+        : undefined);
+
+    if (!rawBody) {
+      this.logger.error(
+        'request.rawBody is missing; raw body buffering is required for Meta webhook signature verification',
+        { step: 'raw_body_missing' },
       );
+      throw new InternalServerErrorException(
+        'Raw body buffering is required for Meta webhook signature verification',
+      );
+    }
 
     const computedHash = createHmac('sha256', appSecret)
       .update(rawBody)

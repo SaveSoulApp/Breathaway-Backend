@@ -140,6 +140,36 @@ describe('Error Utilities & PII Scrubbing (LOG-02)', () => {
       });
     });
 
+    it('should scrub stack trace even when err.message contains no secrets', () => {
+      const err = new Error('Generic database connection failed');
+      err.stack =
+        'Error: Generic database connection failed\n' +
+        '    at Query.run (/app/db.ts:12:34?apiKey=super_secret_key&token=tok_abc)\n' +
+        '    at User.find (/app/user.ts:56:78?email=leak@domain.com)';
+
+      const serialized = serializeError(err);
+
+      expect(serialized.message).toBe('Generic database connection failed');
+      expect(serialized.stack).not.toContain('super_secret_key');
+      expect(serialized.stack).toContain('apiKey=[REDACTED]');
+      expect(serialized.stack).not.toContain('leak@domain.com');
+      expect(serialized.stack).toContain('email=[REDACTED_EMAIL]');
+    });
+
+    it('should scrub multiple occurrences of secrets across stack frames', () => {
+      const err = new Error('Failed with ?token=secret123');
+      err.stack =
+        'Error: Failed with ?token=secret123\n' +
+        '    at callApi (/app/api.ts:10:20?token=secret123)\n' +
+        '    at retry (/app/retry.ts:30:40?token=secret123)';
+
+      const serialized = serializeError(err);
+
+      expect(serialized.stack).not.toContain('secret123');
+      const matches = serialized.stack?.match(/token=\[REDACTED\]/g);
+      expect(matches?.length).toBe(3);
+    });
+
     it('should serialize primitive errors and scrub PII', () => {
       const serialized = serializeError(
         'Failed for customer foo@bar.com with phone +919876543210',

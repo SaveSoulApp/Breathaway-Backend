@@ -1,6 +1,10 @@
 import { createHmac } from 'crypto';
 
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { LoggerService } from '@core/logger';
@@ -104,16 +108,33 @@ describe('MetaWebhookGuard', () => {
 
       const context = createMockContext(
         { 'x-hub-signature-256': signature },
-        JSON.parse(payloadStr),
+        payloadStr,
         undefined,
       );
 
       const result = guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(contextualLogger.warn).toHaveBeenCalledWith(
+    });
+
+    it('should throw InternalServerErrorException when rawBody is undefined and body is parsed object', () => {
+      const payload = { object: 'instagram' };
+      const signature = generateSignature(JSON.stringify(payload));
+
+      const context = createMockContext(
+        { 'x-hub-signature-256': signature },
+        payload,
+        undefined,
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new InternalServerErrorException(
+          'Raw body buffering is required for Meta webhook signature verification',
+        ),
+      );
+      expect(contextualLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('request.rawBody is missing'),
-        { step: 'raw_body_missing_fallback' },
+        { step: 'raw_body_missing' },
       );
     });
 

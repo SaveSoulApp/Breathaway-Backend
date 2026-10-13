@@ -199,6 +199,21 @@ export function sanitizeAuditMetadata(
 }
 
 /**
+ * Standard shape of serialized, log-safe and audit-safe error objects (LOG-02).
+ */
+export interface SerializedError {
+  message: string;
+  name?: string;
+  stack?: string;
+  code?: string | number;
+  httpStatus?: number;
+  httpData?: unknown;
+  meta?: unknown;
+  clientVersion?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Serializes any thrown value into a consistent, log-safe and audit-safe shape.
  *
  * Automatically scrubs sensitive PII (emails, phone numbers, secrets in URLs) from error messages,
@@ -223,7 +238,7 @@ export function sanitizeAuditMetadata(
 export function serializeError(
   err: unknown,
   options?: { scrubPii?: boolean },
-): Record<string, unknown> {
+): SerializedError {
   const shouldScrub = options?.scrubPii ?? true;
   const scrubString = (str?: string | null) =>
     shouldScrub ? scrubPii(str) : (str ?? '');
@@ -239,12 +254,7 @@ export function serializeError(
           : responseData;
 
     const scrubbedMessage = scrubString(err.message);
-    const scrubbedStack =
-      shouldScrub && err.stack
-        ? err.message && scrubbedMessage !== err.message
-          ? err.stack.replace(err.message, scrubbedMessage)
-          : err.stack
-        : err.stack;
+    const scrubbedStack = err.stack ? scrubString(err.stack) : undefined;
 
     return {
       message: scrubbedMessage,
@@ -262,12 +272,7 @@ export function serializeError(
 
   if (err instanceof Error) {
     const scrubbedMessage = scrubString(err.message);
-    const scrubbedStack =
-      shouldScrub && err.stack
-        ? err.message && scrubbedMessage !== err.message
-          ? err.stack.replace(err.message, scrubbedMessage)
-          : err.stack
-        : err.stack;
+    const scrubbedStack = err.stack ? scrubString(err.stack) : undefined;
 
     // 2. Prisma known request errors carry structured metadata beyond a plain stack trace.
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -294,9 +299,14 @@ export function serializeError(
 
   // 4. Plain objects (e.g. thrown { code, message } shapes from legacy SDK wrappers)
   if (typeof err === 'object' && err !== null) {
-    return shouldScrub
-      ? (sanitizeValue(err) as Record<string, unknown>)
-      : (err as Record<string, unknown>);
+    const obj =
+      (shouldScrub
+        ? (sanitizeValue(err) as Record<string, unknown>)
+        : (err as Record<string, unknown>)) ?? {};
+    return {
+      message: typeof obj.message === 'string' ? obj.message : '',
+      ...obj,
+    };
   }
 
   // 5. Primitives
