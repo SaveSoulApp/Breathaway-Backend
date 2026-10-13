@@ -2,9 +2,10 @@
 
 # 1. BigQuery Dataset
 resource "google_bigquery_dataset" "audit_logs_dataset" {
-  dataset_id  = "audit_logs_dataset"
-  description = "Dataset for storing application audit logs"
-  location    = "asia-south1"
+  dataset_id                 = "audit_logs_dataset"
+  description                = "Dataset for storing application audit logs"
+  location                   = "asia-south1"
+  delete_contents_on_destroy = false
 }
 
 # 2. BigQuery Table
@@ -42,8 +43,8 @@ resource "google_bigquery_table" "audit_logs_events" {
 ]
 EOF
 
-  # Important: Set to true if moving to production to prevent accidental data loss
-  deletion_protection = false
+  # Security Hardening: Enforce deletion protection to prevent accidental data loss of compliance audit trails (SOC 2 CC7.2 / GDPR Art. 5)
+  deletion_protection = true
 }
 
 # 3. Pub/Sub Topic
