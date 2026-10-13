@@ -231,7 +231,7 @@ describe('IdentitiesController (e2e)', () => {
       expect(completeRes.body.publicValue).toBe(testEmailUpdated);
     });
 
-    it('POST /api/v1/identities/:id/verify - marks identity as verified', async () => {
+    it('POST /api/v1/identities/:id/verify - returns 404 (direct verification endpoint removed)', async () => {
       const allRes = await authedRequest(app)
         .get('/api/v1/identities')
         .set('authorization', `Bearer ${validJwt}`);
@@ -242,8 +242,7 @@ describe('IdentitiesController (e2e)', () => {
         .post(`/api/v1/identities/${identityId}/verify`)
         .set('authorization', `Bearer ${validJwt}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.isVerified).toBe(true);
+      expect(res.status).toBe(404);
     });
 
     it('DELETE /api/v1/identities/:id - deletes the identity', async () => {

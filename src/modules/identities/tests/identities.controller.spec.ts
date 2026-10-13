@@ -1,6 +1,9 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
 import { LoggerService } from '@core/logger';
+
 import {
   CreateIdentityRequestDto,
   IdentityResponseDto,
@@ -18,7 +21,6 @@ import {
   mockUpdateIdentityRequestDto,
   mockUserId,
 } from './mocks/identities.mock';
-import { ClsService } from 'nestjs-cls';
 
 describe('IdentitiesController', () => {
   let controller: IdentitiesController;
@@ -33,7 +35,6 @@ describe('IdentitiesController', () => {
       findOneComplete: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
-      verify: jest.fn(),
       findByPublicValue: jest.fn(),
     };
 
@@ -204,22 +205,6 @@ describe('IdentitiesController', () => {
       // Assert
 
       expect(service.delete).toHaveBeenCalledWith(mockIdentityId, mockUserId);
-    });
-  });
-
-  describe('verify', () => {
-    it('should verify a specific identity', async () => {
-      // Arrange
-
-      service.verify.mockResolvedValue(mockIdentityResponse as any);
-
-      // Act
-      const result = await controller.verify(mockUserId, mockIdentityId);
-
-      // Assert
-
-      expect(service.verify).toHaveBeenCalledWith(mockIdentityId, mockUserId);
-      expect(result).toEqual(mockIdentityResponse);
     });
   });
 

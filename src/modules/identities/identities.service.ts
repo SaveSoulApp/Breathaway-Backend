@@ -524,61 +524,6 @@ export class IdentitiesService extends BaseService {
   }
 
   /**
-   * Sets `isVerified = true` and records `verifiedAt` on the identity.
-   *
-   * Emits an `IDENTITY_VERIFIED` audit log event after the DB write. In production this
-   * should only be called after an out-of-band confirmation (OTP, OAuth); calling it directly
-   * bypasses the verification challenge.
-   *
-   * @param id     - UUID of the identity to verify.
-   * @param userId - UUID of the user who must own it.
-   * @returns The updated identity in masked form with `isVerified: true`.
-   * @throws {NotFoundException} When no non-deleted identity with the given ID exists for this user.
-   */
-  async verify(id: string, userId: string) {
-    await this.findOwnedOrFail(id, userId);
-
-    let updated: Identity;
-    try {
-      updated = await this.prisma.identity.update({
-        where: { id },
-        data: {
-          isVerified: true,
-          verifiedAt: DateUtil.now(),
-        },
-      });
-    } catch (error) {
-      this.logger.error('Failed to verify identity', {
-        identityId: id,
-        userId,
-        step: 'persist_verification',
-        err: serializeError(error),
-      });
-      throw error;
-    }
-
-    this.logger.event(LOG_EVENT.IDENTITY_VERIFIED, {
-      identityId: id,
-      userId,
-    });
-
-    this.emitAuditLog({
-      actionType: AuditActionType.IDENTITY_VERIFIED,
-      userId: userId,
-      resourceId: updated.id,
-      metadata: {
-        identityType: updated.type,
-        maskedValue: updated.publicValueMasked,
-        publicValueHash: updated.publicValueHash,
-      },
-    });
-
-    this.publishIdentityClaimedEvent(userId);
-
-    return this.toMaskedResponse(updated);
-  }
-
-  /**
    * Atomically claims or creates a fully-verified identity for a user, used by OAuth flows.
    *
    * Looks up an existing identity by type + public value hash. If found and unowned (or

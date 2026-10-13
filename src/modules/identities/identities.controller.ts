@@ -1,8 +1,3 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -21,6 +16,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import {
   CreateIdentityRequestDto,
   IdentityCompleteResponseDto,
@@ -230,25 +232,5 @@ export class IdentitiesController extends BaseController {
     @Param('id') id: string,
   ): Promise<void> {
     await this.identitiesService.delete(id, userId);
-  }
-
-  /**
-   * Marks an identity as verified, recording the verification timestamp.
-   *
-   * In production, verification should be triggered by an out-of-band confirmation flow
-   * (e.g. SMS OTP, OAuth token exchange) rather than a direct HTTP call to this endpoint.
-   * Emits an `IDENTITY_VERIFIED` audit log event on success.
-   *
-   * @param id - UUID of the identity to verify.
-   * @returns The updated identity in masked form with `isVerified: true`.
-   * @throws {NotFoundException} When no non-deleted identity with the given ID exists for this user.
-   */
-  @Post(':id/verify')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify a specific identity' })
-  @ApiResponse({ status: HttpStatus.OK, type: IdentityResponseDto })
-  @SerializeExpose(IdentityResponseDto)
-  async verify(@CurrentUserId() userId: string, @Param('id') id: string) {
-    return this.identitiesService.verify(id, userId);
   }
 }
