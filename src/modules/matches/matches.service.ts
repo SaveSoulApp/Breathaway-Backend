@@ -83,9 +83,11 @@ export class MatchesService extends BaseService {
    */
   async findAllForUser(userId: string, query: MatchListQueryRequestDto) {
     const { page = 1, limit = 20 } = query;
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
 
-    const ctx = { userId, page, limit };
+    const ctx = { userId, page: safePage, limit: safeLimit };
 
     this.logger.debug('Fetching matches for user', {
       ...ctx,
@@ -108,7 +110,7 @@ export class MatchesService extends BaseService {
           matchedAt: 'desc',
         },
         skip,
-        take: limit,
+        take: safeLimit,
         select: {
           id: true,
           status: true,
@@ -155,7 +157,7 @@ export class MatchesService extends BaseService {
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / safeLimit);
 
     this.logger.debug('Matches fetched successfully', {
       ...ctx,
@@ -168,12 +170,12 @@ export class MatchesService extends BaseService {
     return {
       data,
       meta: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
       },
     };
   }

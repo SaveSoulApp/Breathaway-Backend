@@ -33,6 +33,7 @@ locals {
     cashfree_app_id           = "cashfree-app-id"
     cashfree_secret_key       = "cashfree-secret-key"
     liteapp_whatsapp_key      = "liteapp-whatsapp-key"
+    meta_app_secret           = "meta-app-secret"
   }
 
   # List of all secrets required by the backend service at runtime (mirrors COMMON_SECRETS)

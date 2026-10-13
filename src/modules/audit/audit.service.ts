@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 
-import { serializeError } from '@common/utils/error.utils';
+import {
+  sanitizeAuditMetadata,
+  serializeError,
+} from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
@@ -40,6 +43,9 @@ export class AuditService extends BaseService {
    * Receives an `audit.log` application event and publishes it to the audit
    * Pub/Sub topic tagged with the event's action type as an attribute.
    *
+   * Automatically scrubs sensitive PII, query strings, and error messages from
+   * metadata before streaming to Pub/Sub and BigQuery (LOG-02, GDPR Art. 5(1)(c)).
+   *
    * Failures are caught and logged rather than propagated — a Pub/Sub outage
    * must not cause the originating HTTP request or workflow to fail.
    *
@@ -49,16 +55,18 @@ export class AuditService extends BaseService {
   @OnEvent(AUDIT_LOG_EVENT)
   async handleAuditLogEvent(payload: AuditEventRequestDto) {
     try {
+      const sanitizedPayload = this.sanitizeAuditPayload(payload);
+
       await this.pubSubPublisher.publish(
         this.auditTopic,
         PubSubEvent.SYSTEM_AUDIT_LOG,
-        payload as unknown as Record<string, unknown>,
-        { actionType: payload.actionType },
+        sanitizedPayload as unknown as Record<string, unknown>,
+        { actionType: sanitizedPayload.actionType },
       );
 
       this.logger.event(LOG_EVENT.AUDIT_EVENT_EMITTED, {
-        userId: payload.userId,
-        actionType: payload.actionType,
+        userId: sanitizedPayload.userId,
+        actionType: sanitizedPayload.actionType,
       });
     } catch (error: unknown) {
       this.logger.error('Failed to publish audit event', {
@@ -68,5 +76,23 @@ export class AuditService extends BaseService {
         err: serializeError(error),
       });
     }
+  }
+
+  /**
+   * Sanitizes the audit event payload before streaming to Pub/Sub and BigQuery (LOG-02).
+   * Ensures that error messages, third-party URLs with query params, emails, phone numbers,
+   * and sensitive authentication tokens in metadata are scrubbed.
+   */
+  private sanitizeAuditPayload(
+    payload: AuditEventRequestDto,
+  ): AuditEventRequestDto {
+    if (!payload.metadata) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      metadata: sanitizeAuditMetadata(payload.metadata),
+    };
   }
 }

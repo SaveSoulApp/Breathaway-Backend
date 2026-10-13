@@ -105,7 +105,7 @@ describe('ProfilesController (e2e)', () => {
       });
     });
 
-    it('GET /api/v1/profiles/:id - returns profile by id', async () => {
+    it('GET /api/v1/profiles/:id - returns 404 since public profile lookup is disabled (SEC-04)', async () => {
       // First get the profile to know its ID
       const myProfileRes = await authedRequest(app)
         .get('/api/v1/profiles')
@@ -115,18 +115,6 @@ describe('ProfilesController (e2e)', () => {
 
       const res = await authedRequest(app)
         .get(`/api/v1/profiles/${profileId}`)
-        .set('authorization', `Bearer ${validJwt}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        id: profileId,
-        firstName: 'John',
-      });
-    });
-
-    it('GET /api/v1/profiles/:id - 404 for unknown profile ID', async () => {
-      const res = await authedRequest(app)
-        .get('/api/v1/profiles/01H1V1ABCD2EF3GH4JK5LM6NP7') // Using a random ULID-like format or any string
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(404);

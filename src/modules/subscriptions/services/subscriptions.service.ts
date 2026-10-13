@@ -138,11 +138,13 @@ export class SubscriptionsService extends BaseService {
    * @returns Paginated list of subscriptions with plan details and event summaries.
    */
   async getSubscriptionHistory(userId: string, page = 1, limit = 20) {
+    const safeLimit = Math.min(50, Math.max(1, limit));
+    const safePage = Math.max(1, page);
     const history = await this.prisma.userSubscription.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
       // Use select instead of include to avoid fetching every column on related rows.
       select: {
         id: true,

@@ -69,14 +69,14 @@ export class QueryPriceHistoryRequestDto {
     description: 'Number of history records per page',
     default: 100,
     minimum: 1,
-    maximum: 200,
+    maximum: 100,
     example: 100,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
+  @Max(100)
   limit?: number = 100;
 
   @ApiPropertyOptional({

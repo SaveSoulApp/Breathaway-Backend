@@ -524,6 +524,23 @@ describe('CreditsService', () => {
         }),
       );
     });
+
+    it('should defensively clamp limit to 100 when passed a larger value', async () => {
+      // Arrange
+      prisma.creditLedger.count.mockResolvedValue(1);
+      prisma.creditLedger.findMany.mockResolvedValue([mockLedgerEntry]);
+
+      // Act
+      const result = await service.getLedger(userId, { limit: 10000 });
+
+      // Assert
+      expect(prisma.creditLedger.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        }),
+      );
+      expect(result.meta.limit).toBe(100);
+    });
   });
 
   describe('getLedgerEntry', () => {

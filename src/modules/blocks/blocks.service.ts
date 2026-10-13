@@ -219,7 +219,9 @@ export class BlocksService extends BaseService {
    * @returns An array of mapped block response objects, each including the blocked user's profile.
    */
   async findAllForUser(userId: string, page = 1, limit = 50) {
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(50, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
     const blocks = await this.prisma.block.findMany({
       where: {
         blockerUserId: userId,
@@ -229,7 +231,7 @@ export class BlocksService extends BaseService {
         createdAt: 'desc',
       },
       skip,
-      take: limit,
+      take: safeLimit,
       select: {
         id: true,
         createdAt: true,

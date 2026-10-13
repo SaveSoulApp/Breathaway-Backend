@@ -22,6 +22,7 @@ import {
 } from './dto';
 import {
   CashfreeWebhookGuard,
+  MetaWebhookGuard,
   RazorpayWebhookGuard,
   RevenueCatWebhookGuard,
 } from './guards';
@@ -59,11 +60,28 @@ export class WebhooksController extends BaseController {
     return this.webhookService.verifyMetaWebhook(mode, token, challenge);
   }
 
+  /**
+   * Receives Meta (Instagram / WhatsApp) messaging and webhook notifications.
+   *
+   * Authenticates incoming requests via `MetaWebhookGuard` using HMAC-SHA256
+   * signature verification (`X-Hub-Signature-256`) computed over the raw payload
+   * with the Meta App Secret (`META_APP_SECRET`).
+   */
   @Post('meta')
+  @UseGuards(MetaWebhookGuard)
   @ApiOperation({ summary: 'Handle Meta Webhook events' })
+  @ApiHeader({
+    name: 'X-Hub-Signature-256',
+    description: 'Meta HMAC-SHA256 signature (format: sha256=<hex_digest>).',
+    required: true,
+  })
   @ApiResponse({
     status: 201,
     description: 'Events successfully received',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid Meta webhook signature.',
   })
   async handleMetaWebhook(@Body() body: MetaWebhookDto) {
     this.logger.debug('Meta webhook received', { object: body.object });

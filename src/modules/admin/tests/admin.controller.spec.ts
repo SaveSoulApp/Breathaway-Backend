@@ -2,6 +2,7 @@ jest.mock('nanoid', () => ({
   nanoid: () => 'mocked-id',
 }));
 
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -23,6 +24,7 @@ describe('AdminController', () => {
   let adminService: jest.Mocked<AdminService>;
   let creditsService: jest.Mocked<CreditsService>;
   let authService: jest.Mocked<AuthService>;
+  let configService: jest.Mocked<ConfigService>;
   let reflector: Reflector;
 
   const mockLoggerService = {
@@ -66,6 +68,7 @@ describe('AdminController', () => {
     adminService = module.get(AdminService);
     creditsService = module.get(CreditsService);
     authService = module.get(AuthService);
+    configService = module.get(ConfigService);
     reflector = module.get<Reflector>(Reflector);
   });
 
@@ -134,8 +137,9 @@ describe('AdminController', () => {
   });
 
   describe('devLogin', () => {
-    it('should invoke authService.devLogin with developer credentials and metadata', async () => {
+    it('should invoke authService.devLogin with developer credentials and metadata in non-production', async () => {
       // Arrange
+      configService.get.mockReturnValue('development');
       const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
       const mockDevResponse = {
         userId: 'dev-user-1',
@@ -162,6 +166,62 @@ describe('AdminController', () => {
         deviceId: 'device-dev-1',
       });
       expect(result).toEqual(mockDevResponse);
+    });
+
+    it('should throw NotFoundException in production environment', async () => {
+      // Arrange
+      jest.spyOn(configService, 'get').mockReturnValue('production');
+
+      // Act & Assert
+      await expect(
+        controller.devLogin({ identifier: 'user@example.com' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(authService.devLogin).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when NODE_ENV is production', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      });
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      // Act & Assert
+      await expect(
+        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(authService.devLogin).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when DEPLOYMENT_ENV is production', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'DEPLOYMENT_ENV') return 'production';
+        return 'development';
+      });
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      // Act & Assert
+      await expect(
+        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(authService.devLogin).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when NODE_ENV or DEPLOYMENT_ENV has uppercase or whitespace', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return ' PRODUCTION ';
+        return 'development';
+      });
+      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
+
+      // Act & Assert
+      await expect(
+        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(authService.devLogin).not.toHaveBeenCalled();
     });
 
     it('should attach dev-login throttling metadata to /dev-login', () => {

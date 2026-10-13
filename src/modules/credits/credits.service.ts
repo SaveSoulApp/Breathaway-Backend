@@ -275,7 +275,9 @@ export class CreditsService extends BaseService {
       search,
     } = query;
 
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
 
     const where: Prisma.CreditLedgerWhereInput = {
       userId,
@@ -340,7 +342,7 @@ export class CreditsService extends BaseService {
         where,
         orderBy,
         skip,
-        take: limit,
+        take: safeLimit,
         select: {
           id: true,
           transactionType: true,
@@ -353,17 +355,17 @@ export class CreditsService extends BaseService {
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / safeLimit);
 
     return {
       data,
       meta: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
       },
     };
   }

@@ -459,6 +459,7 @@ export class NotificationsService extends BaseService {
     query: GetNotificationsRequestDto,
   ): Promise<PaginatedNotificationsResponseDto> {
     const { limit = 20, cursor, category, unreadOnly } = query;
+    const safeLimit = Math.min(100, Math.max(1, limit));
 
     const where: Prisma.NotificationWhereInput = {
       userId,
@@ -472,7 +473,7 @@ export class NotificationsService extends BaseService {
     const [rows, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where,
-        take: limit + 1,
+        take: safeLimit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
@@ -487,8 +488,8 @@ export class NotificationsService extends BaseService {
         : Promise.resolve(undefined),
     ]);
 
-    const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
+    const hasMore = rows.length > safeLimit;
+    const items = hasMore ? rows.slice(0, safeLimit) : rows;
     const nextCursor =
       hasMore && items.length > 0 ? items[items.length - 1].id : null;
 

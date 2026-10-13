@@ -8,6 +8,7 @@ import { MetaWebhookDto, RevenueCatWebhookRequestDto } from '../dto';
 import { MetaWebhookIntent } from '../enums/meta-webhook-intent.enum';
 import {
   CashfreeWebhookGuard,
+  MetaWebhookGuard,
   RazorpayWebhookGuard,
   RevenueCatWebhookGuard,
 } from '../guards';
@@ -75,6 +76,8 @@ describe('WebhooksController', () => {
       .overrideGuard(RazorpayWebhookGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(CashfreeWebhookGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(MetaWebhookGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 

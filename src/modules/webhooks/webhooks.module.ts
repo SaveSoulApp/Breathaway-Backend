@@ -7,6 +7,7 @@ import { TransactionsModule } from '@modules/transactions/transactions.module';
 
 import {
   CashfreeWebhookGuard,
+  MetaWebhookGuard,
   RazorpayWebhookGuard,
   RevenueCatWebhookGuard,
 } from './guards';
@@ -45,6 +46,7 @@ import { WebhooksService } from './webhooks.service';
     RevenueCatWebhookGuard,
     RazorpayWebhookGuard,
     CashfreeWebhookGuard,
+    MetaWebhookGuard,
     OtpVerificationHandler,
     GenericMessageHandler,
     RevenueCatPurchaseHandler,

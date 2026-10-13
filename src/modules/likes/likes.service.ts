@@ -614,8 +614,10 @@ export class LikesService extends BaseService {
       status,
       sortOrder = SortOrder.DESC,
     } = query;
-    const skip = (page - 1) * limit;
-    const ctx = { userId, page, limit };
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
+    const ctx = { userId, page: safePage, limit: safeLimit };
 
     this.logger.debug('Fetching likes for user', {
       ...ctx,
@@ -642,7 +644,7 @@ export class LikesService extends BaseService {
         where,
         orderBy: { createdAt: sortOrder },
         skip,
-        take: limit,
+        take: safeLimit,
         select: LIKE_SELECT,
       }),
     ]);
@@ -653,18 +655,18 @@ export class LikesService extends BaseService {
       returnedCount: rows.length,
     });
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / safeLimit);
     const data = await Promise.all(rows.map((r) => this.attachPublicValue(r)));
 
     return {
       data,
       meta: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
       },
     };
   }

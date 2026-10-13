@@ -29,4 +29,5 @@ export enum GcpSecretName {
   CASHFREE_APP_ID = 'cashfree-app-id',
   CASHFREE_SECRET_KEY = 'cashfree-secret-key',
   LITEAPP_WHATSAPP_KEY = 'liteapp-whatsapp-key',
+  META_APP_SECRET = 'meta-app-secret',
 }

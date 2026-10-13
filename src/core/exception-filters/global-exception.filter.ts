@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
+import { scrubPii } from '@common/utils/error.utils';
 import { LoggerService } from '@core/logger';
 import { DOMAIN_EXCEPTION_HTTP_MAP } from '@shared/domain/exceptions/domain-exception.map';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -197,19 +198,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
+      let err: Error;
+      if (exception instanceof Error) {
+        err = exception;
+        if (err.message) {
+          err.message = scrubPii(err.message);
+        }
+        if (err.stack) {
+          err.stack = scrubPii(err.stack);
+        }
+      } else {
+        err = new Error(scrubPii(String(exception)));
+      }
       // Full error object — LoggerService.write() serializes the stack trace automatically
-      this.logger.error(
-        exception instanceof Error ? exception : new Error(String(exception)),
-        { ...meta, method, url },
-      );
+      this.logger.error(err, { ...meta, method, url });
     } else {
       // 4xx — expected client error, log at warn with message only (no stack trace needed)
       const message =
         exception instanceof Error ? exception.message : String(exception);
+      const scrubbedMessage = scrubPii(message);
+      const scrubbedInvalidParams = invalidParams?.map((p) => scrubPii(p));
+
       this.logger.warn(`Request failed: ${method} ${url}`, {
         ...meta,
-        error: message,
-        ...(invalidParams && { invalidParams }),
+        error: scrubbedMessage,
+        ...(scrubbedInvalidParams && { invalidParams: scrubbedInvalidParams }),
       });
     }
   }

@@ -1,14 +1,16 @@
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
+
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PubSubEvent } from '@modules/pubsub/enums/pubsub-events.enum';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
-import { ConfigService } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
-import { ClsService } from 'nestjs-cls';
+
 import { AuditService } from '../audit.service';
 import { AuditActionType } from '../dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 
-describe('AuditService', () => {
+describe('AuditService (LOG-02)', () => {
   let service: AuditService;
   let pubSubPublisher: PubSubPublisherService;
   let loggerService: LoggerService;
@@ -76,6 +78,48 @@ describe('AuditService', () => {
           userId: 'test-user-id',
           actionType: AuditActionType.USER_LOGIN,
         }),
+      );
+    });
+
+    it('should sanitize PII and serialize errors in metadata before publishing to PubSub (LOG-02)', async () => {
+      const thirdPartyError = new Error(
+        'SMS gateway failure: https://api.gateway.com/send?phone=%2B919876543210&apiKey=secret_key',
+      );
+
+      const payload = {
+        actionType: AuditActionType.USAGE_DENIED,
+        userId: 'test-user-id',
+        metadata: {
+          reason: 'Failed delivery to alice@example.com (tel: +919876543210)',
+          token: 'sensitive-jwt-token',
+          password: 'rawPassword123',
+          error: thirdPartyError,
+          adminEmail: 'ops@breathaway.app',
+        },
+      };
+
+      await service.handleAuditLogEvent(payload);
+
+      expect(pubSubPublisher.publish).toHaveBeenCalledWith(
+        'test-topic',
+        PubSubEvent.SYSTEM_AUDIT_LOG,
+        expect.objectContaining({
+          actionType: AuditActionType.USAGE_DENIED,
+          userId: 'test-user-id',
+          metadata: expect.objectContaining({
+            reason:
+              'Failed delivery to [REDACTED_EMAIL] (tel: [REDACTED_PHONE])',
+            token: '[Redacted]',
+            password: '[Redacted]',
+            adminEmail: 'ops@breathaway.app',
+            error: expect.objectContaining({
+              name: 'Error',
+              message:
+                'SMS gateway failure: https://api.gateway.com/send?phone=[REDACTED_PHONE]&apiKey=[REDACTED]',
+            }),
+          }),
+        }),
+        { actionType: AuditActionType.USAGE_DENIED },
       );
     });
 

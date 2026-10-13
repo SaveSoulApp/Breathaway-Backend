@@ -195,4 +195,54 @@ describe('GlobalExceptionFilter', () => {
       );
     });
   });
+
+  describe('PII scrubbing in logs (LOG-02)', () => {
+    it('should scrub PII from message and invalidParams when logging 4xx client errors', () => {
+      const exception = new BadRequestException({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: [
+          'user customer@example.com is invalid',
+          'call +919876543210 rejected',
+        ],
+      });
+
+      filter.catch(exception, mockArgumentsHost(mockResponse));
+
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Request failed: GET /test-path'),
+        expect.objectContaining({
+          statusCode: 400,
+          invalidParams: [
+            'user [REDACTED_EMAIL] is invalid',
+            'call [REDACTED_PHONE] rejected',
+          ],
+        }),
+      );
+    });
+
+    it('should scrub PII from error message and stack when logging 5xx errors', () => {
+      const exception = new Error(
+        'Failed to connect to database for user test@domain.com',
+      );
+      exception.stack =
+        'Error: Failed to connect to database for user test@domain.com\n' +
+        '    at Query.run (/app/db.ts:10:20?token=tok_secret123)';
+
+      filter.catch(exception, mockArgumentsHost(mockResponse));
+
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to connect to database for user [REDACTED_EMAIL]',
+          stack: expect.not.stringContaining('test@domain.com'),
+        }),
+        expect.objectContaining({
+          statusCode: 500,
+        }),
+      );
+      const loggedError = (loggerMock.error as jest.Mock).mock
+        .calls[0][0] as Error;
+      expect(loggedError.stack).toContain('token=[REDACTED]');
+    });
+  });
 });
