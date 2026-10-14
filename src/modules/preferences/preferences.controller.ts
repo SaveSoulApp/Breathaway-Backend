@@ -1,8 +1,3 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -10,7 +5,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import {
+  ConsentLedgerResponseDto,
+  PreferencesResponseDto,
+  UpdatePreferencesRequestDto,
+} from './dto';
 import { PreferencesService } from './preferences.service';
 
 /**
@@ -52,6 +58,27 @@ export class PreferencesController extends BaseController {
     @CurrentUserId() userId: string,
   ): Promise<PreferencesResponseDto> {
     return this.preferencesService.getPreferences(userId);
+  }
+
+  /**
+   * Retrieves the authenticated user's consent ledger history across all notification channels.
+   *
+   * Fulfills GDPR Article 7 auditability by returning an immutable, timestamped chronological log
+   * of consent state changes for the requesting user.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @returns List of consent log entries ordered newest first.
+   */
+  @Get('consents')
+  @ApiOperation({
+    summary: 'Get consent ledger history for the authenticated user',
+  })
+  @ApiResponse({ type: [ConsentLedgerResponseDto] })
+  @SerializeExpose(ConsentLedgerResponseDto)
+  async getConsentHistory(
+    @CurrentUserId() userId: string,
+  ): Promise<ConsentLedgerResponseDto[]> {
+    return this.preferencesService.getConsentHistory(userId);
   }
 
   /**

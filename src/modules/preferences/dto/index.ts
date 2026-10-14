@@ -5,4 +5,5 @@
  * PreferencesService to query and update user notification preferences.
  */
 export * from './request/update-preferences.request.dto';
+export * from './response/consent-ledger.response.dto';
 export * from './response/preferences.response.dto';

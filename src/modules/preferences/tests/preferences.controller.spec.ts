@@ -1,10 +1,17 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConsentChannel, ConsentSource } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+
+import {
+  ConsentLedgerResponseDto,
+  PreferencesResponseDto,
+  UpdatePreferencesRequestDto,
+} from '../dto';
 import { PreferencesController } from '../preferences.controller';
 import { PreferencesService } from '../preferences.service';
-import { PreferencesResponseDto, UpdatePreferencesRequestDto } from '../dto';
-import { LoggerService } from '@core/logger';
-import { ClsService } from 'nestjs-cls';
 
 describe('PreferencesController', () => {
   let controller: PreferencesController;
@@ -16,6 +23,16 @@ describe('PreferencesController', () => {
     smsEnabled: true,
     emailEnabled: true,
   };
+
+  const mockConsentHistory: ConsentLedgerResponseDto[] = [
+    {
+      id: 'consent-1',
+      channel: ConsentChannel.PUSH,
+      consentGranted: true,
+      source: ConsentSource.SIGNUP,
+      createdAt: new Date(),
+    },
+  ];
 
   beforeEach(async () => {
     const loggerServiceMock = {
@@ -31,6 +48,7 @@ describe('PreferencesController', () => {
     const mockPreferencesService = {
       getPreferences: jest.fn().mockResolvedValue(mockPreferencesResponse),
       updatePreferences: jest.fn().mockResolvedValue(mockPreferencesResponse),
+      getConsentHistory: jest.fn().mockResolvedValue(mockConsentHistory),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -52,6 +70,14 @@ describe('PreferencesController', () => {
       const result = await controller.getPreferences('user-1');
       expect(service.getPreferences).toHaveBeenCalledWith('user-1');
       expect(result).toEqual(mockPreferencesResponse);
+    });
+  });
+
+  describe('getConsentHistory', () => {
+    it('should return consent ledger history for user', async () => {
+      const result = await controller.getConsentHistory('user-1');
+      expect(service.getConsentHistory).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual(mockConsentHistory);
     });
   });
 

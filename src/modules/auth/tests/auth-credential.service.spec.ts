@@ -109,6 +109,9 @@ describe('AuthCredentialService', () => {
         data: {
           countryCode: 'US',
           notificationPreference: { create: {} },
+          consentLedger: {
+            create: expect.any(Array),
+          },
         },
       });
       expect(mockTx.identity.create).toHaveBeenCalledWith({

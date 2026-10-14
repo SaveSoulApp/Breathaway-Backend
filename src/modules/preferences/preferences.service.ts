@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConsentChannel, ConsentSource, Prisma } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -6,7 +7,11 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
-import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
+import {
+  ConsentLedgerResponseDto,
+  PreferencesResponseDto,
+  UpdatePreferencesRequestDto,
+} from './dto';
 
 /**
  * Manages user notification preference records, providing retrieval with
@@ -115,7 +120,8 @@ export class PreferencesService extends BaseService {
   }
 
   /**
-   * Partially updates the user's notification preferences and emits a PREFERENCES_UPDATED audit event.
+   * Partially updates the user's notification preferences, appends delta records to the
+   * immutable ConsentLedger for auditing/GDPR compliance, and emits a PREFERENCES_UPDATED audit event.
    *
    * Uses an upsert to handle users whose preference record was not pre-created at account setup.
    * Only fields explicitly included in `dto` are applied; unspecified fields default to `true`
@@ -136,39 +142,112 @@ export class PreferencesService extends BaseService {
     });
 
     try {
-      const updated = await this.prisma.notificationPreference.upsert({
-        where: { userId },
-        update: {
-          ...(dto.pushEnabled !== undefined && {
-            pushEnabled: dto.pushEnabled,
-          }),
-          ...(dto.whatsappEnabled !== undefined && {
-            whatsappEnabled: dto.whatsappEnabled,
-          }),
-          ...(dto.smsEnabled !== undefined && { smsEnabled: dto.smsEnabled }),
-          ...(dto.emailEnabled !== undefined && {
-            emailEnabled: dto.emailEnabled,
-          }),
-        },
-        create: {
-          userId,
-          pushEnabled: dto.pushEnabled ?? true,
-          whatsappEnabled: dto.whatsappEnabled ?? true,
-          smsEnabled: dto.smsEnabled ?? true,
-          emailEnabled: dto.emailEnabled ?? true,
-        },
-      });
+      const { updated, deltaEntries } = await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.notificationPreference.findUnique({
+            where: { userId },
+          });
 
-      this.logger.debug('Preferences record upserted', {
-        ...ctx,
-        step: 'persist_preferences',
-      });
+          const ipAddress = this.cls?.get<string | undefined>('ipAddress');
+          const userAgent = this.cls?.get<string | undefined>('userAgent');
+
+          const channelConfigs: Array<{
+            channel: ConsentChannel;
+            incoming?: boolean;
+            current: boolean;
+          }> = [
+            {
+              channel: ConsentChannel.PUSH,
+              incoming: dto.pushEnabled,
+              current: existing ? existing.pushEnabled : true,
+            },
+            {
+              channel: ConsentChannel.WHATSAPP,
+              incoming: dto.whatsappEnabled,
+              current: existing ? existing.whatsappEnabled : true,
+            },
+            {
+              channel: ConsentChannel.SMS,
+              incoming: dto.smsEnabled,
+              current: existing ? existing.smsEnabled : true,
+            },
+            {
+              channel: ConsentChannel.EMAIL,
+              incoming: dto.emailEnabled,
+              current: existing ? existing.emailEnabled : true,
+            },
+          ];
+
+          const deltas: Prisma.ConsentLedgerCreateManyInput[] = [];
+          for (const config of channelConfigs) {
+            if (
+              config.incoming !== undefined &&
+              config.incoming !== config.current
+            ) {
+              deltas.push({
+                userId,
+                channel: config.channel,
+                consentGranted: config.incoming,
+                source: ConsentSource.USER_TOGGLE,
+                ipAddress,
+                userAgent,
+              });
+            }
+          }
+
+          const updatedPref = await tx.notificationPreference.upsert({
+            where: { userId },
+            update: {
+              ...(dto.pushEnabled !== undefined && {
+                pushEnabled: dto.pushEnabled,
+              }),
+              ...(dto.whatsappEnabled !== undefined && {
+                whatsappEnabled: dto.whatsappEnabled,
+              }),
+              ...(dto.smsEnabled !== undefined && {
+                smsEnabled: dto.smsEnabled,
+              }),
+              ...(dto.emailEnabled !== undefined && {
+                emailEnabled: dto.emailEnabled,
+              }),
+            },
+            create: {
+              userId,
+              pushEnabled: dto.pushEnabled ?? true,
+              whatsappEnabled: dto.whatsappEnabled ?? true,
+              smsEnabled: dto.smsEnabled ?? true,
+              emailEnabled: dto.emailEnabled ?? true,
+            },
+          });
+
+          if (deltas.length > 0) {
+            await tx.consentLedger.createMany({
+              data: deltas,
+            });
+          }
+
+          return { updated: updatedPref, deltaEntries: deltas };
+        },
+      );
+
+      this.logger.debug(
+        'Preferences record upserted and consent delta persisted',
+        {
+          ...ctx,
+          step: 'persist_preferences',
+          deltasCount: deltaEntries.length,
+        },
+      );
 
       this.emitAuditLog({
         actionType: AuditActionType.PREFERENCES_UPDATED,
         userId: userId,
         metadata: {
           updatedCategories: Object.keys(dto),
+          consentDeltas: deltaEntries.map((e) => ({
+            channel: e.channel,
+            consentGranted: e.consentGranted,
+          })),
         },
       });
 
@@ -184,5 +263,38 @@ export class PreferencesService extends BaseService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Retrieves the immutable consent ledger history for a user, ordered from newest to oldest.
+   *
+   * @param userId - UUID of the user whose consent history to retrieve.
+   * @returns Chronological list of consent grant and revocation events.
+   */
+  async getConsentHistory(userId: string): Promise<ConsentLedgerResponseDto[]> {
+    const ctx = { userId };
+    this.logger.debug('Fetching consent ledger history', {
+      ...ctx,
+      step: 'fetch_consent_history',
+    });
+
+    const history = await this.prisma.consentLedger.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        channel: true,
+        consentGranted: true,
+        source: true,
+        createdAt: true,
+      },
+    });
+
+    this.logger.debug('Consent ledger history fetched successfully', {
+      ...ctx,
+      step: 'complete',
+      count: history.length,
+    });
+    return history;
   }
 }

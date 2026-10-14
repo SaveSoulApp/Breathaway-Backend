@@ -6,6 +6,7 @@ import {
   User,
 } from '@prisma/client';
 
+import { buildInitialConsentRecords } from '@common/utils/consent.utils';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { extractCountryCodeFromPhone } from '@common/utils/phone.utils';
@@ -589,11 +590,17 @@ export class AuthService extends BaseService {
     let user: User;
     try {
       user = await this.prisma.$transaction(async (tx) => {
+        const ipAddress = this.cls?.get<string | undefined>('ipAddress');
+        const userAgent = this.cls?.get<string | undefined>('userAgent');
+
         // New social identity
         const newUser = await tx.user.create({
           data: {
             notificationPreference: {
               create: {},
+            },
+            consentLedger: {
+              create: buildInitialConsentRecords({ ipAddress, userAgent }),
             },
           },
         });
