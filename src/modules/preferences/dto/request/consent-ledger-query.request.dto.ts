@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ConsentChannel } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 /**
@@ -11,11 +11,9 @@ export class ConsentLedgerQueryRequestDto {
   /** Page number for pagination (1-based index). */
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? parseInt(value, 10) : (value as number),
-  )
   page?: number = 1;
 
   /** Number of ledger records returned per page. */
@@ -26,12 +24,10 @@ export class ConsentLedgerQueryRequestDto {
     maximum: 100,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? parseInt(value, 10) : (value as number),
-  )
   limit?: number = 20;
 
   /** Optional filter to retrieve consent events for a specific channel only. */

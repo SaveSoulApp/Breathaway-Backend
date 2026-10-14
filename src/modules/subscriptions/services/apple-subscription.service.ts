@@ -1,4 +1,4 @@
-import { X509Certificate, verify } from 'crypto';
+import { X509Certificate, timingSafeEqual, verify } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -77,11 +77,17 @@ export interface AppleNotificationPayload {
  */
 @Injectable()
 export class AppleSubscriptionService extends BaseService {
+  private readonly trustedRootCert: X509Certificate;
+
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
   ) {
     super(logger);
+    const trustedRootPem =
+      this.configService.get<string>('APPLE_ROOT_CA_PEM') ||
+      APPLE_ROOT_CA_G3_PEM;
+    this.trustedRootCert = new X509Certificate(trustedRootPem);
   }
 
   /**
@@ -235,32 +241,35 @@ export class AppleSubscriptionService extends BaseService {
 
     // 5. Verify certificate chain of trust
     const leafCert = certs[0];
-    const intermediateCert = certs[1];
 
-    if (!leafCert.verify(intermediateCert.publicKey)) {
-      this.logger.warn(
-        'Leaf certificate is not signed by intermediate certificate',
-        { step: 'verify_leaf_signature' },
-      );
-      throw new InvalidAppleJwsException(
-        'Leaf certificate is not cryptographically signed by intermediate certificate',
-      );
+    // Iteratively verify that each certificate is cryptographically signed by the next certificate in the chain
+    for (let i = 0; i < certs.length - 1; i++) {
+      if (!certs[i].verify(certs[i + 1].publicKey)) {
+        this.logger.warn(
+          'Certificate in x5c chain is not signed by next certificate in chain',
+          { certIndex: i, step: 'verify_chain_signatures' },
+        );
+        throw new InvalidAppleJwsException(
+          `Certificate at index ${i} in x5c chain is not cryptographically signed by certificate at index ${i + 1}`,
+        );
+      }
     }
-
-    // Trusted Root Certificate: defaults to official Apple Root CA - G3
-    const trustedRootPem =
-      this.configService.get<string>('APPLE_ROOT_CA_PEM') ||
-      APPLE_ROOT_CA_G3_PEM;
-    const trustedRootCert = new X509Certificate(trustedRootPem);
 
     if (certs.length >= 3) {
       const rootCertInChain = certs[certs.length - 1];
 
-      // Verify that the root certificate in x5c matches the trusted Apple Root CA
+      // Verify that the root certificate in x5c matches the trusted Apple Root CA using constant-time comparison
       const chainRootFp = rootCertInChain.fingerprint256.toUpperCase();
-      const trustedRootFp = trustedRootCert.fingerprint256.toUpperCase();
+      const trustedRootFp = this.trustedRootCert.fingerprint256.toUpperCase();
 
-      if (chainRootFp !== trustedRootFp) {
+      const chainRootFpBuf = Buffer.from(chainRootFp, 'utf8');
+      const trustedRootFpBuf = Buffer.from(trustedRootFp, 'utf8');
+
+      const isMatch =
+        chainRootFpBuf.length === trustedRootFpBuf.length &&
+        timingSafeEqual(chainRootFpBuf, trustedRootFpBuf);
+
+      if (!isMatch) {
         this.logger.warn(
           'Root certificate in x5c chain does not match trusted Apple Root CA',
           {
@@ -273,19 +282,10 @@ export class AppleSubscriptionService extends BaseService {
           `Root certificate fingerprint (${chainRootFp}) does not match trusted Apple Root CA (${trustedRootFp})`,
         );
       }
-
-      if (!intermediateCert.verify(rootCertInChain.publicKey)) {
-        this.logger.warn(
-          'Intermediate certificate is not signed by root certificate in x5c chain',
-          { step: 'verify_intermediate_signature' },
-        );
-        throw new InvalidAppleJwsException(
-          'Intermediate certificate is not cryptographically signed by root certificate',
-        );
-      }
     } else {
-      // Root was omitted from x5c; verify intermediate directly against trusted Apple Root CA
-      if (!intermediateCert.verify(trustedRootCert.publicKey)) {
+      // Root was omitted from x5c; verify the top certificate directly against trusted Apple Root CA
+      const intermediateCert = certs[certs.length - 1];
+      if (!intermediateCert.verify(this.trustedRootCert.publicKey)) {
         this.logger.warn(
           'Intermediate certificate is not signed by trusted Apple Root CA',
           { step: 'verify_intermediate_against_root' },
@@ -440,6 +440,18 @@ export class AppleSubscriptionService extends BaseService {
           `Invalid environment in JWS payload: ${env}`,
         );
       }
+
+      const isProduction =
+        this.configService.get<string>('NODE_ENV') === 'production';
+      if (isProduction && env === 'Sandbox') {
+        this.logger.warn(
+          'Received Apple Sandbox notification in production environment',
+          { environment: env, step: 'validate_notification_environment' },
+        );
+        throw new InvalidAppleJwsException(
+          'Sandbox notifications are not accepted in production environment',
+        );
+      }
     }
   }
 
@@ -454,6 +466,29 @@ export class AppleSubscriptionService extends BaseService {
       throw new InvalidAppleJwsException(
         `Mismatched transaction bundleId: expected ${expectedBundleId}, received ${tx.bundleId}`,
       );
+    }
+
+    if (tx.environment) {
+      if (tx.environment !== 'Sandbox' && tx.environment !== 'Production') {
+        throw new InvalidAppleJwsException(
+          `Invalid environment in transaction payload: ${tx.environment}`,
+        );
+      }
+
+      const isProduction =
+        this.configService.get<string>('NODE_ENV') === 'production';
+      if (isProduction && tx.environment === 'Sandbox') {
+        this.logger.warn(
+          'Received Apple Sandbox transaction in production environment',
+          {
+            environment: tx.environment,
+            step: 'validate_transaction_environment',
+          },
+        );
+        throw new InvalidAppleJwsException(
+          'Sandbox transactions are not accepted in production environment',
+        );
+      }
     }
   }
 }

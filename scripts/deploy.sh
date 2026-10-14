@@ -14,6 +14,7 @@ PIN_SECRETS="true"
 # Helper logging functions
 print_status() { echo -e "\033[0;34m🔨 $1\033[0m"; }
 print_success() { echo -e "\033[0;32m✅ $1\033[0m"; }
+print_warning() { echo -e "\033[0;33m⚠️  $1\033[0m"; }
 print_error() { echo -e "\033[0;31m❌ $1\033[0m"; exit 1; }
 
 # Parse arguments
@@ -175,6 +176,7 @@ resolve_secret_versions() {
             ((resolved_count++))
         else
             ((fallback_count++))
+            print_warning "Failed to resolve concrete version for secret [${secret_name}]. Falling back to unpinned :latest."
         fi
 
         RESOLVED_SECRETS+=("${env_var}=${secret_name}:${version}")

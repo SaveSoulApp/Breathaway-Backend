@@ -28,6 +28,8 @@ describe('AppleSubscriptionService', () => {
   let interCertBase64: string;
   let rootCertBase64: string;
   let validChain: string[];
+  let leaf4Key: string;
+  let valid4TierChain: string[];
 
   let attackerLeafKey: string;
   let attackerChain: string[];
@@ -122,6 +124,40 @@ describe('AppleSubscriptionService', () => {
     attackerChain = [
       attackerLeafCert.raw.toString('base64'),
       attackerRootCert.raw.toString('base64'),
+    ];
+
+    // 5. Generate 4-Tier chain: Root -> Inter -> Inter2 -> Leaf4
+    execSync(
+      `openssl ecparam -name prime256v1 -genkey -noout -out ${tmpDir}/inter2.key`,
+    );
+    execSync(
+      `openssl req -new -sha256 -key ${tmpDir}/inter2.key -out ${tmpDir}/inter2.csr -subj '/CN=Apple Intermediate Tier 2/O=Apple Inc./C=US'`,
+    );
+    execSync(
+      `openssl x509 -req -in ${tmpDir}/inter2.csr -CA ${tmpDir}/inter.crt -CAkey ${tmpDir}/inter.key -CAcreateserial -out ${tmpDir}/inter2.crt -days 365 -sha256`,
+    );
+    execSync(
+      `openssl ecparam -name prime256v1 -genkey -noout -out ${tmpDir}/leaf4.key`,
+    );
+    execSync(
+      `openssl req -new -sha256 -key ${tmpDir}/leaf4.key -out ${tmpDir}/leaf4.csr -subj '/CN=StoreKit 4-Tier Signing/O=Apple Inc./C=US'`,
+    );
+    execSync(
+      `openssl x509 -req -in ${tmpDir}/leaf4.csr -CA ${tmpDir}/inter2.crt -CAkey ${tmpDir}/inter2.key -CAcreateserial -out ${tmpDir}/leaf4.crt -days 365 -sha256`,
+    );
+
+    const inter2Cert = new X509Certificate(
+      fs.readFileSync(`${tmpDir}/inter2.crt`),
+    );
+    const leaf4Cert = new X509Certificate(
+      fs.readFileSync(`${tmpDir}/leaf4.crt`),
+    );
+    leaf4Key = fs.readFileSync(`${tmpDir}/leaf4.key`, 'utf8');
+    valid4TierChain = [
+      leaf4Cert.raw.toString('base64'),
+      inter2Cert.raw.toString('base64'),
+      interCertBase64,
+      rootCertBase64,
     ];
   });
 
@@ -235,6 +271,44 @@ describe('AppleSubscriptionService', () => {
 
       const decoded = service.verifyAndDecodeJws<typeof payload>(jws);
       expect(decoded).toEqual(payload);
+    });
+
+    it('should accept a 4-certificate chain when each tier is iteratively verified up to trusted root', () => {
+      const payload = { test: 'four-cert-chain' };
+      const jws = buildJws(payload, {
+        chain: valid4TierChain,
+        signingKey: leaf4Key,
+      });
+
+      const decoded = service.verifyAndDecodeJws<typeof payload>(jws);
+      expect(decoded).toEqual(payload);
+    });
+
+    it('should throw InvalidAppleJwsException if intermediate link in chain is not signed by next certificate', () => {
+      const brokenChain = [leafCertBase64, interCertBase64, attackerChain[1]];
+      const jws = buildJws(
+        { test: 'broken-intermediate' },
+        { chain: brokenChain },
+      );
+
+      expect(() => service.verifyAndDecodeJws(jws)).toThrow(
+        InvalidAppleJwsException,
+      );
+      expect(() => service.verifyAndDecodeJws(jws)).toThrow(
+        /Certificate at index 1 in x5c chain is not cryptographically signed by certificate at index 2/,
+      );
+    });
+
+    it('should throw InvalidAppleJwsException if leaf certificate is not signed by intermediate', () => {
+      const brokenChain = [leafCertBase64, attackerChain[1]];
+      const jws = buildJws({ test: 'broken-leaf' }, { chain: brokenChain });
+
+      expect(() => service.verifyAndDecodeJws(jws)).toThrow(
+        InvalidAppleJwsException,
+      );
+      expect(() => service.verifyAndDecodeJws(jws)).toThrow(
+        /Certificate at index 0 in x5c chain is not cryptographically signed by certificate at index 1/,
+      );
     });
 
     it('should throw InvalidAppleJwsException if JWS is not a string', () => {
@@ -502,6 +576,141 @@ describe('AppleSubscriptionService', () => {
       );
       expect(() => service.parseNotification(signedPayload)).toThrow(
         /Invalid environment in JWS payload/,
+      );
+    });
+
+    it('should throw InvalidAppleJwsException if notification environment is Sandbox in production', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'APPLE_ROOT_CA_PEM') return trustedRootPem;
+        if (key === 'APPLE_BUNDLE_ID') return 'com.breathaway.app';
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      });
+
+      const outerPayload = {
+        notificationType: 'SUBSCRIBED',
+        data: {
+          bundleId: 'com.breathaway.app',
+          environment: 'Sandbox',
+        },
+      };
+
+      const signedPayload = buildJws(outerPayload);
+
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        InvalidAppleJwsException,
+      );
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        /Sandbox notifications are not accepted in production environment/,
+      );
+    });
+
+    it('should accept Production environment in production', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'APPLE_ROOT_CA_PEM') return trustedRootPem;
+        if (key === 'APPLE_BUNDLE_ID') return 'com.breathaway.app';
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      });
+
+      const outerPayload = {
+        notificationType: 'SUBSCRIBED',
+        data: {
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+        },
+      };
+
+      const signedPayload = buildJws(outerPayload);
+      const result = service.parseNotification(signedPayload);
+      expect(result.notificationType).toBe('SUBSCRIBED');
+    });
+
+    it('should accept Sandbox environment in non-production', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'APPLE_ROOT_CA_PEM') return trustedRootPem;
+        if (key === 'APPLE_BUNDLE_ID') return 'com.breathaway.app';
+        if (key === 'NODE_ENV') return 'development';
+        return undefined;
+      });
+
+      const outerPayload = {
+        notificationType: 'SUBSCRIBED',
+        data: {
+          bundleId: 'com.breathaway.app',
+          environment: 'Sandbox',
+        },
+      };
+
+      const signedPayload = buildJws(outerPayload);
+      const result = service.parseNotification(signedPayload);
+      expect(result.notificationType).toBe('SUBSCRIBED');
+    });
+
+    it('should throw InvalidAppleJwsException if transaction environment is Sandbox in production', () => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'APPLE_ROOT_CA_PEM') return trustedRootPem;
+        if (key === 'APPLE_BUNDLE_ID') return 'com.breathaway.app';
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      });
+
+      const transactionInfo = {
+        originalTransactionId: 'orig-tx-123',
+        transactionId: 'tx-123',
+        productId: 'prod-premium',
+        purchaseDate: 1719568800000,
+        expiresDate: 1722160800000,
+        bundleId: 'com.breathaway.app',
+        environment: 'Sandbox',
+      };
+
+      const outerPayload = {
+        notificationType: 'SUBSCRIBED',
+        data: {
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+          signedTransactionInfo: buildJws(transactionInfo),
+        },
+      };
+
+      const signedPayload = buildJws(outerPayload);
+
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        InvalidAppleJwsException,
+      );
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        /Sandbox transactions are not accepted in production environment/,
+      );
+    });
+
+    it('should throw InvalidAppleJwsException if transaction environment is invalid', () => {
+      const transactionInfo = {
+        originalTransactionId: 'orig-tx-123',
+        transactionId: 'tx-123',
+        productId: 'prod-premium',
+        purchaseDate: 1719568800000,
+        expiresDate: 1722160800000,
+        bundleId: 'com.breathaway.app',
+        environment: 'UnknownEnvironment',
+      };
+
+      const outerPayload = {
+        notificationType: 'SUBSCRIBED',
+        data: {
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+          signedTransactionInfo: buildJws(transactionInfo),
+        },
+      };
+
+      const signedPayload = buildJws(outerPayload);
+
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        InvalidAppleJwsException,
+      );
+      expect(() => service.parseNotification(signedPayload)).toThrow(
+        /Invalid environment in transaction payload/,
       );
     });
   });
