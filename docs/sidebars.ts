@@ -99,7 +99,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Operations & Reliability',
       collapsed: false,
-      items: ['deployment', 'testing', 'troubleshooting'],
+      items: ['deployment', 'secret-rotation', 'testing', 'troubleshooting'],
     },
     {
       type: 'category',

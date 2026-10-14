@@ -130,6 +130,10 @@ const config: Config = {
               to: '/deployment',
             },
             {
+              label: 'Secret Rotation',
+              to: '/secret-rotation',
+            },
+            {
               label: 'Testing',
               to: '/testing',
             },
