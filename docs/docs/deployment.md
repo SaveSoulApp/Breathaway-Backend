@@ -90,7 +90,16 @@ pnpm run deploy:prod
 
 # Force image rebuild even if the Git commit tag already exists in Artifact Registry:
 ./scripts/deploy.sh --env=dev --force
+
+# Skip resolving dynamic secret versions (fallback to unpinned :latest):
+./scripts/deploy.sh --env=dev --no-pin-secrets
 ```
+
+### 🔐 Dynamic Secret Version Pinning (INFRA-03)
+
+During deployment, `scripts/deploy.sh` dynamically queries GCP Secret Manager and pins exact numeric versions to the new Cloud Run revision. This ensures 100% credential consistency across autoscaled instances and enables one-click rollbacks.
+
+For comprehensive rotation protocols, dual-key migration recipes, and deprecation checklists, refer to the **[GCP Secret Rotation Runbook](./secret-rotation.md)**.
 
 ### Configuration & Sizing Parameterization
 

@@ -92,6 +92,7 @@ model User {
   paymentOrders PaymentOrder[]
   notifications Notification[]
   sessions      UserSession[]
+  consentLedger ConsentLedger[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
   /// Null for email-only users or social accounts that have no phone credential.
@@ -351,6 +352,43 @@ model NotificationPreference {
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
+}
+
+// ──────────────────────────────────────────────
+// Consent Ledger (Audit Trail for Marketing / Privacy Consent)
+// ──────────────────────────────────────────────
+
+enum ConsentChannel {
+  PUSH
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum ConsentSource {
+  SIGNUP
+  USER_TOGGLE
+  UNSUBSCRIBE_LINK
+  ADMIN_OVERRIDE
+}
+
+model ConsentLedger {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  channel        ConsentChannel
+  consentGranted Boolean
+  source         ConsentSource  @default(USER_TOGGLE)
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([userId, createdAt])
+  @@index([userId, channel, createdAt(sort: Desc)])
 }
 
 // ──────────────────────────────────────────────

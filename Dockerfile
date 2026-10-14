@@ -1,7 +1,9 @@
 # ---------------------------
 # 1. Base Stage
 # ---------------------------
-FROM node:22-slim AS base
+# Pinned by immutable OCI multi-architecture digest (SLSA Level 2 / SOC 2 CC8.1)
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS base
+
 # Prisma requires OpenSSL to run its query engine
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 # Pin pnpm version explicitly to avoid corepack update warnings

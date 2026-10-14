@@ -9,10 +9,12 @@ ENV="dev"
 FORCE_BUILD="false"
 DEPLOY_PUBLIC="true"
 DEPLOY_MAINTENANCE="true"
+PIN_SECRETS="true"
 
 # Helper logging functions
 print_status() { echo -e "\033[0;34m🔨 $1\033[0m"; }
 print_success() { echo -e "\033[0;32m✅ $1\033[0m"; }
+print_warning() { echo -e "\033[0;33m⚠️  $1\033[0m"; }
 print_error() { echo -e "\033[0;31m❌ $1\033[0m"; exit 1; }
 
 # Parse arguments
@@ -47,6 +49,10 @@ while [[ $# -gt 0 ]]; do
             DEPLOY_MAINTENANCE="false"
             shift
             ;;
+        --no-pin-secrets)
+            PIN_SECRETS="false"
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -56,6 +62,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-maintenance                  Skip deploying the internal maintenance-service"
             echo "  --only-maintenance                Deploy only the internal maintenance-service"
             echo "  --only-public                     Deploy only the public backend-service"
+            echo "  --no-pin-secrets                  Skip resolving and pinning concrete secret versions (fallback to :latest)"
             echo "  --help, -h                        Show this help message"
             exit 0
             ;;
@@ -102,6 +109,82 @@ if [[ ! -f "${SECRETS_CONFIG_FILE}" ]]; then
 fi
 
 source "${SECRETS_CONFIG_FILE}"
+
+# Array holding resolved secrets with environment-specific pinned versions (INFRA-03)
+RESOLVED_SECRETS=()
+
+# Helper function to dynamically resolve active secret versions per environment (INFRA-03)
+resolve_secret_versions() {
+    if [[ "${PIN_SECRETS}" != "true" ]]; then
+        print_status "Secret version pinning disabled (--no-pin-secrets). Retaining unpinned :latest."
+        RESOLVED_SECRETS=("${COMMON_SECRETS[@]}")
+        return 0
+    fi
+
+    print_status "Resolving active secret versions for environment [${ENV}] (Project: ${PROJECT_ID})..."
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+
+    local pids=()
+
+    for secret_entry in "${COMMON_SECRETS[@]}"; do
+        local secret_target="${secret_entry#*=}"
+        local secret_name="${secret_target%%:*}"
+        local configured_version="${secret_target##*:}"
+
+        # If already explicitly pinned to a concrete number, preserve it
+        if [[ -n "${configured_version:-}" && "${configured_version}" != "latest" ]]; then
+            echo "${configured_version}" > "${tmp_dir}/${secret_name}"
+            continue
+        fi
+
+        (
+            local version
+            version=$( (gcloud secrets versions describe "latest" \
+                --secret="${secret_name}" \
+                --project="${PROJECT_ID}" \
+                --format="value(name)" 2>/dev/null || true) | awk -F'/' '{print $NF}' )
+
+            if [[ -n "${version:-}" ]]; then
+                echo "${version}" > "${tmp_dir}/${secret_name}"
+            else
+                echo "latest" > "${tmp_dir}/${secret_name}"
+            fi
+        ) &
+        pids+=($!)
+    done
+
+    # Wait for all parallel background fetches
+    for pid in "${pids[@]}"; do
+        wait "${pid}" 2>/dev/null || true
+    done
+
+    local resolved_count=0
+    local fallback_count=0
+
+    for secret_entry in "${COMMON_SECRETS[@]}"; do
+        local env_var="${secret_entry%%=*}"
+        local secret_target="${secret_entry#*=}"
+        local secret_name="${secret_target%%:*}"
+
+        local version="latest"
+        if [[ -f "${tmp_dir}/${secret_name}" ]]; then
+            version="$(cat "${tmp_dir}/${secret_name}")"
+        fi
+
+        if [[ "${version}" != "latest" ]]; then
+            ((resolved_count++))
+        else
+            ((fallback_count++))
+            print_warning "Failed to resolve concrete version for secret [${secret_name}]. Falling back to unpinned :latest."
+        fi
+
+        RESOLVED_SECRETS+=("${env_var}=${secret_name}:${version}")
+    done
+
+    rm -rf "${tmp_dir}"
+    print_success "Secret versions resolved: ${resolved_count} pinned to concrete versions, ${fallback_count} unpinned (:latest)"
+}
 
 # Helper function to generate serialized environment variable string (^~^VAR1=VAL1~VAR2=VAL2)
 build_env_vars_string() {
@@ -219,8 +302,8 @@ deploy_cloud_run_service() {
     env_vars_str="$(build_env_vars_string "${swagger_enabled}")"
     gcloud_run_args+=(--set-env-vars="${env_vars_str}")
 
-    # Attach shared secrets
-    for secret in "${COMMON_SECRETS[@]}"; do
+    # Attach shared secrets (dynamically resolved/pinned per environment)
+    for secret in "${RESOLVED_SECRETS[@]}"; do
         gcloud_run_args+=(--update-secrets="${secret}")
     done
     gcloud_run_args+=(--remove-secrets="PUBSUB_VERIFICATION_TOKEN,ADMIN_USERNAME,ADMIN_PASSWORD")
@@ -261,6 +344,7 @@ deploy_maintenance_service() {
 main() {
     print_status "Starting deployment for ${SERVICE_NAME} in environment [${ENV}] (Commit: ${GIT_COMMIT})"
     build_image
+    resolve_secret_versions
     if [[ "${DEPLOY_PUBLIC}" == "true" ]]; then
         deploy_public_service
     fi

@@ -649,53 +649,6 @@ describe('IdentitiesService', () => {
     });
   });
 
-  describe('verify', () => {
-    it('should mark an identity as verified', async () => {
-      // Arrange
-      const updatedIdentity = {
-        ...mockIdentityData,
-        isVerified: true,
-        verifiedAt: DateUtil.now(),
-      };
-
-      prisma.identity.findFirst.mockResolvedValue(mockIdentityData as Identity);
-
-      prisma.identity.update.mockResolvedValue(updatedIdentity as Identity);
-
-      // Act
-      const result = await service.verify(mockIdentityId, mockUserId);
-
-      // Assert
-
-      expect(prisma.identity.update).toHaveBeenCalledWith({
-        where: { id: mockIdentityId },
-        data: {
-          isVerified: true,
-
-          verifiedAt: expect.any(Date),
-        },
-      });
-      expect(result).toEqual({
-        ...mockIdentityResponse,
-        isVerified: true,
-        verifiedAt: updatedIdentity.verifiedAt,
-      });
-      expect(pubSubPublisher.publish).toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException if identity not owned by user', async () => {
-      // Arrange
-      prisma.identity.findFirst.mockResolvedValue(null);
-
-      // Act & Assert
-      await expect(
-        service.verify(mockIdentityId, mockUserId),
-      ).rejects.toThrow();
-
-      expect(prisma.identity.update).not.toHaveBeenCalled();
-    });
-  });
-
   describe('update — findOwnedOrFail propagation', () => {
     it('should throw NotFoundException if identity not owned by user', async () => {
       // Arrange

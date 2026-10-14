@@ -1,10 +1,18 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConsentChannel, ConsentSource } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
+
+import { LoggerService } from '@core/logger';
+
+import {
+  ConsentLedgerQueryRequestDto,
+  PaginatedConsentLedgerResponseDto,
+  PreferencesResponseDto,
+  UpdatePreferencesRequestDto,
+} from '../dto';
 import { PreferencesController } from '../preferences.controller';
 import { PreferencesService } from '../preferences.service';
-import { PreferencesResponseDto, UpdatePreferencesRequestDto } from '../dto';
-import { LoggerService } from '@core/logger';
-import { ClsService } from 'nestjs-cls';
 
 describe('PreferencesController', () => {
   let controller: PreferencesController;
@@ -15,6 +23,26 @@ describe('PreferencesController', () => {
     whatsappEnabled: true,
     smsEnabled: true,
     emailEnabled: true,
+  };
+
+  const mockConsentHistory: PaginatedConsentLedgerResponseDto = {
+    data: [
+      {
+        id: 'consent-1',
+        channel: ConsentChannel.PUSH,
+        consentGranted: true,
+        source: ConsentSource.SIGNUP,
+        createdAt: new Date(),
+      },
+    ],
+    meta: {
+      page: 1,
+      limit: 20,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false,
+    },
   };
 
   beforeEach(async () => {
@@ -31,6 +59,7 @@ describe('PreferencesController', () => {
     const mockPreferencesService = {
       getPreferences: jest.fn().mockResolvedValue(mockPreferencesResponse),
       updatePreferences: jest.fn().mockResolvedValue(mockPreferencesResponse),
+      getConsentHistory: jest.fn().mockResolvedValue(mockConsentHistory),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -52,6 +81,15 @@ describe('PreferencesController', () => {
       const result = await controller.getPreferences('user-1');
       expect(service.getPreferences).toHaveBeenCalledWith('user-1');
       expect(result).toEqual(mockPreferencesResponse);
+    });
+  });
+
+  describe('getConsentHistory', () => {
+    it('should return paginated consent ledger history for user', async () => {
+      const query: ConsentLedgerQueryRequestDto = { page: 1, limit: 10 };
+      const result = await controller.getConsentHistory('user-1', query);
+      expect(service.getConsentHistory).toHaveBeenCalledWith('user-1', query);
+      expect(result).toEqual(mockConsentHistory);
     });
   });
 

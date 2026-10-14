@@ -1,16 +1,23 @@
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
-import { JwtAuthGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { PreferencesResponseDto, UpdatePreferencesRequestDto } from './dto';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
+import {
+  ConsentLedgerQueryRequestDto,
+  PaginatedConsentLedgerResponseDto,
+  PreferencesResponseDto,
+  UpdatePreferencesRequestDto,
+} from './dto';
 import { PreferencesService } from './preferences.service';
 
 /**
@@ -52,6 +59,29 @@ export class PreferencesController extends BaseController {
     @CurrentUserId() userId: string,
   ): Promise<PreferencesResponseDto> {
     return this.preferencesService.getPreferences(userId);
+  }
+
+  /**
+   * Retrieves the authenticated user's consent ledger history across all notification channels.
+   *
+   * Fulfills GDPR Article 7 auditability by returning an immutable, timestamped chronological log
+   * of consent state changes for the requesting user with standard pagination.
+   *
+   * @param userId - UUID of the authenticated user, extracted from the JWT.
+   * @param query - Pagination parameters and optional channel filter.
+   * @returns Paginated list of consent log entries ordered newest first with navigation metadata.
+   */
+  @Get('consents')
+  @ApiOperation({
+    summary: 'Get paginated consent ledger history for the authenticated user',
+  })
+  @ApiResponse({ type: PaginatedConsentLedgerResponseDto })
+  @SerializeExpose(PaginatedConsentLedgerResponseDto)
+  async getConsentHistory(
+    @CurrentUserId() userId: string,
+    @Query() query: ConsentLedgerQueryRequestDto,
+  ): Promise<PaginatedConsentLedgerResponseDto> {
+    return this.preferencesService.getConsentHistory(userId, query);
   }
 
   /**

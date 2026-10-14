@@ -75,6 +75,8 @@ export const envValidationSchema = Joi.object({
   DEFAULT_COUNTRY_CODE: Joi.string().length(2).uppercase().default('IN'),
   IPINFO_TOKEN: Joi.string().optional(),
   IPINFO_TIMEOUT_MS: Joi.number().integer().min(100).default(1500),
+  APPLE_BUNDLE_ID: Joi.string().default('com.breathaway.app'),
+  APPLE_ROOT_CA_PEM: Joi.string().optional(),
 
   // Email Notifications Provider & Credentials
   EMAIL_PROVIDER: Joi.string()

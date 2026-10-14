@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthCredentialType, IdentityType, User } from '@prisma/client';
 
+import { buildInitialConsentRecords } from '@common/utils/consent.utils';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -85,11 +86,17 @@ export class AuthCredentialService extends BaseService {
     let user: User;
     try {
       user = await this.prisma.$transaction(async (tx) => {
+        const ipAddress = this.cls?.get<string | undefined>('ipAddress');
+        const userAgent = this.cls?.get<string | undefined>('userAgent');
+
         const newUser = await tx.user.create({
           data: {
             countryCode: countryCode ?? null,
             notificationPreference: {
               create: {},
+            },
+            consentLedger: {
+              create: buildInitialConsentRecords({ ipAddress, userAgent }),
             },
           },
         });
