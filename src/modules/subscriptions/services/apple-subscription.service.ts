@@ -1,3 +1,5 @@
+import { X509Certificate, verify } from 'crypto';
+
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SubscriptionEventType } from '@prisma/client';
@@ -6,7 +8,13 @@ import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 
-interface AppleTransactionInfo {
+import { InvalidAppleJwsException } from '../application/exceptions';
+import {
+  APPLE_JWS_ALGORITHM,
+  APPLE_ROOT_CA_G3_PEM,
+} from '../constants/apple-root-ca.constant';
+
+export interface AppleTransactionInfo {
   originalTransactionId: string;
   transactionId: string;
   productId: string;
@@ -15,24 +23,44 @@ interface AppleTransactionInfo {
   currency?: string;
   price?: number;
   storefront?: string;
+  bundleId?: string;
+  environment?: string;
+  webOrderLineItemId?: string;
+  subscriptionGroupIdentifier?: string;
 }
 
-interface AppleRenewalInfo {
+export interface AppleRenewalInfo {
   autoRenewProductId: string;
   autoRenewStatus: number;
   expirationIntent?: number;
+  originalTransactionId?: string;
+  recentSubscriptionStartDate?: number;
+  signedDate?: number;
 }
 
-interface AppleJwsPayload extends Record<string, unknown> {
+export interface AppleJwsHeader {
+  alg: string;
+  x5c: string[];
+}
+
+export interface AppleJwsPayload extends Record<string, unknown> {
   notificationType: string;
   subtype?: string;
+  notificationUUID?: string;
   data?: {
+    appAppleId?: number;
+    bundleId?: string;
+    bundleVersion?: string;
+    environment?: string;
     signedTransactionInfo?: string;
     signedRenewalInfo?: string;
+    status?: number;
   };
+  version?: string;
+  signedDate?: number;
 }
 
-interface AppleNotificationPayload {
+export interface AppleNotificationPayload {
   notificationType: string;
   subtype?: string;
   transactionInfo: AppleTransactionInfo;
@@ -44,7 +72,8 @@ interface AppleNotificationPayload {
  * Integrates with Apple StoreKit 2 for Server-to-Server Notifications.
  *
  * Validates, decodes, and parses Apple's cryptographically signed JWS payloads,
- * translating App Store lifecycle events into our unified internal event schema.
+ * enforcing x5c certificate chain validation anchored to the official Apple Root CA - G3
+ * and ES256 cryptographic signature verification.
  */
 @Injectable()
 export class AppleSubscriptionService extends BaseService {
@@ -56,28 +85,35 @@ export class AppleSubscriptionService extends BaseService {
   }
 
   /**
-   * Decodes an Apple JWS webhook payload into strongly-typed objects.
+   * Decodes and cryptographically verifies an Apple JWS webhook notification.
    *
-   * Extracts the outer notification and decodes the embedded signedTransactionInfo
-   * and signedRenewalInfo objects.
+   * Verifies the outer notification JWS and recursively verifies the embedded
+   * signedTransactionInfo and signedRenewalInfo objects if present.
    *
    * @param signedPayload - The raw JWS string received from Apple.
-   * @returns The parsed notification data including nested transaction details.
+   * @returns The cryptographically verified and parsed notification payload.
+   * @throws {InvalidAppleJwsException} When JWS format, signature, or certificate chain is invalid.
    */
   parseNotification(signedPayload: string): AppleNotificationPayload {
-    const outerPayload = this.decodeJwsPayload<AppleJwsPayload>(signedPayload);
+    const outerPayload =
+      this.verifyAndDecodeJws<AppleJwsPayload>(signedPayload);
 
-    const transactionInfo = outerPayload.data?.signedTransactionInfo
-      ? this.decodeJwsPayload<AppleTransactionInfo>(
-          outerPayload.data.signedTransactionInfo,
-        )
-      : ({} as AppleTransactionInfo);
+    this.validateNotificationClaims(outerPayload);
 
-    const renewalInfo = outerPayload.data?.signedRenewalInfo
-      ? this.decodeJwsPayload<AppleRenewalInfo>(
-          outerPayload.data.signedRenewalInfo,
-        )
-      : ({} as AppleRenewalInfo);
+    let transactionInfo = {} as AppleTransactionInfo;
+    if (outerPayload.data?.signedTransactionInfo) {
+      transactionInfo = this.verifyAndDecodeJws<AppleTransactionInfo>(
+        outerPayload.data.signedTransactionInfo,
+      );
+      this.validateTransactionClaims(transactionInfo);
+    }
+
+    let renewalInfo = {} as AppleRenewalInfo;
+    if (outerPayload.data?.signedRenewalInfo) {
+      renewalInfo = this.verifyAndDecodeJws<AppleRenewalInfo>(
+        outerPayload.data.signedRenewalInfo,
+      );
+    }
 
     return {
       notificationType: outerPayload.notificationType,
@@ -86,6 +122,222 @@ export class AppleSubscriptionService extends BaseService {
       renewalInfo,
       rawPayload: outerPayload,
     };
+  }
+
+  /**
+   * Cryptographically verifies and decodes an Apple StoreKit 2 compact JWS token.
+   *
+   * 1. Validates JWS format (header.payload.signature).
+   * 2. Decodes header and validates algorithm (ES256) and x5c certificate chain presence.
+   * 3. Parses X.509 certificates and checks validity dates against current time.
+   * 4. Validates certificate chain signatures:
+   *    - Leaf certificate is signed by intermediate certificate.
+   *    - Intermediate certificate is signed by Apple Root CA - G3.
+   *    - Root certificate matches trusted Apple Root CA - G3 (fingerprint verification).
+   * 5. Validates ES256 cryptographic signature using the leaf certificate's public key.
+   * 6. Parses and returns the verified JSON payload.
+   *
+   * @param jws - Compact JWS string received from Apple.
+   * @returns Cryptographically verified and decoded payload object.
+   * @throws {InvalidAppleJwsException} When JWS format, signature, or certificate chain is invalid.
+   */
+  verifyAndDecodeJws<T = Record<string, unknown>>(jws: string): T {
+    if (!jws || typeof jws !== 'string') {
+      throw new InvalidAppleJwsException(
+        'JWS token must be a non-empty string',
+      );
+    }
+
+    const parts = jws.split('.');
+    if (parts.length !== 3) {
+      this.logger.warn(
+        'Invalid JWS format: expected 3 parts separated by dots',
+        { partsCount: parts.length, step: 'verify_jws' },
+      );
+      throw new InvalidAppleJwsException(
+        `Invalid JWS format: expected 3 parts separated by dots, received ${parts.length}`,
+      );
+    }
+
+    const [headerB64, payloadB64, signatureB64] = parts;
+
+    // 1. Decode header
+    let header: AppleJwsHeader;
+    try {
+      const headerJson = Buffer.from(headerB64, 'base64url').toString('utf8');
+      header = JSON.parse(headerJson) as AppleJwsHeader;
+    } catch (error) {
+      this.logger.error('Failed to parse JWS header JSON', {
+        step: 'verify_jws_header',
+        err: serializeError(error),
+      });
+      throw new InvalidAppleJwsException('Failed to parse JWS header');
+    }
+
+    // 2. Validate algorithm
+    if (header.alg !== APPLE_JWS_ALGORITHM) {
+      this.logger.warn('Unsupported JWS algorithm in Apple token', {
+        alg: header.alg,
+        expected: APPLE_JWS_ALGORITHM,
+        step: 'verify_jws_alg',
+      });
+      throw new InvalidAppleJwsException(
+        `Unsupported JWS algorithm: expected ${APPLE_JWS_ALGORITHM}, received ${header.alg}`,
+      );
+    }
+
+    // 3. Validate x5c certificate chain
+    if (!header.x5c || !Array.isArray(header.x5c) || header.x5c.length < 2) {
+      this.logger.warn('Missing or insufficient x5c certificate chain in JWS', {
+        x5cLength: header.x5c ? header.x5c.length : 0,
+        step: 'verify_jws_x5c',
+      });
+      throw new InvalidAppleJwsException(
+        'Invalid JWS header: x5c certificate chain must contain at least 2 certificates',
+      );
+    }
+
+    let certs: X509Certificate[];
+    try {
+      certs = header.x5c.map(
+        (derB64) => new X509Certificate(Buffer.from(derB64, 'base64')),
+      );
+    } catch (error) {
+      this.logger.error('Failed to parse X.509 certificates from x5c chain', {
+        step: 'parse_x5c_certificates',
+        err: serializeError(error),
+      });
+      throw new InvalidAppleJwsException(
+        'Failed to parse X.509 certificates from x5c chain',
+      );
+    }
+
+    // 4. Check certificate validity dates
+    const now = Date.now();
+    for (const [index, cert] of certs.entries()) {
+      const validFrom = new Date(cert.validFrom).getTime();
+      const validTo = new Date(cert.validTo).getTime();
+      if (now < validFrom || now > validTo) {
+        this.logger.warn(
+          'Certificate in x5c chain has expired or is not yet valid',
+          {
+            certIndex: index,
+            validFrom: cert.validFrom,
+            validTo: cert.validTo,
+            step: 'verify_cert_dates',
+          },
+        );
+        throw new InvalidAppleJwsException(
+          `Certificate at index ${index} in x5c chain is expired or not yet valid`,
+        );
+      }
+    }
+
+    // 5. Verify certificate chain of trust
+    const leafCert = certs[0];
+    const intermediateCert = certs[1];
+
+    if (!leafCert.verify(intermediateCert.publicKey)) {
+      this.logger.warn(
+        'Leaf certificate is not signed by intermediate certificate',
+        { step: 'verify_leaf_signature' },
+      );
+      throw new InvalidAppleJwsException(
+        'Leaf certificate is not cryptographically signed by intermediate certificate',
+      );
+    }
+
+    // Trusted Root Certificate: defaults to official Apple Root CA - G3
+    const trustedRootPem =
+      this.configService.get<string>('APPLE_ROOT_CA_PEM') ||
+      APPLE_ROOT_CA_G3_PEM;
+    const trustedRootCert = new X509Certificate(trustedRootPem);
+
+    if (certs.length >= 3) {
+      const rootCertInChain = certs[certs.length - 1];
+
+      // Verify that the root certificate in x5c matches the trusted Apple Root CA
+      const chainRootFp = rootCertInChain.fingerprint256.toUpperCase();
+      const trustedRootFp = trustedRootCert.fingerprint256.toUpperCase();
+
+      if (chainRootFp !== trustedRootFp) {
+        this.logger.warn(
+          'Root certificate in x5c chain does not match trusted Apple Root CA',
+          {
+            chainRootFp,
+            trustedRootFp,
+            step: 'verify_root_anchor',
+          },
+        );
+        throw new InvalidAppleJwsException(
+          `Root certificate fingerprint (${chainRootFp}) does not match trusted Apple Root CA (${trustedRootFp})`,
+        );
+      }
+
+      if (!intermediateCert.verify(rootCertInChain.publicKey)) {
+        this.logger.warn(
+          'Intermediate certificate is not signed by root certificate in x5c chain',
+          { step: 'verify_intermediate_signature' },
+        );
+        throw new InvalidAppleJwsException(
+          'Intermediate certificate is not cryptographically signed by root certificate',
+        );
+      }
+    } else {
+      // Root was omitted from x5c; verify intermediate directly against trusted Apple Root CA
+      if (!intermediateCert.verify(trustedRootCert.publicKey)) {
+        this.logger.warn(
+          'Intermediate certificate is not signed by trusted Apple Root CA',
+          { step: 'verify_intermediate_against_root' },
+        );
+        throw new InvalidAppleJwsException(
+          'Intermediate certificate is not cryptographically signed by trusted Apple Root CA',
+        );
+      }
+    }
+
+    // 6. Verify JWS cryptographic signature over `${headerB64}.${payloadB64}`
+    const signingInput = `${headerB64}.${payloadB64}`;
+    const signature = Buffer.from(signatureB64, 'base64url');
+
+    if (signature.length !== 64) {
+      this.logger.warn('Invalid JWS signature length for ES256', {
+        signatureLength: signature.length,
+        step: 'verify_jws_signature',
+      });
+      throw new InvalidAppleJwsException(
+        `Invalid JWS signature length: expected 64 bytes for ES256, received ${signature.length}`,
+      );
+    }
+
+    const isValidSignature = verify(
+      'sha256',
+      Buffer.from(signingInput, 'utf8'),
+      {
+        key: leafCert.publicKey,
+        dsaEncoding: 'ieee-p1363',
+      },
+      signature,
+    );
+
+    if (!isValidSignature) {
+      this.logger.warn('JWS signature verification failed', {
+        step: 'verify_jws_signature',
+      });
+      throw new InvalidAppleJwsException('JWS signature verification failed');
+    }
+
+    // 7. Parse verified payload
+    try {
+      const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8');
+      return JSON.parse(payloadJson) as T;
+    } catch (error) {
+      this.logger.error('Failed to parse verified JWS payload JSON', {
+        step: 'parse_jws_payload',
+        err: serializeError(error),
+      });
+      throw new InvalidAppleJwsException('Failed to parse JWS payload JSON');
+    }
   }
 
   /**
@@ -151,30 +403,57 @@ export class AppleSubscriptionService extends BaseService {
     }
   }
 
-  private decodeJwsPayload<T = Record<string, unknown>>(jws: string): T {
-    const parts = jws.split('.');
+  // ──────────────────────────────────────────────
+  // Private validation helpers
+  // ──────────────────────────────────────────────
 
-    if (parts.length !== 3) {
-      this.logger.warn(
-        'Invalid JWS format: expected 3 parts separated by dots',
-        { step: 'decode_jws' },
+  private validateNotificationClaims(payload: AppleJwsPayload): void {
+    if (
+      !payload.notificationType ||
+      typeof payload.notificationType !== 'string'
+    ) {
+      throw new InvalidAppleJwsException(
+        'Missing or invalid notificationType in JWS payload',
       );
-      return {} as T;
     }
 
-    const payload = parts[1];
-
-    // Base64url → Base64 conversion
-    try {
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const json = Buffer.from(base64, 'base64').toString('utf-8');
-      return JSON.parse(json) as T;
-    } catch (error) {
-      this.logger.error('Failed to parse decoded JWS JSON', {
-        step: 'decode_jws',
-        err: serializeError(error),
+    const expectedBundleId = this.configService.get<string>('APPLE_BUNDLE_ID');
+    if (
+      expectedBundleId &&
+      payload.data?.bundleId &&
+      payload.data.bundleId !== expectedBundleId
+    ) {
+      this.logger.warn('Mismatched Apple notification bundleId', {
+        expected: expectedBundleId,
+        received: payload.data.bundleId,
+        step: 'validate_notification_claims',
       });
-      throw error;
+      throw new InvalidAppleJwsException(
+        `Mismatched bundleId: expected ${expectedBundleId}, received ${payload.data.bundleId}`,
+      );
+    }
+
+    if (payload.data?.environment) {
+      const env = payload.data.environment;
+      if (env !== 'Sandbox' && env !== 'Production') {
+        throw new InvalidAppleJwsException(
+          `Invalid environment in JWS payload: ${env}`,
+        );
+      }
+    }
+  }
+
+  private validateTransactionClaims(tx: AppleTransactionInfo): void {
+    const expectedBundleId = this.configService.get<string>('APPLE_BUNDLE_ID');
+    if (expectedBundleId && tx.bundleId && tx.bundleId !== expectedBundleId) {
+      this.logger.warn('Mismatched Apple transaction bundleId', {
+        expected: expectedBundleId,
+        received: tx.bundleId,
+        step: 'validate_transaction_claims',
+      });
+      throw new InvalidAppleJwsException(
+        `Mismatched transaction bundleId: expected ${expectedBundleId}, received ${tx.bundleId}`,
+      );
     }
   }
 }
