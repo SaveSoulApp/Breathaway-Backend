@@ -8,7 +8,8 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
-  ConsentLedgerResponseDto,
+  ConsentLedgerQueryRequestDto,
+  PaginatedConsentLedgerResponseDto,
   PreferencesResponseDto,
   UpdatePreferencesRequestDto,
 } from './dto';
@@ -266,35 +267,67 @@ export class PreferencesService extends BaseService {
   }
 
   /**
-   * Retrieves the immutable consent ledger history for a user, ordered from newest to oldest.
+   * Retrieves paginated consent ledger history for a user, ordered from newest to oldest.
    *
    * @param userId - UUID of the user whose consent history to retrieve.
-   * @returns Chronological list of consent grant and revocation events.
+   * @param query - Pagination options (page, limit) and optional channel filter.
+   * @returns Paginated list of consent grant and revocation events with metadata.
    */
-  async getConsentHistory(userId: string): Promise<ConsentLedgerResponseDto[]> {
-    const ctx = { userId };
+  async getConsentHistory(
+    userId: string,
+    query?: ConsentLedgerQueryRequestDto,
+  ): Promise<PaginatedConsentLedgerResponseDto> {
+    const page = Math.max(1, query?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query?.limit ?? 20));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ConsentLedgerWhereInput = {
+      userId,
+      ...(query?.channel && { channel: query.channel }),
+    };
+
+    const ctx = { userId, page, limit, channel: query?.channel };
     this.logger.debug('Fetching consent ledger history', {
       ...ctx,
       step: 'fetch_consent_history',
     });
 
-    const history = await this.prisma.consentLedger.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        channel: true,
-        consentGranted: true,
-        source: true,
-        createdAt: true,
-      },
-    });
+    const [total, data] = await Promise.all([
+      this.prisma.consentLedger.count({ where }),
+      this.prisma.consentLedger.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          channel: true,
+          consentGranted: true,
+          source: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
 
     this.logger.debug('Consent ledger history fetched successfully', {
       ...ctx,
       step: 'complete',
-      count: history.length,
+      total,
+      count: data.length,
     });
-    return history;
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 }

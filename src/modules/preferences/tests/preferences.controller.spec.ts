@@ -6,7 +6,8 @@ import { ClsService } from 'nestjs-cls';
 import { LoggerService } from '@core/logger';
 
 import {
-  ConsentLedgerResponseDto,
+  ConsentLedgerQueryRequestDto,
+  PaginatedConsentLedgerResponseDto,
   PreferencesResponseDto,
   UpdatePreferencesRequestDto,
 } from '../dto';
@@ -24,15 +25,25 @@ describe('PreferencesController', () => {
     emailEnabled: true,
   };
 
-  const mockConsentHistory: ConsentLedgerResponseDto[] = [
-    {
-      id: 'consent-1',
-      channel: ConsentChannel.PUSH,
-      consentGranted: true,
-      source: ConsentSource.SIGNUP,
-      createdAt: new Date(),
+  const mockConsentHistory: PaginatedConsentLedgerResponseDto = {
+    data: [
+      {
+        id: 'consent-1',
+        channel: ConsentChannel.PUSH,
+        consentGranted: true,
+        source: ConsentSource.SIGNUP,
+        createdAt: new Date(),
+      },
+    ],
+    meta: {
+      page: 1,
+      limit: 20,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false,
     },
-  ];
+  };
 
   beforeEach(async () => {
     const loggerServiceMock = {
@@ -74,9 +85,10 @@ describe('PreferencesController', () => {
   });
 
   describe('getConsentHistory', () => {
-    it('should return consent ledger history for user', async () => {
-      const result = await controller.getConsentHistory('user-1');
-      expect(service.getConsentHistory).toHaveBeenCalledWith('user-1');
+    it('should return paginated consent ledger history for user', async () => {
+      const query: ConsentLedgerQueryRequestDto = { page: 1, limit: 10 };
+      const result = await controller.getConsentHistory('user-1', query);
+      expect(service.getConsentHistory).toHaveBeenCalledWith('user-1', query);
       expect(result).toEqual(mockConsentHistory);
     });
   });

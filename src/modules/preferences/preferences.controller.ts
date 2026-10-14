@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -13,7 +13,8 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import {
-  ConsentLedgerResponseDto,
+  ConsentLedgerQueryRequestDto,
+  PaginatedConsentLedgerResponseDto,
   PreferencesResponseDto,
   UpdatePreferencesRequestDto,
 } from './dto';
@@ -64,21 +65,23 @@ export class PreferencesController extends BaseController {
    * Retrieves the authenticated user's consent ledger history across all notification channels.
    *
    * Fulfills GDPR Article 7 auditability by returning an immutable, timestamped chronological log
-   * of consent state changes for the requesting user.
+   * of consent state changes for the requesting user with standard pagination.
    *
    * @param userId - UUID of the authenticated user, extracted from the JWT.
-   * @returns List of consent log entries ordered newest first.
+   * @param query - Pagination parameters and optional channel filter.
+   * @returns Paginated list of consent log entries ordered newest first with navigation metadata.
    */
   @Get('consents')
   @ApiOperation({
-    summary: 'Get consent ledger history for the authenticated user',
+    summary: 'Get paginated consent ledger history for the authenticated user',
   })
-  @ApiResponse({ type: [ConsentLedgerResponseDto] })
-  @SerializeExpose(ConsentLedgerResponseDto)
+  @ApiResponse({ type: PaginatedConsentLedgerResponseDto })
+  @SerializeExpose(PaginatedConsentLedgerResponseDto)
   async getConsentHistory(
     @CurrentUserId() userId: string,
-  ): Promise<ConsentLedgerResponseDto[]> {
-    return this.preferencesService.getConsentHistory(userId);
+    @Query() query: ConsentLedgerQueryRequestDto,
+  ): Promise<PaginatedConsentLedgerResponseDto> {
+    return this.preferencesService.getConsentHistory(userId, query);
   }
 
   /**

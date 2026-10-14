@@ -205,7 +205,7 @@ describe('PreferencesService', () => {
   });
 
   describe('getConsentHistory', () => {
-    it('should return consent ledger entries ordered by createdAt desc', async () => {
+    it('should return paginated consent ledger entries with pagination metadata', async () => {
       const mockHistory: ConsentLedgerResponseDto[] = [
         {
           id: 'ledger-2',
@@ -223,13 +223,22 @@ describe('PreferencesService', () => {
         },
       ];
 
+      prisma.consentLedger.count.mockResolvedValue(2);
       prisma.consentLedger.findMany.mockResolvedValue(mockHistory as any);
 
-      const result = await service.getConsentHistory(userId);
+      const result = await service.getConsentHistory(userId, {
+        page: 1,
+        limit: 10,
+      });
 
+      expect(prisma.consentLedger.count).toHaveBeenCalledWith({
+        where: { userId },
+      });
       expect(prisma.consentLedger.findMany).toHaveBeenCalledWith({
         where: { userId },
         orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 10,
         select: {
           id: true,
           channel: true,
@@ -238,8 +247,42 @@ describe('PreferencesService', () => {
           createdAt: true,
         },
       });
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('ledger-2');
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].id).toBe('ledger-2');
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 10,
+        total: 2,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
+    });
+
+    it('should filter by channel when channel is provided', async () => {
+      prisma.consentLedger.count.mockResolvedValue(1);
+      prisma.consentLedger.findMany.mockResolvedValue([]);
+
+      await service.getConsentHistory(userId, {
+        channel: ConsentChannel.PUSH,
+      });
+
+      expect(prisma.consentLedger.count).toHaveBeenCalledWith({
+        where: { userId, channel: ConsentChannel.PUSH },
+      });
+      expect(prisma.consentLedger.findMany).toHaveBeenCalledWith({
+        where: { userId, channel: ConsentChannel.PUSH },
+        orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 20,
+        select: {
+          id: true,
+          channel: true,
+          consentGranted: true,
+          source: true,
+          createdAt: true,
+        },
+      });
     });
   });
 });
