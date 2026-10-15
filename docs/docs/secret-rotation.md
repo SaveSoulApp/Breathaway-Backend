@@ -112,7 +112,7 @@ Before touching Secret Manager, determine the secret category and its transition
 | **Webhook HMAC Secrets**    | `RAZORPAY_WEBHOOK_SECRET`, `META_APP_SECRET`            | Add new secret version, then update webhook signing secret in provider | Yes (or instant transition)                      |
 | **Database Credentials**    | `DATABASE_URL` (PostgreSQL / Cloud SQL)                 | Create secondary DB user or update password during maintenance         | Recommended (dual DB users)                      |
 | **Authentication & Tokens** | `JWT_SECRET`, `SUPABASE_JWT_PRIVATE_KEY`                | Deploy new key; consider session rollover                              | Yes (if instant logout is unacceptable)          |
-| **Symmetric Master Keys**   | `GCP_SECRET_MASTER_KEYS`, `ACTIVE_MASTER_KEY_ID`        | Add new key to JSON ring; update active ID pointer                     | Yes (key ring retains older keys for decryption) |
+| **Symmetric Master Keys**   | `GCP_SECRET_MASTER_KEYS`, `GCP_SECRET_CHAT_MASTER_KEYS` | Add new key to JSON ring; update active ID pointer                     | Yes (key ring retains older keys for decryption) |
 
 #### Pre-Flight IAM Check:
 
@@ -379,12 +379,57 @@ BreathAway uses envelope encryption with an active key ring stored in Secret Man
    - Add new version of `gcp-secret-master-keys` with the updated JSON.
    - Add new version of `active-master-key-id` containing `key-2026-10`.
 5. **Deploy**:
+
    ```bash
    ./scripts/deploy.sh --env=prod
    ```
 
    - New encryption writes use `key-2026-10`.
    - Existing ciphertext encrypted under `key-2026-01` continues to decrypt seamlessly because `key-2026-01` remains in the key ring.
+
+---
+
+### Recipe 2B: Chat Master Encryption Keys (`GCP_SECRET_CHAT_MASTER_KEYS` & `ACTIVE_CHAT_MASTER_KEY_ID`)
+
+Chat message encryption uses room-level DEKs wrapped by a dedicated chat master key in Secret Manager (remediating audit finding `DB-01`):
+
+1. **Generate New 256-bit AES Master Key**:
+
+   ```bash
+   openssl rand -base64 32
+   # Or using Node.js:
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   # Output: e.g. "xK9mP2vL8wQ4yR7tU1sO5nA3cE6gH8jK0mP4rT6vX8w="
+   ```
+
+2. **Fetch Current Chat Master Keys JSON**:
+
+   ```bash
+   gcloud secrets versions access latest --secret=gcp-secret-chat-master-keys --project="${PROJECT_ID}" > chat_keys.json
+   ```
+
+3. **Append New Key Version (e.g. `chat-v2`)**:
+   Edit `chat_keys.json` to keep existing keys for historical rooms while introducing the new key:
+
+   ```json
+   {
+     "chat-v1": "previous-base64-key...",
+     "chat-v2": "xK9mP2vL8wQ4yR7tU1sO5nA3cE6gH8jK0mP4rT6vX8w="
+   }
+   ```
+
+4. **Publish New Secret Versions**:
+   - Add new version of `gcp-secret-chat-master-keys` containing the updated JSON.
+   - Add new version of `active-chat-master-key-id` containing `chat-v2`.
+
+5. **Deploy**:
+
+   ```bash
+   ./scripts/deploy.sh --env=prod
+   ```
+
+   - All newly created rooms will have their DEKs wrapped using `chat-v2` (`roomKeyId: "chat-v2"`).
+   - Existing rooms wrapped with `chat-v1` will continue to unwrap and decrypt seamlessly because `chat-v1` remains in the key map.
 
 ---
 
