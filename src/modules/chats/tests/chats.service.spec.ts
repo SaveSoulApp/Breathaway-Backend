@@ -327,6 +327,14 @@ describe('ChatsService', () => {
       expect(result.roomId).toBe('room-1');
       expect(typeof result.key).toBe('string');
       expect(result.algorithm).toBe('AES-GCM-256');
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        'CHAT_ROOM_KEY_ACCESSED',
+        {
+          userId: 'user-1',
+          roomId: 'room-1',
+          algorithm: 'AES-GCM-256',
+        },
+      );
     });
 
     it('should bypass room query and return key when ChatRoomRecord is passed directly', async () => {

@@ -203,6 +203,12 @@ export class ChatsService extends BaseService {
 
     const roomKey = this.getOrUnwrapRoomKey(room);
 
+    this.logger.event(LOG_EVENT.CHAT_ROOM_KEY_ACCESSED, {
+      userId,
+      roomId,
+      algorithm: 'AES-GCM-256',
+    });
+
     return {
       roomId,
       key: roomKey.toString('base64'),

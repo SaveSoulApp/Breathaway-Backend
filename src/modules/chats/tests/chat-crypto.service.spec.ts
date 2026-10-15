@@ -309,6 +309,53 @@ describe('ChatCryptoService', () => {
         InternalServerErrorException,
       );
     });
+
+    it('should fail gracefully throwing InternalServerErrorException when decrypted with an incorrect key', () => {
+      const correctRoomKey = service.generateRoomKey();
+      const incorrectRoomKey = service.generateRoomKey();
+      const sensitiveText = 'Top-secret message content';
+
+      const encrypted = service.encryptMessage(sensitiveText, correctRoomKey);
+
+      expect(() => service.decryptMessage(encrypted, incorrectRoomKey)).toThrow(
+        InternalServerErrorException,
+      );
+
+      expect(() => service.decryptMessage(encrypted, incorrectRoomKey)).toThrow(
+        'Failed to decrypt message content',
+      );
+
+      expect(loggerService.error).toHaveBeenCalledWith(
+        'Failed to decrypt message content',
+        expect.objectContaining({
+          step: 'decrypt_message',
+          err: expect.any(Object),
+        }),
+      );
+    });
+
+    it('should maintain consistent execution without leaking timing or internal tag details when key or tag is mismatched', () => {
+      const correctKey = service.generateRoomKey();
+      const wrongKey = service.generateRoomKey();
+      const encrypted = service.encryptMessage(
+        'Test timing consistency',
+        correctKey,
+      );
+
+      // Decryption with wrong key must throw sanitized generic exception
+      try {
+        service.decryptMessage(encrypted, wrongKey);
+        fail('Expected decryptMessage to throw');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(InternalServerErrorException);
+        const exception = err as InternalServerErrorException;
+        // Verify no raw crypto internal state or sensitive ciphertext is exposed in the exception message
+        expect(exception.message).toBe('Failed to decrypt message content');
+        expect(exception.message).not.toContain('auth');
+        expect(exception.message).not.toContain('tag');
+        expect(exception.message).not.toContain('cipher');
+      }
+    });
   });
 
   describe('isEncryptedMessage', () => {
