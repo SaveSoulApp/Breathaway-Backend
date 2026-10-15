@@ -26,6 +26,7 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import { ChatsService } from './chats.service';
+import { CurrentChatRoom } from './decorators';
 import {
   ChatMessagesResponseDto,
   ChatRoomKeyResponseDto,
@@ -40,6 +41,8 @@ import {
   MessageResponseDto,
   SupabaseTokenResponseDto,
 } from './dto';
+import { ChatRoomParticipantGuard } from './guards';
+import type { ChatRoomRecord } from './interfaces';
 import { SupabaseAuthService } from './services/supabase-auth.service';
 
 @ApiTags('Chats')
@@ -88,6 +91,7 @@ export class ChatsController extends BaseController {
   }
 
   @Post(':roomId/messages/read')
+  @UseGuards(ChatRoomParticipantGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark messages as read' })
   @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
@@ -99,10 +103,10 @@ export class ChatsController extends BaseController {
   @SerializeExpose(MarkMessagesReadResponseDto)
   async markMessagesRead(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Body() dto: MarkMessageReadRequestDto,
   ) {
-    await this.chatsService.markMessageRead(userId, roomId, dto);
+    await this.chatsService.markMessageRead(userId, room, dto);
     return { success: true };
   }
 
@@ -122,6 +126,7 @@ export class ChatsController extends BaseController {
   }
 
   @Get(':roomId/messages')
+  @UseGuards(ChatRoomParticipantGuard)
   @ApiOperation({ summary: 'Get chat messages with cursor pagination' })
   @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
   @ApiResponse({
@@ -132,13 +137,14 @@ export class ChatsController extends BaseController {
   @SerializeExpose(ChatMessagesResponseDto)
   async getMessages(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Query() query: GetMessagesRequestDto,
   ) {
-    return this.chatsService.getMessages(userId, roomId, query);
+    return this.chatsService.getMessages(userId, room, query);
   }
 
   @Get(':roomId/key')
+  @UseGuards(ChatRoomParticipantGuard)
   @ApiOperation({
     summary: 'Get unwrapped room encryption key for message decryption',
     description:
@@ -153,12 +159,13 @@ export class ChatsController extends BaseController {
   @SerializeExpose(ChatRoomKeyResponseDto)
   async getRoomKey(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
   ) {
-    return this.chatsService.getRoomKey(userId, roomId);
+    return this.chatsService.getRoomKey(userId, room);
   }
 
   @Delete(':roomId/messages')
+  @UseGuards(ChatRoomParticipantGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete chat messages (batch or single)',
@@ -174,13 +181,14 @@ export class ChatsController extends BaseController {
   @SerializeExpose(DeleteMessagesResponseDto)
   async deleteMessages(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Body() dto: DeleteMessagesRequestDto,
   ) {
-    return this.chatsService.deleteMessages(userId, roomId, dto);
+    return this.chatsService.deleteMessages(userId, room, dto);
   }
 
   @Delete(':roomId/messages/:messageId')
+  @UseGuards(ChatRoomParticipantGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete a single chat message',
@@ -197,10 +205,10 @@ export class ChatsController extends BaseController {
   @SerializeExpose(DeleteMessagesResponseDto)
   async deleteSingleMessage(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Param('messageId', new ParseUUIDPipe()) messageId: string,
   ) {
-    return this.chatsService.deleteMessages(userId, roomId, {
+    return this.chatsService.deleteMessages(userId, room, {
       messageIds: [messageId],
     });
   }

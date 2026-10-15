@@ -9,12 +9,21 @@ import { DeleteMessagesRequestDto } from '../dto/request/delete-messages.request
 import { GetMessagesRequestDto } from '../dto/request/get-messages.request.dto';
 import { GetRoomsRequestDto } from '../dto/request/get-rooms.request.dto';
 import { MarkMessageReadRequestDto } from '../dto/request/mark-message-read.request.dto';
+import { ChatRoomRecord } from '../interfaces';
 import { SupabaseAuthService } from '../services/supabase-auth.service';
 
 describe('ChatsController', () => {
   let controller: ChatsController;
   let chatsService: jest.Mocked<ChatsService>;
   let supabaseAuthService: jest.Mocked<SupabaseAuthService>;
+
+  const mockRoom: ChatRoomRecord = {
+    id: 'room-1',
+    userOneId: 'user-1',
+    userTwoId: 'user-2',
+    wrappedRoomKey: 'd3JhcHBlZEtleQ==',
+    roomKeyId: 'chat_v1',
+  };
 
   beforeEach(async () => {
     const mockChatsService = {
@@ -89,13 +98,13 @@ describe('ChatsController', () => {
 
       const result = await controller.markMessagesRead(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
 
       expect(chatsService.markMessageRead).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
       expect(result).toEqual({ success: true });
@@ -138,13 +147,13 @@ describe('ChatsController', () => {
 
       const result = await controller.getMessages(
         'user-1',
-        'room-1',
+        mockRoom,
         mockQuery,
       );
 
       expect(chatsService.getMessages).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         mockQuery,
       );
       expect(result).toEqual(mockResponse);
@@ -161,9 +170,9 @@ describe('ChatsController', () => {
 
       chatsService.getRoomKey.mockResolvedValue(mockResponse as any);
 
-      const result = await controller.getRoomKey('user-1', 'room-1');
+      const result = await controller.getRoomKey('user-1', mockRoom);
 
-      expect(chatsService.getRoomKey).toHaveBeenCalledWith('user-1', 'room-1');
+      expect(chatsService.getRoomKey).toHaveBeenCalledWith('user-1', mockRoom);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -179,13 +188,13 @@ describe('ChatsController', () => {
 
       const result = await controller.deleteMessages(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
 
       expect(chatsService.deleteMessages).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
       expect(result).toEqual(mockResponse);
@@ -200,13 +209,13 @@ describe('ChatsController', () => {
 
       const result = await controller.deleteSingleMessage(
         'user-1',
-        'room-1',
+        mockRoom,
         'msg-1',
       );
 
       expect(chatsService.deleteMessages).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         { messageIds: ['msg-1'] },
       );
       expect(result).toEqual(mockResponse);

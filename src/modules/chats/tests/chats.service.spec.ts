@@ -27,6 +27,7 @@ import {
 } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
 import { CHAT_MESSAGE_SENT_EVENT } from '../events';
+import { ChatRoomRecord } from '../interfaces';
 import { ChatCryptoService } from '../services/chat-crypto.service';
 import * as chatUtils from '../utils/chats.utils';
 
@@ -324,6 +325,25 @@ describe('ChatsService', () => {
       const result = await service.getRoomKey('user-1', 'room-1');
 
       expect(result.roomId).toBe('room-1');
+      expect(typeof result.key).toBe('string');
+      expect(result.algorithm).toBe('AES-GCM-256');
+    });
+
+    it('should bypass room query and return key when ChatRoomRecord is passed directly', async () => {
+      const mockRecord: ChatRoomRecord = {
+        id: 'room-prevalidated',
+        userOneId: 'user-1',
+        userTwoId: 'user-2',
+        wrappedRoomKey: 'mock-wrapped-key',
+        roomKeyId: 'chat-v1',
+      };
+
+      blocksService.isBlocked.mockResolvedValueOnce(false);
+
+      const result = await service.getRoomKey('user-1', mockRecord);
+
+      expect(mockChatRoomQuery.single).not.toHaveBeenCalled();
+      expect(result.roomId).toBe('room-prevalidated');
       expect(typeof result.key).toBe('string');
       expect(result.algorithm).toBe('AES-GCM-256');
     });

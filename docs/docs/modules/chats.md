@@ -23,33 +23,27 @@ The `ChatsModule` owns user-to-user 1:1 real-time messaging, conversation histor
 
 ## 🔒 Critical Security & Safety Invariants
 
-### 1. IDOR Defense (`assertRoomParticipant`)
+### 1. IDOR Defense (`ChatRoomParticipantGuard` & `assertRoomParticipant`)
 
 Insecure Direct Object Reference (IDOR) vulnerabilities occur when an API endpoint relies solely on a user-provided resource ID without verifying ownership.
 
 Because `ChatRoom.id` is a UUID that could be logged, intercepted, or leaked, **the backend never assumes a caller is allowed to view or mutate a room based solely on its UUID**.
 
-Before executing message retrieval (`GET /chats/:roomId/messages`) or marking messages as read (`POST /chats/:roomId/messages/read`), `ChatsService` executes `assertRoomParticipant(userId, roomId)`:
+All `:roomId`-scoped routes are protected at the perimeter by **`ChatRoomParticipantGuard`**:
+- `POST /chats/:roomId/messages/read`
+- `GET /chats/:roomId/messages`
+- `GET /chats/:roomId/key`
+- `DELETE /chats/:roomId/messages`
+- `DELETE /chats/:roomId/messages/:messageId`
 
-```typescript
-// Fetches the room and verifies the caller is userOneId or userTwoId
-const room = await this.supabase
-  .from('ChatRoom')
-  .select('id, userOneId, userTwoId')
-  .eq('id', roomId)
-  .single();
-
-if (!room) {
-  throw new ChatRoomNotFoundException(roomId); // 404 Not Found
-}
-
-if (room.userOneId !== userId && room.userTwoId !== userId) {
-  throw new ChatRoomAccessForbiddenException(roomId); // 403 Forbidden
-}
-```
-
-- **HTTP 404 Not Found**: Thrown when the room does not exist (`CHAT_ROOM_NOT_FOUND`).
-- **HTTP 403 Forbidden**: Thrown when an authenticated user attempts to access a conversation they are not a participant in (`CHAT_ROOM_ACCESS_FORBIDDEN`).
+#### Guard Execution Pipeline:
+1. Intercepts the request before pipes, interceptors, or controller handlers run.
+2. Extracts `userId` from `request.user.userId` (injected by `JwtAuthGuard`) and `roomId` from `request.params.roomId`.
+3. Calls `ChatsService.assertRoomParticipant(userId, roomId)`:
+   - Throws `ChatRoomNotFoundException` (`404 Not Found`) if the room does not exist.
+   - Throws `ChatRoomAccessForbiddenException` (`403 Forbidden`) if caller is not `userOneId` or `userTwoId`.
+4. Attaches the validated room record to `request.chatRoom` (`Express.Request`).
+5. Handlers inject `@CurrentChatRoom() room: ChatRoomRecord`, receiving the pre-validated room entity with **zero duplicate database queries**.
 
 ---
 
@@ -325,6 +319,8 @@ All exceptions return standard RFC 7807 `application/problem+json` error respons
 - **Service**: [`src/modules/chats/chats.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/chats.service.ts)
 - **Cryptography Service**: [`src/modules/chats/services/chat-crypto.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/services/chat-crypto.service.ts)
 - **Token Service**: [`src/modules/chats/services/supabase-auth.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/services/supabase-auth.service.ts)
+- **IDOR Guard**: [`src/modules/chats/guards/chat-room-participant.guard.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/guards/chat-room-participant.guard.ts)
+- **Room Decorator**: [`src/modules/chats/decorators/current-chat-room.decorator.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/decorators/current-chat-room.decorator.ts)
 - **Room Key DTO**: [`src/modules/chats/dto/response/chat-room-key.response.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/response/chat-room-key.response.dto.ts)
 - **Delete Messages Request DTO**: [`src/modules/chats/dto/request/delete-messages.request.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/request/delete-messages.request.dto.ts)
 - **Delete Messages Response DTO**: [`src/modules/chats/dto/response/delete-messages.response.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/response/delete-messages.response.dto.ts)

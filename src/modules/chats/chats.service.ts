@@ -31,6 +31,7 @@ import {
   MarkMessageReadRequestDto,
 } from './dto';
 import { CHAT_MESSAGE_SENT_EVENT, ChatMessageSentEvent } from './events';
+import { ChatRoomRecord } from './interfaces';
 import { ChatCryptoService } from './services/chat-crypto.service';
 import { generateRoomParticipants } from './utils/chats.utils';
 
@@ -77,16 +78,10 @@ export class ChatsService extends BaseService {
    * @throws {ChatRoomNotFoundException} If the room does not exist.
    * @throws {ChatRoomAccessForbiddenException} If the user is not a participant in the room.
    */
-  private async assertRoomParticipant(
+  async assertRoomParticipant(
     userId: string,
     roomId: string,
-  ): Promise<{
-    id: string;
-    userOneId: string;
-    userTwoId: string;
-    wrappedRoomKey: string;
-    roomKeyId: string;
-  }> {
+  ): Promise<ChatRoomRecord> {
     let data;
     let error;
     try {
@@ -172,13 +167,19 @@ export class ChatsService extends BaseService {
    *
    * @param userId - ID of calling user.
    * @param roomId - ID of chat room.
+   * @param userId - ID of calling user.
+   * @param roomOrId - Chat room record (pre-validated by guard) or room ID string.
    * @returns The room ID, base64 key, and algorithm.
    */
   async getRoomKey(
     userId: string,
-    roomId: string,
+    roomOrId: ChatRoomRecord | string,
   ): Promise<ChatRoomKeyResponseDto> {
-    const room = await this.assertRoomParticipant(userId, roomId);
+    const room =
+      typeof roomOrId === 'string'
+        ? await this.assertRoomParticipant(userId, roomOrId)
+        : roomOrId;
+    const roomId = room.id;
 
     const otherUserId =
       room.userOneId === userId ? room.userTwoId : room.userOneId;
@@ -200,7 +201,7 @@ export class ChatsService extends BaseService {
     const roomKey = this.getOrUnwrapRoomKey(room);
 
     return {
-      roomId: room.id,
+      roomId,
       key: roomKey.toString('base64'),
       algorithm: 'AES-GCM-256',
     };
@@ -355,11 +356,15 @@ export class ChatsService extends BaseService {
 
   async getMessages(
     userId: string,
-    roomId: string,
+    roomOrId: ChatRoomRecord | string,
     dto: GetMessagesRequestDto,
   ) {
-    // Enforce participant authorization before fetching messages
-    const room = await this.assertRoomParticipant(userId, roomId);
+    // Enforce participant authorization before fetching messages (skipped if pre-validated by guard)
+    const room =
+      typeof roomOrId === 'string'
+        ? await this.assertRoomParticipant(userId, roomOrId)
+        : roomOrId;
+    const roomId = room.id;
     const roomKey = this.getOrUnwrapRoomKey(room);
 
     const { cursor } = dto;
@@ -661,11 +666,15 @@ export class ChatsService extends BaseService {
 
   async markMessageRead(
     userId: string,
-    roomId: string,
+    roomOrId: ChatRoomRecord | string,
     dto: MarkMessageReadRequestDto,
   ) {
-    // Enforce participant authorization before marking messages read
-    await this.assertRoomParticipant(userId, roomId);
+    // Enforce participant authorization before marking messages read (skipped if pre-validated by guard)
+    const room =
+      typeof roomOrId === 'string'
+        ? await this.assertRoomParticipant(userId, roomOrId)
+        : roomOrId;
+    const roomId = room.id;
 
     // Fetch the reference message to get its createdAt timestamp
     let refMessage;
@@ -738,7 +747,7 @@ export class ChatsService extends BaseService {
    * Deletes one or more messages sent by the calling participant from the specified chat room.
    *
    * @param userId - ID of the calling user.
-   * @param roomId - ID of the chat room.
+   * @param roomOrId - Chat room record (pre-validated by guard) or room ID string.
    * @param dto - Request payload containing message UUIDs to delete.
    * @returns Object indicating success and the count of deleted messages.
    * @throws {ChatRoomNotFoundException} If the room does not exist.
@@ -748,11 +757,15 @@ export class ChatsService extends BaseService {
    */
   async deleteMessages(
     userId: string,
-    roomId: string,
+    roomOrId: ChatRoomRecord | string,
     dto: DeleteMessagesRequestDto,
   ): Promise<DeleteMessagesResponseDto> {
-    // 1. Enforce participant authorization before processing deletion
-    await this.assertRoomParticipant(userId, roomId);
+    // 1. Enforce participant authorization before processing deletion (skipped if pre-validated by guard)
+    const room =
+      typeof roomOrId === 'string'
+        ? await this.assertRoomParticipant(userId, roomOrId)
+        : roomOrId;
+    const roomId = room.id;
 
     // 2. Fetch the candidate messages to verify existence, room alignment, and ownership
     let messages: Array<{ id: string; senderId: string; roomId: string }>;
