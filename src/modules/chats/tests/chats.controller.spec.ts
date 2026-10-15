@@ -5,6 +5,7 @@ import { LoggerService } from '@core/logger';
 import { ChatsController } from '../chats.controller';
 import { ChatsService } from '../chats.service';
 import { CreateMessageRequestDto } from '../dto/request/create-message.request.dto';
+import { DeleteMessagesRequestDto } from '../dto/request/delete-messages.request.dto';
 import { GetMessagesRequestDto } from '../dto/request/get-messages.request.dto';
 import { GetRoomsRequestDto } from '../dto/request/get-rooms.request.dto';
 import { MarkMessageReadRequestDto } from '../dto/request/mark-message-read.request.dto';
@@ -22,6 +23,7 @@ describe('ChatsController', () => {
       getRooms: jest.fn(),
       getMessages: jest.fn(),
       getRoomKey: jest.fn(),
+      deleteMessages: jest.fn(),
     };
 
     const mockSupabaseAuthService = {
@@ -162,6 +164,51 @@ describe('ChatsController', () => {
       const result = await controller.getRoomKey('user-1', 'room-1');
 
       expect(chatsService.getRoomKey).toHaveBeenCalledWith('user-1', 'room-1');
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('deleteMessages', () => {
+    it('should delegate batch deletion to chatsService', async () => {
+      const mockDto: DeleteMessagesRequestDto = {
+        messageIds: ['msg-1', 'msg-2'],
+      };
+      const mockResponse = { success: true, deletedCount: 2 };
+
+      chatsService.deleteMessages.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.deleteMessages(
+        'user-1',
+        'room-1',
+        mockDto,
+      );
+
+      expect(chatsService.deleteMessages).toHaveBeenCalledWith(
+        'user-1',
+        'room-1',
+        mockDto,
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('deleteSingleMessage', () => {
+    it('should wrap single messageId into DeleteMessagesRequestDto and delegate to chatsService', async () => {
+      const mockResponse = { success: true, deletedCount: 1 };
+
+      chatsService.deleteMessages.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.deleteSingleMessage(
+        'user-1',
+        'room-1',
+        'msg-1',
+      );
+
+      expect(chatsService.deleteMessages).toHaveBeenCalledWith(
+        'user-1',
+        'room-1',
+        { messageIds: ['msg-1'] },
+      );
       expect(result).toEqual(mockResponse);
     });
   });

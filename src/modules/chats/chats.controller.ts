@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -29,6 +31,8 @@ import {
   ChatRoomKeyResponseDto,
   ChatRoomsResponseDto,
   CreateMessageRequestDto,
+  DeleteMessagesRequestDto,
+  DeleteMessagesResponseDto,
   GetMessagesRequestDto,
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
@@ -152,5 +156,52 @@ export class ChatsController extends BaseController {
     @Param('roomId') roomId: string,
   ) {
     return this.chatsService.getRoomKey(userId, roomId);
+  }
+
+  @Delete(':roomId/messages')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete chat messages (batch or single)',
+    description:
+      'Deletes one or more messages sent by the calling participant from the specified chat room.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Messages deleted successfully',
+    type: DeleteMessagesResponseDto,
+  })
+  @SerializeExpose(DeleteMessagesResponseDto)
+  async deleteMessages(
+    @CurrentUserId() userId: string,
+    @Param('roomId') roomId: string,
+    @Body() dto: DeleteMessagesRequestDto,
+  ) {
+    return this.chatsService.deleteMessages(userId, roomId, dto);
+  }
+
+  @Delete(':roomId/messages/:messageId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a single chat message',
+    description:
+      'Convenience endpoint to delete a single message sent by the calling participant.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiParam({ name: 'messageId', description: 'The unique message UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Message deleted successfully',
+    type: DeleteMessagesResponseDto,
+  })
+  @SerializeExpose(DeleteMessagesResponseDto)
+  async deleteSingleMessage(
+    @CurrentUserId() userId: string,
+    @Param('roomId') roomId: string,
+    @Param('messageId', new ParseUUIDPipe()) messageId: string,
+  ) {
+    return this.chatsService.deleteMessages(userId, roomId, {
+      messageIds: [messageId],
+    });
   }
 }

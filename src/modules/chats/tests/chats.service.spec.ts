@@ -20,6 +20,7 @@ import {
   ActiveMatchRequiredException,
   ChatRoomAccessForbiddenException,
   ChatRoomNotFoundException,
+  MessageDeletionForbiddenException,
   MessageNotFoundException,
   SelfMessageException,
   UserBlockedException,
@@ -82,9 +83,11 @@ describe('ChatsService', () => {
       insert: jest.fn().mockReturnThis(),
       single: jest.fn(),
       update: jest.fn().mockReturnThis(),
+      delete: jest.fn().mockReturnThis(),
       neq: jest.fn().mockReturnThis(),
       is: jest.fn().mockReturnThis(),
       lte: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
     };
 
     mockSupabaseClient = {
@@ -642,6 +645,293 @@ describe('ChatsService', () => {
 
       await expect(
         service.markMessageRead('user-1', 'room-1', { messageId: 'msg-1' }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('deleteMessages', () => {
+    it('should successfully delete a single message when user is sender and participant', async () => {
+      // Room authorization
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      // Select candidate messages
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      // Delete execution
+      mockMessageQuery.in.mockResolvedValueOnce({
+        error: null,
+        count: 1,
+      });
+
+      const result = await service.deleteMessages('user-1', 'room-1', {
+        messageIds: ['msg-1'],
+      });
+
+      expect(result).toEqual({ success: true, deletedCount: 1 });
+      expect(mockMessageQuery.delete).toHaveBeenCalledWith({ count: 'exact' });
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        'CHAT_MESSAGES_DELETED',
+        expect.objectContaining({
+          userId: 'user-1',
+          roomId: 'room-1',
+          deletedCount: 1,
+          messageIds: ['msg-1'],
+        }),
+      );
+    });
+
+    it('should successfully delete multiple messages (batch)', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [
+          { id: 'msg-1', senderId: 'user-1', roomId: 'room-1' },
+          { id: 'msg-2', senderId: 'user-1', roomId: 'room-1' },
+        ],
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        error: null,
+        count: 2,
+      });
+
+      const result = await service.deleteMessages('user-1', 'room-1', {
+        messageIds: ['msg-1', 'msg-2'],
+      });
+
+      expect(result).toEqual({ success: true, deletedCount: 2 });
+    });
+
+    it('should fallback to messageIds.length if count returned from delete is null', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        error: null,
+        count: null,
+      });
+
+      const result = await service.deleteMessages('user-1', 'room-1', {
+        messageIds: ['msg-1'],
+      });
+
+      expect(result).toEqual({ success: true, deletedCount: 1 });
+    });
+
+    it('should throw ChatRoomNotFoundException if room does not exist', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Not found' },
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-nonexistent', {
+          messageIds: ['msg-1'],
+        }),
+      ).rejects.toThrow(ChatRoomNotFoundException);
+    });
+
+    it('should throw ChatRoomAccessForbiddenException if user is not a participant', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-2',
+          userTwoId: 'user-3',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1'],
+        }),
+      ).rejects.toThrow(ChatRoomAccessForbiddenException);
+    });
+
+    it('should throw MessageNotFoundException if no requested messages exist in room', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1'],
+        }),
+      ).rejects.toThrow(MessageNotFoundException);
+    });
+
+    it('should throw MessageNotFoundException if one message in batch is missing', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1', 'msg-2'],
+        }),
+      ).rejects.toThrow(MessageNotFoundException);
+    });
+
+    it('should throw MessageDeletionForbiddenException if attempting to delete another user message', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-2', senderId: 'user-2', roomId: 'room-1' }],
+        error: null,
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-2'],
+        }),
+      ).rejects.toThrow(MessageDeletionForbiddenException);
+    });
+
+    it('should throw InternalServerErrorException if fetching messages returns an error', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Database fetch failure' },
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1'],
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('should throw InternalServerErrorException if delete query returns an error', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        error: { message: 'Database delete failure' },
+      });
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1'],
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('should throw InternalServerErrorException if delete query throws an unhandled exception', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      mockMessageQuery.in.mockRejectedValueOnce(new Error('Network drop'));
+
+      await expect(
+        service.deleteMessages('user-1', 'room-1', {
+          messageIds: ['msg-1'],
+        }),
       ).rejects.toThrow(InternalServerErrorException);
     });
   });

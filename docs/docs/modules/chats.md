@@ -282,27 +282,40 @@ When a user deletes their account (`USER_DELETED_EVENT`), `ChatsService.handleUs
 
 All routes are prefixed with `/api/v1/chats` and require `Bearer <JWT>` authentication (`JwtAuthGuard`).
 
-| Method | Endpoint                       | Description                                                        | Auth Required |
-| :----- | :----------------------------- | :----------------------------------------------------------------- | :------------ |
-| `GET`  | `/chats/supabase-token`        | Mints an ES256 JWT for Supabase Realtime WebSocket connection      | Yes           |
-| `GET`  | `/chats/rooms/:roomId/key`     | Retrieves the raw AES-256 room DEK for in-browser decryption       | Yes           |
-| `POST` | `/chats/messages`              | Sends a message, creating the room idempotently with DEK if needed | Yes           |
-| `GET`  | `/chats/rooms`                 | Lists active conversations for the caller, enriched with profiles  | Yes           |
-| `GET`  | `/chats/:roomId/messages`      | Paginated messages for a conversation (server-side decrypted)      | Yes           |
-| `POST` | `/chats/:roomId/messages/read` | Marks messages up to watermark as read (IDOR guarded)              | Yes           |
+| Method   | Endpoint                          | Description                                                         | Auth Required |
+| :------- | :-------------------------------- | :------------------------------------------------------------------ | :------------ |
+| `GET`    | `/chats/supabase-token`           | Mints an ES256 JWT for Supabase Realtime WebSocket connection       | Yes           |
+| `GET`    | `/chats/rooms/:roomId/key`        | Retrieves the raw AES-256 room DEK for in-browser decryption        | Yes           |
+| `POST`   | `/chats/messages`                 | Sends a message, creating the room idempotently with DEK if needed  | Yes           |
+| `GET`    | `/chats/rooms`                    | Lists active conversations for the caller, enriched with profiles   | Yes           |
+| `GET`    | `/chats/:roomId/messages`         | Paginated messages for a conversation (server-side decrypted)       | Yes           |
+| `POST`   | `/chats/:roomId/messages/read`    | Marks messages up to watermark as read (IDOR guarded)               | Yes           |
+| `DELETE` | `/chats/:roomId/messages`         | Deletes single or batch messages sent by the user (`{ messageIds }`)| Yes           |
+| `DELETE` | `/chats/:roomId/messages/:messageId` | Convenience route to delete a single message sent by the user     | Yes           |
+
+### Message Deletion (Batch & Single)
+
+Users can delete one or more messages (e.g. multi-select batch deletion like WhatsApp or individual message deletion).
+
+1. **IDOR & Room Verification**: Verifies the caller is an active participant in `roomId`.
+2. **Batch ID Validation**: Request payload accepts `messageIds: string[]` (1 to 100 valid UUIDs).
+3. **Existence Check**: All requested message IDs must exist within the specified room. If any message is missing, throws `MessageNotFoundException` (`404 Not Found`).
+4. **Strict Sender Authorization (Ownership)**: A user can only delete messages they authored (`senderId === userId`). If any requested message was sent by another participant, throws `MessageDeletionForbiddenException` (`403 Forbidden`), preventing unauthorized tampering with conversation history.
+5. **Realtime Broadcast**: Deletion removes the records from the Supabase `Message` table, emitting PostgreSQL CDC `DELETE` events over Supabase Realtime channels (`table: Message`), instantly updating both participants' UI clients.
 
 ### Domain Exception Matrix
 
 All exceptions return standard RFC 7807 `application/problem+json` error responses:
 
-| Exception Class                    | HTTP Status       | Error Code (`type`)          | Trigger Condition                                                     |
-| :--------------------------------- | :---------------- | :--------------------------- | :-------------------------------------------------------------------- |
-| `SelfMessageException`             | `400 Bad Request` | `SELF_MESSAGE_FORBIDDEN`     | Caller attempts to send a message to their own `userId`.              |
-| `ChatRoomNotFoundException`        | `404 Not Found`   | `CHAT_ROOM_NOT_FOUND`        | Specified `roomId` does not exist in the database.                    |
-| `ChatRoomAccessForbiddenException` | `403 Forbidden`   | `CHAT_ROOM_ACCESS_FORBIDDEN` | Caller is not a participant (`userOneId` or `userTwoId`) in the room. |
-| `UserBlockedException`             | `403 Forbidden`   | `USER_BLOCKED`               | An active block exists between the sender and target user.            |
-| `ActiveMatchRequiredException`     | `403 Forbidden`   | `ACTIVE_MATCH_REQUIRED`      | No mutual active match exists, or users have unmatched.               |
-| `MessageNotFoundException`         | `404 Not Found`   | `MESSAGE_NOT_FOUND`          | Reference message not found when updating read status.                |
+| Exception Class                     | HTTP Status       | Error Code (`type`)           | Trigger Condition                                                     |
+| :---------------------------------- | :---------------- | :---------------------------- | :-------------------------------------------------------------------- |
+| `SelfMessageException`              | `400 Bad Request` | `SELF_MESSAGE_FORBIDDEN`      | Caller attempts to send a message to their own `userId`.              |
+| `ChatRoomNotFoundException`         | `404 Not Found`   | `CHAT_ROOM_NOT_FOUND`         | Specified `roomId` does not exist in the database.                    |
+| `ChatRoomAccessForbiddenException`  | `403 Forbidden`   | `CHAT_ROOM_ACCESS_FORBIDDEN`  | Caller is not a participant (`userOneId` or `userTwoId`) in the room. |
+| `MessageDeletionForbiddenException` | `403 Forbidden`   | `MESSAGE_DELETION_FORBIDDEN`  | Caller attempts to delete a message sent by another participant.      |
+| `UserBlockedException`              | `403 Forbidden`   | `USER_BLOCKED`                | An active block exists between the sender and target user.            |
+| `ActiveMatchRequiredException`      | `403 Forbidden`   | `ACTIVE_MATCH_REQUIRED`       | No mutual active match exists, or users have unmatched.               |
+| `MessageNotFoundException`          | `404 Not Found`   | `MESSAGE_NOT_FOUND`           | Reference message not found when updating read status or deleting.   |
 
 ---
 
@@ -313,6 +326,8 @@ All exceptions return standard RFC 7807 `application/problem+json` error respons
 - **Cryptography Service**: [`src/modules/chats/services/chat-crypto.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/services/chat-crypto.service.ts)
 - **Token Service**: [`src/modules/chats/services/supabase-auth.service.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/services/supabase-auth.service.ts)
 - **Room Key DTO**: [`src/modules/chats/dto/response/chat-room-key.response.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/response/chat-room-key.response.dto.ts)
+- **Delete Messages Request DTO**: [`src/modules/chats/dto/request/delete-messages.request.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/request/delete-messages.request.dto.ts)
+- **Delete Messages Response DTO**: [`src/modules/chats/dto/response/delete-messages.response.dto.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/dto/response/delete-messages.response.dto.ts)
 - **Domain Exceptions**: [`src/modules/chats/application/exceptions/`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/application/exceptions/)
 - **Room Utilities**: [`src/modules/chats/utils/chats.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/chats/utils/chats.utils.ts)
 - **Realtime Infrastructure Runbook**: [`docs/docs/architecture/supabase-realtime.md`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/docs/docs/architecture/supabase-realtime.md)

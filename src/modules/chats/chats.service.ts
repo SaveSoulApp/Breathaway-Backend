@@ -16,6 +16,7 @@ import {
   ActiveMatchRequiredException,
   ChatRoomAccessForbiddenException,
   ChatRoomNotFoundException,
+  MessageDeletionForbiddenException,
   MessageNotFoundException,
   SelfMessageException,
   UserBlockedException,
@@ -23,6 +24,8 @@ import {
 import {
   ChatRoomKeyResponseDto,
   CreateMessageRequestDto,
+  DeleteMessagesRequestDto,
+  DeleteMessagesResponseDto,
   GetMessagesRequestDto,
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
@@ -729,6 +732,145 @@ export class ChatsService extends BaseService {
     }
 
     return { success: true };
+  }
+
+  /**
+   * Deletes one or more messages sent by the calling participant from the specified chat room.
+   *
+   * @param userId - ID of the calling user.
+   * @param roomId - ID of the chat room.
+   * @param dto - Request payload containing message UUIDs to delete.
+   * @returns Object indicating success and the count of deleted messages.
+   * @throws {ChatRoomNotFoundException} If the room does not exist.
+   * @throws {ChatRoomAccessForbiddenException} If the user is not a participant in the room.
+   * @throws {MessageNotFoundException} If any requested message is not found in the room.
+   * @throws {MessageDeletionForbiddenException} If any message was sent by another participant.
+   */
+  async deleteMessages(
+    userId: string,
+    roomId: string,
+    dto: DeleteMessagesRequestDto,
+  ): Promise<DeleteMessagesResponseDto> {
+    // 1. Enforce participant authorization before processing deletion
+    await this.assertRoomParticipant(userId, roomId);
+
+    // 2. Fetch the candidate messages to verify existence, room alignment, and ownership
+    let messages: Array<{ id: string; senderId: string; roomId: string }>;
+    let fetchError;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .select('id, senderId, roomId')
+        .eq('roomId', roomId)
+        .in('id', dto.messageIds);
+      messages = response.data as Array<{
+        id: string;
+        senderId: string;
+        roomId: string;
+      }>;
+      fetchError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch messages for deletion', {
+        roomId,
+        userId,
+        messageIds: dto.messageIds,
+        step: 'delete_messages',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException(
+        'Failed to verify messages for deletion',
+      );
+    }
+
+    if (fetchError || !messages) {
+      this.logger.error('Failed to fetch messages for deletion', {
+        roomId,
+        userId,
+        messageIds: dto.messageIds,
+        step: 'delete_messages',
+        err: serializeError(fetchError),
+      });
+      throw new InternalServerErrorException(
+        'Failed to verify messages for deletion',
+      );
+    }
+
+    // 3. Verify all requested messages were found
+    const foundIds = new Set(messages.map((m) => m.id));
+    const missingId = dto.messageIds.find((id) => !foundIds.has(id));
+    if (missingId) {
+      this.logger.warn('Message not found for deletion', {
+        missingId,
+        roomId,
+        userId,
+        step: 'delete_messages',
+      });
+      throw new MessageNotFoundException(missingId);
+    }
+
+    // 4. Verify sender authorization: caller can only delete messages they sent
+    const unauthorizedMessage = messages.find((m) => m.senderId !== userId);
+    if (unauthorizedMessage) {
+      this.logger.warn(
+        'User attempted to delete a message sent by another participant',
+        {
+          userId,
+          roomId,
+          messageId: unauthorizedMessage.id,
+          senderId: unauthorizedMessage.senderId,
+          step: 'delete_messages',
+        },
+      );
+      throw new MessageDeletionForbiddenException(unauthorizedMessage.id);
+    }
+
+    // 5. Execute deletion in Supabase datastore
+    let deleteError;
+    let count: number | null = null;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .delete({ count: 'exact' })
+        .eq('roomId', roomId)
+        .eq('senderId', userId)
+        .in('id', dto.messageIds);
+      deleteError = response.error;
+      count = response.count;
+    } catch (err: unknown) {
+      this.logger.error('Exception during message deletion', {
+        roomId,
+        userId,
+        messageIds: dto.messageIds,
+        step: 'delete_messages',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to delete messages');
+    }
+
+    if (deleteError) {
+      this.logger.error('Failed to delete messages', {
+        roomId,
+        userId,
+        messageIds: dto.messageIds,
+        step: 'delete_messages',
+        err: serializeError(deleteError),
+      });
+      throw new InternalServerErrorException('Failed to delete messages');
+    }
+
+    const deletedCount = count ?? dto.messageIds.length;
+
+    this.logger.event(LOG_EVENT.CHAT_MESSAGES_DELETED, {
+      userId,
+      roomId,
+      deletedCount,
+      messageIds: dto.messageIds,
+    });
+
+    return {
+      success: true,
+      deletedCount,
+    };
   }
 
   /**
