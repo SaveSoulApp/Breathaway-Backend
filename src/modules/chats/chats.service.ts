@@ -33,7 +33,11 @@ import {
 import { CHAT_MESSAGE_SENT_EVENT, ChatMessageSentEvent } from './events';
 import { ChatRoomRecord } from './interfaces';
 import { ChatCryptoService } from './services/chat-crypto.service';
-import { generateRoomParticipants } from './utils/chats.utils';
+import {
+  generateRoomParticipants,
+  getOtherParticipantId,
+  sanitizeLimit,
+} from './utils/chats.utils';
 
 @Injectable()
 export class ChatsService extends BaseService {
@@ -113,13 +117,7 @@ export class ChatsService extends BaseService {
       throw new ChatRoomNotFoundException(roomId);
     }
 
-    const room = data as {
-      id: string;
-      userOneId: string;
-      userTwoId: string;
-      wrappedRoomKey: string;
-      roomKeyId: string;
-    };
+    const room = data as ChatRoomRecord;
 
     if (room.userOneId !== userId && room.userTwoId !== userId) {
       this.logger.warn('Unauthorized chat room access attempt', {
@@ -136,14 +134,26 @@ export class ChatsService extends BaseService {
   }
 
   /**
+   * Resolves the ChatRoomRecord, either directly or by validating participant access.
+   */
+  private async resolveRoom(
+    userId: string,
+    roomOrId: ChatRoomRecord | string,
+  ): Promise<ChatRoomRecord> {
+    return typeof roomOrId === 'string'
+      ? this.assertRoomParticipant(userId, roomOrId)
+      : roomOrId;
+  }
+
+  /**
    * Unwraps the room's AES-256 data key via ChatCryptoService.
    * Enforces that the room record possesses valid encryption metadata, throwing
    * an InternalServerErrorException if the key is missing or corrupted.
    */
   private getOrUnwrapRoomKey(room: {
     id: string;
-    wrappedRoomKey: string;
-    roomKeyId: string;
+    wrappedRoomKey?: string | null;
+    roomKeyId?: string | null;
   }): Buffer {
     if (!room.wrappedRoomKey || !room.roomKeyId) {
       this.logger.error('Chat room is missing encryption key metadata', {
@@ -166,8 +176,6 @@ export class ChatsService extends BaseService {
    * Allows web and mobile clients to decrypt messages in-browser or on device.
    *
    * @param userId - ID of calling user.
-   * @param roomId - ID of chat room.
-   * @param userId - ID of calling user.
    * @param roomOrId - Chat room record (pre-validated by guard) or room ID string.
    * @returns The room ID, base64 key, and algorithm.
    */
@@ -175,14 +183,9 @@ export class ChatsService extends BaseService {
     userId: string,
     roomOrId: ChatRoomRecord | string,
   ): Promise<ChatRoomKeyResponseDto> {
-    const room =
-      typeof roomOrId === 'string'
-        ? await this.assertRoomParticipant(userId, roomOrId)
-        : roomOrId;
+    const room = await this.resolveRoom(userId, roomOrId);
     const roomId = room.id;
-
-    const otherUserId =
-      room.userOneId === userId ? room.userTwoId : room.userOneId;
+    const otherUserId = getOtherParticipantId(room, userId);
 
     const isBlocked = await this.blocksService.isBlocked(userId, otherUserId);
     if (isBlocked) {
@@ -207,9 +210,28 @@ export class ChatsService extends BaseService {
     };
   }
 
+  /**
+   * Retrieves all chat rooms for the specified user, filtered by blocklists and enriched with counterpart profiles.
+   */
   async getRooms(userId: string, dto: GetRoomsRequestDto) {
-    const limit = Math.min(100, Math.max(1, dto.limit ?? 20));
+    const limit = sanitizeLimit(dto.limit);
+    const rawRooms = await this.fetchUserRooms(userId, limit);
+    const unblockedRooms = await this.filterBlockedRooms(userId, rawRooms);
+    const enrichedRooms = await this.enrichRoomsWithProfiles(
+      userId,
+      unblockedRooms,
+    );
 
+    return { rooms: enrichedRooms };
+  }
+
+  /**
+   * Fetches raw chat rooms from Supabase where the user is a participant.
+   */
+  private async fetchUserRooms(
+    userId: string,
+    limit: number,
+  ): Promise<ChatRoomRecord[]> {
     let data;
     let error;
     try {
@@ -241,18 +263,20 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to fetch chat rooms');
     }
 
-    type ChatRoomRecord = {
-      id: string;
-      userOneId: string;
-      userTwoId: string;
-      createdAt?: string;
-      updatedAt?: string;
-      [key: string]: unknown;
-    };
+    return (data as ChatRoomRecord[]) || [];
+  }
 
-    const rawRooms = (data as ChatRoomRecord[]) || [];
+  /**
+   * Filters out chat rooms involving users with whom an active block exists.
+   */
+  private async filterBlockedRooms(
+    userId: string,
+    rooms: ChatRoomRecord[],
+  ): Promise<ChatRoomRecord[]> {
+    if (rooms.length === 0) {
+      return [];
+    }
 
-    // Filter out rooms involving users with whom an active block exists
     let blockedUserIds = new Set<string>();
     try {
       const activeBlocks = await this.prisma.block.findMany({
@@ -278,27 +302,32 @@ export class ChatsService extends BaseService {
       });
     }
 
-    const rooms = rawRooms.filter((room) => {
-      const otherUserId =
-        room.userOneId === userId ? room.userTwoId : room.userOneId;
-      return !blockedUserIds.has(otherUserId);
-    });
+    return rooms.filter(
+      (room) => !blockedUserIds.has(getOtherParticipantId(room, userId)),
+    );
+  }
 
-    // Extract all unique other user IDs
+  /**
+   * Enriches chat rooms with decrypted counterpart user profiles.
+   */
+  private async enrichRoomsWithProfiles(
+    userId: string,
+    rooms: ChatRoomRecord[],
+  ) {
+    if (rooms.length === 0) {
+      return [];
+    }
+
     const otherUserIds = Array.from(
-      new Set(
-        rooms.map((room) =>
-          room.userOneId === userId ? room.userTwoId : room.userOneId,
-        ),
-      ),
+      new Set(rooms.map((room) => getOtherParticipantId(room, userId))),
     );
 
-    // Fetch profiles from Prisma
-    let profiles: {
+    let profiles: Array<{
       userId: string;
       firstName: string;
       lastName: string | null;
-    }[] = [];
+    }> = [];
+
     if (otherUserIds.length > 0) {
       try {
         const rawProfiles = await this.prisma.userProfile.findMany({
@@ -328,16 +357,13 @@ export class ChatsService extends BaseService {
           step: 'fetch_profiles',
           err: serializeError(err),
         });
-        // Log the error but proceed with an empty profiles array.
-        // This returns partial data (rooms without otherUser profiles) instead of a hard failure.
       }
     }
 
     const profileMap = new Map(profiles.map((p) => [p.userId, p]));
 
-    const enrichedRooms = rooms.map((room) => {
-      const otherUserId =
-        room.userOneId === userId ? room.userTwoId : room.userOneId;
+    return rooms.map((room) => {
+      const otherUserId = getOtherParticipantId(room, userId);
       const profile = profileMap.get(otherUserId);
       return {
         ...room,
@@ -350,25 +376,22 @@ export class ChatsService extends BaseService {
           : null,
       };
     });
-
-    return { rooms: enrichedRooms };
   }
 
+  /**
+   * Fetches paginated, decrypted messages for the specified chat room.
+   */
   async getMessages(
     userId: string,
     roomOrId: ChatRoomRecord | string,
     dto: GetMessagesRequestDto,
   ) {
-    // Enforce participant authorization before fetching messages (skipped if pre-validated by guard)
-    const room =
-      typeof roomOrId === 'string'
-        ? await this.assertRoomParticipant(userId, roomOrId)
-        : roomOrId;
+    const room = await this.resolveRoom(userId, roomOrId);
     const roomId = room.id;
     const roomKey = this.getOrUnwrapRoomKey(room);
 
     const { cursor } = dto;
-    const limit = Math.min(100, Math.max(1, dto.limit ?? 20));
+    const limit = sanitizeLimit(dto.limit);
 
     let query = this.supabase
       .from('Message')
@@ -434,10 +457,16 @@ export class ChatsService extends BaseService {
     };
   }
 
-  async sendMessage(senderId: string, dto: CreateMessageRequestDto) {
-    const { targetUserId, content } = dto;
-
-    // 1. Prevent self-messaging
+  /**
+   * Validates business invariants prior to sending a message:
+   * - Self-messaging is prohibited
+   * - Mutual block checks
+   * - Presence of an active match
+   */
+  private async validateMessageInvariants(
+    senderId: string,
+    targetUserId: string,
+  ): Promise<{ id: string }> {
     if (senderId === targetUserId) {
       this.logger.warn('Message send failed: cannot message self', {
         senderId,
@@ -447,7 +476,6 @@ export class ChatsService extends BaseService {
       throw new SelfMessageException();
     }
 
-    // 2. Concurrently verify block status and active match requirements
     const [isBlocked, activeMatch] = await Promise.all([
       this.blocksService.isBlocked(senderId, targetUserId),
       this.prisma.match.findFirst({
@@ -486,23 +514,25 @@ export class ChatsService extends BaseService {
       throw new ActiveMatchRequiredException();
     }
 
+    return activeMatch;
+  }
+
+  /**
+   * Idempotently resolves or creates the chat room, along with its unwrapped AES-256 room DEK.
+   */
+  private async getOrCreateRoomWithKey(
+    senderId: string,
+    targetUserId: string,
+  ): Promise<{ room: ChatRoomRecord; roomKey: Buffer }> {
     const { userOneId, userTwoId } = generateRoomParticipants(
       senderId,
       targetUserId,
     );
 
-    // 4. Ensure the room exists idempotently with its wrapped DEK
-    let room: {
-      id: string;
-      userOneId: string;
-      userTwoId: string;
-      wrappedRoomKey: string;
-      roomKeyId: string;
-    } | null = null;
+    let room: ChatRoomRecord | null = null;
     let roomKey: Buffer | null = null;
 
     try {
-      // 4a. Fetch existing room if present
       const existing = await this.supabase
         .from('ChatRoom')
         .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
@@ -511,15 +541,8 @@ export class ChatsService extends BaseService {
         .maybeSingle();
 
       if (existing.data) {
-        room = existing.data as {
-          id: string;
-          userOneId: string;
-          userTwoId: string;
-          wrappedRoomKey: string;
-          roomKeyId: string;
-        };
+        room = existing.data as ChatRoomRecord;
       } else {
-        // 4b. Create new room with fresh wrapped room DEK
         const rawKey = this.chatCryptoService.generateRoomKey();
         const { wrappedRoomKey, roomKeyId } =
           this.chatCryptoService.wrapRoomKey(rawKey);
@@ -536,16 +559,10 @@ export class ChatsService extends BaseService {
           .single();
 
         if (response.data) {
-          room = response.data as {
-            id: string;
-            userOneId: string;
-            userTwoId: string;
-            wrappedRoomKey: string;
-            roomKeyId: string;
-          };
+          room = response.data as ChatRoomRecord;
           roomKey = rawKey;
         } else if (response.error) {
-          // Handle concurrent creation race condition (unique constraint hit on userOneId, userTwoId)
+          // Handle concurrent creation race condition
           const fallback = await this.supabase
             .from('ChatRoom')
             .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
@@ -554,13 +571,7 @@ export class ChatsService extends BaseService {
             .single();
 
           if (fallback.data) {
-            room = fallback.data as {
-              id: string;
-              userOneId: string;
-              userTwoId: string;
-              wrappedRoomKey: string;
-              roomKeyId: string;
-            };
+            room = fallback.data as ChatRoomRecord;
           } else {
             throw response.error;
           }
@@ -588,25 +599,29 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
-    // Resolve room DEK (use rawKey directly if generated, or unwrap from existing room)
     if (!roomKey) {
       roomKey = this.getOrUnwrapRoomKey(room);
     }
 
-    // Encrypt message content strictly
-    const encryptedContent = this.chatCryptoService.encryptMessage(
-      content,
-      roomKey,
-    );
+    return { room, roomKey };
+  }
 
-    // 5. Insert the message with encrypted content
+  /**
+   * Persists an encrypted message record into Supabase.
+   */
+  private async insertEncryptedMessage(
+    roomId: string,
+    senderId: string,
+    targetUserId: string,
+    encryptedContent: string,
+  ): Promise<Record<string, unknown>> {
     let data: unknown;
     let msgError;
     try {
       const response = await this.supabase
         .from('Message')
         .insert({
-          roomId: room.id,
+          roomId,
           senderId,
           content: encryptedContent,
         })
@@ -616,7 +631,7 @@ export class ChatsService extends BaseService {
       msgError = response.error;
     } catch (err: unknown) {
       this.logger.error('Failed to send message', {
-        roomId: room.id,
+        roomId,
         senderId,
         targetUserId,
         step: 'send_message',
@@ -625,11 +640,9 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to send message');
     }
 
-    const message = data as Record<string, unknown>;
-
     if (msgError) {
       this.logger.error('Failed to send message', {
-        roomId: room.id,
+        roomId,
         senderId,
         targetUserId,
         step: 'send_message',
@@ -638,6 +651,38 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to send message');
     }
 
+    return data as Record<string, unknown>;
+  }
+
+  /**
+   * Validates invariants, resolves/creates the room, encrypts content, persists the message,
+   * and emits a domain event for notification dispatch.
+   */
+  async sendMessage(senderId: string, dto: CreateMessageRequestDto) {
+    const { targetUserId, content } = dto;
+
+    const activeMatch = await this.validateMessageInvariants(
+      senderId,
+      targetUserId,
+    );
+
+    const { room, roomKey } = await this.getOrCreateRoomWithKey(
+      senderId,
+      targetUserId,
+    );
+
+    const encryptedContent = this.chatCryptoService.encryptMessage(
+      content,
+      roomKey,
+    );
+
+    const message = await this.insertEncryptedMessage(
+      room.id,
+      senderId,
+      targetUserId,
+      encryptedContent,
+    );
+
     const messageId =
       typeof message.id === 'string'
         ? message.id
@@ -645,7 +690,6 @@ export class ChatsService extends BaseService {
           ? `${message.id}`
           : '';
 
-    // 6. Emit domain event for notification dispatch (with plaintext content for previews)
     this.eventEmitter.emit(
       CHAT_MESSAGE_SENT_EVENT,
       new ChatMessageSentEvent(
@@ -664,16 +708,15 @@ export class ChatsService extends BaseService {
     };
   }
 
+  /**
+   * Marks counterpart messages up to the specified reference message as read.
+   */
   async markMessageRead(
     userId: string,
     roomOrId: ChatRoomRecord | string,
     dto: MarkMessageReadRequestDto,
   ) {
-    // Enforce participant authorization before marking messages read (skipped if pre-validated by guard)
-    const room =
-      typeof roomOrId === 'string'
-        ? await this.assertRoomParticipant(userId, roomOrId)
-        : roomOrId;
+    const room = await this.resolveRoom(userId, roomOrId);
     const roomId = room.id;
 
     // Fetch the reference message to get its createdAt timestamp
@@ -744,6 +787,126 @@ export class ChatsService extends BaseService {
   }
 
   /**
+   * Fetches candidate messages for deletion and enforces existence and ownership invariants.
+   */
+  private async fetchAndValidateMessagesForDeletion(
+    userId: string,
+    roomId: string,
+    messageIds: string[],
+  ): Promise<void> {
+    let messages: Array<{ id: string; senderId: string; roomId: string }>;
+    let fetchError;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .select('id, senderId, roomId')
+        .eq('roomId', roomId)
+        .in('id', messageIds);
+      messages = response.data as Array<{
+        id: string;
+        senderId: string;
+        roomId: string;
+      }>;
+      fetchError = response.error;
+    } catch (err: unknown) {
+      this.logger.error('Failed to fetch messages for deletion', {
+        roomId,
+        userId,
+        messageIds,
+        step: 'delete_messages',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException(
+        'Failed to verify messages for deletion',
+      );
+    }
+
+    if (fetchError || !messages) {
+      this.logger.error('Failed to fetch messages for deletion', {
+        roomId,
+        userId,
+        messageIds,
+        step: 'delete_messages',
+        err: serializeError(fetchError),
+      });
+      throw new InternalServerErrorException(
+        'Failed to verify messages for deletion',
+      );
+    }
+
+    const foundIds = new Set(messages.map((m) => m.id));
+    const missingId = messageIds.find((id) => !foundIds.has(id));
+    if (missingId) {
+      this.logger.warn('Message not found for deletion', {
+        missingId,
+        roomId,
+        userId,
+        step: 'delete_messages',
+      });
+      throw new MessageNotFoundException(missingId);
+    }
+
+    const unauthorizedMessage = messages.find((m) => m.senderId !== userId);
+    if (unauthorizedMessage) {
+      this.logger.warn(
+        'User attempted to delete a message sent by another participant',
+        {
+          userId,
+          roomId,
+          messageId: unauthorizedMessage.id,
+          senderId: unauthorizedMessage.senderId,
+          step: 'delete_messages',
+        },
+      );
+      throw new MessageDeletionForbiddenException(unauthorizedMessage.id);
+    }
+  }
+
+  /**
+   * Executes message deletion query in Supabase.
+   */
+  private async executeMessageDeletion(
+    userId: string,
+    roomId: string,
+    messageIds: string[],
+  ): Promise<number> {
+    let deleteError;
+    let count: number | null = null;
+    try {
+      const response = await this.supabase
+        .from('Message')
+        .delete({ count: 'exact' })
+        .eq('roomId', roomId)
+        .eq('senderId', userId)
+        .in('id', messageIds);
+      deleteError = response.error;
+      count = response.count;
+    } catch (err: unknown) {
+      this.logger.error('Exception during message deletion', {
+        roomId,
+        userId,
+        messageIds,
+        step: 'delete_messages',
+        err: serializeError(err),
+      });
+      throw new InternalServerErrorException('Failed to delete messages');
+    }
+
+    if (deleteError) {
+      this.logger.error('Failed to delete messages', {
+        roomId,
+        userId,
+        messageIds,
+        step: 'delete_messages',
+        err: serializeError(deleteError),
+      });
+      throw new InternalServerErrorException('Failed to delete messages');
+    }
+
+    return count ?? messageIds.length;
+  }
+
+  /**
    * Deletes one or more messages sent by the calling participant from the specified chat room.
    *
    * @param userId - ID of the calling user.
@@ -760,118 +923,20 @@ export class ChatsService extends BaseService {
     roomOrId: ChatRoomRecord | string,
     dto: DeleteMessagesRequestDto,
   ): Promise<DeleteMessagesResponseDto> {
-    // 1. Enforce participant authorization before processing deletion (skipped if pre-validated by guard)
-    const room =
-      typeof roomOrId === 'string'
-        ? await this.assertRoomParticipant(userId, roomOrId)
-        : roomOrId;
+    const room = await this.resolveRoom(userId, roomOrId);
     const roomId = room.id;
 
-    // 2. Fetch the candidate messages to verify existence, room alignment, and ownership
-    let messages: Array<{ id: string; senderId: string; roomId: string }>;
-    let fetchError;
-    try {
-      const response = await this.supabase
-        .from('Message')
-        .select('id, senderId, roomId')
-        .eq('roomId', roomId)
-        .in('id', dto.messageIds);
-      messages = response.data as Array<{
-        id: string;
-        senderId: string;
-        roomId: string;
-      }>;
-      fetchError = response.error;
-    } catch (err: unknown) {
-      this.logger.error('Failed to fetch messages for deletion', {
-        roomId,
-        userId,
-        messageIds: dto.messageIds,
-        step: 'delete_messages',
-        err: serializeError(err),
-      });
-      throw new InternalServerErrorException(
-        'Failed to verify messages for deletion',
-      );
-    }
+    await this.fetchAndValidateMessagesForDeletion(
+      userId,
+      roomId,
+      dto.messageIds,
+    );
 
-    if (fetchError || !messages) {
-      this.logger.error('Failed to fetch messages for deletion', {
-        roomId,
-        userId,
-        messageIds: dto.messageIds,
-        step: 'delete_messages',
-        err: serializeError(fetchError),
-      });
-      throw new InternalServerErrorException(
-        'Failed to verify messages for deletion',
-      );
-    }
-
-    // 3. Verify all requested messages were found
-    const foundIds = new Set(messages.map((m) => m.id));
-    const missingId = dto.messageIds.find((id) => !foundIds.has(id));
-    if (missingId) {
-      this.logger.warn('Message not found for deletion', {
-        missingId,
-        roomId,
-        userId,
-        step: 'delete_messages',
-      });
-      throw new MessageNotFoundException(missingId);
-    }
-
-    // 4. Verify sender authorization: caller can only delete messages they sent
-    const unauthorizedMessage = messages.find((m) => m.senderId !== userId);
-    if (unauthorizedMessage) {
-      this.logger.warn(
-        'User attempted to delete a message sent by another participant',
-        {
-          userId,
-          roomId,
-          messageId: unauthorizedMessage.id,
-          senderId: unauthorizedMessage.senderId,
-          step: 'delete_messages',
-        },
-      );
-      throw new MessageDeletionForbiddenException(unauthorizedMessage.id);
-    }
-
-    // 5. Execute deletion in Supabase datastore
-    let deleteError;
-    let count: number | null = null;
-    try {
-      const response = await this.supabase
-        .from('Message')
-        .delete({ count: 'exact' })
-        .eq('roomId', roomId)
-        .eq('senderId', userId)
-        .in('id', dto.messageIds);
-      deleteError = response.error;
-      count = response.count;
-    } catch (err: unknown) {
-      this.logger.error('Exception during message deletion', {
-        roomId,
-        userId,
-        messageIds: dto.messageIds,
-        step: 'delete_messages',
-        err: serializeError(err),
-      });
-      throw new InternalServerErrorException('Failed to delete messages');
-    }
-
-    if (deleteError) {
-      this.logger.error('Failed to delete messages', {
-        roomId,
-        userId,
-        messageIds: dto.messageIds,
-        step: 'delete_messages',
-        err: serializeError(deleteError),
-      });
-      throw new InternalServerErrorException('Failed to delete messages');
-    }
-
-    const deletedCount = count ?? dto.messageIds.length;
+    const deletedCount = await this.executeMessageDeletion(
+      userId,
+      roomId,
+      dto.messageIds,
+    );
 
     this.logger.event(LOG_EVENT.CHAT_MESSAGES_DELETED, {
       userId,
