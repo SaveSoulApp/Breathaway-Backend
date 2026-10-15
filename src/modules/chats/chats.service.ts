@@ -925,24 +925,25 @@ export class ChatsService extends BaseService {
   ): Promise<DeleteMessagesResponseDto> {
     const room = await this.resolveRoom(userId, roomOrId);
     const roomId = room.id;
+    const uniqueMessageIds = Array.from(new Set(dto.messageIds));
 
     await this.fetchAndValidateMessagesForDeletion(
       userId,
       roomId,
-      dto.messageIds,
+      uniqueMessageIds,
     );
 
     const deletedCount = await this.executeMessageDeletion(
       userId,
       roomId,
-      dto.messageIds,
+      uniqueMessageIds,
     );
 
     this.logger.event(LOG_EVENT.CHAT_MESSAGES_DELETED, {
       userId,
       roomId,
       deletedCount,
-      messageIds: dto.messageIds,
+      messageIds: uniqueMessageIds,
     });
 
     return {

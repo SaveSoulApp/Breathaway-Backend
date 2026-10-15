@@ -773,6 +773,36 @@ describe('ChatsService', () => {
       expect(result).toEqual({ success: true, deletedCount: 1 });
     });
 
+    it('should deduplicate messageIds if duplicates are passed', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'key',
+          roomKeyId: 'chat_v1',
+        },
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        data: [{ id: 'msg-1', senderId: 'user-1', roomId: 'room-1' }],
+        error: null,
+      });
+
+      mockMessageQuery.in.mockResolvedValueOnce({
+        error: null,
+        count: 1,
+      });
+
+      const result = await service.deleteMessages('user-1', 'room-1', {
+        messageIds: ['msg-1', 'msg-1'],
+      });
+
+      expect(result).toEqual({ success: true, deletedCount: 1 });
+      expect(mockMessageQuery.in).toHaveBeenCalledWith('id', ['msg-1']);
+    });
+
     it('should throw ChatRoomNotFoundException if room does not exist', async () => {
       mockChatRoomQuery.single.mockResolvedValueOnce({
         data: null,

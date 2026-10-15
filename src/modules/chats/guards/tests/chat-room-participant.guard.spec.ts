@@ -28,8 +28,10 @@ describe('ChatRoomParticipantGuard', () => {
     }),
   };
 
+  const validRoomId = '018f3a5e-7a1b-7a3b-9e4a-0a1b2c3d4e5f';
+
   const mockRoom: ChatRoomRecord = {
-    id: 'room-1',
+    id: validRoomId,
     userOneId: 'user-1',
     userTwoId: 'user-2',
     wrappedRoomKey: 'd3JhcHBlZEtleQ==',
@@ -63,7 +65,7 @@ describe('ChatRoomParticipantGuard', () => {
   it('should return true and attach chatRoom to request for authorized participant', async () => {
     const request: any = {
       user: { userId: 'user-1' },
-      params: { roomId: 'room-1' },
+      params: { roomId: validRoomId },
     };
     chatsService.assertRoomParticipant.mockResolvedValueOnce(mockRoom);
 
@@ -73,14 +75,14 @@ describe('ChatRoomParticipantGuard', () => {
     expect(result).toBe(true);
     expect(chatsService.assertRoomParticipant).toHaveBeenCalledWith(
       'user-1',
-      'room-1',
+      validRoomId,
     );
     expect(request.chatRoom).toEqual(mockRoom);
   });
 
   it('should throw UnauthorizedException when user payload is missing from request', async () => {
     const request: any = {
-      params: { roomId: 'room-1' },
+      params: { roomId: validRoomId },
     };
 
     const context = createMockContext(request);
@@ -101,13 +103,25 @@ describe('ChatRoomParticipantGuard', () => {
     );
   });
 
+  it('should throw BadRequestException when roomId is not a valid UUID', async () => {
+    const request: any = {
+      user: { userId: 'user-1' },
+      params: { roomId: 'not-a-valid-uuid' },
+    };
+
+    const context = createMockContext(request);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
   it('should propagate ChatRoomNotFoundException when room does not exist', async () => {
     const request: any = {
       user: { userId: 'user-1' },
-      params: { roomId: 'room-nonexistent' },
+      params: { roomId: validRoomId },
     };
     chatsService.assertRoomParticipant.mockRejectedValueOnce(
-      new ChatRoomNotFoundException('room-nonexistent'),
+      new ChatRoomNotFoundException(validRoomId),
     );
 
     const context = createMockContext(request);
@@ -119,10 +133,10 @@ describe('ChatRoomParticipantGuard', () => {
   it('should propagate ChatRoomAccessForbiddenException when caller is not a participant', async () => {
     const request: any = {
       user: { userId: 'user-intruder' },
-      params: { roomId: 'room-1' },
+      params: { roomId: validRoomId },
     };
     chatsService.assertRoomParticipant.mockRejectedValueOnce(
-      new ChatRoomAccessForbiddenException('room-1'),
+      new ChatRoomAccessForbiddenException(validRoomId),
     );
 
     const context = createMockContext(request);

@@ -84,7 +84,7 @@ describe('ChatCryptoService', () => {
       expect(unwrapped).toEqual(roomKey);
     });
 
-    it('should generate an ephemeral key if no configuration keys are provided', () => {
+    it('should generate an ephemeral key if no configuration keys are provided in non-production', () => {
       const emptyConfig = {
         get: jest.fn().mockReturnValue(undefined),
       } as unknown as ConfigService;
@@ -106,6 +106,53 @@ describe('ChatCryptoService', () => {
         wrappedRoomKey,
         roomKeyId,
       );
+      expect(unwrapped).toEqual(roomKey);
+    });
+
+    it('should throw an Error in production when chat master keys are missing', () => {
+      const prodConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'NODE_ENV') return 'production';
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      expect(() => new ChatCryptoService(loggerService, prodConfig)).toThrow(
+        /Fatal: GCP_SECRET_CHAT_MASTER_KEYS is required in production environment/,
+      );
+      expect(loggerService.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Fatal: No valid chat master keys configured in production',
+        ),
+        expect.any(Object),
+      );
+    });
+
+    it('should trim whitespace and trailing newlines from master key IDs and base64 payloads', () => {
+      const rawKey = randomBytes(32);
+      const untrimmedConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'GCP_SECRET_CHAT_MASTER_KEYS') {
+            return JSON.stringify({
+              ' chat-v1\n': `  ${rawKey.toString('base64')}\n  `,
+            });
+          }
+          if (key === 'ACTIVE_CHAT_MASTER_KEY_ID') return ' chat-v1\n';
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      const trimmedService = new ChatCryptoService(
+        loggerService,
+        untrimmedConfig,
+      );
+      expect(trimmedService).toBeDefined();
+
+      const roomKey = trimmedService.generateRoomKey();
+      const { wrappedRoomKey, roomKeyId } = trimmedService.wrapRoomKey(roomKey);
+      expect(roomKeyId).toBe('chat-v1');
+
+      const unwrapped = trimmedService.unwrapRoomKey(wrappedRoomKey, 'chat-v1');
       expect(unwrapped).toEqual(roomKey);
     });
   });
@@ -158,6 +205,25 @@ describe('ChatCryptoService', () => {
 
       expect(unwrapped1).toEqual(plaintextKey);
       expect(unwrapped2).toEqual(plaintextKey);
+    });
+
+    it('should refresh entry position on cache hit to maintain LRU eviction', () => {
+      const key1 = service.generateRoomKey();
+      const wrap1 = service.wrapRoomKey(key1);
+
+      const key2 = service.generateRoomKey();
+      const wrap2 = service.wrapRoomKey(key2);
+
+      // Access key1 so it is refreshed to most-recently-used
+      service.unwrapRoomKey(wrap1.wrappedRoomKey, wrap1.roomKeyId);
+
+      // Verify both keys are accessible
+      expect(
+        service.unwrapRoomKey(wrap1.wrappedRoomKey, wrap1.roomKeyId),
+      ).toEqual(key1);
+      expect(
+        service.unwrapRoomKey(wrap2.wrappedRoomKey, wrap2.roomKeyId),
+      ).toEqual(key2);
     });
 
     it('should throw InternalServerErrorException when wrapping invalid key length', () => {

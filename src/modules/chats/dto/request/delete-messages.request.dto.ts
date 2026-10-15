@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsUUID } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
 
 export class DeleteMessagesRequestDto {
   @ApiProperty({
@@ -9,6 +15,7 @@ export class DeleteMessagesRequestDto {
   })
   @IsArray()
   @ArrayNotEmpty()
+  @ArrayUnique()
   @ArrayMaxSize(100)
   @IsUUID('all', { each: true })
   messageIds: string[];

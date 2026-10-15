@@ -55,25 +55,30 @@ export class ChatCryptoService extends BaseService {
       this.configService.get<string>('GCP_SECRET_CHAT_MASTER_KEYS') ??
       this.configService.get<string>('GCP_SECRET_MASTER_KEYS');
 
-    const activeKeyId =
+    const rawActiveKeyId =
       this.configService.get<string>('ACTIVE_CHAT_MASTER_KEY_ID') ??
       this.configService.get<string>('ACTIVE_MASTER_KEY_ID') ??
       'chat-v1';
+    const activeKeyId = rawActiveKeyId.trim();
 
     if (chatKeysJson) {
       try {
         const parsed = JSON.parse(chatKeysJson) as Record<string, string>;
         for (const [keyId, base64] of Object.entries(parsed)) {
-          const keyBuffer = Buffer.from(base64, 'base64');
+          const trimmedKeyId = keyId.trim();
+          const keyBuffer = Buffer.from(base64.trim(), 'base64');
           if (keyBuffer.length !== 32) {
-            this.logger.warn(`Invalid chat master key length for ${keyId}`, {
-              step: 'init',
-              expected: 32,
-              actual: keyBuffer.length,
-            });
+            this.logger.warn(
+              `Invalid chat master key length for ${trimmedKeyId}`,
+              {
+                step: 'init',
+                expected: 32,
+                actual: keyBuffer.length,
+              },
+            );
             continue;
           }
-          this.chatMasterKeys.set(keyId, keyBuffer);
+          this.chatMasterKeys.set(trimmedKeyId, keyBuffer);
         }
       } catch (err: unknown) {
         this.logger.error('Failed to parse chat master keys JSON', {
@@ -83,8 +88,22 @@ export class ChatCryptoService extends BaseService {
       }
     }
 
-    // In testing or fallback environments without keys loaded, create an ephemeral key
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+
+    // In testing or fallback environments without keys loaded, create an ephemeral key.
+    // In production, fail fast immediately to avoid irreversible encryption with temporary keys.
     if (this.chatMasterKeys.size === 0) {
+      if (isProduction) {
+        this.logger.error(
+          'Fatal: No valid chat master keys configured in production. Container cannot boot.',
+          { step: 'init' },
+        );
+        throw new Error(
+          'Fatal: GCP_SECRET_CHAT_MASTER_KEYS is required in production environment',
+        );
+      }
+
       this.logger.warn(
         'No valid chat master keys found in configuration; generating ephemeral fallback key',
         { step: 'init' },
@@ -326,6 +345,11 @@ export class ChatCryptoService extends BaseService {
       this.unwrappedRoomKeyCache.delete(cacheKey);
       return null;
     }
+
+    // Refresh position to maintain true LRU eviction ordering
+    this.unwrappedRoomKeyCache.delete(cacheKey);
+    this.unwrappedRoomKeyCache.set(cacheKey, entry);
+
     return entry.key;
   }
 

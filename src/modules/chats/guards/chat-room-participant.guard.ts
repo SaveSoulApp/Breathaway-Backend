@@ -5,6 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import type { Request } from 'express';
 
 import { AuthenticatedRequest } from '@common/decorators';
@@ -23,7 +24,7 @@ import { ChatsService } from '../chats.service';
  * so downstream controllers and services can access room metadata without redundant database queries.
  *
  * @throws {UnauthorizedException} If caller authentication payload is missing.
- * @throws {BadRequestException} If the roomId route parameter is missing.
+ * @throws {BadRequestException} If the roomId route parameter is missing or not a valid UUID.
  * @throws {ChatRoomNotFoundException} If the room does not exist (HTTP 404).
  * @throws {ChatRoomAccessForbiddenException} If caller is not a participant (HTTP 403).
  */
@@ -58,6 +59,15 @@ export class ChatRoomParticipantGuard extends BaseGuard implements CanActivate {
         { step: 'guard_check', userId },
       );
       throw new BadRequestException('Chat room ID parameter is required');
+    }
+
+    if (!isUUID(roomId)) {
+      this.logger.warn('ChatRoomParticipantGuard: invalid roomId UUID format', {
+        step: 'guard_check',
+        userId,
+        roomId,
+      });
+      throw new BadRequestException('A valid chat room UUID is required');
     }
 
     const room = await this.chatsService.assertRoomParticipant(userId, roomId);
