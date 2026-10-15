@@ -68,14 +68,14 @@ export function createSecurityMiddleware(): RequestHandler {
 /**
  * Configures HTTP security headers and reverse proxy trust on the NestJS Express application.
  *
- * 1. Sets reverse proxy trust to 1 hop for GCP Cloud Run edge resolution (SEC-07).
+ * 1. Sets reverse proxy trust to true for GCP Cloud Run and upstream reverse proxies (e.g. Vercel, Cloudflare).
  * 2. Applies route-scoped Helmet middleware with strict CSP for APIs and relaxed rules for docs (SEC-08).
  *
  * @param app - The NestExpressApplication instance.
  */
 export function configureSecurity(app: NestExpressApplication): void {
-  // Trust immediate reverse proxy hop (GCP Cloud Run edge) to safely derive req.ip without spoofing (SEC-07)
-  app.set('trust proxy', 1);
+  // Trust upstream reverse proxy hops (GCP Cloud Run edge and upstream proxies like Vercel/Cloudflare)
+  app.set('trust proxy', true);
 
   app.use(createSecurityMiddleware());
 }

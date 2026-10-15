@@ -5,50 +5,62 @@ describe('extractClientIp', () => {
     expect(extractClientIp(undefined as unknown as any)).toBeUndefined();
   });
 
-  it('should prioritize Express trusted req.ip over proxy headers', () => {
+  it('should prioritize CF-Connecting-IP when present', () => {
     const req = {
-      ip: '203.0.113.195',
       headers: {
-        'x-forwarded-for': 'spoofed.ip.1, spoofed.ip.2',
+        'cf-connecting-ip': '49.43.243.125',
+        'x-real-ip': '198.51.100.1',
+        'x-forwarded-for': '203.0.113.195',
       },
+      ip: '10.0.0.1',
     };
-    expect(extractClientIp(req)).toBe('203.0.113.195');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
   });
 
-  it('should extract trusted rightmost IP from string x-forwarded-for header when req.ip is not set', () => {
+  it('should prioritize X-Real-IP over X-Forwarded-For when CF-Connecting-IP is absent', () => {
     const req = {
       headers: {
-        'x-forwarded-for': 'spoofed.ip.1, 70.41.3.18, 203.0.113.195',
+        'x-real-ip': '49.43.243.125',
+        'x-forwarded-for': '203.0.113.195, 44.192.105.200',
       },
     };
-    expect(extractClientIp(req)).toBe('203.0.113.195');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
   });
 
-  it('should extract trusted rightmost IP from array x-forwarded-for header when req.ip is not set', () => {
+  it('should extract originating client IP (first public IP) from multi-hop X-Forwarded-For chain (Vercel to Cloud Run scenario)', () => {
     const req = {
       headers: {
-        'x-forwarded-for': ['spoofed.ip.1, 198.51.100.1'],
+        'x-forwarded-for': '49.43.243.125, 44.192.105.200',
       },
     };
-    expect(extractClientIp(req)).toBe('198.51.100.1');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
   });
 
-  it('should prevent IP spoofing when an attacker prepends fake IP to x-forwarded-for (SEC-07)', () => {
+  it('should skip internal link-local or loopback proxy hops at the front of X-Forwarded-For', () => {
     const req = {
       headers: {
-        'x-forwarded-for': '1.2.3.4, 49.37.152.20',
+        'x-forwarded-for': '169.254.1.1, 49.43.243.125, 44.192.105.200',
       },
     };
-    expect(extractClientIp(req)).toBe('49.37.152.20');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
   });
 
-  it('should fallback to x-real-ip when x-forwarded-for is missing', () => {
+  it('should extract client IP from array X-Forwarded-For header', () => {
     const req = {
       headers: {
-        'x-real-ip': '192.0.2.1',
+        'x-forwarded-for': ['49.43.243.125, 44.192.105.200'],
       },
     };
-    expect(extractClientIp(req)).toBe('192.0.2.1');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
+  });
+
+  it('should fallback to first entry when all entries in X-Forwarded-For are internal (e.g. local dev / testing)', () => {
+    const req = {
+      headers: {
+        'x-forwarded-for': '127.0.0.1, 10.0.0.1',
+      },
+    };
+    expect(extractClientIp(req)).toBe('127.0.0.1');
   });
 
   it('should fallback to req.ip when headers are missing', () => {
@@ -67,13 +79,13 @@ describe('extractClientIp', () => {
     expect(extractClientIp(req)).toBe('127.0.0.1');
   });
 
-  it('should strip IPv4 port numbers from x-forwarded-for', () => {
+  it('should strip IPv4 port numbers from X-Forwarded-For', () => {
     const req = {
       headers: {
-        'x-forwarded-for': '10.0.0.1:8080, 203.0.113.195:443',
+        'x-forwarded-for': '49.43.243.125:443, 44.192.105.200:8080',
       },
     };
-    expect(extractClientIp(req)).toBe('203.0.113.195');
+    expect(extractClientIp(req)).toBe('49.43.243.125');
   });
 
   it('should strip IPv4 port numbers from req.ip', () => {
@@ -93,10 +105,10 @@ describe('extractClientIp', () => {
     expect(extractClientIp(req)).toBe('2001:db8::1');
   });
 
-  it('should handle sparse arrays and empty elements in x-forwarded-for', () => {
+  it('should handle sparse arrays and empty elements in X-Forwarded-For', () => {
     const req = {
       headers: {
-        'x-forwarded-for': ['203.0.113.195', '', '   '],
+        'x-forwarded-for': ['', '   ', '203.0.113.195'],
       },
     };
     expect(extractClientIp(req)).toBe('203.0.113.195');

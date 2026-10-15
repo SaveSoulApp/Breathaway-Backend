@@ -180,7 +180,7 @@ describe('Security Configuration (SEC-08)', () => {
   });
 
   describe('configureSecurity', () => {
-    it('should configure trust proxy to 1 and register the security middleware', () => {
+    it('should configure trust proxy to true and register the security middleware', () => {
       const appMock = {
         set: jest.fn(),
         use: jest.fn(),
@@ -188,7 +188,7 @@ describe('Security Configuration (SEC-08)', () => {
 
       configureSecurity(appMock as unknown as NestExpressApplication);
 
-      expect(appMock.set).toHaveBeenCalledWith('trust proxy', 1);
+      expect(appMock.set).toHaveBeenCalledWith('trust proxy', true);
       expect(appMock.use).toHaveBeenCalledTimes(1);
       expect(appMock.use).toHaveBeenCalledWith(expect.any(Function));
     });

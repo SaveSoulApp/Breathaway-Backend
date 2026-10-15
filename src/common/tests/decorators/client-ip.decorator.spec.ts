@@ -22,7 +22,7 @@ const getParamDecoratorFactory = (
 describe('@ClientIp Decorator', () => {
   const factory = getParamDecoratorFactory(ClientIp);
 
-  it('should extract rightmost trusted IP from comma-separated X-Forwarded-For header to prevent spoofing', () => {
+  it('should extract client public IP from comma-separated X-Forwarded-For header', () => {
     const context = createMockExecutionContext({
       headers: {
         'x-forwarded-for': '103.21.244.2, 34.117.59.81, 169.254.1.1',
@@ -30,10 +30,10 @@ describe('@ClientIp Decorator', () => {
     });
 
     const result = factory(null, context);
-    expect(result).toBe('169.254.1.1');
+    expect(result).toBe('103.21.244.2');
   });
 
-  it('should extract rightmost trusted IP from X-Forwarded-For when supplied as an array', () => {
+  it('should extract client IP from X-Forwarded-For when supplied as an array', () => {
     const context = createMockExecutionContext({
       headers: {
         'x-forwarded-for': ['203.0.113.195', '198.51.100.1'],
@@ -41,7 +41,7 @@ describe('@ClientIp Decorator', () => {
     });
 
     const result = factory(null, context);
-    expect(result).toBe('198.51.100.1');
+    expect(result).toBe('203.0.113.195');
   });
 
   it('should fallback to request.ip when X-Forwarded-For header is missing', () => {
