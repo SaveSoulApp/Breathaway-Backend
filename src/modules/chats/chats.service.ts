@@ -21,12 +21,14 @@ import {
   UserBlockedException,
 } from './application/exceptions';
 import {
+  ChatRoomKeyResponseDto,
   CreateMessageRequestDto,
   GetMessagesRequestDto,
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
 } from './dto';
 import { CHAT_MESSAGE_SENT_EVENT, ChatMessageSentEvent } from './events';
+import { ChatCryptoService } from './services/chat-crypto.service';
 import { generateRoomParticipants } from './utils/chats.utils';
 
 @Injectable()
@@ -40,6 +42,7 @@ export class ChatsService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly blocksService: BlocksService,
     private readonly identityCryptoService: IdentityCryptoService,
+    private readonly chatCryptoService: ChatCryptoService,
   ) {
     super(logger);
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -74,13 +77,19 @@ export class ChatsService extends BaseService {
   private async assertRoomParticipant(
     userId: string,
     roomId: string,
-  ): Promise<{ id: string; userOneId: string; userTwoId: string }> {
+  ): Promise<{
+    id: string;
+    userOneId: string;
+    userTwoId: string;
+    wrappedRoomKey: string;
+    roomKeyId: string;
+  }> {
     let data;
     let error;
     try {
       const response = await this.supabase
         .from('ChatRoom')
-        .select('id, userOneId, userTwoId')
+        .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
         .eq('id', roomId)
         .single();
       data = response.data;
@@ -106,7 +115,13 @@ export class ChatsService extends BaseService {
       throw new ChatRoomNotFoundException(roomId);
     }
 
-    const room = data as { id: string; userOneId: string; userTwoId: string };
+    const room = data as {
+      id: string;
+      userOneId: string;
+      userTwoId: string;
+      wrappedRoomKey: string;
+      roomKeyId: string;
+    };
 
     if (room.userOneId !== userId && room.userTwoId !== userId) {
       this.logger.warn('Unauthorized chat room access attempt', {
@@ -120,6 +135,72 @@ export class ChatsService extends BaseService {
     }
 
     return room;
+  }
+
+  /**
+   * Unwraps the room's AES-256 data key via ChatCryptoService.
+   * Enforces that the room record possesses valid encryption metadata, throwing
+   * an InternalServerErrorException if the key is missing or corrupted.
+   */
+  private getOrUnwrapRoomKey(room: {
+    id: string;
+    wrappedRoomKey: string;
+    roomKeyId: string;
+  }): Buffer {
+    if (!room.wrappedRoomKey || !room.roomKeyId) {
+      this.logger.error('Chat room is missing encryption key metadata', {
+        roomId: room.id,
+        step: 'unwrap_room_key',
+      });
+      throw new InternalServerErrorException(
+        'Chat room encryption key is missing or corrupted',
+      );
+    }
+
+    return this.chatCryptoService.unwrapRoomKey(
+      room.wrappedRoomKey,
+      room.roomKeyId,
+    );
+  }
+
+  /**
+   * Retrieves the raw 32-byte AES-256 room encryption key for the authorized participant.
+   * Allows web and mobile clients to decrypt messages in-browser or on device.
+   *
+   * @param userId - ID of calling user.
+   * @param roomId - ID of chat room.
+   * @returns The room ID, base64 key, and algorithm.
+   */
+  async getRoomKey(
+    userId: string,
+    roomId: string,
+  ): Promise<ChatRoomKeyResponseDto> {
+    const room = await this.assertRoomParticipant(userId, roomId);
+
+    const otherUserId =
+      room.userOneId === userId ? room.userTwoId : room.userOneId;
+
+    const isBlocked = await this.blocksService.isBlocked(userId, otherUserId);
+    if (isBlocked) {
+      this.logger.warn(
+        'Room key retrieval forbidden: active block exists between users',
+        {
+          userId,
+          targetUserId: otherUserId,
+          roomId,
+          step: 'get_room_key',
+        },
+      );
+      throw new UserBlockedException();
+    }
+
+    const roomKey = this.getOrUnwrapRoomKey(room);
+
+    return {
+      roomId: room.id,
+      key: roomKey.toString('base64'),
+      algorithm: 'AES-GCM-256',
+    };
   }
 
   async getRooms(userId: string, dto: GetRoomsRequestDto) {
@@ -275,7 +356,8 @@ export class ChatsService extends BaseService {
     dto: GetMessagesRequestDto,
   ) {
     // Enforce participant authorization before fetching messages
-    await this.assertRoomParticipant(userId, roomId);
+    const room = await this.assertRoomParticipant(userId, roomId);
+    const roomKey = this.getOrUnwrapRoomKey(room);
 
     const { cursor } = dto;
     const limit = Math.min(100, Math.max(1, dto.limit ?? 20));
@@ -319,13 +401,27 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to fetch messages');
     }
 
-    const messages = (data as Record<string, unknown>[]) || [];
+    type MessageRecord = {
+      id: string;
+      roomId: string;
+      senderId: string;
+      content: string;
+      createdAt: string;
+      readAt?: string | null;
+      [key: string]: unknown;
+    };
+
+    const rawMessages = (data as MessageRecord[]) || [];
+    const messages = rawMessages.map((msg) => ({
+      ...msg,
+      content: this.chatCryptoService.decryptMessage(msg.content, roomKey),
+    }));
 
     return {
       messages,
       nextCursor:
         messages.length === limit
-          ? (messages[messages.length - 1].createdAt as string)
+          ? messages[messages.length - 1].createdAt
           : null,
     };
   }
@@ -387,20 +483,81 @@ export class ChatsService extends BaseService {
       targetUserId,
     );
 
-    // 4. Ensure the room exists idempotently
-    let roomData;
-    let roomError;
+    // 4. Ensure the room exists idempotently with its wrapped DEK
+    let room: {
+      id: string;
+      userOneId: string;
+      userTwoId: string;
+      wrappedRoomKey: string;
+      roomKeyId: string;
+    } | null = null;
+    let roomKey: Buffer | null = null;
+
     try {
-      const response = await this.supabase
+      // 4a. Fetch existing room if present
+      const existing = await this.supabase
         .from('ChatRoom')
-        .upsert(
-          { userOneId, userTwoId },
-          { onConflict: 'userOneId, userTwoId' },
-        )
-        .select('id')
-        .single();
-      roomData = response.data;
-      roomError = response.error;
+        .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
+        .eq('userOneId', userOneId)
+        .eq('userTwoId', userTwoId)
+        .maybeSingle();
+
+      if (existing.data) {
+        room = existing.data as {
+          id: string;
+          userOneId: string;
+          userTwoId: string;
+          wrappedRoomKey: string;
+          roomKeyId: string;
+        };
+      } else {
+        // 4b. Create new room with fresh wrapped room DEK
+        const rawKey = this.chatCryptoService.generateRoomKey();
+        const { wrappedRoomKey, roomKeyId } =
+          this.chatCryptoService.wrapRoomKey(rawKey);
+
+        const response = await this.supabase
+          .from('ChatRoom')
+          .insert({
+            userOneId,
+            userTwoId,
+            wrappedRoomKey,
+            roomKeyId,
+          })
+          .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
+          .single();
+
+        if (response.data) {
+          room = response.data as {
+            id: string;
+            userOneId: string;
+            userTwoId: string;
+            wrappedRoomKey: string;
+            roomKeyId: string;
+          };
+          roomKey = rawKey;
+        } else if (response.error) {
+          // Handle concurrent creation race condition (unique constraint hit on userOneId, userTwoId)
+          const fallback = await this.supabase
+            .from('ChatRoom')
+            .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
+            .eq('userOneId', userOneId)
+            .eq('userTwoId', userTwoId)
+            .single();
+
+          if (fallback.data) {
+            room = fallback.data as {
+              id: string;
+              userOneId: string;
+              userTwoId: string;
+              wrappedRoomKey: string;
+              roomKeyId: string;
+            };
+          } else {
+            throw response.error;
+          }
+        }
+      }
     } catch (err: unknown) {
       this.logger.error('Failed to process chat room', {
         senderId,
@@ -411,19 +568,30 @@ export class ChatsService extends BaseService {
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
-    const room = roomData as { id: string } | null;
-
-    if (roomError || !room) {
-      this.logger.error('Failed to process chat room', {
-        senderId,
-        targetUserId,
-        step: 'get_or_create_room',
-        err: serializeError(roomError),
-      });
+    if (!room) {
+      this.logger.error(
+        'Failed to process chat room: room not found or created',
+        {
+          senderId,
+          targetUserId,
+          step: 'get_or_create_room',
+        },
+      );
       throw new InternalServerErrorException('Failed to process chat room');
     }
 
-    // 5. Insert the message
+    // Resolve room DEK (use rawKey directly if generated, or unwrap from existing room)
+    if (!roomKey) {
+      roomKey = this.getOrUnwrapRoomKey(room);
+    }
+
+    // Encrypt message content strictly
+    const encryptedContent = this.chatCryptoService.encryptMessage(
+      content,
+      roomKey,
+    );
+
+    // 5. Insert the message with encrypted content
     let data: unknown;
     let msgError;
     try {
@@ -432,7 +600,7 @@ export class ChatsService extends BaseService {
         .insert({
           roomId: room.id,
           senderId,
-          content,
+          content: encryptedContent,
         })
         .select('*')
         .single();
@@ -469,7 +637,7 @@ export class ChatsService extends BaseService {
           ? `${message.id}`
           : '';
 
-    // 6. Emit domain event for notification dispatch
+    // 6. Emit domain event for notification dispatch (with plaintext content for previews)
     this.eventEmitter.emit(
       CHAT_MESSAGE_SENT_EVENT,
       new ChatMessageSentEvent(
@@ -482,7 +650,10 @@ export class ChatsService extends BaseService {
       ),
     );
 
-    return message;
+    return {
+      ...message,
+      content,
+    };
   }
 
   async markMessageRead(

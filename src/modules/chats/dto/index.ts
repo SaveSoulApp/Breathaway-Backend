@@ -7,6 +7,7 @@ export * from './request/mark-message-read.request.dto';
 // Export Response DTOs
 export * from './response/chat-messages.response.dto';
 export * from './response/chat-room.response.dto';
+export * from './response/chat-room-key.response.dto';
 export * from './response/chat-rooms.response.dto';
 export * from './response/mark-messages-read.response.dto';
 export * from './response/message.response.dto';

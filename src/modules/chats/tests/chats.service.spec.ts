@@ -26,6 +26,7 @@ import {
 } from '../application/exceptions';
 import { ChatsService } from '../chats.service';
 import { CHAT_MESSAGE_SENT_EVENT } from '../events';
+import { ChatCryptoService } from '../services/chat-crypto.service';
 import * as chatUtils from '../utils/chats.utils';
 
 jest.mock('@supabase/supabase-js', () => ({
@@ -65,7 +66,10 @@ describe('ChatsService', () => {
       or: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       single: jest.fn(),
+      maybeSingle: jest.fn(),
+      insert: jest.fn().mockReturnThis(),
       upsert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
     };
 
@@ -108,6 +112,30 @@ describe('ChatsService', () => {
       }),
     };
 
+    const mockChatCryptoService = {
+      generateRoomKey: jest.fn().mockReturnValue(Buffer.alloc(32, 1)),
+      wrapRoomKey: jest.fn().mockReturnValue({
+        wrappedRoomKey: 'mock-wrapped-key',
+        roomKeyId: 'chat-v1',
+      }),
+      unwrapRoomKey: jest.fn().mockReturnValue(Buffer.alloc(32, 1)),
+      encryptMessage: jest
+        .fn()
+        .mockImplementation((msg: string) => `enc:v1:iv:tag:${msg}`),
+      decryptMessage: jest.fn().mockImplementation((val: string) => {
+        if (val && val.startsWith('enc:v1:')) {
+          const parts = val.split(':');
+          return parts[parts.length - 1];
+        }
+        return val;
+      }),
+      isEncryptedMessage: jest
+        .fn()
+        .mockImplementation((val?: string | null) =>
+          Boolean(val?.startsWith('enc:v1:')),
+        ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatsService,
@@ -119,6 +147,10 @@ describe('ChatsService', () => {
         {
           provide: IdentityCryptoService,
           useValue: mockIdentityCryptoService,
+        },
+        {
+          provide: ChatCryptoService,
+          useValue: mockChatCryptoService,
         },
         {
           provide: ConfigService,
@@ -177,14 +209,26 @@ describe('ChatsService', () => {
   });
 
   describe('getMessages', () => {
-    it('should return messages and no nextCursor if fewer than limit', async () => {
+    it('should return messages, decrypt contents, and no nextCursor if fewer than limit', async () => {
       // Room authorization
       mockChatRoomQuery.single.mockResolvedValueOnce({
-        data: { id: 'room-1', userOneId: 'user-1', userTwoId: 'user-2' },
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        },
         error: null,
       });
 
-      const mockMessages = [{ id: '1', createdAt: 'date1' }];
+      const mockMessages = [
+        {
+          id: '1',
+          content: 'enc:v1:iv:tag:decrypted-hello',
+          createdAt: 'date1',
+        },
+      ];
       mockMessageQuery.limit.mockResolvedValueOnce({
         data: mockMessages,
         error: null,
@@ -196,20 +240,28 @@ describe('ChatsService', () => {
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('ChatRoom');
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('Message');
-      expect(result.messages).toEqual(mockMessages);
+      expect(result.messages).toEqual([
+        { id: '1', content: 'decrypted-hello', createdAt: 'date1' },
+      ]);
       expect(result.nextCursor).toBeNull();
     });
 
     it('should return nextCursor if messages length equals limit', async () => {
       // Room authorization
       mockChatRoomQuery.single.mockResolvedValueOnce({
-        data: { id: 'room-1', userOneId: 'user-1', userTwoId: 'user-2' },
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        },
         error: null,
       });
 
       const mockMessages = [
-        { id: '1', createdAt: 'date1' },
-        { id: '2', createdAt: 'date2' },
+        { id: '1', content: 'plain-1', createdAt: 'date1' },
+        { id: '2', content: 'plain-2', createdAt: 'date2' },
       ];
       mockMessageQuery.limit.mockResolvedValueOnce({
         data: mockMessages,
@@ -220,14 +272,23 @@ describe('ChatsService', () => {
         limit: 2,
       });
 
-      expect(result.messages).toEqual(mockMessages);
+      expect(result.messages).toEqual([
+        { id: '1', content: 'plain-1', createdAt: 'date1' },
+        { id: '2', content: 'plain-2', createdAt: 'date2' },
+      ]);
       expect(result.nextCursor).toBe('date2');
     });
 
     it('should throw InternalServerErrorException on supabase error', async () => {
       // Room authorization
       mockChatRoomQuery.single.mockResolvedValueOnce({
-        data: { id: 'room-1', userOneId: 'user-1', userTwoId: 'user-2' },
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        },
         error: null,
       });
 
@@ -239,6 +300,67 @@ describe('ChatsService', () => {
       await expect(service.getMessages('user-1', 'room-1', {})).rejects.toThrow(
         InternalServerErrorException,
       );
+    });
+  });
+
+  describe('getRoomKey', () => {
+    it('should return room encryption key for authorized participant', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        },
+        error: null,
+      });
+
+      blocksService.isBlocked.mockResolvedValueOnce(false);
+
+      const result = await service.getRoomKey('user-1', 'room-1');
+
+      expect(result.roomId).toBe('room-1');
+      expect(typeof result.key).toBe('string');
+      expect(result.algorithm).toBe('AES-GCM-256');
+    });
+
+    it('should throw UserBlockedException if users have an active block', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-1',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        },
+        error: null,
+      });
+
+      blocksService.isBlocked.mockResolvedValueOnce(true);
+
+      await expect(service.getRoomKey('user-1', 'room-1')).rejects.toThrow(
+        UserBlockedException,
+      );
+    });
+
+    it('should throw InternalServerErrorException if room has missing wrapped key', async () => {
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: {
+          id: 'room-corrupt',
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: null,
+          roomKeyId: null,
+        },
+        error: null,
+      });
+
+      blocksService.isBlocked.mockResolvedValueOnce(false);
+
+      await expect(
+        service.getRoomKey('user-1', 'room-corrupt'),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
@@ -291,22 +413,28 @@ describe('ChatsService', () => {
       });
     });
 
-    it('should send a message and trigger push notification when authorized', async () => {
+    it('should send a message and trigger push notification when room already exists', async () => {
       blocksService.isBlocked.mockResolvedValueOnce(false);
       (prisma.match.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'match-1',
       });
 
-      const mockRoom = { id: 'room-1' };
-      const mockMessage = { id: 'msg-1', content: 'hello' };
+      const mockRoom = {
+        id: 'room-1',
+        userOneId: 'user-1',
+        userTwoId: 'user-2',
+        wrappedRoomKey: 'mock-wrapped-key',
+        roomKeyId: 'chat-v1',
+      };
+      const mockMessage = { id: 'msg-1', content: 'enc:v1:iv:tag:hello' };
 
       jest.spyOn(chatUtils, 'generateRoomParticipants').mockReturnValue({
         userOneId: 'user-1',
         userTwoId: 'user-2',
       });
 
-      // Mock upsert for room
-      mockChatRoomQuery.single.mockResolvedValueOnce({
+      // Existing room lookup
+      mockChatRoomQuery.maybeSingle.mockResolvedValueOnce({
         data: mockRoom,
         error: null,
       });
@@ -321,15 +449,11 @@ describe('ChatsService', () => {
         content: 'hello',
       });
 
-      expect(result).toEqual(mockMessage);
-      expect(mockChatRoomQuery.upsert).toHaveBeenCalledWith(
-        { userOneId: 'user-1', userTwoId: 'user-2' },
-        { onConflict: 'userOneId, userTwoId' },
-      );
+      expect(result).toEqual({ id: 'msg-1', content: 'hello' });
       expect(mockMessageQuery.insert).toHaveBeenCalledWith({
         roomId: 'room-1',
         senderId: 'user-1',
-        content: 'hello',
+        content: 'enc:v1:iv:tag:hello',
       });
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         CHAT_MESSAGE_SENT_EVENT,
@@ -344,16 +468,67 @@ describe('ChatsService', () => {
       );
     });
 
-    it('should throw InternalServerErrorException on room upsert failure', async () => {
+    it('should create room with key and send message when room does not exist', async () => {
       blocksService.isBlocked.mockResolvedValueOnce(false);
       (prisma.match.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'match-1',
       });
 
-      mockChatRoomQuery.single.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Upsert error' },
+      const mockRoom = {
+        id: 'room-new',
+        userOneId: 'user-1',
+        userTwoId: 'user-2',
+        wrappedRoomKey: 'mock-wrapped-key',
+        roomKeyId: 'chat-v1',
+      };
+      const mockMessage = { id: 'msg-1', content: 'enc:v1:iv:tag:hello' };
+
+      jest.spyOn(chatUtils, 'generateRoomParticipants').mockReturnValue({
+        userOneId: 'user-1',
+        userTwoId: 'user-2',
       });
+
+      // No existing room
+      mockChatRoomQuery.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+      // Room insert succeeds
+      mockChatRoomQuery.single.mockResolvedValueOnce({
+        data: mockRoom,
+        error: null,
+      });
+      // Message insert
+      mockMessageQuery.single.mockResolvedValueOnce({
+        data: mockMessage,
+        error: null,
+      });
+
+      const result = await service.sendMessage('user-1', {
+        targetUserId: 'user-2',
+        content: 'hello',
+      });
+
+      expect(result).toEqual({ id: 'msg-1', content: 'hello' });
+      expect(mockChatRoomQuery.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userOneId: 'user-1',
+          userTwoId: 'user-2',
+          wrappedRoomKey: 'mock-wrapped-key',
+          roomKeyId: 'chat-v1',
+        }),
+      );
+    });
+
+    it('should throw InternalServerErrorException on room resolution failure', async () => {
+      blocksService.isBlocked.mockResolvedValueOnce(false);
+      (prisma.match.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: 'match-1',
+      });
+
+      mockChatRoomQuery.maybeSingle.mockRejectedValueOnce(
+        new Error('Upsert error'),
+      );
 
       await expect(
         service.sendMessage('user-1', {
@@ -369,8 +544,16 @@ describe('ChatsService', () => {
         id: 'match-1',
       });
 
-      mockChatRoomQuery.single.mockResolvedValueOnce({
-        data: { id: 'room-1' },
+      const mockRoom = {
+        id: 'room-1',
+        userOneId: 'user-1',
+        userTwoId: 'user-2',
+        wrappedRoomKey: 'mock-wrapped-key',
+        roomKeyId: 'chat-v1',
+      };
+
+      mockChatRoomQuery.maybeSingle.mockResolvedValueOnce({
+        data: mockRoom,
         error: null,
       });
       mockMessageQuery.single.mockResolvedValueOnce({

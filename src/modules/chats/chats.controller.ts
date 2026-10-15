@@ -26,6 +26,7 @@ import { LoggerService } from '@core/logger';
 import { ChatsService } from './chats.service';
 import {
   ChatMessagesResponseDto,
+  ChatRoomKeyResponseDto,
   ChatRoomsResponseDto,
   CreateMessageRequestDto,
   GetMessagesRequestDto,
@@ -131,5 +132,25 @@ export class ChatsController extends BaseController {
     @Query() query: GetMessagesRequestDto,
   ) {
     return this.chatsService.getMessages(userId, roomId, query);
+  }
+
+  @Get(':roomId/key')
+  @ApiOperation({
+    summary: 'Get unwrapped room encryption key for message decryption',
+    description:
+      'Returns the raw 32-byte AES-256 room data key (DEK) for authorized participants to decrypt messages in-browser or on mobile clients.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Room encryption key retrieved successfully',
+    type: ChatRoomKeyResponseDto,
+  })
+  @SerializeExpose(ChatRoomKeyResponseDto)
+  async getRoomKey(
+    @CurrentUserId() userId: string,
+    @Param('roomId') roomId: string,
+  ) {
+    return this.chatsService.getRoomKey(userId, roomId);
   }
 }

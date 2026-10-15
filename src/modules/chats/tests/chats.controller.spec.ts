@@ -21,6 +21,7 @@ describe('ChatsController', () => {
       markMessageRead: jest.fn(),
       getRooms: jest.fn(),
       getMessages: jest.fn(),
+      getRoomKey: jest.fn(),
     };
 
     const mockSupabaseAuthService = {
@@ -144,6 +145,23 @@ describe('ChatsController', () => {
         'room-1',
         mockQuery,
       );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('getRoomKey', () => {
+    it('should delegate to chatsService and return the room key', async () => {
+      const mockResponse = {
+        roomId: 'room-1',
+        key: 'dGhpcy1pcy1hLTMyLWJ5dGUtYWVzLTI1Ni1rZXk=',
+        algorithm: 'AES-GCM-256',
+      };
+
+      chatsService.getRoomKey.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.getRoomKey('user-1', 'room-1');
+
+      expect(chatsService.getRoomKey).toHaveBeenCalledWith('user-1', 'room-1');
       expect(result).toEqual(mockResponse);
     });
   });
