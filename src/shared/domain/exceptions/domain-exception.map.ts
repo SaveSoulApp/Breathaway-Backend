@@ -14,6 +14,7 @@ export const DOMAIN_EXCEPTION_HTTP_MAP: Record<string, HttpStatus> = {
   MessageNotFoundException: HttpStatus.NOT_FOUND,
   ChatRoomNotFoundException: HttpStatus.NOT_FOUND,
   ChatRoomAccessForbiddenException: HttpStatus.FORBIDDEN,
+  MessageDeletionForbiddenException: HttpStatus.FORBIDDEN,
   SelfMessageException: HttpStatus.BAD_REQUEST,
   ActiveMatchRequiredException: HttpStatus.FORBIDDEN,
   UserBlockedException: HttpStatus.FORBIDDEN,

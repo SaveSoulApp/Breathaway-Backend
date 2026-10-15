@@ -19,37 +19,40 @@ This document serves as the **definitive operational guide** for configuring, ma
 │                                                                        │
 │   POST /chats/messages           GET /chats/supabase-token             │
 │   (Server-side Write)            (Mints ES256 JWT with kid & aud)      │
+│                                  GET /chats/rooms/:roomId/key          │
+│                                  (Unwraps room DEK for client)         │
 └───────────────┬──────────────────────────────────┬─────────────────────┘
-                │ Service Role Key                 │ Signed Client JWT
-                │ (Bypasses RLS)                   │ (sub = userId, aud = 'authenticated')
+                │ Service Role Key                 │ Signed Client JWT &
+                │ (Bypasses RLS)                   │ Raw 32-byte Room Key
                 ▼                                  ▼
 ┌─────────────────────────────────┐   ┌──────────────────────────────────┐
 │      PostgreSQL Database        │   │     Supabase Realtime Engine     │
 │   (Cloud SQL / Supabase DB)     │   │      (WebSockets Endpoint)       │
 │                                 │   │                                  │
-│  • ChatRoom (id: gen_random_uuid)  │   │  • Validates JWT via JWKS (kid)  │
-│  • Message  (id: gen_random_uuid)  │   │  • Enforces RLS on subscriptions │
-│                                 │   │  • Dispatches live message events│
+│  • ChatRoom (wrappedRoomKey)    │   │  • Validates JWT via JWKS (kid)  │
+│  • Message  (encrypted content) │   │  • Enforces RLS on subscriptions │
+│                                 │   │  • Dispatches ciphertext events  │
 │  ┌───────────────────────────┐  │   └─────────────────▲────────────────┘
 │  │ supabase_realtime pub     │──┼─── WAL Replication ─┘
 │  │ (Logical Replication)     │  │
 │  └───────────────────────────┘  │
-└─────────────────────────────────┘                     │ Live WebSocket Stream
-                                                        │ (setAuth token)
+└─────────────────────────────────┘                     │ Live Ciphertext Stream
+                                                        │ (enc:v1:...)
                                                         ▼
                                       ┌──────────────────────────────────┐
                                       │  Client Apps (Mobile & Web)      │
-                                      │  • React / Next.js Web App       │
-                                      │  • Flutter / iOS Mobile App      │
+                                      │  • Local WebCrypto Decryption    │
+                                      │  • Sub-millisecond rendering     │
                                       └──────────────────────────────────┘
 ```
 
-### Layer 1 — Table DDL (Prisma)
+### Layer 1 — Table DDL (Prisma & Supabase)
 
 `ChatRoom` and `Message` are declared in [`prisma/schema.prisma`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/prisma/schema.prisma). Prisma owns:
 
 - Table creation, column definitions, constraints, and indexes.
 - **Database-Level UUID Generation**: Both tables use `@default(dbgenerated("gen_random_uuid()")) @db.Uuid`. This is critical because server-side writes originating from `@supabase/supabase-js` (PostgREST) do not generate IDs client-side like Prisma Client does. The PostgreSQL engine itself must supply the default UUID upon `INSERT`.
+- **Field-Level Encryption at Rest (DB-01)**: `ChatRoom` holds `wrappedRoomKey TEXT NOT NULL` (the Base64-encoded AES-256 room data key, wrapped with the active GCP Secret Manager master key) and `roomKeyId VARCHAR(64) NOT NULL` (the key identifier, e.g. `chat-v1`). All records in `Message.content` are strictly encrypted as `enc:v1:<ivBase64>:<tagBase64>:<ciphertextBase64>`. Zero plaintext is ever written to disk.
 
 ### Layer 2 — Supabase Infrastructure (`supabase/migrations/`)
 
@@ -274,21 +277,85 @@ Setting the JWT only in global HTTP headers (`{ headers: { Authorization: 'Beare
 
 ---
 
+## 🔐 Client-Side Decryption & Room Key Handshake (WebCrypto)
+
+Because all messages are encrypted at rest with room-level AES-256-GCM data keys (`enc:v1:<ivBase64>:<tagBase64>:<ciphertextBase64>`), frontend web and mobile clients decrypt messages locally using the native **W3C Web Crypto API** (`window.crypto.subtle`).
+
+### Handshake Sequence
+
+```
+1. User clicks conversation
+2. Client requests room key:
+   GET /api/v1/chats/rooms/:roomId/key ────► [Backend verifies participant access]
+   ◄── Returns { roomId, key, algorithm: "AES-GCM-256" }
+3. Client imports raw 32-byte key via window.crypto.subtle.importKey()
+4. Client fetches messages (Supabase PostgREST or Realtime WebSocket)
+5. Client decrypts ciphertext locally in-browser (< 0.05ms)
+```
+
+### Frontend Implementation Reference (TypeScript / WebCrypto)
+
+```typescript
+// 1. Fetch the raw 32-byte room key from NestJS backend
+const keyResponse = await fetch(`/api/v1/chats/rooms/${roomId}/key`, {
+  headers: { Authorization: `Bearer ${userJwt}` },
+});
+const { key: base64Key } = await keyResponse.json();
+
+// 2. Import into a native WebCrypto CryptoKey
+const rawKeyBuffer = Uint8Array.from(atob(base64Key), (c) => c.charCodeAt(0));
+const cryptoKey = await window.crypto.subtle.importKey(
+  'raw',
+  rawKeyBuffer,
+  { name: 'AES-GCM', length: 256 },
+  false,
+  ['decrypt'],
+);
+
+// 3. Decrypt incoming message payload (enc:v1:<iv>:<tag>:<ciphertext>)
+async function decryptMessage(encryptedString: string): Promise<string> {
+  const parts = encryptedString.split(':');
+  if (parts.length < 5 || parts[0] !== 'enc' || parts[1] !== 'v1') {
+    throw new Error('Invalid encrypted payload format');
+  }
+
+  const iv = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+  const tag = Uint8Array.from(atob(parts[3]), (c) => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(parts[4]), (c) => c.charCodeAt(0));
+
+  // WebCrypto requires ciphertext and 16-byte authentication tag concatenated
+  const combined = new Uint8Array(ciphertext.length + tag.length);
+  combined.set(ciphertext);
+  combined.set(tag, ciphertext.length);
+
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv, tagLength: 128 },
+    cryptoKey,
+    combined,
+  );
+
+  return new TextDecoder().decode(decryptedBuffer);
+}
+```
+
+---
+
 ## 📋 Production Rollout Checklist
 
 Before opening chat features to real users in production, ensure this checklist is complete:
 
 - [ ] **DDL Applied**: `prisma migrate deploy` executed on Cloud SQL production database.
 - [ ] **UUID Defaults Verified**: `ChatRoom.id` and `Message.id` have `DEFAULT gen_random_uuid()`.
+- [ ] **Room Encryption DDL**: `wrappedRoomKey` (`TEXT NOT NULL`) and `roomKeyId` (`VARCHAR(64) NOT NULL`) applied in PostgreSQL and resolved in Prisma (`prisma migrate resolve --applied 20261016000000_chat_room_encryption_keys`).
 - [ ] **RLS Applied**: `supabase/migrations/20260902000000_chat_realtime_rls.sql` executed in production Supabase SQL Editor.
 - [ ] **Publication Enabled**: `ChatRoom` and `Message` tables confirmed in `supabase_realtime` publication.
 - [ ] **Production Key Imported**: Production ES256 key imported into production Supabase JWT Signing Keys.
 - [ ] **Key Rotated**: Production key promoted to "Current" in Supabase Dashboard.
-- [ ] **Secrets Stored**: `supabase-url`, `supabase-service-role-key`, and `supabase-jwt-private-key` stored in GCP Secret Manager (`breathaway` project).
+- [ ] **Secrets Stored**: `supabase-url`, `supabase-service-role-key`, `supabase-jwt-private-key`, `gcp-secret-chat-master-keys`, and `active-chat-master-key-id` stored in GCP Secret Manager (`breathaway` project).
 - [ ] **Key ID Configured**: `SUPABASE_JWT_KEY_ID` configured in `scripts/common.prod.sh`.
 - [ ] **Backend Deployed**: Cloud Run backend deployed with `deploy:prod`.
-- [ ] **Token Verified**: Decoded JWT from `GET /api/v1/chats/supabase-token` confirmed to contain `kid` in header, and `aud: "authenticated"`, `role: "authenticated"`, and `sub: "<userId>"` in payload.
-- [ ] **Live Subscription Tested**: End-to-end WebSocket message delivery verified with `supabase.realtime.setAuth(token)`.
+- [ ] **Token & Key Verified**: Tested `GET /api/v1/chats/supabase-token` and `GET /api/v1/chats/rooms/:roomId/key`.
+- [ ] **Live Subscription Tested**: End-to-end WebSocket message delivery and in-browser WebCrypto decryption verified.
 
 ---
 

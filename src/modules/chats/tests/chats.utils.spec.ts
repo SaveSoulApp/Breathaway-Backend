@@ -1,4 +1,8 @@
-import { generateRoomParticipants } from '../utils/chats.utils';
+import {
+  generateRoomParticipants,
+  getOtherParticipantId,
+  sanitizeLimit,
+} from '../utils/chats.utils';
 
 describe('ChatsUtils', () => {
   describe('generateRoomParticipants', () => {
@@ -28,6 +32,39 @@ describe('ChatsUtils', () => {
 
       expect(result.userOneId).toBe(id);
       expect(result.userTwoId).toBe(id);
+    });
+  });
+
+  describe('getOtherParticipantId', () => {
+    it('should return userTwoId when current user is userOneId', () => {
+      const room = { userOneId: 'user-alpha', userTwoId: 'user-beta' };
+      expect(getOtherParticipantId(room, 'user-alpha')).toBe('user-beta');
+    });
+
+    it('should return userOneId when current user is userTwoId', () => {
+      const room = { userOneId: 'user-alpha', userTwoId: 'user-beta' };
+      expect(getOtherParticipantId(room, 'user-beta')).toBe('user-alpha');
+    });
+  });
+
+  describe('sanitizeLimit', () => {
+    it('should return defaultLimit when limit is undefined', () => {
+      expect(sanitizeLimit()).toBe(20);
+      expect(sanitizeLimit(undefined, 50)).toBe(50);
+    });
+
+    it('should clamp limit to minimum of 1', () => {
+      expect(sanitizeLimit(0)).toBe(1);
+      expect(sanitizeLimit(-10)).toBe(1);
+    });
+
+    it('should clamp limit to maxLimit', () => {
+      expect(sanitizeLimit(150)).toBe(100);
+      expect(sanitizeLimit(50, 20, 30)).toBe(30);
+    });
+
+    it('should return valid requested limit within bounds', () => {
+      expect(sanitizeLimit(42)).toBe(42);
     });
   });
 });

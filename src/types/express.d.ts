@@ -1,4 +1,5 @@
 import { ClientIdentityData, UserAgentData } from '@common/interfaces';
+import type { ChatRoomRecord } from '@modules/chats/interfaces/chat-room.interface';
 
 declare global {
   namespace Express {
@@ -20,6 +21,12 @@ declare global {
        * Contains the parsed API key, client ID, device ID, and x-user-agent data.
        */
       clientIdentity: ClientIdentityData;
+
+      /**
+       * Validated chat room record injected by ChatRoomParticipantGuard.
+       * Confirms caller is an authorized participant and prevents duplicate lookups.
+       */
+      chatRoom?: ChatRoomRecord;
 
       // ---------------------------------------------------------------------------
       // Legacy fields set by individual middlewares (pre-ClientIdentityGuard era).

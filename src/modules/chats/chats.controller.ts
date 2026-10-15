@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -24,10 +26,14 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
 import { ChatsService } from './chats.service';
+import { CurrentChatRoom } from './decorators';
 import {
   ChatMessagesResponseDto,
+  ChatRoomKeyResponseDto,
   ChatRoomsResponseDto,
   CreateMessageRequestDto,
+  DeleteMessagesRequestDto,
+  DeleteMessagesResponseDto,
   GetMessagesRequestDto,
   GetRoomsRequestDto,
   MarkMessageReadRequestDto,
@@ -35,6 +41,8 @@ import {
   MessageResponseDto,
   SupabaseTokenResponseDto,
 } from './dto';
+import { ChatRoomParticipantGuard } from './guards';
+import type { ChatRoomRecord } from './interfaces';
 import { SupabaseAuthService } from './services/supabase-auth.service';
 
 @ApiTags('Chats')
@@ -83,6 +91,7 @@ export class ChatsController extends BaseController {
   }
 
   @Post(':roomId/messages/read')
+  @UseGuards(ChatRoomParticipantGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark messages as read' })
   @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
@@ -94,10 +103,10 @@ export class ChatsController extends BaseController {
   @SerializeExpose(MarkMessagesReadResponseDto)
   async markMessagesRead(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Body() dto: MarkMessageReadRequestDto,
   ) {
-    await this.chatsService.markMessageRead(userId, roomId, dto);
+    await this.chatsService.markMessageRead(userId, room, dto);
     return { success: true };
   }
 
@@ -117,6 +126,7 @@ export class ChatsController extends BaseController {
   }
 
   @Get(':roomId/messages')
+  @UseGuards(ChatRoomParticipantGuard)
   @ApiOperation({ summary: 'Get chat messages with cursor pagination' })
   @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
   @ApiResponse({
@@ -127,9 +137,79 @@ export class ChatsController extends BaseController {
   @SerializeExpose(ChatMessagesResponseDto)
   async getMessages(
     @CurrentUserId() userId: string,
-    @Param('roomId') roomId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
     @Query() query: GetMessagesRequestDto,
   ) {
-    return this.chatsService.getMessages(userId, roomId, query);
+    return this.chatsService.getMessages(userId, room, query);
+  }
+
+  @Get(':roomId/key')
+  @UseGuards(ChatRoomParticipantGuard)
+  @ApiOperation({
+    summary: 'Get unwrapped room encryption key for message decryption',
+    description:
+      'Returns the raw 32-byte AES-256 room data key (DEK) for authorized participants to decrypt messages in-browser or on mobile clients.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Room encryption key retrieved successfully',
+    type: ChatRoomKeyResponseDto,
+  })
+  @SerializeExpose(ChatRoomKeyResponseDto)
+  async getRoomKey(
+    @CurrentUserId() userId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
+  ) {
+    return this.chatsService.getRoomKey(userId, room);
+  }
+
+  @Delete(':roomId/messages')
+  @UseGuards(ChatRoomParticipantGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete chat messages (batch or single)',
+    description:
+      'Deletes one or more messages sent by the calling participant from the specified chat room.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Messages deleted successfully',
+    type: DeleteMessagesResponseDto,
+  })
+  @SerializeExpose(DeleteMessagesResponseDto)
+  async deleteMessages(
+    @CurrentUserId() userId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
+    @Body() dto: DeleteMessagesRequestDto,
+  ) {
+    return this.chatsService.deleteMessages(userId, room, dto);
+  }
+
+  @Delete(':roomId/messages/:messageId')
+  @UseGuards(ChatRoomParticipantGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a single chat message',
+    description:
+      'Convenience endpoint to delete a single message sent by the calling participant.',
+  })
+  @ApiParam({ name: 'roomId', description: 'The unique room UUID' })
+  @ApiParam({ name: 'messageId', description: 'The unique message UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Message deleted successfully',
+    type: DeleteMessagesResponseDto,
+  })
+  @SerializeExpose(DeleteMessagesResponseDto)
+  async deleteSingleMessage(
+    @CurrentUserId() userId: string,
+    @CurrentChatRoom() room: ChatRoomRecord,
+    @Param('messageId', new ParseUUIDPipe()) messageId: string,
+  ) {
+    return this.chatsService.deleteMessages(userId, room, {
+      messageIds: [messageId],
+    });
   }
 }

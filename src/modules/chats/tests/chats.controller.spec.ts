@@ -5,9 +5,11 @@ import { LoggerService } from '@core/logger';
 import { ChatsController } from '../chats.controller';
 import { ChatsService } from '../chats.service';
 import { CreateMessageRequestDto } from '../dto/request/create-message.request.dto';
+import { DeleteMessagesRequestDto } from '../dto/request/delete-messages.request.dto';
 import { GetMessagesRequestDto } from '../dto/request/get-messages.request.dto';
 import { GetRoomsRequestDto } from '../dto/request/get-rooms.request.dto';
 import { MarkMessageReadRequestDto } from '../dto/request/mark-message-read.request.dto';
+import { ChatRoomRecord } from '../interfaces';
 import { SupabaseAuthService } from '../services/supabase-auth.service';
 
 describe('ChatsController', () => {
@@ -15,12 +17,22 @@ describe('ChatsController', () => {
   let chatsService: jest.Mocked<ChatsService>;
   let supabaseAuthService: jest.Mocked<SupabaseAuthService>;
 
+  const mockRoom: ChatRoomRecord = {
+    id: 'room-1',
+    userOneId: 'user-1',
+    userTwoId: 'user-2',
+    wrappedRoomKey: 'd3JhcHBlZEtleQ==',
+    roomKeyId: 'chat_v1',
+  };
+
   beforeEach(async () => {
     const mockChatsService = {
       sendMessage: jest.fn(),
       markMessageRead: jest.fn(),
       getRooms: jest.fn(),
       getMessages: jest.fn(),
+      getRoomKey: jest.fn(),
+      deleteMessages: jest.fn(),
     };
 
     const mockSupabaseAuthService = {
@@ -86,13 +98,13 @@ describe('ChatsController', () => {
 
       const result = await controller.markMessagesRead(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
 
       expect(chatsService.markMessageRead).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         mockDto,
       );
       expect(result).toEqual({ success: true });
@@ -135,14 +147,76 @@ describe('ChatsController', () => {
 
       const result = await controller.getMessages(
         'user-1',
-        'room-1',
+        mockRoom,
         mockQuery,
       );
 
       expect(chatsService.getMessages).toHaveBeenCalledWith(
         'user-1',
-        'room-1',
+        mockRoom,
         mockQuery,
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('getRoomKey', () => {
+    it('should delegate to chatsService and return the room key', async () => {
+      const mockResponse = {
+        roomId: 'room-1',
+        key: 'dGhpcy1pcy1hLTMyLWJ5dGUtYWVzLTI1Ni1rZXk=',
+        algorithm: 'AES-GCM-256',
+      };
+
+      chatsService.getRoomKey.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.getRoomKey('user-1', mockRoom);
+
+      expect(chatsService.getRoomKey).toHaveBeenCalledWith('user-1', mockRoom);
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('deleteMessages', () => {
+    it('should delegate batch deletion to chatsService', async () => {
+      const mockDto: DeleteMessagesRequestDto = {
+        messageIds: ['msg-1', 'msg-2'],
+      };
+      const mockResponse = { success: true, deletedCount: 2 };
+
+      chatsService.deleteMessages.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.deleteMessages(
+        'user-1',
+        mockRoom,
+        mockDto,
+      );
+
+      expect(chatsService.deleteMessages).toHaveBeenCalledWith(
+        'user-1',
+        mockRoom,
+        mockDto,
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('deleteSingleMessage', () => {
+    it('should wrap single messageId into DeleteMessagesRequestDto and delegate to chatsService', async () => {
+      const mockResponse = { success: true, deletedCount: 1 };
+
+      chatsService.deleteMessages.mockResolvedValue(mockResponse as any);
+
+      const result = await controller.deleteSingleMessage(
+        'user-1',
+        mockRoom,
+        'msg-1',
+      );
+
+      expect(chatsService.deleteMessages).toHaveBeenCalledWith(
+        'user-1',
+        mockRoom,
+        { messageIds: ['msg-1'] },
       );
       expect(result).toEqual(mockResponse);
     });

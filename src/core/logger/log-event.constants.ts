@@ -38,6 +38,8 @@ export type LogEvent =
 
   // ── Chats ──────────────────────────────────────────────────────────────────
   | 'CHAT_HISTORY_CLEARED'
+  | 'CHAT_MESSAGES_DELETED'
+  | 'CHAT_ROOM_KEY_ACCESSED'
 
   // ── Credits ────────────────────────────────────────────────────────────────
   | 'CREDITS_BALANCE_CHECKED'
@@ -180,6 +182,8 @@ export const LOG_EVENT = {
 
   // Chats
   CHAT_HISTORY_CLEARED: 'CHAT_HISTORY_CLEARED',
+  CHAT_MESSAGES_DELETED: 'CHAT_MESSAGES_DELETED',
+  CHAT_ROOM_KEY_ACCESSED: 'CHAT_ROOM_KEY_ACCESSED',
 
   // Credits
   CREDITS_BALANCE_CHECKED: 'CREDITS_BALANCE_CHECKED',

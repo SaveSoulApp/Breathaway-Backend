@@ -16,3 +16,33 @@ export function generateRoomParticipants(
     ? { userOneId: id1, userTwoId: id2 }
     : { userOneId: id2, userTwoId: id1 };
 }
+
+/**
+ * Resolves the counterpart participant ID from a chat room record given the current user's ID.
+ *
+ * @param room An object containing userOneId and userTwoId
+ * @param currentUserId The ID of the current user
+ * @returns The ID of the other user in the room
+ */
+export function getOtherParticipantId(
+  room: { userOneId: string; userTwoId: string },
+  currentUserId: string,
+): string {
+  return room.userOneId === currentUserId ? room.userTwoId : room.userOneId;
+}
+
+/**
+ * Normalizes and clamps pagination limits within bounds.
+ *
+ * @param limit Optional requested limit
+ * @param defaultLimit Fallback limit if unspecified (default: 20)
+ * @param maxLimit Maximum upper bound (default: 100)
+ * @returns Integer limit within [1, maxLimit]
+ */
+export function sanitizeLimit(
+  limit?: number,
+  defaultLimit = 20,
+  maxLimit = 100,
+): number {
+  return Math.min(maxLimit, Math.max(1, limit ?? defaultLimit));
+}

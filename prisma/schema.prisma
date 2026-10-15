@@ -809,6 +809,11 @@ model ChatRoom {
   userOneId String
   userTwoId String
 
+  /// Base64-encoded AES-256 room data key, wrapped by GCP Secret Manager chat master key
+  wrappedRoomKey String @db.Text
+  /// Identifies which master key wrapped this DEK (e.g. "chat-v1")
+  roomKeyId      String @db.VarChar(64)
+
   messages Message[]
 
   createdAt DateTime @default(now()) @db.Timestamptz
