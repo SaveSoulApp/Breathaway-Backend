@@ -250,8 +250,8 @@ Use `identityCryptoService.maskValue()` before logging any identity strings.
 Full log sequence for `POST /likes`:
 
 ```
-1. LoggingInterceptor:
-   { event: "REQUEST_RECEIVED", httpRequest.method: "POST", httpRequest.url: "/api/v1/likes", requestId: "req-abc" }
+1. LoggingInterceptor (DEBUG):
+   { message: "Incoming request", httpRequest.method: "POST", httpRequest.url: "/api/v1/likes", requestId: "req-abc" }
 
 2. LikesService — credit check:
    { message: "Checking credit balance", context: "LikesService", step: "credit_check", userId: "u-1" }
@@ -265,8 +265,8 @@ Full log sequence for `POST /likes`:
 5. LikesService — complete:
    { event: "LIKE_CREATED", likeId: "like-1", userId: "u-1", targetIdentityId: "tid-2" }
 
-6. LoggingInterceptor:
-   { event: "REQUEST_COMPLETED", statusCode: 201, durationMs: 43 }
+6. LoggingInterceptor (DEBUG):
+   { message: "Request completed", statusCode: 201, durationMs: 43 }
 
 All lines share the same requestId: "req-abc"
 ```
