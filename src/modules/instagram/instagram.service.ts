@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 
 import { GcpSecretName } from '@common/enums';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import {
   InstagramGraphApiException,
@@ -27,6 +27,7 @@ export class InstagramService extends BaseService {
     logger: LoggerService,
     private readonly configService: ConfigService,
     private readonly gcpSecretManager: GcpSecretManagerService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(logger);
   }
@@ -54,12 +55,15 @@ export class InstagramService extends BaseService {
     this.logger.log('Refreshing Instagram access token', { step: 'init' });
 
     try {
-      const response = await axios.get(`${this.baseUrl}/refresh_access_token`, {
-        params: {
-          grant_type: 'ig_refresh_token',
-          access_token: currentToken,
+      const response = await this.httpClient.get(
+        `${this.baseUrl}/refresh_access_token`,
+        {
+          params: {
+            grant_type: 'ig_refresh_token',
+            access_token: currentToken,
+          },
         },
-      });
+      );
 
       const data = response.data as Record<string, unknown>;
 

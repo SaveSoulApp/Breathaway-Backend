@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
 
@@ -17,6 +17,7 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(loggerService);
 
@@ -65,7 +66,7 @@ export class BrevoEmailAdapter extends BaseService implements IEmailAdapter {
     };
 
     try {
-      await axios.post(
+      await this.httpClient.post(
         'https://api.brevo.com/v3/smtp/email',
         {
           sender,

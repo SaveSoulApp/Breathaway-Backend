@@ -1,10 +1,12 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import FormData from 'form-data';
+
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import FormData from 'form-data';
+import { HttpClientService } from '@infrastructure/http';
+
 import { EmailPayload, IEmailAdapter } from './email-adapter.interface';
 
 /** Default to the US Mailgun API endpoint; override via MAILGUN_HOST for EU. */
@@ -21,6 +23,7 @@ export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(loggerService);
 
@@ -80,7 +83,7 @@ export class MailgunEmailAdapter extends BaseService implements IEmailAdapter {
     form.append('html', payload.html);
 
     try {
-      await axios.post(`${this.apiBaseUrl}/messages`, form, {
+      await this.httpClient.post(`${this.apiBaseUrl}/messages`, form, {
         auth: {
           // Mailgun uses HTTP Basic Auth with literal string "api" as the username
           username: 'api',

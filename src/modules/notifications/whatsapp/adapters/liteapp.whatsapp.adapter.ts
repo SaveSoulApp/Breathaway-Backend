@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosError } from 'axios';
+import type { AxiosError } from 'axios';
 
 import { serializeError } from '@common/utils/error.utils';
 import { maskPhoneNumber } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import {
   IWhatsAppAdapter,
@@ -27,6 +28,7 @@ export class LiteAppWhatsAppAdapter
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(loggerService);
 
@@ -99,7 +101,10 @@ export class LiteAppWhatsAppAdapter
         step: 'send_complete',
       });
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 429) {
+      if (
+        this.httpClient.isAxiosError(error) &&
+        error.response?.status === 429
+      ) {
         await this.handleRateLimitRetry(
           endpoint,
           requestBody,
@@ -119,7 +124,7 @@ export class LiteAppWhatsAppAdapter
     body: Record<string, unknown>,
     headers: Record<string, string>,
   ): Promise<void> {
-    await axios.post(endpoint, body, {
+    await this.httpClient.post(endpoint, body, {
       headers,
       timeout: 10000,
     });
@@ -178,11 +183,9 @@ export class LiteAppWhatsAppAdapter
     error: unknown,
     payload: WhatsAppSendPayload,
   ): never {
-    const isAxios = axios.isAxiosError(error);
+    const isAxios = this.httpClient.isAxiosError(error);
     const status = isAxios ? error.response?.status : undefined;
-    const responseData = isAxios
-      ? (error.response?.data as unknown)
-      : undefined;
+    const responseData = isAxios ? error.response?.data : undefined;
 
     this.logger.error('LiteApp WhatsApp message delivery failed', {
       recipient: maskPhoneNumber(payload.to),
