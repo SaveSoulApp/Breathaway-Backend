@@ -28,3 +28,14 @@ export const CONCURRENT_ROTATION_WAIT_MS = 50;
  * before concluding the operation failed.
  */
 export const CONCURRENT_ROTATION_MAX_RETRIES = 5;
+
+/**
+ * Key prefix for caching positive active user JWT status in Redis.
+ * Key shape: user:active:<userId> (Redis Set of active token JTIs)
+ */
+export const AUTH_USER_ACTIVE_PREFIX = 'user:active:';
+
+/**
+ * Default TTL in seconds for user active status cache in Redis (5 minutes).
+ */
+export const DEFAULT_JWT_CACHE_TTL_SECONDS = 300;

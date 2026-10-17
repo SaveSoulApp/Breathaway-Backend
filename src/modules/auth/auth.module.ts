@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthModule } from './jwt.module';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
+import { JwtAuthCacheService } from './services/jwt-auth-cache.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 /**
@@ -34,7 +35,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtStrategy,
     AuthCredentialService,
     AuthTokenService,
+    JwtAuthCacheService,
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtAuthCacheService],
 })
 export class AuthModule {}

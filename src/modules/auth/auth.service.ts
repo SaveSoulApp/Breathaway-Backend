@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   AuthCredentialType,
   IdentityType,
@@ -49,6 +49,7 @@ import {
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
+import { JwtAuthCacheService } from './services/jwt-auth-cache.service';
 import {
   AuthMethod,
   isEmailAuthMethod,
@@ -75,6 +76,8 @@ export class AuthService extends BaseService {
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    @Optional()
+    private readonly jwtAuthCacheService?: JwtAuthCacheService,
   ) {
     super(logger);
   }
@@ -1109,6 +1112,7 @@ export class AuthService extends BaseService {
   async signout(userId: string, refreshToken?: string) {
     this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
     await this.authTokenService.revokeSession(userId, refreshToken);
+    await this.jwtAuthCacheService?.revokeUser(userId);
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,
@@ -1385,6 +1389,7 @@ export class AuthService extends BaseService {
     }
 
     // Step 3: Supabase Realtime & External Teardown
+    await this.jwtAuthCacheService?.revokeUser(userId);
     this.eventEmitter.emit(USER_DELETED_EVENT, new UserDeletedEvent(userId));
 
     // Step 4: Audit & Telemetry

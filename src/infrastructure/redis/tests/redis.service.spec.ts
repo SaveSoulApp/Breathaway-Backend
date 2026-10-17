@@ -12,6 +12,11 @@ describe('RedisService', () => {
     get: jest.Mock;
     set: jest.Mock;
     del: jest.Mock;
+    sadd: jest.Mock;
+    smembers: jest.Mock;
+    srem: jest.Mock;
+    sismember: jest.Mock;
+    expire: jest.Mock;
     ping: jest.Mock;
     ttl: jest.Mock;
   } | null;
@@ -56,6 +61,11 @@ describe('RedisService', () => {
         get: jest.fn(),
         set: jest.fn(),
         del: jest.fn(),
+        sadd: jest.fn(),
+        smembers: jest.fn(),
+        srem: jest.fn(),
+        sismember: jest.fn(),
+        expire: jest.fn(),
         ping: jest.fn(),
         ttl: jest.fn(),
       };
@@ -194,6 +204,14 @@ describe('RedisService', () => {
       expect(result).toBe(1);
     });
 
+    it('del deletes multiple keys and returns count', async () => {
+      mockRedisClient!.del.mockResolvedValue(2);
+      const result = await service.del('key-1', 'key-2');
+
+      expect(mockRedisClient!.del).toHaveBeenCalledWith('key-1', 'key-2');
+      expect(result).toBe(2);
+    });
+
     it('del rethrows error and logs when Redis throws', async () => {
       const err = new Error('DEL failed');
       mockRedisClient!.del.mockRejectedValue(err);
@@ -201,7 +219,110 @@ describe('RedisService', () => {
       await expect(service.del('my-key')).rejects.toThrow(err);
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Redis DEL failed',
-        expect.objectContaining({ key: 'my-key' }),
+        expect.objectContaining({ keys: ['my-key'] }),
+      );
+    });
+
+    it('sadd adds members to set and returns count', async () => {
+      mockRedisClient!.sadd.mockResolvedValue(2);
+      const result = await service.sadd('set-key', 'm1', 'm2');
+
+      expect(mockRedisClient!.sadd).toHaveBeenCalledWith('set-key', 'm1', 'm2');
+      expect(result).toBe(2);
+    });
+
+    it('sadd rethrows error and logs when Redis throws', async () => {
+      const err = new Error('SADD failed');
+      mockRedisClient!.sadd.mockRejectedValue(err);
+
+      await expect(service.sadd('set-key', 'm1')).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis SADD failed',
+        expect.objectContaining({ key: 'set-key' }),
+      );
+    });
+
+    it('smembers returns all set members', async () => {
+      mockRedisClient!.smembers.mockResolvedValue(['m1', 'm2']);
+      const result = await service.smembers('set-key');
+
+      expect(mockRedisClient!.smembers).toHaveBeenCalledWith('set-key');
+      expect(result).toEqual(['m1', 'm2']);
+    });
+
+    it('smembers rethrows error and logs when Redis throws', async () => {
+      const err = new Error('SMEMBERS failed');
+      mockRedisClient!.smembers.mockRejectedValue(err);
+
+      await expect(service.smembers('set-key')).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis SMEMBERS failed',
+        expect.objectContaining({ key: 'set-key' }),
+      );
+    });
+
+    it('srem removes members from set and returns count', async () => {
+      mockRedisClient!.srem.mockResolvedValue(1);
+      const result = await service.srem('set-key', 'm1');
+
+      expect(mockRedisClient!.srem).toHaveBeenCalledWith('set-key', 'm1');
+      expect(result).toBe(1);
+    });
+
+    it('srem rethrows error and logs when Redis throws', async () => {
+      const err = new Error('SREM failed');
+      mockRedisClient!.srem.mockRejectedValue(err);
+
+      await expect(service.srem('set-key', 'm1')).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis SREM failed',
+        expect.objectContaining({ key: 'set-key' }),
+      );
+    });
+
+    it('sismember returns true when member belongs to set', async () => {
+      mockRedisClient!.sismember.mockResolvedValue(1);
+      const result = await service.sismember('set-key', 'm1');
+
+      expect(mockRedisClient!.sismember).toHaveBeenCalledWith('set-key', 'm1');
+      expect(result).toBe(true);
+    });
+
+    it('sismember returns false when member does not belong to set', async () => {
+      mockRedisClient!.sismember.mockResolvedValue(0);
+      const result = await service.sismember('set-key', 'm2');
+
+      expect(mockRedisClient!.sismember).toHaveBeenCalledWith('set-key', 'm2');
+      expect(result).toBe(false);
+    });
+
+    it('sismember rethrows error and logs when Redis throws', async () => {
+      const err = new Error('SISMEMBER failed');
+      mockRedisClient!.sismember.mockRejectedValue(err);
+
+      await expect(service.sismember('set-key', 'm1')).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis SISMEMBER failed',
+        expect.objectContaining({ key: 'set-key', member: 'm1' }),
+      );
+    });
+
+    it('expire sets TTL on key and returns 1 on success', async () => {
+      mockRedisClient!.expire.mockResolvedValue(1);
+      const result = await service.expire('key-1', 300);
+
+      expect(mockRedisClient!.expire).toHaveBeenCalledWith('key-1', 300);
+      expect(result).toBe(1);
+    });
+
+    it('expire rethrows error and logs when Redis throws', async () => {
+      const err = new Error('EXPIRE failed');
+      mockRedisClient!.expire.mockRejectedValue(err);
+
+      await expect(service.expire('key-1', 300)).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis EXPIRE failed',
+        expect.objectContaining({ key: 'key-1' }),
       );
     });
 
@@ -258,6 +379,31 @@ describe('RedisService', () => {
 
     it('del returns 0 gracefully', async () => {
       const result = await service.del('any-key');
+      expect(result).toBe(0);
+    });
+
+    it('sadd returns 0 gracefully', async () => {
+      const result = await service.sadd('any-key', 'm1');
+      expect(result).toBe(0);
+    });
+
+    it('smembers returns empty array gracefully', async () => {
+      const result = await service.smembers('any-key');
+      expect(result).toEqual([]);
+    });
+
+    it('srem returns 0 gracefully', async () => {
+      const result = await service.srem('any-key', 'm1');
+      expect(result).toBe(0);
+    });
+
+    it('sismember returns false gracefully', async () => {
+      const result = await service.sismember('any-key', 'm1');
+      expect(result).toBe(false);
+    });
+
+    it('expire returns 0 gracefully', async () => {
+      const result = await service.expire('any-key', 300);
       expect(result).toBe(0);
     });
 

@@ -21,6 +21,7 @@ import {
   ROTATION_GRACE_TTL_SECONDS,
 } from '../constants';
 import { AuthTokenService } from '../services/auth-token.service';
+import { JwtAuthCacheService } from '../services/jwt-auth-cache.service';
 
 describe('AuthTokenService', () => {
   let service: AuthTokenService;
@@ -28,6 +29,7 @@ describe('AuthTokenService', () => {
   let jwtService: { sign: jest.Mock; verify: jest.Mock; decode: jest.Mock };
   let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
+  let jwtAuthCacheService: { revokeUser: jest.Mock };
   let redisClient: {
     get: jest.Mock;
     set: jest.Mock;
@@ -104,6 +106,10 @@ describe('AuthTokenService', () => {
       },
     };
 
+    jwtAuthCacheService = {
+      revokeUser: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthTokenService,
@@ -113,6 +119,7 @@ describe('AuthTokenService', () => {
         { provide: ConfigService, useValue: configService },
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redisClient },
+        { provide: JwtAuthCacheService, useValue: jwtAuthCacheService },
         {
           provide: LoggerService,
           useValue: { forContext: jest.fn().mockReturnValue(mockLogger) },
@@ -748,6 +755,9 @@ describe('AuthTokenService', () => {
         where: { userId: 'user-auth-123', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
+        'user-auth-123',
+      );
     });
 
     it('should revoke specific family lineage and purge grace cache when refresh token is provided', async () => {
@@ -772,6 +782,9 @@ describe('AuthTokenService', () => {
         },
         data: { revokedAt: expect.any(Date) },
       });
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
+        'user-auth-123',
+      );
     });
   });
 });
