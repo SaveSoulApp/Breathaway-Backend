@@ -1,18 +1,17 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
 import { generateSlug } from 'random-word-slugs';
 
-import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { hashString } from '@core/crypto/crypto.utils';
 import { LOG_EVENT, LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
-  OtpRateLimitExceededException,
   InvalidOtpException,
+  OtpRateLimitExceededException,
 } from './application/exceptions';
 import { OtpMessageGenerator } from './utils/otp-message-generator.util';
 
@@ -25,10 +24,7 @@ import { OtpMessageGenerator } from './utils/otp-message-generator.util';
  * rate-limit key prevents burst generation within the `OTP_RATE_LIMIT_TTL` window.
  */
 @Injectable()
-export class OneTimePasswordsService
-  extends BaseService
-  implements OnModuleDestroy
-{
+export class OneTimePasswordsService extends BaseService {
   private readonly otpTtl: number;
   private readonly otpRateLimitTtl: number;
   private readonly generateId: () => string;
@@ -36,7 +32,7 @@ export class OneTimePasswordsService
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
-    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
+    private readonly redisService: RedisService,
   ) {
     super(logger);
     this.otpTtl = parseInt(
@@ -48,10 +44,6 @@ export class OneTimePasswordsService
       10,
     );
     this.generateId = () => generateSlug(3, { format: 'kebab' });
-  }
-
-  async onModuleDestroy() {
-    await safeCloseClient(this.redisClient, this.logger, 'Redis', 'quit');
   }
 
   /**
@@ -82,10 +74,10 @@ export class OneTimePasswordsService
 
     try {
       // Store in Redis with TTL (EX requires time in seconds)
-      await this.redisClient.set(redisKey, userId, 'EX', this.otpTtl);
+      await this.redisService.set(redisKey, userId, 'EX', this.otpTtl);
 
       // Set rate limit key for user
-      await this.redisClient.set(
+      await this.redisService.set(
         rateLimitKey,
         userId,
         'EX',
@@ -137,7 +129,7 @@ export class OneTimePasswordsService
 
     let userId: string | null = null;
     try {
-      userId = await this.redisClient.get(redisKey);
+      userId = await this.redisService.get(redisKey);
     } catch (error) {
       this.logger.error('Failed to fetch OTP from Redis', {
         ...ctx,
@@ -163,7 +155,7 @@ export class OneTimePasswordsService
 
     // OTP is valid, consume it by deleting the key
     try {
-      await this.redisClient.del(redisKey);
+      await this.redisService.del(redisKey);
       this.logger.debug('Consumed OTP', { ...resolvedCtx, step: 'consume' });
     } catch (error) {
       this.logger.error('Failed to consume OTP in Redis', {
@@ -200,7 +192,7 @@ export class OneTimePasswordsService
 
     let rateLimitExceeded: string | null = null;
     try {
-      rateLimitExceeded = await this.redisClient.get(rateLimitKey);
+      rateLimitExceeded = await this.redisService.get(rateLimitKey);
     } catch (error) {
       this.logger.error('Failed to check rate limit in Redis', {
         ...ctx,

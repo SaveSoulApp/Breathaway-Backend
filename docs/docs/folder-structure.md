@@ -56,10 +56,10 @@ src/
 │   └── logger/            # Pino structured logging provider
 │
 ├── infrastructure/        # Third-party adapters and connections
-│   ├── cache/             # Redis caching service layer
 │   ├── database/          # Prisma database client setup and filters
 │   ├── http/              # Resilient HTTP client module & service (Axios wrapper with CLS tracing)
-│   └── ip-geolocation/    # IPinfo Lite country lookup service
+│   ├── ip-geolocation/    # IPinfo Lite country lookup service
+│   └── redis/             # Centralized Redis connection pool with graceful OnApplicationShutdown
 │
 ├── modules/               # Feature-based domain modules (business logic)
 │   ├── auth/              # JWT, login, session management

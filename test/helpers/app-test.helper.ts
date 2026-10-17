@@ -23,6 +23,7 @@ import { AppValidationPipe } from '@core/pipes';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { RedisModule } from '@infrastructure/redis';
 import { AuthModule } from '@modules/auth/auth.module';
 import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
@@ -172,6 +173,7 @@ export async function createAuthTestApp(
       }),
       LoggerModule,
       PrismaModule,
+      RedisModule,
       GcpSecretManagerModule,
       IdentityCryptoModule,
       FirebaseModule,

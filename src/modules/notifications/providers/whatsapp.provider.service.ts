@@ -1,12 +1,12 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Device } from '@prisma/client';
-import Redis from 'ioredis';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { maskPhoneNumber } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
@@ -40,8 +40,7 @@ export class WhatsAppProviderService
     @Inject(WHATSAPP_ADAPTER_TOKEN)
     private readonly whatsAppAdapter: IWhatsAppAdapter,
     @Optional()
-    @Inject('REDIS_CLIENT')
-    private readonly redisClient?: Redis,
+    private readonly redisService?: RedisService,
   ) {
     super(loggerService);
   }
@@ -167,9 +166,9 @@ export class WhatsAppProviderService
    * @returns true if already sent (duplicate), false if new.
    */
   private async isDuplicateAndMark(key: string): Promise<boolean> {
-    if (this.redisClient) {
+    if (this.redisService?.isConfigured) {
       try {
-        const result = await this.redisClient.set(
+        const result = await this.redisService.set(
           key,
           '1',
           'EX',

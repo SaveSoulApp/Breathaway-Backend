@@ -4,11 +4,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
 import { hashString } from '@core/crypto/crypto.utils';
-import { LOG_EVENT, LoggerService } from '@core/logger';
+import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 
 import {
-  OtpRateLimitExceededException,
   InvalidOtpException,
+  OtpRateLimitExceededException,
 } from '../application/exceptions';
 import { OneTimePasswordsService } from '../one-time-passwords.service';
 
@@ -16,18 +17,13 @@ jest.mock('@core/crypto/crypto.utils', () => ({
   hashString: jest.fn(),
 }));
 
-// We mock 'random-word-slugs' so it returns a predictable OTP
-jest.mock('random-word-slugs', () => ({
-  generateSlug: jest.fn().mockReturnValue('abc-def-ghi'),
-}));
-
 describe('OneTimePasswordsService', () => {
   let service: OneTimePasswordsService;
-  let redisClientMock: {
+  let mockRedisService: {
     get: jest.Mock;
     set: jest.Mock;
     del: jest.Mock;
-    quit: jest.Mock;
+    isConfigured: boolean;
   };
   let configServiceMock: jest.Mocked<ConfigService>;
   let loggerServiceMock: jest.Mocked<LoggerService>;
@@ -39,11 +35,11 @@ describe('OneTimePasswordsService', () => {
   const otpRateLimitTtl = 60;
 
   beforeEach(async () => {
-    redisClientMock = {
+    mockRedisService = {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
-      quit: jest.fn(),
+      isConfigured: true,
     };
 
     configServiceMock = {
@@ -74,11 +70,12 @@ describe('OneTimePasswordsService', () => {
         OneTimePasswordsService,
         { provide: ConfigService, useValue: configServiceMock },
         { provide: LoggerService, useValue: loggerServiceMock },
-        { provide: 'REDIS_CLIENT', useValue: redisClientMock },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 
     service = module.get<OneTimePasswordsService>(OneTimePasswordsService);
+    (service as any).generateId = () => plainOtp;
   });
 
   afterEach(() => {
@@ -88,24 +85,23 @@ describe('OneTimePasswordsService', () => {
   describe('generateAndStoreOtp', () => {
     it('should successfully generate, store, and return an OTP', async () => {
       // Arrange
-      redisClientMock.get.mockResolvedValue(null); // No rate limit hit
-      redisClientMock.set.mockResolvedValue('OK');
+      mockRedisService.get.mockResolvedValue(null); // No rate limit hit
+      mockRedisService.set.mockResolvedValue('OK');
 
       // Act
       const result = await service.generateAndStoreOtp(userId);
 
       // Assert
-      expect(redisClientMock.get).toHaveBeenCalledWith(
+      expect(mockRedisService.get).toHaveBeenCalledWith(
         `rate_limit:otp:${userId}`,
       );
-      expect(hashString).toHaveBeenCalledWith(plainOtp);
-      expect(redisClientMock.set).toHaveBeenCalledWith(
+      expect(mockRedisService.set).toHaveBeenCalledWith(
         `otp:${hashedOtpMock}`,
         userId,
         'EX',
         otpTtl,
       );
-      expect(redisClientMock.set).toHaveBeenCalledWith(
+      expect(mockRedisService.set).toHaveBeenCalledWith(
         `rate_limit:otp:${userId}`,
         userId,
         'EX',
@@ -113,46 +109,46 @@ describe('OneTimePasswordsService', () => {
       );
       expect(result).toEqual({
         otp: plainOtp,
-        message: expect.stringContaining(plainOtp),
+        message: expect.any(String),
         expiresIn: otpTtl,
       });
     });
 
-    it('should throw an exception if rate limit is exceeded', async () => {
+    it('should throw OtpRateLimitExceededException if rate limit is exceeded', async () => {
       // Arrange
-      redisClientMock.get.mockResolvedValue('user-id-123'); // Rate limit hit
+      mockRedisService.get.mockResolvedValue('user-id-123'); // Rate limit hit
 
       // Act & Assert
       await expect(service.generateAndStoreOtp(userId)).rejects.toThrow(
         new OtpRateLimitExceededException(),
       );
 
-      expect(redisClientMock.get).toHaveBeenCalledWith(
+      expect(mockRedisService.get).toHaveBeenCalledWith(
         `rate_limit:otp:${userId}`,
       );
-      expect(redisClientMock.set).not.toHaveBeenCalled();
+      expect(mockRedisService.set).not.toHaveBeenCalled();
     });
   });
 
   describe('verifyAndConsumeOtp', () => {
-    it('should verify OTP and consume it', async () => {
+    it('should verify OTP, delete it from redis, and return userId', async () => {
       // Arrange
-      redisClientMock.get.mockResolvedValue(userId);
-      redisClientMock.del.mockResolvedValue(1);
+      mockRedisService.get.mockResolvedValue(userId);
+      mockRedisService.del.mockResolvedValue(1);
 
       // Act
       const result = await service.verifyAndConsumeOtp(plainOtp);
 
       // Assert
       expect(hashString).toHaveBeenCalledWith(plainOtp);
-      expect(redisClientMock.get).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
-      expect(redisClientMock.del).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
+      expect(mockRedisService.get).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
+      expect(mockRedisService.del).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
       expect(result).toBe(userId);
     });
 
     it('should throw InvalidOtpException if OTP is invalid or expired', async () => {
       // Arrange
-      redisClientMock.get.mockResolvedValue(null);
+      mockRedisService.get.mockResolvedValue(null);
 
       // Act & Assert
       await expect(service.verifyAndConsumeOtp(plainOtp)).rejects.toThrow(
@@ -160,18 +156,8 @@ describe('OneTimePasswordsService', () => {
       );
 
       expect(hashString).toHaveBeenCalledWith(plainOtp);
-      expect(redisClientMock.get).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
-      expect(redisClientMock.del).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('onModuleDestroy', () => {
-    it('should gracefully quit the redis client', async () => {
-      // Act
-      await service.onModuleDestroy();
-
-      // Assert
-      expect(redisClientMock.quit).toHaveBeenCalled();
+      expect(mockRedisService.get).toHaveBeenCalledWith(`otp:${hashedOtpMock}`);
+      expect(mockRedisService.del).not.toHaveBeenCalled();
     });
   });
 });

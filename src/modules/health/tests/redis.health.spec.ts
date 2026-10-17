@@ -1,18 +1,20 @@
 import { HealthIndicatorService } from '@nestjs/terminus';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { RedisService } from '@infrastructure/redis';
+
 import { RedisHealthIndicator } from '../indicators/redis.health';
 
 describe('RedisHealthIndicator', () => {
   let indicator: RedisHealthIndicator;
-  let redisClient: { ping: jest.Mock };
+  let mockRedisService: { isConfigured: boolean; ping: jest.Mock };
   let healthIndicatorService: { check: jest.Mock };
 
-  beforeEach(async () => {
-    redisClient = {
+  const createIndicator = async (isConfigured: boolean) => {
+    mockRedisService = {
+      isConfigured,
       ping: jest.fn(),
     };
-
     healthIndicatorService = {
       check: jest.fn(),
     };
@@ -20,7 +22,7 @@ describe('RedisHealthIndicator', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RedisHealthIndicator,
-        { provide: 'REDIS_CLIENT', useValue: redisClient },
+        { provide: RedisService, useValue: mockRedisService },
         {
           provide: HealthIndicatorService,
           useValue: healthIndicatorService,
@@ -28,35 +30,57 @@ describe('RedisHealthIndicator', () => {
       ],
     }).compile();
 
-    indicator = module.get<RedisHealthIndicator>(RedisHealthIndicator);
-  });
+    return module.get<RedisHealthIndicator>(RedisHealthIndicator);
+  };
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
+  it('should return up status with enabled: false when redis is not configured', async () => {
+    indicator = await createIndicator(false);
+
+    const mockDisabledResult = {
+      redis: {
+        status: 'up',
+        enabled: false,
+        message: 'Redis is not configured',
+      },
+    };
+    healthIndicatorService.check.mockReturnValue({
+      up: jest.fn().mockReturnValue(mockDisabledResult),
+      down: jest.fn(),
+    });
+
+    const result = await indicator.isHealthy('redis');
+
+    expect(healthIndicatorService.check).toHaveBeenCalledWith('redis');
+    expect(result).toEqual(mockDisabledResult);
+    expect(mockRedisService.ping).not.toHaveBeenCalled();
+  });
+
   it('should return up status when redis ping succeeds', async () => {
-    // Arrange
-    redisClient.ping.mockResolvedValue('PONG');
+    indicator = await createIndicator(true);
+    mockRedisService.ping.mockResolvedValue('PONG');
+
     const mockUpResult = { redis: { status: 'up' } };
     healthIndicatorService.check.mockReturnValue({
       up: jest.fn().mockReturnValue(mockUpResult),
       down: jest.fn(),
     });
 
-    // Act
     const result = await indicator.isHealthy('redis');
 
-    // Assert
-    expect(redisClient.ping).toHaveBeenCalledTimes(1);
+    expect(mockRedisService.ping).toHaveBeenCalledTimes(1);
     expect(healthIndicatorService.check).toHaveBeenCalledWith('redis');
     expect(result).toEqual(mockUpResult);
   });
 
   it('should return down status with error message when redis ping throws', async () => {
-    // Arrange
+    indicator = await createIndicator(true);
     const redisError = new Error('Connection refused');
-    redisClient.ping.mockRejectedValue(redisError);
+    mockRedisService.ping.mockRejectedValue(redisError);
+
     const mockDownResult = {
       redis: { status: 'down', message: 'Connection refused' },
     };
@@ -65,11 +89,9 @@ describe('RedisHealthIndicator', () => {
       down: jest.fn().mockReturnValue(mockDownResult),
     });
 
-    // Act
     const result = await indicator.isHealthy('redis');
 
-    // Assert
-    expect(redisClient.ping).toHaveBeenCalledTimes(1);
+    expect(mockRedisService.ping).toHaveBeenCalledTimes(1);
     expect(healthIndicatorService.check).toHaveBeenCalledWith('redis');
     expect(result).toEqual(mockDownResult);
   });
