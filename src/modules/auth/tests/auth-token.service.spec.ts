@@ -12,6 +12,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
@@ -31,7 +32,7 @@ describe('AuthTokenService', () => {
     get: jest.Mock;
     set: jest.Mock;
     del: jest.Mock;
-    quit: jest.Mock;
+    isConfigured: boolean;
   };
   let prisma: {
     $transaction: jest.Mock;
@@ -88,7 +89,7 @@ describe('AuthTokenService', () => {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue('OK'),
       del: jest.fn().mockResolvedValue(1),
-      quit: jest.fn().mockResolvedValue('OK'),
+      isConfigured: true,
     };
     prisma = {
       $transaction: jest.fn((callback) => callback(prisma)),
@@ -111,7 +112,7 @@ describe('AuthTokenService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: PrismaService, useValue: prisma },
-        { provide: 'REDIS_CLIENT', useValue: redisClient },
+        { provide: RedisService, useValue: redisClient },
         {
           provide: LoggerService,
           useValue: { forContext: jest.fn().mockReturnValue(mockLogger) },
@@ -771,16 +772,6 @@ describe('AuthTokenService', () => {
         },
         data: { revokedAt: expect.any(Date) },
       });
-    });
-  });
-
-  describe('onModuleDestroy', () => {
-    it('should gracefully close Redis client connection when available', async () => {
-      // Act
-      await service.onModuleDestroy();
-
-      // Assert
-      expect(redisClient.quit).toHaveBeenCalled();
     });
   });
 });

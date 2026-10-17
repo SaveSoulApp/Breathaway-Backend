@@ -1,20 +1,18 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import axios from 'axios';
 import { ClsService } from 'nestjs-cls';
 
 import { GcpSecretName } from '@common/enums';
 import { GcpSecretManagerService } from '@core/gcp-secret-manager/gcp-secret-manager.service';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from '../application/exceptions';
 import { InstagramService } from '../instagram.service';
-
-jest.mock('axios');
 
 describe('InstagramService', () => {
   let service: InstagramService;
@@ -28,7 +26,9 @@ describe('InstagramService', () => {
     verbose: jest.Mock;
   };
   let logger: Record<string, jest.Mock>;
-  const mockedAxios = axios as jest.Mocked<typeof axios>;
+  const mockHttpClient = {
+    get: jest.fn(),
+  };
 
   beforeEach(async () => {
     contextualLogger = {
@@ -60,6 +60,7 @@ describe('InstagramService', () => {
         { provide: LoggerService, useValue: logger },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: GcpSecretManagerService, useValue: mockGcpSecretManager },
+        { provide: HttpClientService, useValue: mockHttpClient },
       ],
     }).compile();
 
@@ -84,11 +85,11 @@ describe('InstagramService', () => {
           expires_in: 5184000,
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       const result = await service.refreshAccessToken(currentToken);
 
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
         'https://graph.instagram.com/refresh_access_token',
         {
           params: {
@@ -109,11 +110,11 @@ describe('InstagramService', () => {
           some_other_field: 'value',
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       const result = await service.refreshAccessToken(currentToken);
 
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
         'https://graph.instagram.com/refresh_access_token',
         {
           params: {
@@ -134,7 +135,7 @@ describe('InstagramService', () => {
           status: 400,
         },
       };
-      mockedAxios.get.mockRejectedValueOnce(mockError);
+      mockHttpClient.get.mockRejectedValueOnce(mockError);
 
       await expect(service.refreshAccessToken(currentToken)).rejects.toThrow(
         new InstagramGraphApiException({ error: 'Invalid token' }),
@@ -144,7 +145,7 @@ describe('InstagramService', () => {
     it('should map Axios error to HttpException correctly when error has no response', async () => {
       const currentToken = 'old-token';
       const mockError = {};
-      mockedAxios.get.mockRejectedValueOnce(mockError);
+      mockHttpClient.get.mockRejectedValueOnce(mockError);
 
       await expect(service.refreshAccessToken(currentToken)).rejects.toThrow(
         new InstagramGraphApiException('Failed to refresh token'),
@@ -162,7 +163,7 @@ describe('InstagramService', () => {
           access_token: 'new-refreshed-token',
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       const result = await service.refreshSystemAccessToken();
 
@@ -172,7 +173,7 @@ describe('InstagramService', () => {
       expect(configService.get).not.toHaveBeenCalledWith(
         'INSTAGRAM_ACCESS_TOKEN',
       );
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
         'https://graph.instagram.com/refresh_access_token',
         {
           params: {
@@ -206,7 +207,7 @@ describe('InstagramService', () => {
           access_token: 'new-env-token',
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       const result = await service.refreshSystemAccessToken();
 
@@ -214,7 +215,7 @@ describe('InstagramService', () => {
         GcpSecretName.INSTAGRAM_ACCESS_TOKEN,
       );
       expect(configService.get).toHaveBeenCalledWith('INSTAGRAM_ACCESS_TOKEN');
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
         'https://graph.instagram.com/refresh_access_token',
         {
           params: {
@@ -240,7 +241,7 @@ describe('InstagramService', () => {
           some_other_field: 'value',
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       const result = await service.refreshSystemAccessToken();
 
@@ -257,7 +258,7 @@ describe('InstagramService', () => {
           access_token: 'new-token-enum',
         },
       };
-      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+      mockHttpClient.get.mockResolvedValueOnce(mockResponse);
 
       await service.refreshSystemAccessToken();
 

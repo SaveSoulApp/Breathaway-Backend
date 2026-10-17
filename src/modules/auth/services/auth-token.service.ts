@@ -1,23 +1,16 @@
 import { createHash } from 'crypto';
 
-import {
-  Inject,
-  Injectable,
-  OnModuleDestroy,
-  Optional,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, User, UserSession } from '@prisma/client';
-import Redis from 'ioredis';
 import { nanoid } from 'nanoid';
 
-import { safeCloseClient } from '@common/utils/cleanup.utils';
 import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
 
 import {
@@ -56,7 +49,7 @@ interface RotationResult {
  * and multi-tab applications) from race-induced logouts.
  */
 @Injectable()
-export class AuthTokenService extends BaseService implements OnModuleDestroy {
+export class AuthTokenService extends BaseService {
   // Common JWT configuration properties initialized once at bootstrap
   private readonly audience: string;
   private readonly issuer?: string;
@@ -77,8 +70,7 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     @Optional()
-    @Inject('REDIS_CLIENT')
-    private readonly redisClient?: Redis,
+    private readonly redisService?: RedisService,
   ) {
     super(logger);
 
@@ -102,13 +94,6 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
       refreshExpiresIn,
       14 * 86400,
     );
-  }
-
-  /**
-   * Closes the Redis client connection gracefully on module destruction.
-   */
-  async onModuleDestroy(): Promise<void> {
-    await safeCloseClient(this.redisClient, this.logger, 'Redis', 'quit');
   }
 
   /**
@@ -271,8 +256,8 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
 
         if (typeof record?.jti === 'string') {
           this.inMemoryGraceCache.delete(record.jti);
-          if (this.redisClient) {
-            await this.redisClient
+          if (this.redisService?.isConfigured) {
+            await this.redisService
               .del(`${AUTH_REFRESH_GRACE_PREFIX}${record.jti}`)
               .catch(() => {});
           }
@@ -608,10 +593,10 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
     this.inMemoryGraceCache.set(consumedJti, { response, expiresAt });
 
     // 2. Distributed Redis cache across Cloud Run containers
-    if (this.redisClient) {
+    if (this.redisService?.isConfigured) {
       try {
         const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
-        await this.redisClient.set(
+        await this.redisService.set(
           cacheKey,
           JSON.stringify(response),
           'EX',
@@ -650,10 +635,10 @@ export class AuthTokenService extends BaseService implements OnModuleDestroy {
     }
 
     // 2. Check distributed Redis
-    if (this.redisClient) {
+    if (this.redisService?.isConfigured) {
       try {
         const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
-        const cached = await this.redisClient.get(cacheKey);
+        const cached = await this.redisService.get(cacheKey);
         if (cached) {
           return JSON.parse(cached) as UserAuthResponseDto;
         }

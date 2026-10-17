@@ -34,14 +34,63 @@ graph TD
 
 ## 🔒 Connection Pooling & Stateless Cloud Run
 
-Because the backend runs on GCP Cloud Run with autoscaling (0 to N instances), direct database connections can quickly saturate PostgreSQL's `max_connections`.
+Because the backend runs on GCP Cloud Run with horizontal autoscaling (0 to N instances), unmonitored database connections can quickly saturate PostgreSQL's `max_connections`.
 
-1. **Prisma Connection Limit**: Each container instance configures `connection_limit` in the connection URL string:
-   ```text
-   postgresql://USER:PASSWORD@HOST:PORT/DATABASE?connection_limit=10&pool_timeout=20
-   ```
-2. **PrismaService Lifecycle**: `PrismaService` implements `OnModuleInit` and `OnModuleDestroy` to cleanly connect on startup and disconnect during graceful container termination.
-3. **Prepared Statements**: When using transaction-mode pooling (e.g. PgBouncer), prepared statements are managed using `pgbouncer=true` query parameter to avoid transaction collisions.
+### 1. Bounded Node-Postgres (`pg.Pool`) Adapter
+
+`PrismaService` configures a bounded `pg.Pool` with the `@prisma/adapter-pg` driver adapter. Limits are tightly bounded for serverless autoscaling via environment variables:
+
+- `DB_POOL_MAX` (default: 4)
+- `DB_POOL_MIN` (default: 0)
+- `DB_POOL_ACQUISITION_TIMEOUT_MS` (default: 5,000ms)
+- `DB_POOL_IDLE_TIMEOUT_MS` (default: 10,000ms)
+- `DB_POOL_STATEMENT_TIMEOUT_MS` (default: 15,000ms)
+
+`PrismaService` implements `OnModuleInit` and `OnModuleDestroy` to cleanly connect on container boot and drain the pool on SIGTERM.
+
+### 2. Real-Time Pool Telemetry & Contention Monitoring
+
+`PrismaService` exposes `getPoolStatus(): DatabasePoolStatus` to report real-time saturation metrics:
+
+- `totalCount`: Total clients in the pool (idle + active).
+- `idleCount`: Available idle connections.
+- `activeCount`: Checked-out connections (`totalCount - idleCount`).
+- `waitingCount`: Queued queries waiting for an available client socket.
+- `max`: Configured capacity limit.
+- `utilizationPercent`: Active utilization percentage (`(activeCount / max) * 100`).
+
+The pool registers lifecycle listeners for `connect`, `remove`, and `error`. Additionally, client checkout (`acquire`) inspects `waitingCount`: if queueing occurs (`waitingCount > 0`), a warning log (`pool_contention_detected`) is immediately dispatched to GCP Cloud Logging.
+
+### 3. Query Performance & Slow Query Telemetry
+
+`PrismaClient` is configured to emit query events via `{ emit: 'event', level: 'query' }`.
+
+- **Configurable Slow Query Threshold**: Queries exceeding `DB_SLOW_QUERY_THRESHOLD_MS` (default: 200ms) emit a structured `warn` log with `step: 'slow_query_detected'`, execution `durationMs`, `target`, parameterized `query` text, and current `pool` status.
+- **Debug Query Logging**: When `DB_LOG_ALL_QUERIES=true`, all queries are logged at `debug` level with `step: 'db_query_executed'`.
+- **Strict PII Redaction**: Query parameter bindings (`event.params`) are **never** logged to prevent leaking customer emails, passwords, auth tokens, or phone numbers into logs. Parameterized templates (`SELECT * FROM "User" WHERE email = $1`) provide full query structure without PII.
+
+### 4. Terminus Readiness Probe Integration
+
+The `/ready` health probe (`DatabaseHealthIndicator`) executes `SELECT 1` and embeds `prisma.getPoolStatus()` in the health indicator payload. GCP Cloud Run and SRE dashboards gain immediate insight into connection headroom on every health check:
+
+```json
+{
+  "status": "ok",
+  "info": {
+    "database": {
+      "status": "up",
+      "pool": {
+        "totalCount": 2,
+        "idleCount": 2,
+        "activeCount": 0,
+        "waitingCount": 0,
+        "max": 4,
+        "utilizationPercent": 0
+      }
+    }
+  }
+}
+```
 
 ---
 
@@ -190,10 +239,10 @@ sequenceDiagram
 
 Beyond database-level encryption at rest (Cloud SQL / Supabase AES-256), BreathAway enforces **Application-Layer Envelope Encryption** via Google Cloud KMS to eliminate exposure risks in database dumps, analytical replicas, and logging pipelines:
 
-| Entity / Column                                                  | Strategy                    | Cipher Details                                                                               | Decryption Context                                                                                                                            |
-| :--------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Identity`** (`publicValueCiphertext`, `platformIdCiphertext`) | Dedicated Envelope Columns  | AES-256-GCM data key wrapped by Cloud KMS; deterministic HMAC `publicValueHash` for indexing | Transparently resolved by `IdentitiesService` during authenticated profile resolution                                                         |
-| **`Like.label`**                                                 | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted on the fly by `LikesService.attachPublicValue` and `MatchesService`                                                                 |
+| Entity / Column                                                  | Strategy                    | Cipher Details                                                                               | Decryption Context                                                                                                                                                     |
+| :--------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Identity`** (`publicValueCiphertext`, `platformIdCiphertext`) | Dedicated Envelope Columns  | AES-256-GCM data key wrapped by Cloud KMS; deterministic HMAC `publicValueHash` for indexing | Transparently resolved by `IdentitiesService` during authenticated profile resolution                                                                                  |
+| **`Like.label`**                                                 | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted on the fly by `LikesService.attachPublicValue` and `MatchesService`                                                                                          |
 | **`UserProfile`** (`firstName`, `lastName`)                      | Compact Serialized Envelope | Format: `enc:v1:<keyId>:<ivBase64>:<tagBase64>:<wrappedKeyBase64>:<ciphertextBase64>`        | Decrypted transparently by `ProfilesService`, `DecryptionInterceptor`, `NotificationsModule`, `MatchesService`, `ChatsService`, `BlocksService`, and `PaymentsService` |
 
 ### Why Like Labels & Profile Names are Encrypted

@@ -28,6 +28,8 @@ import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-man
 import { IdentityCryptoModule } from './core/identity-crypto/identity-crypto.module';
 import { LoggerModule } from './core/logger';
 import { PrismaModule } from './infrastructure/database/prisma.module';
+import { HttpClientModule } from './infrastructure/http';
+import { RedisModule } from './infrastructure/redis';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -138,6 +140,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     LoggerModule,
     MiddlewareModule,
     PrismaModule,
+    HttpClientModule,
+    RedisModule,
     GcpSecretManagerModule,
     IdentityCryptoModule,
     EventEmitterModule.forRoot(),

@@ -120,3 +120,45 @@ import { CreateUserRequestDto } from './dto/request/create-user.request.dto';
     expect.objectContaining({ userId, amount: 10 }),
   );
   ```
+
+---
+
+## 7. External HTTP Communication: Resilient Architecture
+
+To guarantee distributed tracing context, bounded execution timeouts, and maintainable unit tests:
+
+- **Zero Direct Axios Imports**: NEVER import or call `axios` directly inside domain services, feature modules, or transport adapters.
+- **Inject `HttpClientService`**: All outbound HTTP operations must be performed using `HttpClientService` from `@infrastructure/http`.
+- **Distributed Context Propagation**: `HttpClientService` automatically pulls `requestId` and `traceContext` from CLS (`nestjs-cls`) and injects `x-request-id` and `x-cloud-trace-context` into outbound requests.
+- **Bounded Timeout Budgets**: Outbound calls inherit a default bounded execution timeout (`HTTP_CLIENT_TIMEOUT_MS`, default `10000`ms) to guard Cloud Run socket pools.
+- **Zero Axios Mocking in Tests**: NEVER use `jest.mock('axios')`. Supply an injectable mock provider in your test modules:
+  ```typescript
+  { provide: HttpClientService, useValue: mockHttpClient }
+  ```
+
+---
+
+## 8. Logging & Exception Handling Architecture
+
+- **Noise Elimination**: Per-request HTTP access logging is handled by GCP Cloud Run. `LoggingInterceptor` logs lifecycle markers (`Incoming request`, `Request completed` with `durationMs`) at **`DEBUG`** severity, preventing log duplication and Cloud Logging cost inflation.
+- **Single Source of Truth for Exceptions**: `LoggingInterceptor` does NOT intercept or log errors. Unhandled exceptions bubble straight to `GlobalExceptionFilter` and `PrismaExceptionFilter`, guaranteeing exactly one structured `ERROR` log entry per failed request.
+
+---
+
+## 9. Asynchronous Boundaries & Pub/Sub Context Propagation
+
+- **Queue Boundary Bridge**: When dispatching asynchronous tasks or domain events to GCP Cloud Pub/Sub, `PubSubPublisherService` automatically propagates the active `requestId` (as `originRequestId`) and `traceContext` from CLS into message attributes.
+- **Worker Context Restoration**: `PubSubIngestionController` extracts `originRequestId` and `traceContext` from attributes and seeds them in CLS before invoking any `@PubSubListener` handler method.
+- **Unified Distributed Tracing**: Handlers, worker services, and delivery adapters inherit the originating `requestId` and GCP trace metadata (`logging.googleapis.com/trace`), ensuring background processing is fully observable and queryable in GCP Cloud Trace, Logs Explorer, and BigQuery.
+
+---
+
+## 10. Database Observability: Prisma ORM Performance & Pool Telemetry
+
+To guard Cloud SQL connection capacity under Cloud Run autoscaling and detect database query bottlenecks:
+
+- **Connection Pool Telemetry**: `PrismaService` exposes `getPoolStatus()` reporting `totalCount`, `idleCount`, `activeCount`, `waitingCount`, and `utilizationPercent`.
+- **Proactive Contention Detection**: Pool checkout (`acquire`) inspects `waitingCount`. If socket contention occurs (`waitingCount > 0`), a warning log (`step: 'pool_contention_detected'`) is immediately emitted with current pool metrics.
+- **Slow Query Detection**: Prisma Client query events (`$on('query')`) automatically detect queries exceeding `DB_SLOW_QUERY_THRESHOLD_MS` (default `200`ms) and emit warning logs (`step: 'slow_query_detected'`) with execution duration, target, and pool status.
+- **Strict PII Parameter Redaction**: Query parameter bindings (`event.params`) are **never** logged to prevent exposing customer passwords, tokens, emails, or phone numbers in Cloud Logging. Parameterized query templates (`SELECT * FROM "User" WHERE id = $1`) provide full structural visibility without PII risk.
+- **Readiness Probe Saturation Visibility**: `DatabaseHealthIndicator` embeds `prisma.getPoolStatus()` in the `/ready` Terminus response, giving Cloud Run load balancers and SRE monitors real-time database connection headroom.

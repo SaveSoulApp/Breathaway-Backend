@@ -2,15 +2,14 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionEventType } from '@prisma/client';
-import axios from 'axios';
 import { GoogleAuth } from 'google-auth-library';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import { GoogleSubscriptionService } from '../services/google-subscription.service';
 
-jest.mock('axios');
 jest.mock('google-auth-library', () => {
   return {
     GoogleAuth: jest.fn().mockImplementation(() => {
@@ -27,7 +26,9 @@ jest.mock('google-auth-library', () => {
 
 describe('GoogleSubscriptionService', () => {
   let service: GoogleSubscriptionService;
-  const mockedAxios = axios as jest.Mocked<typeof axios>;
+  const mockHttpClient = {
+    get: jest.fn(),
+  };
 
   const mockLoggerService = {
     forContext: jest.fn().mockReturnValue({
@@ -47,6 +48,7 @@ describe('GoogleSubscriptionService', () => {
         GoogleSubscriptionService,
         { provide: LoggerService, useValue: mockLoggerService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: HttpClientService, useValue: mockHttpClient },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: ClsService, useValue: { get: jest.fn() } },
       ],
@@ -131,7 +133,7 @@ describe('GoogleSubscriptionService', () => {
         acknowledgementState: 1,
       };
 
-      mockedAxios.get.mockResolvedValueOnce({ data: mockPurchaseDetails });
+      mockHttpClient.get.mockResolvedValueOnce({ data: mockPurchaseDetails });
 
       // Act
       const result = await service.verifyPurchase(
@@ -142,7 +144,7 @@ describe('GoogleSubscriptionService', () => {
 
       // Assert
       expect(result).toEqual(mockPurchaseDetails);
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
         'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.breathaway.app/purchases/subscriptionsv2/tokens/token-abc-123',
         {
           headers: {
@@ -155,7 +157,7 @@ describe('GoogleSubscriptionService', () => {
     it('should log a warning and throw the error if the Axios request fails', async () => {
       // Arrange
       const mockError = new Error('API Request Failed');
-      mockedAxios.get.mockRejectedValueOnce(mockError);
+      mockHttpClient.get.mockRejectedValueOnce(mockError);
 
       // Act & Assert
       await expect(

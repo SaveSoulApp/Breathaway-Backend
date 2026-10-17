@@ -1,19 +1,19 @@
-import {
-  Controller,
-  Get,
-  HttpStatus,
-  ServiceUnavailableException,
-  VERSION_NEUTRAL,
-} from '@nestjs/common';
+import { Controller, Get, HttpStatus, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  HealthCheck,
+  HealthCheckResult,
+  HealthCheckService,
+  MemoryHealthIndicator,
+} from '@nestjs/terminus';
 
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
-import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import { HealthResponseDto, ReadyResponseDto } from './dto';
+import { DatabaseHealthIndicator } from './indicators/database.health';
+import { RedisHealthIndicator } from './indicators/redis.health';
 
 @ApiTags('Health')
 @SkipClientIdentity()
@@ -23,7 +23,10 @@ import { HealthResponseDto, ReadyResponseDto } from './dto';
 export class HealthController extends BaseController {
   constructor(
     logger: LoggerService,
-    private readonly prismaService: PrismaService,
+    private readonly health: HealthCheckService,
+    private readonly memory: MemoryHealthIndicator,
+    private readonly databaseHealthIndicator: DatabaseHealthIndicator,
+    private readonly redisHealthIndicator: RedisHealthIndicator,
   ) {
     super(logger);
   }
@@ -31,32 +34,48 @@ export class HealthController extends BaseController {
   /**
    * Liveness probe for GCP Cloud Run and GKE load balancers.
    *
+   * Fast, non-blocking check validating Node.js event loop responsiveness and
+   * process memory bounds. Never queries downstream network dependencies to
+   * prevent cascading container restarts during external transient blips.
+   *
    * Mounted at app root /health without API versioning prefix.
    * Unauthenticated and bypasses client identity checks.
    *
-   * @returns 200 { status: 'ok' }
+   * @returns 200 OK with Terminus health details when alive.
    */
   @Get('health')
+  @HealthCheck()
   @ApiOperation({ summary: 'Liveness probe' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Service is alive',
     type: HealthResponseDto,
   })
-  checkHealth(): HealthResponseDto {
-    return { status: 'ok' };
+  @ApiResponse({
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    description: 'Service memory thresholds exceeded',
+  })
+  async checkHealth(): Promise<HealthCheckResult> {
+    // Thresholds calibrated for 2Gi Cloud Run container memory limits (1GiB Heap, 1.5GiB RSS)
+    return this.health.check([
+      () => this.memory.checkHeap('memory_heap', 1024 * 1024 * 1024),
+      () => this.memory.checkRSS('memory_rss', 1536 * 1024 * 1024),
+    ]);
   }
 
   /**
    * Readiness probe for GCP Cloud Run and GKE load balancers.
    *
-   * Verifies Prisma database connectivity before accepting traffic.
+   * Verifies PostgreSQL database connectivity and Redis cache responsiveness
+   * before admitting incoming user traffic to this container revision.
+   *
    * Mounted at app root /ready without API versioning prefix.
    *
-   * @returns 200 { status: 'ok', db: 'connected' }
-   * @throws {ServiceUnavailableException} When database connectivity check fails.
+   * @returns 200 OK with Terminus dependency status when ready.
+   * @throws {ServiceUnavailableException} When any required dependency is unreachable.
    */
   @Get('ready')
+  @HealthCheck()
   @ApiOperation({ summary: 'Readiness probe' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -65,18 +84,12 @@ export class HealthController extends BaseController {
   })
   @ApiResponse({
     status: HttpStatus.SERVICE_UNAVAILABLE,
-    description: 'Service is not ready (database unreachable)',
+    description: 'Service is not ready (database or cache unreachable)',
   })
-  async checkReady(): Promise<ReadyResponseDto> {
-    try {
-      await this.prismaService.$queryRaw`SELECT 1`;
-      return { status: 'ok', db: 'connected' };
-    } catch (error) {
-      this.logger.warn('Readiness probe failed: database unreachable', {
-        err: serializeError(error),
-        step: 'checkReady',
-      });
-      throw new ServiceUnavailableException('Database is unreachable');
-    }
+  async checkReady(): Promise<HealthCheckResult> {
+    return this.health.check([
+      () => this.databaseHealthIndicator.isHealthy('database'),
+      () => this.redisHealthIndicator.isHealthy('redis'),
+    ]);
   }
 }

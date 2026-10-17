@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 
 import { PubSubPublisherService } from '../pubsub-publisher.service';
 
@@ -37,12 +37,18 @@ describe('PubSubPublisherService', () => {
     forContext: jest.Mock;
   };
 
+  const mockClsService = {
+    get: jest.fn(),
+    isActive: jest.fn().mockReturnValue(false),
+  };
+
   const mockConfigService = {
     get: jest.fn().mockReturnValue('test-project-id'),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockClsService.isActive.mockReturnValue(false);
 
     mockLogger = {
       log: jest.fn(),
@@ -56,7 +62,7 @@ describe('PubSubPublisherService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        { provide: ClsService, useValue: { get: jest.fn() } },
+        { provide: ClsService, useValue: mockClsService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         PubSubPublisherService,
         { provide: ConfigService, useValue: mockConfigService },
@@ -89,6 +95,65 @@ describe('PubSubPublisherService', () => {
         attributes: {
           extra: 'attr',
           eventType: 'test.event',
+        },
+      });
+    });
+
+    it('should attach originRequestId and traceContext to attributes when CLS is active', async () => {
+      mockClsService.isActive.mockReturnValue(true);
+      mockClsService.get.mockImplementation((key: string) => {
+        if (key === 'requestId') return 'req-origin-123';
+        if (key === 'traceContext') return 'trace-456/span-789;o=1';
+        return undefined;
+      });
+      mockPublishMessage.mockResolvedValue('msg-456');
+
+      await service.publish('test-topic', 'user.created', { foo: 'bar' });
+
+      expect(mockPublishMessage).toHaveBeenCalledWith({
+        data: expect.any(Buffer),
+        attributes: {
+          originRequestId: 'req-origin-123',
+          traceContext: 'trace-456/span-789;o=1',
+          eventType: 'user.created',
+        },
+      });
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.PUBSUB_EVENT_PUBLISHED,
+        expect.objectContaining({
+          originRequestId: 'req-origin-123',
+          messageId: 'msg-456',
+        }),
+      );
+    });
+
+    it('should preserve caller-provided originRequestId or traceContext overrides', async () => {
+      mockClsService.isActive.mockReturnValue(true);
+      mockClsService.get.mockImplementation((key: string) => {
+        if (key === 'requestId') return 'cls-req-id';
+        if (key === 'traceContext') return 'cls-trace-ctx';
+        return undefined;
+      });
+      mockPublishMessage.mockResolvedValue('msg-789');
+
+      await service.publish(
+        'test-topic',
+        'user.created',
+        { foo: 'bar' },
+        {
+          originRequestId: 'custom-req-id',
+          traceContext: 'custom-trace-ctx',
+          extra: 'data',
+        },
+      );
+
+      expect(mockPublishMessage).toHaveBeenCalledWith({
+        data: expect.any(Buffer),
+        attributes: {
+          originRequestId: 'custom-req-id',
+          traceContext: 'custom-trace-ctx',
+          extra: 'data',
+          eventType: 'user.created',
         },
       });
     });

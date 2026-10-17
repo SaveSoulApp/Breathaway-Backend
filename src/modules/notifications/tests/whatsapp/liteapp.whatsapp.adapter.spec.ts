@@ -1,15 +1,12 @@
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import axios from 'axios';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import { LiteAppWhatsAppAdapter } from '../../whatsapp/adapters/liteapp.whatsapp.adapter';
-
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('LiteAppWhatsAppAdapter', () => {
   let adapter: LiteAppWhatsAppAdapter;
@@ -25,8 +22,16 @@ describe('LiteAppWhatsAppAdapter', () => {
     }),
   };
 
+  const mockHttpClient = {
+    post: jest.fn(),
+    isAxiosError: jest.fn(
+      (err: unknown) =>
+        (err as { isAxiosError?: boolean })?.isAxiosError === true,
+    ),
+  };
+
   const setupModule = async (envConfig: Record<string, string | undefined>) => {
-    mockedAxios.isAxiosError.mockImplementation(
+    mockHttpClient.isAxiosError.mockImplementation(
       (err: unknown) =>
         (err as { isAxiosError?: boolean })?.isAxiosError === true,
     );
@@ -43,6 +48,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         { provide: LoggerService, useValue: mockLogger },
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: HttpClientService, useValue: mockHttpClient },
       ],
     }).compile();
 
@@ -51,7 +57,7 @@ describe('LiteAppWhatsAppAdapter', () => {
   };
 
   beforeEach(() => {
-    mockedAxios.isAxiosError.mockImplementation(
+    mockHttpClient.isAxiosError.mockImplementation(
       (err: unknown) =>
         (err as { isAxiosError?: boolean })?.isAxiosError === true,
     );
@@ -96,7 +102,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         LITEAPP_WHATSAPP_KEY: 'test-secret-key',
       });
 
-      mockedAxios.post.mockResolvedValueOnce({
+      mockHttpClient.post.mockResolvedValueOnce({
         status: 200,
         data: { success: true },
       });
@@ -107,8 +113,8 @@ describe('LiteAppWhatsAppAdapter', () => {
         language: 'en',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(1);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
         'https://dev.liteapp.store/api/routes/plugins/whatsapp/send',
         {
           to: '919876543210',
@@ -131,7 +137,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         LITEAPP_WHATSAPP_KEY: 'test-secret-key',
       });
 
-      mockedAxios.post.mockResolvedValueOnce({
+      mockHttpClient.post.mockResolvedValueOnce({
         status: 200,
         data: { success: true },
       });
@@ -143,8 +149,8 @@ describe('LiteAppWhatsAppAdapter', () => {
         params: { buttonUrlVariable: 'alerts' },
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(1);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
         'https://dev.liteapp.store/api/routes/plugins/whatsapp/send',
         {
           to: '919876543210',
@@ -171,7 +177,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         },
       };
 
-      mockedAxios.post
+      mockHttpClient.post
         .mockRejectedValueOnce(rateLimitError)
         .mockResolvedValueOnce({ status: 200, data: { success: true } });
 
@@ -180,7 +186,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         template: 'breathaway_new_match',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(2);
     });
 
     it('should retry once when receiving HTTP 429 with title-cased Retry-After header or header getter', async () => {
@@ -198,7 +204,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         },
       };
 
-      mockedAxios.post
+      mockHttpClient.post
         .mockRejectedValueOnce(rateLimitErrorTitleCase)
         .mockResolvedValueOnce({ status: 200, data: { success: true } });
 
@@ -207,7 +213,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         template: 'breathaway_new_match',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(2);
 
       const rateLimitErrorGetter = {
         isAxiosError: true,
@@ -220,7 +226,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         },
       };
 
-      mockedAxios.post
+      mockHttpClient.post
         .mockRejectedValueOnce(rateLimitErrorGetter)
         .mockResolvedValueOnce({ status: 200, data: { success: true } });
 
@@ -229,7 +235,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         template: 'breathaway_new_match',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(4);
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(4);
     });
 
     it('should fail and not retry further when retry after 429 also fails', async () => {
@@ -247,7 +253,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         },
       };
 
-      mockedAxios.post
+      mockHttpClient.post
         .mockRejectedValueOnce(rateLimitError)
         .mockRejectedValueOnce(rateLimitError);
 
@@ -258,7 +264,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         }),
       ).rejects.toThrow('LiteApp WhatsApp delivery failed on retry');
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(2);
     });
 
     it('should log and not retry for non-429 HTTP errors (e.g., 400, 500)', async () => {
@@ -275,7 +281,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         },
       };
 
-      mockedAxios.post.mockRejectedValueOnce(badRequestError);
+      mockHttpClient.post.mockRejectedValueOnce(badRequestError);
 
       await expect(
         adapter.send({
@@ -284,7 +290,7 @@ describe('LiteAppWhatsAppAdapter', () => {
         }),
       ).rejects.toThrow('LiteApp WhatsApp delivery failed');
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockHttpClient.post).toHaveBeenCalledTimes(1);
     });
   });
 });

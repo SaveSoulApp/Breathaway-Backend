@@ -23,25 +23,25 @@ describe('HealthController (e2e)', () => {
       const res = await request(app.getHttpServer()).get('/health');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: 'ok' });
+      expect(res.body.status).toBe('ok');
     });
 
     it('returns 200 { status: "ok" } when called with client identity headers', async () => {
       const res = await authedRequest(app).get('/health');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: 'ok' });
+      expect(res.body.status).toBe('ok');
     });
   });
 
   describe('GET /ready (Readiness Probe)', () => {
-    it('returns 200 { status: "ok", db: "connected" } verifying database connectivity', async () => {
+    it('returns 200 verifying database and redis connectivity', async () => {
       const res = await request(app.getHttpServer()).get('/ready');
 
-      // 200 when database is online; 503 if unreachable
+      // 200 when database/redis are online; 503 if unreachable
       expect([200, 503]).toContain(res.status);
       if (res.status === 200) {
-        expect(res.body).toEqual({ status: 'ok', db: 'connected' });
+        expect(res.body.status).toBe('ok');
       }
     });
 
@@ -50,7 +50,7 @@ describe('HealthController (e2e)', () => {
 
       expect([200, 503]).toContain(res.status);
       if (res.status === 200) {
-        expect(res.body).toEqual({ status: 'ok', db: 'connected' });
+        expect(res.body.status).toBe('ok');
       }
     });
   });

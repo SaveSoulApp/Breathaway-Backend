@@ -1,21 +1,21 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import axios from 'axios';
 import { mockDeep, MockProxy } from 'jest-mock-extended';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 import { MailgunEmailAdapter } from '@modules/notifications/email/adapters/mailgun.email.adapter';
-
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('MailgunEmailAdapter', () => {
   let adapter: MailgunEmailAdapter;
   let mockLogger: MockProxy<LoggerService>;
   let mockConfigService: MockProxy<ConfigService>;
   let contextualLogger: Record<string, jest.Mock>;
+  const mockHttpClient = {
+    post: jest.fn(),
+  };
 
   beforeEach(async () => {
     mockLogger = mockDeep<LoggerService>();
@@ -55,6 +55,7 @@ describe('MailgunEmailAdapter', () => {
         MailgunEmailAdapter,
         { provide: LoggerService, useValue: mockLogger },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: HttpClientService, useValue: mockHttpClient },
       ],
     }).compile();
 
@@ -76,6 +77,7 @@ describe('MailgunEmailAdapter', () => {
           MailgunEmailAdapter,
           { provide: LoggerService, useValue: mockLogger },
           { provide: ConfigService, useValue: mockConfigService },
+          { provide: HttpClientService, useValue: mockHttpClient },
         ],
       }).compile();
 
@@ -95,7 +97,7 @@ describe('MailgunEmailAdapter', () => {
 
   describe('send', () => {
     it('should send email using axios with form data and basic auth', async () => {
-      mockedAxios.post.mockResolvedValueOnce({
+      mockHttpClient.post.mockResolvedValueOnce({
         status: 200,
         data: { id: '<mailgun-id>' },
       });
@@ -106,7 +108,7 @@ describe('MailgunEmailAdapter', () => {
         html: '<p>Welcome!</p>',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
         'https://api.mailgun.net/v3/mg.breathaway.com/messages',
         expect.anything(),
         expect.objectContaining({
@@ -133,7 +135,7 @@ describe('MailgunEmailAdapter', () => {
         '[Mailgun] Cannot send email: recipient address is missing',
       );
 
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
     });
 
     it('should throw when html body is missing', async () => {
@@ -147,12 +149,12 @@ describe('MailgunEmailAdapter', () => {
         '[Mailgun] Cannot send email: html body is missing or empty',
       );
 
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
     });
 
     it('should log and rethrow delivery error when axios post fails', async () => {
       const networkError = new Error('Mailgun connection refused');
-      mockedAxios.post.mockRejectedValueOnce(networkError);
+      mockHttpClient.post.mockRejectedValueOnce(networkError);
 
       await expect(
         adapter.send({

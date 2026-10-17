@@ -1,20 +1,20 @@
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import axios from 'axios';
 import { mockDeep, MockProxy } from 'jest-mock-extended';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 import { BrevoEmailAdapter } from '@modules/notifications/email/adapters/brevo.email.adapter';
-
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('BrevoEmailAdapter', () => {
   let adapter: BrevoEmailAdapter;
   let mockLogger: MockProxy<LoggerService>;
   let mockConfigService: MockProxy<ConfigService>;
+  const mockHttpClient = {
+    post: jest.fn(),
+  };
 
   beforeEach(async () => {
     mockLogger = mockDeep<LoggerService>();
@@ -51,6 +51,7 @@ describe('BrevoEmailAdapter', () => {
         BrevoEmailAdapter,
         { provide: LoggerService, useValue: mockLogger },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: HttpClientService, useValue: mockHttpClient },
       ],
     }).compile();
 
@@ -63,7 +64,7 @@ describe('BrevoEmailAdapter', () => {
 
   describe('send', () => {
     it('should successfully post email payload to Brevo v3 endpoint with correct headers and body', async () => {
-      mockedAxios.post.mockResolvedValueOnce({
+      mockHttpClient.post.mockResolvedValueOnce({
         status: 201,
         data: { messageId: '<test-msg-id@brevo>' },
       });
@@ -74,7 +75,7 @@ describe('BrevoEmailAdapter', () => {
         html: '<h1>Welcome!</h1>',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
         'https://api.brevo.com/v3/smtp/email',
         {
           sender: {
@@ -96,7 +97,7 @@ describe('BrevoEmailAdapter', () => {
     });
 
     it('should use custom sender from payload if provided', async () => {
-      mockedAxios.post.mockResolvedValueOnce({ status: 201, data: {} });
+      mockHttpClient.post.mockResolvedValueOnce({ status: 201, data: {} });
 
       await adapter.send({
         to: 'user@example.com',
@@ -106,7 +107,7 @@ describe('BrevoEmailAdapter', () => {
         fromName: 'BreathAway Alerts',
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
         'https://api.brevo.com/v3/smtp/email',
         expect.objectContaining({
           sender: {
@@ -129,7 +130,7 @@ describe('BrevoEmailAdapter', () => {
         '[Brevo] Cannot send email: recipient address is missing',
       );
 
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
     });
 
     it('should throw an error when API key is missing', async () => {
@@ -146,6 +147,7 @@ describe('BrevoEmailAdapter', () => {
           BrevoEmailAdapter,
           { provide: LoggerService, useValue: mockLogger },
           { provide: ConfigService, useValue: mockConfigService },
+          { provide: HttpClientService, useValue: mockHttpClient },
         ],
       }).compile();
 
@@ -176,6 +178,7 @@ describe('BrevoEmailAdapter', () => {
           BrevoEmailAdapter,
           { provide: LoggerService, useValue: mockLogger },
           { provide: ConfigService, useValue: mockConfigService },
+          { provide: HttpClientService, useValue: mockHttpClient },
         ],
       }).compile();
 
@@ -193,7 +196,7 @@ describe('BrevoEmailAdapter', () => {
     });
 
     it('should propagate delivery errors when Brevo API rejects the request', async () => {
-      mockedAxios.post.mockRejectedValueOnce(new Error('Network error'));
+      mockHttpClient.post.mockRejectedValueOnce(new Error('Network error'));
 
       await expect(
         adapter.send({

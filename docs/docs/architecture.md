@@ -83,6 +83,15 @@ The platform provides a provider-agnostic, secure payment orchestration engine f
 - **Autonomous Reconciliation**: An autonomous background sweeper (`PaymentsReconciliationService`) polls stale `PENDING` orders every 2 minutes to settle dropped webhooks and terminate expired checkouts.
 - **Deep Dive**: See the dedicated [Web Payments Architecture & Gateway Orchestration](./architecture/payments.md) guide.
 
+### 6. Resilient External HTTP Clients
+
+To protect the application from hung socket leaks, distribute tracing context across third-party boundaries, and avoid brittle unit test monkey-patching, all external HTTP requests are routed through a centralized service:
+
+- **Centralized Wrapper**: Third-party APIs (Instagram, Google Play, Brevo, Mailgun, LiteApp, IPinfo) are consumed exclusively via `HttpClientService` (`@infrastructure/http`), wrapping an underlying Axios client.
+- **Distributed Tracing Propagation**: Outgoing request interceptors automatically extract `requestId` and `traceContext` from CLS (`nestjs-cls`) and inject `x-request-id` and `x-cloud-trace-context` HTTP headers.
+- **Bounded Timeouts**: All outbound calls enforce bounded default execution timeouts (`HTTP_CLIENT_TIMEOUT_MS`, default 10,000ms), safeguarding Cloud Run container sockets.
+- **Deep Dive**: See the dedicated [Resilient External HTTP Clients](./architecture/http-client.md) guide.
+
 ---
 
 ## 🔄 Request Lifecycle & Global Enhancers

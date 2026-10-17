@@ -4,31 +4,56 @@ sidebar_position: 9
 
 # Health Module
 
-The `HealthModule` uses NestJS `@nestjs/terminus` to verify the operational state of the backend service and its dependencies.
+The `HealthModule` uses NestJS `@nestjs/terminus` to verify the operational state of the backend service and its dependencies, providing differentiated liveness and readiness probes for Google Cloud Run and Kubernetes load balancers.
 
 ---
 
 ## 📋 Purpose & Responsibilities
 
-- **System Diagnostics**: Evaluates the status of the database connection (Prisma), local memory usage, and Redis cache.
-- **Uptime Monitoring**: Exposes a public endpoint used by Google Cloud Run load balancers for deployment checks and health status.
+- **Liveness Probing (`/health`)**: Fast, non-blocking check validating that the Node.js event loop is spinning and heap/RSS memory usage remains within configured thresholds. It deliberately avoids calling downstream database or cache services so that transient downstream blips do not cause orchestrators to terminate healthy containers.
+- **Readiness Probing (`/ready`)**: Traffic admission check verifying PostgreSQL database and Redis cache connectivity before Cloud Run routes production traffic to the container revision.
+- **Stateless Cloud Run Architecture**: Bypasses mobile client identity headers via `@SkipClientIdentity()`, allowing GCP infrastructure health checks to execute without credentials.
 
 ---
 
 ## 🧠 Business Logic & Core Concepts
 
-### 1. Terminus Indicators (Liveness & Readiness Probes)
+### 1. Differentiated Probing Strategy
 
-The endpoint orchestrates four concurrent health checks using `@nestjs/terminus`:
+```mermaid
+flowchart TD
+    subgraph GCP Cloud Run / Load Balancers
+        Live["GET /health (Liveness)"]
+        Ready["GET /ready (Readiness)"]
+    end
 
-- **Database**: Pings PostgreSQL via `PrismaHealthIndicator`.
-- **Cache**: Pings Redis via a custom `RedisHealthIndicator`.
-- **Memory (Heap)**: Ensures Node.js V8 heap usage is under 150MB.
-- **Memory (RSS)**: Ensures total Resident Set Size is under 150MB.
+    subgraph HealthController
+        HC["HealthController (@HealthCheck())"]
+        Mem["MemoryHealthIndicator<br/>(Heap &lt; 300MB, RSS &lt; 500MB)"]
+        DB["DatabaseHealthIndicator<br/>(Prisma SELECT 1)"]
+        Redis["RedisHealthIndicator<br/>(ioredis ping / safe null-check)"]
+    end
 
-### 2. Cloud Run Readiness
+    Live -->|"Validates Process Health"| HC
+    Ready -->|"Validates Dependencies"| HC
 
-If any of these four checks fail or timeout, the controller returns a `503 Service Unavailable`. Cloud Run and GCP Load Balancers use this signal to instantly stop routing traffic to the unhealthy container instance, preventing degraded user experiences.
+    HC --> Mem
+    HC --> DB
+    HC --> Redis
+```
+
+#### A. Liveness Probe (`GET /health`)
+
+- **Memory (Heap)**: Ensures Node.js V8 heap usage is under 1GiB.
+- **Memory (RSS)**: Ensures Resident Set Size is under 1.5GiB (calibrated for 2Gi Cloud Run container allocation).
+- **Result**: Responds with HTTP `200 OK` and `{ status: 'ok', info: { memory_heap: { status: 'up' }, memory_rss: { status: 'up' } } }`.
+
+#### B. Readiness Probe (`GET /ready`)
+
+- **Database (`DatabaseHealthIndicator`)**: Executes a lightweight `SELECT 1` query via `PrismaService` to verify the PostgreSQL connection pool is ready and accepting queries, returning real-time connection pool metrics (`totalCount`, `idleCount`, `activeCount`, `waitingCount`, `utilizationPercent`).
+- **Cache (`RedisHealthIndicator`)**: Pings Redis via the global `REDIS_CLIENT`. If Redis is unconfigured (`REDIS_URL` omitted), it safely reports `up` with `{ enabled: false }` rather than failing the readiness probe in dev/staging environments.
+- **Probe Overhead & Frequency**: In Cloud Run, readiness probes gate container startup and traffic shifting (typical probe interval: 10–15s). High-frequency uptime monitors (e.g. sub-second pings) should target the zero-IO liveness probe (`/health`), reserving `/ready` for traffic admission to avoid unnecessary database connection checkouts.
+- **Result**: Returns HTTP `200 OK` if all dependencies are healthy, or `503 Service Unavailable` if PostgreSQL or Redis is degraded.
 
 ---
 
@@ -36,11 +61,21 @@ If any of these four checks fail or timeout, the controller returns a `503 Servi
 
 ### Controller
 
-- **[HealthController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/health.controller.ts)**: Exposes the `/api/v1/health` route.
-  - `@SkipClientIdentity()` is applied here to bypass standard mobile headers checking.
+- **[HealthController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/health.controller.ts)**:
+  - `@SkipClientIdentity()`: Bypasses mobile device and app-version verification headers.
+  - `@Get('health')`: Liveness probe.
+  - `@Get('ready')`: Readiness probe.
+
+### Indicators
+
+- **[DatabaseHealthIndicator](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/indicators/database.health.ts)**: Verifies PostgreSQL responsiveness via Prisma.
+- **[RedisHealthIndicator](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/indicators/redis.health.ts)**: Verifies Redis responsiveness with null-safe handling.
 
 ---
 
 ## 🔄 Public APIs
 
-- `GET /health`: Returns `{ status: 'ok', info: { ... } }` and responds with HTTP status `200` if all services are healthy, or `503 Service Unavailable` if a core check fails.
+| Route     | Method | Purpose                                  | Success Status | Failure Status            |
+| :-------- | :----- | :--------------------------------------- | :------------- | :------------------------ |
+| `/health` | `GET`  | Container liveness (Memory & event loop) | `200 OK`       | `503 Service Unavailable` |
+| `/ready`  | `GET`  | Traffic readiness (Database & Redis)     | `200 OK`       | `503 Service Unavailable` |

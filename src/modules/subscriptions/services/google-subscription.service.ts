@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SubscriptionEventType } from '@prisma/client';
-import axios from 'axios';
 import { GoogleAuth } from 'google-auth-library';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 interface GoogleNotificationRaw {
   packageName?: string;
@@ -58,6 +58,7 @@ export class GoogleSubscriptionService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(logger);
 
@@ -114,7 +115,7 @@ export class GoogleSubscriptionService extends BaseService {
         `/applications/${packageName}` +
         `/purchases/subscriptionsv2/tokens/${purchaseToken}`;
 
-      const response = await axios.get<GooglePurchaseDetails>(url, {
+      const response = await this.httpClient.get<GooglePurchaseDetails>(url, {
         headers: {
           Authorization: `Bearer ${accessToken.token}`,
         },

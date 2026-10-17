@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
+import { HttpClientService } from '@infrastructure/http';
 
 import { IpinfoLiteResponse } from './interfaces/ip-geolocation.interface';
 
@@ -22,6 +22,7 @@ export class IpGeolocationService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly configService: ConfigService,
+    private readonly httpClient: HttpClientService,
   ) {
     super(logger);
     this.token = this.configService.get<string>('IPINFO_TOKEN');
@@ -62,7 +63,7 @@ export class IpGeolocationService extends BaseService {
     const startTime = Date.now();
     try {
       const url = `https://api.ipinfo.io/lite/${cleanIp}?token=${this.token}`;
-      const response = await axios.get<IpinfoLiteResponse>(url, {
+      const response = await this.httpClient.get<IpinfoLiteResponse>(url, {
         timeout: this.timeoutMs,
         headers: { Accept: 'application/json' },
       });

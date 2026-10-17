@@ -54,26 +54,27 @@ Query with SQL (see §12)
 
 Every log line emitted in GCP mode is a JSON object:
 
-| Field | Type | Source | Description |
-|-------|------|--------|-------------|
-| `severity` | `string` | Pino formatter | GCP enum: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
-| `timestamp` | `string` | Pino | ISO 8601 UTC |
-| `schema_version` | `number` | Pino `base` | Always `1` — increment on breaking changes |
-| `message` | `string` | Pino `messageKey` | Human-readable log message |
-| `context` | `string` | `forContext()` | Class name (e.g., `LikesService`) |
-| `event` | `string` | `logger.event()` | Typed event name (e.g., `LIKE_CREATED`) |
-| `requestId` | `string` | CLS (auto) | UUID from `x-request-id` header |
-| `logging.googleapis.com/trace` | `string` | CLS (auto) | `projects/PROJECT_ID/traces/TRACE_ID` |
-| `logging.googleapis.com/spanId` | `string` | CLS (auto) | Span ID from `X-Cloud-Trace-Context` |
-| `logging.googleapis.com/trace_sampled` | `boolean` | CLS (auto) | Whether the trace is sampled |
-| `serviceContext.service` | `string` | Pino `base` | `APP_NAME` env var |
-| `serviceContext.version` | `string` | Pino `base` | `APP_VERSION` env var |
-| `gcpProjectId` | `string` | Pino `base` | GCP project ID |
-| `step` | `string` | caller | Internal step (e.g., `init`, `persist_like`, `complete`) |
+| Field                                  | Type      | Source            | Description                                               |
+| -------------------------------------- | --------- | ----------------- | --------------------------------------------------------- |
+| `severity`                             | `string`  | Pino formatter    | GCP enum: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `timestamp`                            | `string`  | Pino              | ISO 8601 UTC                                              |
+| `schema_version`                       | `number`  | Pino `base`       | Always `1` — increment on breaking changes                |
+| `message`                              | `string`  | Pino `messageKey` | Human-readable log message                                |
+| `context`                              | `string`  | `forContext()`    | Class name (e.g., `LikesService`)                         |
+| `event`                                | `string`  | `logger.event()`  | Typed event name (e.g., `LIKE_CREATED`)                   |
+| `requestId`                            | `string`  | CLS (auto)        | UUID from `x-request-id` header                           |
+| `logging.googleapis.com/trace`         | `string`  | CLS (auto)        | `projects/PROJECT_ID/traces/TRACE_ID`                     |
+| `logging.googleapis.com/spanId`        | `string`  | CLS (auto)        | Span ID from `X-Cloud-Trace-Context`                      |
+| `logging.googleapis.com/trace_sampled` | `boolean` | CLS (auto)        | Whether the trace is sampled                              |
+| `serviceContext.service`               | `string`  | Pino `base`       | `APP_NAME` env var                                        |
+| `serviceContext.version`               | `string`  | Pino `base`       | `APP_VERSION` env var                                     |
+| `gcpProjectId`                         | `string`  | Pino `base`       | GCP project ID                                            |
+| `step`                                 | `string`  | caller            | Internal step (e.g., `init`, `persist_like`, `complete`)  |
 
 ### Trace Field Format
 
 `logging.googleapis.com/trace` **must** be:
+
 ```
 projects/breathaway-dev/traces/abc123def456...
 ```
@@ -95,12 +96,12 @@ this.logger.warn('Duplicate like attempted', { userId, targetIdentityId });
 this.logger.error('Transaction failed', { userId, err: serializeError(err) });
 ```
 
-| Method | GCP Severity | Use When |
-|--------|-------------|----------|
-| `.debug()` | DEBUG | Intermediate state — **invisible in production** |
-| `.log()` / `.info()` | INFO | Normal business milestones |
-| `.warn()` | WARNING | Recoverable, unexpected-but-handled |
-| `.error()` | ERROR | Unrecoverable errors, caught exceptions |
+| Method               | GCP Severity | Use When                                         |
+| -------------------- | ------------ | ------------------------------------------------ |
+| `.debug()`           | DEBUG        | Intermediate state — **invisible in production** |
+| `.log()` / `.info()` | INFO         | Normal business milestones                       |
+| `.warn()`            | WARNING      | Recoverable, unexpected-but-handled              |
+| `.error()`           | ERROR        | Unrecoverable errors, caught exceptions          |
 
 ### Typed event() helper
 
@@ -128,9 +129,9 @@ All event names live in [`log-event.constants.ts`](./log-event.constants.ts). **
 ```ts
 import { LOG_EVENT, LogEvent } from '@core/logger';
 
-LOG_EVENT.REQUEST_RECEIVED    // lifecycle
-LOG_EVENT.LIKE_CREATED        // business
-LOG_EVENT.SUBSCRIPTION_WEBHOOK_RECEIVED  // payment
+LOG_EVENT.REQUEST_RECEIVED; // lifecycle
+LOG_EVENT.LIKE_CREATED; // business
+LOG_EVENT.SUBSCRIPTION_WEBHOOK_RECEIVED; // payment
 // etc.
 ```
 
@@ -171,6 +172,7 @@ cls.set('traceContext', req.headers['x-cloud-trace-context']); // "abc123/456;o=
 Pino's `redact` is configured in `gcp-logger.config.ts` via `PINO_REDACT_PATHS`. Values are replaced with `[Redacted]` **at serialization time** — before bytes hit stdout.
 
 **Redacted fields:**
+
 ```
 password, token, accessToken, refreshToken, apiKey, secret, privateKey
 cardNumber, cvv, otp, pin, ssn
@@ -184,10 +186,10 @@ req.headers.authorization, req.headers.cookie
 
 ## Log Levels
 
-| Environment | Default `LOG_LEVEL` | Visible |
-|------------|--------------------|-|
-| Production (`DEPLOYMENT_ENV=gcp`) | `info` | INFO, WARNING, ERROR, CRITICAL |
-| Development (local) | `debug` | all |
+| Environment                       | Default `LOG_LEVEL` | Visible                        |
+| --------------------------------- | ------------------- | ------------------------------ |
+| Production (`DEPLOYMENT_ENV=gcp`) | `info`              | INFO, WARNING, ERROR, CRITICAL |
+| Development (local)               | `debug`             | all                            |
 
 Override with the `LOG_LEVEL` env var. Valid values: `fatal`, `error`, `warn`, `info`, `debug`, `trace`.
 
@@ -220,22 +222,34 @@ this.logger.debug('Like created', {
 
 Pub/Sub push delivery arrives as a new HTTP request. `AsyncLocalStorage` context does **not** cross the queue boundary automatically.
 
-**Fix in `PubSubIngestionController.ingest()`**: CLS is seeded from the Pub/Sub `messageId`:
+**Queue Boundary Bridge**:
+
+1. **Outbound (`PubSubPublisherService.publish()`)**: Automatically extracts `originRequestId` (`requestId`) and `traceContext` from the active CLS context and injects them into Pub/Sub message `attributes`.
+2. **Inbound (`PubSubIngestionController.ingest()`)**: Extracts `originRequestId` and `traceContext` from message `attributes` and restores them in CLS:
 
 ```ts
-const correlationId = message.messageId ?? randomUUID();
+const originRequestId = attributes?.originRequestId ?? attributes?.requestId;
+const originTraceContext =
+  attributes?.traceContext ??
+  attributes?.traceparent ??
+  attributes?.['x-cloud-trace-context'];
+const correlationId = originRequestId ?? message.messageId ?? randomUUID();
+
 this.cls.set('requestId', correlationId);
-this.cls.set('pubsubMessageId', message.messageId);
+if (originRequestId) this.cls.set('originRequestId', originRequestId);
+if (incomingMessageId) this.cls.set('pubsubMessageId', incomingMessageId);
+if (originTraceContext) this.cls.set('traceContext', originTraceContext);
 ```
 
-- All `@PubSubListener` handler logs carry `requestId = messageId`
-- `messageId` is stable across Pub/Sub retries → retry attempts are co-located in BigQuery queries
+- When triggered from an API request, all `@PubSubListener` handler logs carry the original `requestId` and `logging.googleapis.com/trace`, linking background workers directly to the user request in GCP Cloud Trace and Logs Explorer.
+- `pubsubMessageId` is retained in CLS for tracking retry attempts across message redeliveries in BigQuery queries.
 
 ---
 
 ## PII Prohibition
 
 **Never log personally identifiable information:**
+
 - User email, phone number, name
 - Physical address
 - Raw identity values before masking
@@ -250,8 +264,8 @@ Use `identityCryptoService.maskValue()` before logging any identity strings.
 Full log sequence for `POST /likes`:
 
 ```
-1. LoggingInterceptor:
-   { event: "REQUEST_RECEIVED", httpRequest.method: "POST", httpRequest.url: "/api/v1/likes", requestId: "req-abc" }
+1. LoggingInterceptor (DEBUG):
+   { message: "Incoming request", httpRequest.method: "POST", httpRequest.url: "/api/v1/likes", requestId: "req-abc" }
 
 2. LikesService — credit check:
    { message: "Checking credit balance", context: "LikesService", step: "credit_check", userId: "u-1" }
@@ -265,8 +279,8 @@ Full log sequence for `POST /likes`:
 5. LikesService — complete:
    { event: "LIKE_CREATED", likeId: "like-1", userId: "u-1", targetIdentityId: "tid-2" }
 
-6. LoggingInterceptor:
-   { event: "REQUEST_COMPLETED", statusCode: 201, durationMs: 43 }
+6. LoggingInterceptor (DEBUG):
+   { message: "Request completed", statusCode: 201, durationMs: 43 }
 
 All lines share the same requestId: "req-abc"
 ```
@@ -380,13 +394,13 @@ gcloud logging links create app-logs-bq-link \
 
 ### Required Cloud Run env vars
 
-| Variable | Example | Purpose |
-|----------|---------|---------|
-| `GCP_PROJECT_ID` | `breathaway-dev` | Constructs `projects/.../traces/...` format |
-| `DEPLOYMENT_ENV` | `gcp` | Enables GCP JSON log format |
-| `LOG_LEVEL` | `info` | Minimum severity (use `debug` in staging) |
-| `APP_NAME` | `breathaway-api` | Identifies service in `serviceContext.service` |
-| `APP_VERSION` | `1.2.3` | Identifies deployment version |
+| Variable         | Example          | Purpose                                        |
+| ---------------- | ---------------- | ---------------------------------------------- |
+| `GCP_PROJECT_ID` | `breathaway-dev` | Constructs `projects/.../traces/...` format    |
+| `DEPLOYMENT_ENV` | `gcp`            | Enables GCP JSON log format                    |
+| `LOG_LEVEL`      | `info`           | Minimum severity (use `debug` in staging)      |
+| `APP_NAME`       | `breathaway-api` | Identifies service in `serviceContext.service` |
+| `APP_VERSION`    | `1.2.3`          | Identifies deployment version                  |
 
 ---
 
@@ -399,6 +413,7 @@ gcloud logging links create app-logs-bq-link \
 This logging system is for **operational observability** — debugging, incident investigation, performance monitoring. It is **not** a financial audit trail.
 
 If credit/payment operations require an immutable, long-retention audit ledger:
+
 - An **Outbox pattern** (append-only DB table per business transaction) should be implemented via Prisma.
 - A dedicated Pub/Sub topic streams Outbox events to a long-retention BigQuery table.
 - The existing `audit-logs.tf` Pub/Sub pipeline (resources 1-6) is the starting point.

@@ -109,6 +109,85 @@ describe('PubSubIngestionController', () => {
       );
     });
 
+    it('should seed requestId, originRequestId, and traceContext in CLS when attributes contain trace metadata', async () => {
+      const messageId = 'pubsub-msg-trace';
+      const eventType = 'order.completed';
+      const originRequestId = 'origin-req-999';
+      const traceContext = '105445aa7843bc8bf206b120001000/1;o=1';
+
+      registryService.getHandler.mockReturnValue({
+        target: {},
+        method: jest.fn().mockResolvedValue(undefined),
+      });
+
+      const pushDto: PubSubPushRequestDto = {
+        message: {
+          data: Buffer.from(JSON.stringify({ orderId: 'ord-1' })).toString(
+            'base64',
+          ),
+          messageId,
+          publishTime: '2024-01-01T00:00:00.000Z',
+          attributes: {
+            eventType,
+            originRequestId,
+            traceContext,
+          },
+        },
+        subscription: 'projects/test/subscriptions/sub-1',
+      };
+
+      await controller.ingest(pushDto as unknown as Record<string, unknown>);
+
+      expect(clsService.set).toHaveBeenCalledWith('requestId', originRequestId);
+      expect(clsService.set).toHaveBeenCalledWith(
+        'originRequestId',
+        originRequestId,
+      );
+      expect(clsService.set).toHaveBeenCalledWith('pubsubMessageId', messageId);
+      expect(clsService.set).toHaveBeenCalledWith('traceContext', traceContext);
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.PUBSUB_MESSAGE_RECEIVED,
+        {
+          messageId,
+          eventType,
+          originRequestId,
+        },
+      );
+    });
+
+    it('should handle traceparent and requestId aliases in attributes', async () => {
+      const messageId = 'pubsub-msg-alias';
+      const eventType = 'user.updated';
+      const requestId = 'alias-req-111';
+      const traceparent =
+        '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+
+      registryService.getHandler.mockReturnValue({
+        target: {},
+        method: jest.fn().mockResolvedValue(undefined),
+      });
+
+      const pushDto: PubSubPushRequestDto = {
+        message: {
+          data: Buffer.from(JSON.stringify({})).toString('base64'),
+          messageId,
+          publishTime: '2024-01-01T00:00:00.000Z',
+          attributes: {
+            eventType,
+            requestId,
+            traceparent,
+          },
+        },
+        subscription: 'projects/test/subscriptions/sub-1',
+      };
+
+      await controller.ingest(pushDto as unknown as Record<string, unknown>);
+
+      expect(clsService.set).toHaveBeenCalledWith('requestId', requestId);
+      expect(clsService.set).toHaveBeenCalledWith('originRequestId', requestId);
+      expect(clsService.set).toHaveBeenCalledWith('traceContext', traceparent);
+    });
+
     it('should handle payload without data attribute by passing empty object to handler', async () => {
       // Arrange
       const messageId = 'pubsub-msg-empty-data';

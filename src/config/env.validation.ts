@@ -43,6 +43,8 @@ export const envValidationSchema = Joi.object({
   DB_POOL_ACQUISITION_TIMEOUT_MS: Joi.number().integer().min(100).default(5000),
   DB_POOL_IDLE_TIMEOUT_MS: Joi.number().integer().min(0).default(10000),
   DB_POOL_STATEMENT_TIMEOUT_MS: Joi.number().integer().min(0).default(15000),
+  DB_SLOW_QUERY_THRESHOLD_MS: Joi.number().integer().min(1).default(200),
+  DB_LOG_ALL_QUERIES: Joi.boolean().default(false),
 
   // Observability & Logging
   LOG_LEVEL: Joi.string()
