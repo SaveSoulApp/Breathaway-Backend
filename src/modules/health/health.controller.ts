@@ -56,9 +56,10 @@ export class HealthController extends BaseController {
     description: 'Service memory thresholds exceeded',
   })
   async checkHealth(): Promise<HealthCheckResult> {
+    // Thresholds calibrated for 2Gi Cloud Run container memory limits (1GiB Heap, 1.5GiB RSS)
     return this.health.check([
-      () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024),
-      () => this.memory.checkRSS('memory_rss', 500 * 1024 * 1024),
+      () => this.memory.checkHeap('memory_heap', 1024 * 1024 * 1024),
+      () => this.memory.checkRSS('memory_rss', 1536 * 1024 * 1024),
     ]);
   }
 

@@ -222,6 +222,71 @@ describe('HttpClientService', () => {
         }),
       );
     });
+
+    it('should sanitize URL query parameters in logs on both success and error', async () => {
+      const responseInterceptor = (
+        service.axiosRef.interceptors.response as unknown as {
+          handlers: Array<{
+            fulfilled: (response: unknown) => unknown;
+            rejected: (error: unknown) => Promise<never>;
+          }>;
+        }
+      ).handlers[0];
+
+      // 1. Success path
+      const fakeResponse = {
+        status: 200,
+        data: { success: true },
+        config: {
+          method: 'get',
+          url: 'https://api.example.com/v1/users?token=secret-token-123&apiKey=secret-key',
+          metadata: { startTime: Date.now() },
+        } as ExtendedAxiosRequestConfig,
+      };
+
+      responseInterceptor.fulfilled(fakeResponse);
+
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Outgoing HTTP request completed',
+        expect.objectContaining({
+          url: 'https://api.example.com/v1/users',
+        }),
+      );
+      expect(mockLogger.debug).not.toHaveBeenCalledWith(
+        'Outgoing HTTP request completed',
+        expect.objectContaining({
+          url: expect.stringContaining('secret-token-123'),
+        }),
+      );
+
+      // 2. Error path
+      const fakeError = Object.assign(
+        new AxiosError('Request failed with status 401'),
+        {
+          config: {
+            method: 'get',
+            url: 'https://api.example.com/v1/auth?sensitiveParam=xyz',
+            metadata: { startTime: Date.now() },
+          } as ExtendedAxiosRequestConfig,
+          response: { status: 401 },
+        },
+      );
+
+      await expect(responseInterceptor.rejected(fakeError)).rejects.toThrow();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Outgoing HTTP request failed',
+        expect.objectContaining({
+          url: 'https://api.example.com/v1/auth',
+        }),
+      );
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        'Outgoing HTTP request failed',
+        expect.objectContaining({
+          url: expect.stringContaining('sensitiveParam'),
+        }),
+      );
+    });
   });
 
   describe('HTTP methods delegation', () => {

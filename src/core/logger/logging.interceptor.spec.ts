@@ -134,4 +134,35 @@ describe('LoggingInterceptor', () => {
     expect(mockLogger.error).not.toHaveBeenCalled();
     expect(mockLogger.event).not.toHaveBeenCalled();
   });
+
+  it('should fall back to standard user-agent header when x-user-agent is absent', async () => {
+    // Arrange
+    const reqMock = {
+      method: 'GET',
+      url: '/api/v1/health',
+      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Chrome)' },
+      ip: '127.0.0.1',
+    };
+    const resMock = { statusCode: 200 };
+    const context = createMockExecutionContext(
+      reqMock,
+      resMock,
+      { name: 'checkHealth' },
+      { name: 'HealthController' },
+    );
+    const callHandler = createMockCallHandler('ok');
+
+    // Act
+    await lastValueFrom(interceptor.intercept(context, callHandler));
+
+    // Assert
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      'Incoming request',
+      expect.objectContaining({
+        httpRequest: expect.objectContaining({
+          userAgent: 'Mozilla/5.0 (Macintosh; Chrome)',
+        }),
+      }),
+    );
+  });
 });

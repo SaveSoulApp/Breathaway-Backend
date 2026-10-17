@@ -104,11 +104,11 @@ describe('HealthController', () => {
       ]);
       expect(mockMemoryHealthIndicator.checkHeap).toHaveBeenCalledWith(
         'memory_heap',
-        300 * 1024 * 1024,
+        1024 * 1024 * 1024,
       );
       expect(mockMemoryHealthIndicator.checkRSS).toHaveBeenCalledWith(
         'memory_rss',
-        500 * 1024 * 1024,
+        1536 * 1024 * 1024,
       );
       expect(result).toEqual(mockResult);
     });

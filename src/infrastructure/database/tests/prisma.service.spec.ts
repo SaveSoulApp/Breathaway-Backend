@@ -324,6 +324,38 @@ describe('PrismaService', () => {
       );
     });
 
+    it('should truncate excessively long queries exceeding 2000 characters in slow query logs', () => {
+      configService.get.mockReturnValue(undefined);
+      new PrismaService(configService, loggerService);
+
+      const queryHandler = registeredPrismaListeners['query'];
+      const longQueryText =
+        'SELECT * FROM "User" WHERE ' + 'id = 1 AND '.repeat(300);
+      expect(longQueryText.length).toBeGreaterThan(2000);
+
+      const slowQueryEvent: Prisma.QueryEvent = {
+        timestamp: new Date(),
+        query: longQueryText,
+        params: '[]',
+        duration: 400,
+        target: 'public',
+      };
+
+      queryHandler(slowQueryEvent);
+
+      expect(contextualLoggerMock.warn).toHaveBeenCalledWith(
+        'Prisma detected slow database query',
+        expect.objectContaining({
+          step: 'slow_query_detected',
+          query: expect.stringMatching(/\.\.\. \[TRUNCATED\]$/),
+        }),
+      );
+
+      const loggedQuery = contextualLoggerMock.warn.mock.calls[0][1]
+        .query as string;
+      expect(loggedQuery.length).toBe(2000 + '... [TRUNCATED]'.length);
+    });
+
     it('should not log fast queries when logAllQueries is false', () => {
       configService.get.mockReturnValue(undefined); // logAllQueries = false
       new PrismaService(configService, loggerService);

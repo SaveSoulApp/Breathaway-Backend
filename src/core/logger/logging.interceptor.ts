@@ -68,7 +68,7 @@ export class LoggingInterceptor implements NestInterceptor {
       httpRequest: {
         method,
         url,
-        userAgent: headers['x-user-agent'],
+        userAgent: headers['x-user-agent'] ?? headers['user-agent'],
         remoteIp: ip,
       },
     });

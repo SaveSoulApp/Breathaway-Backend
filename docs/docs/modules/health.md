@@ -43,11 +43,13 @@ flowchart TD
 ```
 
 #### A. Liveness Probe (`GET /health`)
-- **Memory (Heap)**: Ensures Node.js V8 heap usage is under 300MB.
-- **Memory (RSS)**: Ensures Resident Set Size is under 500MB.
+
+- **Memory (Heap)**: Ensures Node.js V8 heap usage is under 1GiB.
+- **Memory (RSS)**: Ensures Resident Set Size is under 1.5GiB (calibrated for 2Gi Cloud Run container allocation).
 - **Result**: Responds with HTTP `200 OK` and `{ status: 'ok', info: { memory_heap: { status: 'up' }, memory_rss: { status: 'up' } } }`.
 
 #### B. Readiness Probe (`GET /ready`)
+
 - **Database (`DatabaseHealthIndicator`)**: Executes a lightweight `SELECT 1` query via `PrismaService` to verify the PostgreSQL connection pool is ready and accepting queries.
 - **Cache (`RedisHealthIndicator`)**: Pings Redis via the global `REDIS_CLIENT`. If Redis is unconfigured (`REDIS_URL` omitted), it safely reports `up` with `{ enabled: false }` rather than failing the readiness probe in dev/staging environments.
 - **Result**: Returns HTTP `200 OK` if all dependencies are healthy, or `503 Service Unavailable` if PostgreSQL or Redis is degraded.
@@ -57,12 +59,14 @@ flowchart TD
 ## 🛠 File & Class Definitions
 
 ### Controller
+
 - **[HealthController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/health.controller.ts)**:
   - `@SkipClientIdentity()`: Bypasses mobile device and app-version verification headers.
   - `@Get('health')`: Liveness probe.
   - `@Get('ready')`: Readiness probe.
 
 ### Indicators
+
 - **[DatabaseHealthIndicator](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/indicators/database.health.ts)**: Verifies PostgreSQL responsiveness via Prisma.
 - **[RedisHealthIndicator](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/health/indicators/redis.health.ts)**: Verifies Redis responsiveness with null-safe handling.
 
@@ -70,7 +74,7 @@ flowchart TD
 
 ## 🔄 Public APIs
 
-| Route | Method | Purpose | Success Status | Failure Status |
-| :--- | :--- | :--- | :--- | :--- |
-| `/health` | `GET` | Container liveness (Memory & event loop) | `200 OK` | `503 Service Unavailable` |
-| `/ready` | `GET` | Traffic readiness (Database & Redis) | `200 OK` | `503 Service Unavailable` |
+| Route     | Method | Purpose                                  | Success Status | Failure Status            |
+| :-------- | :----- | :--------------------------------------- | :------------- | :------------------------ |
+| `/health` | `GET`  | Container liveness (Memory & event loop) | `200 OK`       | `503 Service Unavailable` |
+| `/ready`  | `GET`  | Traffic readiness (Database & Redis)     | `200 OK`       | `503 Service Unavailable` |

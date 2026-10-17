@@ -81,6 +81,23 @@ describe('RedisModule & redisProvider', () => {
         'error',
         expect.any(Function),
       );
+
+      // Simulate redis error and verify structured logging
+      const errorHandler = mockRedisInstance.on.mock.calls.find(
+        (call: [string, (...args: unknown[]) => void]) => call[0] === 'error',
+      )?.[1];
+      const testError = new Error('Connection refused');
+      errorHandler(testError);
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis client connection error',
+        expect.objectContaining({
+          step: 'redis_client_error',
+          err: expect.objectContaining({
+            message: 'Connection refused',
+          }),
+        }),
+      );
       expect(result).toBe(mockRedisInstance);
     });
   });

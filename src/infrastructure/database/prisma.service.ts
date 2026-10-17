@@ -224,10 +224,16 @@ export class PrismaService
    * are logged.
    */
   private handleQueryEvent(event: Prisma.QueryEvent): void {
+    const MAX_QUERY_LOG_LENGTH = 2000;
+    const safeQuery =
+      event.query.length > MAX_QUERY_LOG_LENGTH
+        ? `${event.query.slice(0, MAX_QUERY_LOG_LENGTH)}... [TRUNCATED]`
+        : event.query;
+
     if (event.duration >= this.slowQueryThresholdMs) {
       this.logger.warn('Prisma detected slow database query', {
         step: 'slow_query_detected',
-        query: event.query,
+        query: safeQuery,
         durationMs: event.duration,
         target: event.target,
         pool: this.getPoolStatus(),
@@ -235,7 +241,7 @@ export class PrismaService
     } else if (this.logAllQueries) {
       this.logger.debug('Prisma query executed', {
         step: 'db_query_executed',
-        query: event.query,
+        query: safeQuery,
         durationMs: event.duration,
         target: event.target,
       });

@@ -119,7 +119,7 @@ export class HttpClientService extends BaseService implements IHttpClient {
         this.logger.debug('Outgoing HTTP request completed', {
           step: 'http_request_complete',
           method: config.method?.toUpperCase(),
-          url: config.url,
+          url: this.sanitizeUrl(config.url),
           statusCode: response.status,
           ...(durationMs !== undefined && { durationMs }),
         });
@@ -142,7 +142,7 @@ export class HttpClientService extends BaseService implements IHttpClient {
         this.logger.warn('Outgoing HTTP request failed', {
           step: 'http_request_failed',
           method: config?.method?.toUpperCase(),
-          url: config?.url,
+          url: this.sanitizeUrl(config?.url),
           statusCode: status,
           ...(durationMs !== undefined && { durationMs }),
           err: serializeError(error),
@@ -153,6 +153,15 @@ export class HttpClientService extends BaseService implements IHttpClient {
         );
       },
     );
+  }
+
+  /**
+   * Strips query strings from URLs before logging to prevent leaking tokens or PII.
+   */
+  private sanitizeUrl(url?: string): string | undefined {
+    if (!url) return undefined;
+    const queryIndex = url.indexOf('?');
+    return queryIndex !== -1 ? url.slice(0, queryIndex) : url;
   }
 
   async get<T = unknown>(

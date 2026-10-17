@@ -39,6 +39,7 @@ export const redisProvider: Provider = {
 
     client.on('error', (err) => {
       logger.error('Redis client connection error', {
+        step: 'redis_client_error',
         err: serializeError(err),
       });
     });
