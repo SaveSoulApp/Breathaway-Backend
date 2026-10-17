@@ -1,0 +1,55 @@
+name: CD — Deploy to Development
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Ensure only one deployment runs at a time for Development.
+# Consecutive PR merges will queue up and will not be cancelled midway.
+concurrency:
+  group: deploy-development
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run (Development)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: Development
+      url: https://dev.breathaway.app
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
+          service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: bash scripts/deploy.sh --env=dev
+
+      - name: Write Deployment Summary
+        if: success()
+        run: |
+          echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: \`Development\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Services**: \`backend-service\`, \`maintenance-service\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target URL**: [https://dev.breathaway.app](https://dev.breathaway.app)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered By**: \`${{ github.actor }}\` via \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
