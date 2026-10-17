@@ -77,6 +77,7 @@ Foundational services providing cloud platform integrations, observability, asyn
 - **[PubSub Module](./pubsub.md)**: Asynchronous event ingestion and publishing using GCP Cloud Pub/Sub topics and subscription worker handlers.
 - **[Maintenance Module](./maintenance.md)**: Provides scheduled tasks, cleanup cron jobs, soft-deleted record pruning, and system maintenance guards.
 - **[Audit Module](./audit.md)**: Structured compliance audit logging recording critical state changes, authorization failures, and administrative actions.
+- **[HTTP Client Module](../architecture/http-client.md)**: Global resilient HTTP transport provider (`HttpClientService`) wrapping Axios with automatic CLS distributed tracing propagation, bounded timeout budgets, and milestone timing.
 
 ### 2. Authentication & Identities
 

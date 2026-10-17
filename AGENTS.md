@@ -120,3 +120,25 @@ import { CreateUserRequestDto } from './dto/request/create-user.request.dto';
     expect.objectContaining({ userId, amount: 10 }),
   );
   ```
+
+---
+
+## 7. External HTTP Communication: Resilient Architecture
+
+To guarantee distributed tracing context, bounded execution timeouts, and maintainable unit tests:
+
+- **Zero Direct Axios Imports**: NEVER import or call `axios` directly inside domain services, feature modules, or transport adapters.
+- **Inject `HttpClientService`**: All outbound HTTP operations must be performed using `HttpClientService` from `@infrastructure/http`.
+- **Distributed Context Propagation**: `HttpClientService` automatically pulls `requestId` and `traceContext` from CLS (`nestjs-cls`) and injects `x-request-id` and `x-cloud-trace-context` into outbound requests.
+- **Bounded Timeout Budgets**: Outbound calls inherit a default bounded execution timeout (`HTTP_CLIENT_TIMEOUT_MS`, default `10000`ms) to guard Cloud Run socket pools.
+- **Zero Axios Mocking in Tests**: NEVER use `jest.mock('axios')`. Supply an injectable mock provider in your test modules:
+  ```typescript
+  { provide: HttpClientService, useValue: mockHttpClient }
+  ```
+
+---
+
+## 8. Logging & Exception Handling Architecture
+
+- **Noise Elimination**: Per-request HTTP access logging is handled by GCP Cloud Run. `LoggingInterceptor` logs lifecycle markers (`Incoming request`, `Request completed` with `durationMs`) at **`DEBUG`** severity, preventing log duplication and Cloud Logging cost inflation.
+- **Single Source of Truth for Exceptions**: `LoggingInterceptor` does NOT intercept or log errors. Unhandled exceptions bubble straight to `GlobalExceptionFilter` and `PrismaExceptionFilter`, guaranteeing exactly one structured `ERROR` log entry per failed request.

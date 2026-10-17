@@ -58,6 +58,7 @@ src/
 ├── infrastructure/        # Third-party adapters and connections
 │   ├── cache/             # Redis caching service layer
 │   ├── database/          # Prisma database client setup and filters
+│   ├── http/              # Resilient HTTP client module & service (Axios wrapper with CLS tracing)
 │   └── ip-geolocation/    # IPinfo Lite country lookup service
 │
 ├── modules/               # Feature-based domain modules (business logic)

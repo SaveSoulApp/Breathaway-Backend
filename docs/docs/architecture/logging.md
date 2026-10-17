@@ -77,3 +77,30 @@ expect(contextualLogger.event).toHaveBeenCalledWith(
   expect.objectContaining({ userId: '123' }),
 );
 ```
+
+---
+
+## HTTP Request Lifecycle & Noise Elimination
+
+Incoming HTTP traffic is monitored globally by [`LoggingInterceptor`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/core/logger/logging.interceptor.ts). To maintain production observability without degrading container throughput or inflating Cloud Logging ingestion costs, the interceptor adheres to two strict design principles:
+
+### 1. `DEBUG` Level for Per-Request Lifecycle Markers
+
+GCP Cloud Run natively captures access logs for every inbound HTTP connection. Emitting application `INFO` logs on every request would generate excessive duplication and noise.
+
+Therefore, `LoggingInterceptor` emits:
+
+- **`Incoming request`** (`DEBUG`): Emitted upon request receipt, capturing method, URL, and client metadata.
+- **`Request completed`** (`DEBUG`): Emitted upon response transmission, capturing the HTTP status code and measured latency (`durationMs`).
+
+These entries are invisible in standard production environments (running at `INFO` severity), but can be dynamically enabled by setting `LOG_LEVEL=debug` for real-time traffic analysis.
+
+### 2. Single Source of Truth for Exceptions
+
+Earlier architectures intercepted errors in both the interceptor and global exception filters, leading to duplicate error log lines and competing stack traces for a single failure.
+
+Under our decoupled model:
+
+- `LoggingInterceptor` **does not** catch or log errors.
+- Unhandled domain exceptions bubble straight to [`GlobalExceptionFilter`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/core/exception-filters/global-exception.filter.ts) and [`PrismaExceptionFilter`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/infrastructure/database/exception-filters/prisma-exception.filter.ts).
+- This guarantees exactly **one** canonical, structured `ERROR` log entry per failed request in GCP Cloud Logging, complete with trace context and sanitized error serialization.
