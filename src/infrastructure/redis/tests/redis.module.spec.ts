@@ -76,6 +76,9 @@ describe('RedisModule & redisProvider', () => {
         lazyConnect: true,
         maxRetriesPerRequest: 1,
         enableReadyCheck: true,
+        connectTimeout: 5000,
+        commandTimeout: 3000,
+        keepAlive: 10000,
       });
       expect(mockRedisInstance.on).toHaveBeenCalledWith(
         'error',

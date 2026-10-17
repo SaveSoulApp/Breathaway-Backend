@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { LoggerService } from '@core/logger';
+import { LOG_EVENT, LoggerService } from '@core/logger';
 import { RedisService } from '@infrastructure/redis';
 import { UserDeletedEvent } from '@modules/profiles/events';
 
@@ -35,6 +35,7 @@ describe('JwtAuthCacheService', () => {
     debug: jest.Mock;
     warn: jest.Mock;
     error: jest.Mock;
+    event: jest.Mock;
   };
   let mockLoggerService: {
     forContext: jest.Mock;
@@ -69,6 +70,7 @@ describe('JwtAuthCacheService', () => {
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
+      event: jest.fn(),
     };
 
     mockLoggerService = {
@@ -157,6 +159,10 @@ describe('JwtAuthCacheService', () => {
         jti,
       );
       expect(result).toBe(true);
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_HIT,
+        expect.objectContaining({ userId, jti, step: 'auth_cache_hit' }),
+      );
     });
 
     it('returns true when Redis set contains fallback member for user without jti', async () => {
@@ -169,6 +175,14 @@ describe('JwtAuthCacheService', () => {
         userId,
       );
       expect(result).toBe(true);
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_HIT,
+        expect.objectContaining({
+          userId,
+          jti: undefined,
+          step: 'auth_cache_hit',
+        }),
+      );
     });
 
     it('returns false on cache miss (sismember returns false)', async () => {
@@ -177,6 +191,10 @@ describe('JwtAuthCacheService', () => {
       const result = await service.isUserActive(userId, jti);
 
       expect(result).toBe(false);
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_MISS,
+        expect.objectContaining({ userId, jti, step: 'auth_cache_miss' }),
+      );
     });
 
     it('returns false and logs warning when Redis throws error', async () => {
@@ -191,6 +209,10 @@ describe('JwtAuthCacheService', () => {
         'Failed to query user active cache in Redis, falling back to database',
         expect.objectContaining({ userId, jti }),
       );
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_FALLBACK,
+        expect.objectContaining({ userId, jti, reason: 'redis_error' }),
+      );
     });
 
     it('returns false immediately when cache is disabled', async () => {
@@ -200,6 +222,10 @@ describe('JwtAuthCacheService', () => {
 
       expect(result).toBe(false);
       expect(mockRedisService.sismember).not.toHaveBeenCalled();
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_FALLBACK,
+        expect.objectContaining({ userId, jti, reason: 'cache_disabled' }),
+      );
     });
   });
 
@@ -215,6 +241,10 @@ describe('JwtAuthCacheService', () => {
         `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
       );
       expect(result).toBe(true);
+      expect(mockLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.AUTH_CACHE_REVOCATION_BLOCKED,
+        expect.objectContaining({ jti, step: 'auth_cache_revocation_blocked' }),
+      );
     });
 
     it('returns false when token JTI is not blacklisted (null in Redis)', async () => {

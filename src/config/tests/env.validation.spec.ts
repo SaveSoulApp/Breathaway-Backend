@@ -58,6 +58,10 @@ describe('envValidationSchema', () => {
       expect(value.JWT_REFRESH_EXPIRES_IN).toBe('14d');
       expect(value.JWT_AUDIENCE).toBe('breathaway-mobile-app');
       expect(value.JWT_ISSUER).toBe('https://breathaway.app');
+      expect(value.JWT_CACHE_ENABLED).toBe(true);
+      expect(value.JWT_CACHE_TTL_SECONDS).toBe(300);
+      expect(value.REDIS_CONNECT_TIMEOUT_MS).toBe(5000);
+      expect(value.REDIS_COMMAND_TIMEOUT_MS).toBe(3000);
       expect(value.OTP_TTL).toBe(300);
       expect(value.OTP_RATE_LIMIT_TTL).toBe(120);
 

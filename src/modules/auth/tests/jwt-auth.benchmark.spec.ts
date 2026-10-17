@@ -201,6 +201,7 @@ describe('JWT Authorization Benchmark (30 Requests under 3 mins)', () => {
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
+      event: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

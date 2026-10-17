@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 
-import { ContextualLogger, LoggerService } from '@core/logger';
+import { ContextualLogger, LOG_EVENT, LoggerService } from '@core/logger';
 import { RedisService } from '@infrastructure/redis';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
@@ -20,6 +20,16 @@ import {
  * and achieve sub-millisecond JWT authentication latency. Supports immediate revocation
  * upon destructive events (account deletion, soft deletion, admin blocking, and signout)
  * with graceful database fallback when Redis is unconfigured or disabled via feature flag.
+ *
+ * TTL Alignment & Active Session Window:
+ * - JWT_CACHE_TTL_SECONDS (default: 300s / 5 minutes) defines the sliding active-session window
+ *   during which positive status is served directly from Redis memory without querying PostgreSQL.
+ * - Even though JWT_EXPIRES_IN is 15 minutes (900s), a 5-minute cache TTL deliberately bounds
+ *   the window for detecting out-of-band administrative actions (such as direct DB edits or manual
+ *   deactivations) to at most 5 minutes.
+ * - Active users make at most 3 database verification checks across their token's entire 15-minute
+ *   lifetime (saving >96% of repetitive queries). Operators wishing to eliminate all intermediate
+ *   lookups can set JWT_CACHE_TTL_SECONDS=900 to match JWT_EXPIRES_IN exactly.
  */
 @Injectable()
 export class JwtAuthCacheService {
@@ -81,14 +91,43 @@ export class JwtAuthCacheService {
    */
   async isUserActive(userId: string, jti?: string): Promise<boolean> {
     if (!this.isEnabled || !this.redisService) {
+      this.logger.event?.(LOG_EVENT.AUTH_CACHE_FALLBACK, {
+        step: 'auth_cache_fallback',
+        userId,
+        jti,
+        reason: !this.cacheEnabled ? 'cache_disabled' : 'redis_unconfigured',
+      });
       return false;
     }
 
     try {
       const key = this.getCacheKey(userId);
       const member = jti ?? userId;
-      return await this.redisService.sismember(key, member);
+      const isMember = await this.redisService.sismember(key, member);
+
+      if (isMember) {
+        this.logger.event?.(LOG_EVENT.AUTH_CACHE_HIT, {
+          step: 'auth_cache_hit',
+          userId,
+          jti,
+        });
+        return true;
+      }
+
+      this.logger.event?.(LOG_EVENT.AUTH_CACHE_MISS, {
+        step: 'auth_cache_miss',
+        userId,
+        jti,
+      });
+      return false;
     } catch (err) {
+      this.logger.event?.(LOG_EVENT.AUTH_CACHE_FALLBACK, {
+        step: 'auth_cache_fallback',
+        userId,
+        jti,
+        reason: 'redis_error',
+        error: err instanceof Error ? err.message : String(err),
+      });
       this.logger.warn(
         'Failed to query user active cache in Redis, falling back to database',
         {
@@ -144,7 +183,14 @@ export class JwtAuthCacheService {
       const val = await this.redisService.get(
         `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
       );
-      return val === '1';
+      const isRevoked = val === '1';
+      if (isRevoked) {
+        this.logger.event?.(LOG_EVENT.AUTH_CACHE_REVOCATION_BLOCKED, {
+          step: 'auth_cache_revocation_blocked',
+          jti,
+        });
+      }
+      return isRevoked;
     } catch (err) {
       this.logger.warn(
         'Failed to query revoked token status in Redis, defaulting to unrevoked',

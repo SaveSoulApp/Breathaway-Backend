@@ -70,6 +70,8 @@ export const envValidationSchema = Joi.object({
   OTP_TTL: Joi.number().integer().positive().default(300),
   OTP_RATE_LIMIT_TTL: Joi.number().integer().positive().default(120),
   SUPABASE_JWT_KEY_ID: Joi.string().optional(),
+  REDIS_CONNECT_TIMEOUT_MS: Joi.number().integer().positive().default(5000),
+  REDIS_COMMAND_TIMEOUT_MS: Joi.number().integer().positive().default(3000),
 
   // Business Domain Numeric Expirations
   CREDIT_EXPIRY_DAYS: Joi.number().integer().positive().default(90),

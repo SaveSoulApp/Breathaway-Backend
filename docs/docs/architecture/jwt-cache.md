@@ -274,7 +274,7 @@ sequenceDiagram
 
 ---
 
-## 7. Fail-Safe Resilience & Feature Flag Kill-Switch
+## 7. Fail-Safe Resilience, Network Timeouts & Feature Flags
 
 Production architectures must never let a cache failure cascade into an API outage. BreathAway implements multi-layered fault tolerance:
 
@@ -284,14 +284,63 @@ Production architectures must never let a cache failure cascade into an API outa
 - When set to `false`, `JwtAuthCacheService.isUserActive` immediately returns `false` without connecting to Redis.
 - All requests fall back cleanly to direct PostgreSQL lookups (`prisma.user.findUnique`), identical to the legacy validation pipeline.
 
-### 2. Network & Redis Outage Resilience
+### 2. Network Timeouts & Bounded Sockets on Cloud Run
 
-- If Upstash Redis is down, unreachable, or experiences connection pool exhaustion, `JwtAuthCacheService` wraps calls in `try/catch` blocks and logs structured warnings.
-- The service returns `false` on cache check errors, allowing requests to fall back to Cloud SQL rather than crashing with 500 Internal Server Errors.
+In serverless Cloud Run environments, hanging network calls can exhaust request execution budgets. To ensure absolute resilience:
+
+- **Connect Timeout (`REDIS_CONNECT_TIMEOUT_MS = 5000`)**: If the initial TCP socket connection to Upstash Redis or Cloud Memorystore does not complete within 5 seconds, the client fails fast.
+- **Command Timeout (`REDIS_COMMAND_TIMEOUT_MS = 3000`)**: Individual read/write operations (like `SISMEMBER` or `saddWithExpire`) are capped at 3,000 ms. If a network partition occurs mid-request, the command aborts cleanly.
+- **TCP Keep-Alive (`keepAlive = 10000`)**: Proactively maintains socket liveness and purges stale serverless connections.
+- **Graceful Fallback**: `JwtAuthCacheService` wraps all operations in `try/catch`. On timeout or network rejection, it logs a warning, emits `AUTH_CACHE_FALLBACK`, and returns `false`, enabling `JwtStrategy` to resolve the user via PostgreSQL without dropping requests.
+
+### 3. Integration Testing Verification
+
+The test suite in `src/modules/auth/tests/jwt.strategy.spec.ts` explicitly includes end-to-end integration tests that mock `RedisService` throwing `ETIMEDOUT` and `ECONNREFUSED` errors across both read and write paths. These tests assert that `JwtStrategy` falls back to `prisma.user.findFirst`, authenticates healthy users, and rejects deleted users with 401 without crashing or hanging.
 
 ---
 
-## 8. Empirical Benchmark Performance & Latency Analysis
+## 8. Telemetry Pipeline & Production Monitoring
+
+To monitor cache effectiveness in production without third-party APM overhead, `JwtAuthCacheService` emits typed structured log events through `LoggerService`:
+
+```mermaid
+flowchart LR
+    Cache["JwtAuthCacheService"] -->|"logger.event()"| Pino["Structured JSON Log"]
+    Pino -->|"stdout"| CloudRun["GCP Cloud Run"]
+    CloudRun -->|"Log Router"| LogMetrics["Cloud Monitoring (Log-Based Counter Metrics)"]
+    CloudRun -->|"Log Router Sink"| BigQuery["BigQuery Data Warehouse"]
+
+    LogMetrics --> Alert["SRE Dashboard: Cache Hit Rate (%)"]
+    BigQuery --> Analytics["SQL Diagnostic & Performance Queries"]
+```
+
+### Emitted Telemetry Events
+
+| Log Event Constant                | Event Name                      | Severity | Trigger Condition                                                   |
+| :-------------------------------- | :------------------------------ | :------: | :------------------------------------------------------------------ |
+| `LOG_EVENT.AUTH_CACHE_HIT`        | `AUTH_CACHE_HIT`                |  `INFO`  | Access token `jti` verified in Redis Set ($O(1)$ sub-millisecond).  |
+| `LOG_EVENT.AUTH_CACHE_MISS`       | `AUTH_CACHE_MISS`               |  `INFO`  | Token not found in Redis Set; triggers DB lookup fallback.          |
+| `LOG_EVENT.AUTH_CACHE_FALLBACK`   | `AUTH_CACHE_FALLBACK`           |  `WARN`  | Redis timeout, network failure, or cache disabled via feature flag. |
+| `LOG_EVENT.AUTH_CACHE_REVOCATION` | `AUTH_CACHE_REVOCATION_BLOCKED` |  `WARN`  | Blocked request presenting an explicitly revoked access token JTI.  |
+
+### BigQuery Cache Performance Query
+
+Operators can query real-time cache hit rates and fallback frequencies in BigQuery:
+
+```sql
+SELECT
+  JSON_VALUE(json_payload, '$.event') AS auth_event,
+  COUNT(*) AS total_count,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) AS percentage
+FROM `breathaway-dev.app_logs_bq_link._AllLogs`
+WHERE JSON_VALUE(json_payload, '$.event') IN ('AUTH_CACHE_HIT', 'AUTH_CACHE_MISS', 'AUTH_CACHE_FALLBACK')
+  AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+GROUP BY auth_event;
+```
+
+---
+
+## 9. Empirical Benchmark Performance & Latency Analysis
 
 To quantify the operational benefits, benchmarks were executed comparing 30 consecutive authenticated requests within a 3-minute window with caching enabled versus disabled:
 
@@ -314,21 +363,35 @@ The initial cold request pays the standard 11.5 ms PostgreSQL lookup cost to ver
 
 ---
 
-## 9. Configuration Reference
+## 10. Configuration Reference
 
-| Environment Variable    | Type    | Default | Required | Description                                                                                                          |
-| :---------------------- | :------ | :-----: | :------: | :------------------------------------------------------------------------------------------------------------------- |
-| `JWT_CACHE_ENABLED`     | Boolean | `true`  |    No    | Feature flag to toggle Redis JWT active session caching. When `false`, all validations route directly to PostgreSQL. |
-| `JWT_CACHE_TTL_SECONDS` | Number  |  `300`  |    No    | Sliding TTL for active session sets (in seconds). Defaults to 300 (5 minutes) if set to 0, negative, or `NaN`.       |
-| `REDIS_HOST`            | String  |    —    |   Yes    | Upstash Redis or Cloud Memorystore hostname.                                                                         |
-| `REDIS_PORT`            | Number  | `6379`  |   Yes    | Redis server TCP port.                                                                                               |
-| `REDIS_PASSWORD`        | String  |    —    |   Yes    | Redis authentication secret (managed via GCP Secret Manager).                                                        |
+| Environment Variable       | Type    | Default | Required | Description                                                                                                          |
+| :------------------------- | :------ | :-----: | :------: | :------------------------------------------------------------------------------------------------------------------- |
+| `JWT_CACHE_ENABLED`        | Boolean | `true`  |    No    | Feature flag to toggle Redis JWT active session caching. When `false`, all validations route directly to PostgreSQL. |
+| `JWT_CACHE_TTL_SECONDS`    | Number  |  `300`  |    No    | Sliding TTL for active session sets (in seconds). Defaults to 300 (5 minutes) if set to 0, negative, or `NaN`.       |
+| `REDIS_CONNECT_TIMEOUT_MS` | Number  | `5000`  |    No    | TCP connect timeout in milliseconds for the Redis client on Cloud Run.                                               |
+| `REDIS_COMMAND_TIMEOUT_MS` | Number  | `3000`  |    No    | Execution timeout in milliseconds for individual Redis read/write commands.                                          |
+| `REDIS_URL`                | String  |    —    |   Yes    | Full Redis connection URI (e.g., `redis://default:token@host:6379`).                                                 |
 
 ---
 
-## 10. Summary & Production Best Practices
+## 11. Production Best Practices & SRE Guidelines
 
-1. **Always Use Sets for Multi-Device Authentication**: Never store device JTIs in a single string key per user. Sets ensure concurrent logins from multiple devices remain active without cache thrashing.
-2. **Pipeline SADD and EXPIRE**: Always use `saddWithExpire` to combine set additions and TTL extensions into a single TCP roundtrip.
-3. **Blacklist Revoked Access Tokens**: When performing targeted signout, combine `SREM` with an immediate 15-minute revocation key (`auth:revoked:<jti> = 1`) to reject replayed tokens without querying PostgreSQL.
-4. **Preserve Database Connections**: Connection offloading is essential on Google Cloud Run to avoid exhausting Cloud SQL's connection limits during autoscaling traffic spikes.
+1. **TTL Alignment & Active Session Window**:
+   - `JWT_CACHE_TTL_SECONDS` (default: `300`s / 5 minutes) represents the sliding active-session window during which positive status is served directly from Redis without checking PostgreSQL.
+   - Even though access tokens have a 15-minute validity (`JWT_EXPIRES_IN = 15m`), the 5-minute cache TTL deliberately bounds the detection window for out-of-band administrative actions (such as direct database deactivations or status modifications) to at most 5 minutes.
+   - Active users make at most 3 database verification checks across their token's entire 15-minute lifetime (saving >96% of repetitive queries).
+   - If zero intermediate database lookups are desired, operators can align `JWT_CACHE_TTL_SECONDS=900` to match `JWT_EXPIRES_IN`.
+
+2. **Redis Memory Eviction Policy (`maxmemory-policy`)**:
+   - Because active tokens are stored as Sets with TTLs, ensure your Redis instance (Cloud Memorystore or Upstash) is configured with an LRU eviction policy:
+     ```redis
+     maxmemory-policy volatile-lru
+     ```
+   - `volatile-lru` ensures that under extreme memory pressure, Redis evicts the least recently used keys with an expiring TTL first, preserving non-expiring configuration data and preventing `OOM command not allowed` exceptions.
+
+3. **Always Use Sets for Multi-Device Authentication**: Never store device JTIs in a single string key per user. Sets ensure concurrent logins from multiple devices remain active without cache thrashing.
+
+4. **Pipeline SADD and EXPIRE**: Always use `saddWithExpire` to combine set additions and TTL extensions into a single TCP roundtrip.
+
+5. **Blacklist Revoked Access Tokens**: When performing targeted signout, combine `SREM` with an immediate 15-minute revocation key (`auth:revoked:<jti> = 1`) to reject replayed tokens without querying PostgreSQL.
