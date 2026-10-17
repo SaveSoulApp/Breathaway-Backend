@@ -59,12 +59,26 @@ export class PubSubPublisherService
     data: Record<string, unknown>,
     attributes?: Record<string, string>,
   ): Promise<string> {
-    const ctx = { topicName, eventType };
+    let originRequestId: string | undefined;
+    let traceContext: string | undefined;
+
+    if (this.cls?.isActive?.()) {
+      originRequestId = this.cls.get<string>('requestId');
+      traceContext = this.cls.get<string>('traceContext');
+    }
+
+    const ctx = {
+      topicName,
+      eventType,
+      ...(originRequestId && { originRequestId }),
+    };
     this.logger.log('Publishing event to Pub/Sub', { ...ctx, step: 'init' });
 
     const topic = this.pubsub.topic(topicName);
 
-    const mergedAttributes = {
+    const mergedAttributes: Record<string, string> = {
+      ...(originRequestId && { originRequestId }),
+      ...(traceContext && { traceContext }),
       ...attributes,
       eventType,
     };

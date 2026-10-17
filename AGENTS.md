@@ -142,3 +142,11 @@ To guarantee distributed tracing context, bounded execution timeouts, and mainta
 
 - **Noise Elimination**: Per-request HTTP access logging is handled by GCP Cloud Run. `LoggingInterceptor` logs lifecycle markers (`Incoming request`, `Request completed` with `durationMs`) at **`DEBUG`** severity, preventing log duplication and Cloud Logging cost inflation.
 - **Single Source of Truth for Exceptions**: `LoggingInterceptor` does NOT intercept or log errors. Unhandled exceptions bubble straight to `GlobalExceptionFilter` and `PrismaExceptionFilter`, guaranteeing exactly one structured `ERROR` log entry per failed request.
+
+---
+
+## 9. Asynchronous Boundaries & Pub/Sub Context Propagation
+
+- **Queue Boundary Bridge**: When dispatching asynchronous tasks or domain events to GCP Cloud Pub/Sub, `PubSubPublisherService` automatically propagates the active `requestId` (as `originRequestId`) and `traceContext` from CLS into message attributes.
+- **Worker Context Restoration**: `PubSubIngestionController` extracts `originRequestId` and `traceContext` from attributes and seeds them in CLS before invoking any `@PubSubListener` handler method.
+- **Unified Distributed Tracing**: Handlers, worker services, and delivery adapters inherit the originating `requestId` and GCP trace metadata (`logging.googleapis.com/trace`), ensuring background processing is fully observable and queryable in GCP Cloud Trace, Logs Explorer, and BigQuery.

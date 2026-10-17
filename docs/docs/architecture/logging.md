@@ -104,3 +104,18 @@ Under our decoupled model:
 - `LoggingInterceptor` **does not** catch or log errors.
 - Unhandled domain exceptions bubble straight to [`GlobalExceptionFilter`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/core/exception-filters/global-exception.filter.ts) and [`PrismaExceptionFilter`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/infrastructure/database/exception-filters/prisma-exception.filter.ts).
 - This guarantees exactly **one** canonical, structured `ERROR` log entry per failed request in GCP Cloud Logging, complete with trace context and sanitized error serialization.
+
+---
+
+## Asynchronous Queue Boundary Trace Propagation (GCP Pub/Sub)
+
+When an operation fans out to Google Cloud Pub/Sub, the `AsyncLocalStorage` context does not cross the network boundary automatically. Without context propagation, downstream subscribers generate disconnected logs that cannot be traced back to the user request.
+
+We bridge the queue boundary via coordinated publisher and subscriber mechanics:
+
+1. **Outbound Injection ([`PubSubPublisherService`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/pubsub/pubsub-publisher.service.ts))**: Automatically extracts `requestId` and `traceContext` from the active CLS store and attaches `originRequestId` and `traceContext` as Pub/Sub message attributes.
+2. **Inbound Restoration ([`PubSubIngestionController`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/pubsub/pubsub-ingestion.controller.ts))**: Extracts `originRequestId` and `traceContext` from incoming message attributes before invoking registered `@PubSubListener` handlers.
+3. **Trace Unified in Cloud Logging**:
+   - `requestId` in CLS is set to `originRequestId` (falling back to `messageId` if unpublished internally).
+   - `pubsubMessageId` is preserved in CLS for tracking across message retries in BigQuery.
+   - `traceContext` is seeded in CLS, ensuring that all log entries emitted by background workers carry the matching `logging.googleapis.com/trace` identifier and nest cleanly within the originating HTTP Cloud Trace waterfall.

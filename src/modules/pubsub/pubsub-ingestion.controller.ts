@@ -77,18 +77,33 @@ export class PubSubIngestionController extends BaseController {
   async ingest(@Body() rawPayload: Record<string, unknown>): Promise<void> {
     const payload = rawPayload as unknown as PubSubPushRequestDto;
 
-    // Seed a synthetic CLS requestId from the Pub/Sub messageId so all
-    // @PubSubListener handler logs carry a correlation ID. The messageId is
-    // stable across Pub/Sub retries, so correlated logs from retry attempts
-    // will share the same requestId and be queriable together.
-    //
-    // Note: AsyncLocalStorage context does NOT cross the queue boundary
-    // automatically. We must explicitly seed it here from the message envelope.
+    // Extract tracing and correlation metadata from Pub/Sub message attributes.
+    // If the message was published by our backend, originRequestId and traceContext
+    // will link this push execution to the original client request.
     const incomingMessageId = payload?.message?.messageId;
-    const correlationId = incomingMessageId ?? randomUUID();
+    const attributes = payload?.message?.attributes;
+    const originRequestId =
+      attributes?.originRequestId ?? attributes?.requestId;
+    const originTraceContext =
+      attributes?.traceContext ??
+      attributes?.traceparent ??
+      attributes?.['x-cloud-trace-context'];
+
+    // Prioritize originRequestId so downstream subscriber logs share the exact
+    // same requestId in GCP Cloud Logging and BigQuery. Fall back to incomingMessageId
+    // (stable across retries) or a generated UUID if unpublished internally.
+    const correlationId = originRequestId ?? incomingMessageId ?? randomUUID();
     try {
       this.cls.set('requestId', correlationId);
-      this.cls.set('pubsubMessageId', incomingMessageId ?? null);
+      if (originRequestId) {
+        this.cls.set('originRequestId', originRequestId);
+      }
+      if (incomingMessageId) {
+        this.cls.set('pubsubMessageId', incomingMessageId);
+      }
+      if (originTraceContext) {
+        this.cls.set('traceContext', originTraceContext);
+      }
     } catch {
       // Context not available in non-CLS execution environments
     }
@@ -97,6 +112,7 @@ export class PubSubIngestionController extends BaseController {
     this.logger.event(LOG_EVENT.PUBSUB_MESSAGE_RECEIVED, {
       messageId: incomingMessageId,
       eventType: payload?.message?.attributes?.eventType,
+      ...(originRequestId && { originRequestId }),
     });
 
     if (!payload?.message) {
@@ -107,7 +123,7 @@ export class PubSubIngestionController extends BaseController {
     }
 
     const { message } = payload;
-    const { data, messageId, attributes } = message;
+    const { data, messageId } = message;
     const eventType = attributes?.eventType;
 
     const ctx = { messageId, eventType };
