@@ -24,6 +24,8 @@ describe('envValidationSchema', () => {
       expect(value.DB_POOL_ACQUISITION_TIMEOUT_MS).toBe(5000);
       expect(value.DB_POOL_IDLE_TIMEOUT_MS).toBe(10000);
       expect(value.DB_POOL_STATEMENT_TIMEOUT_MS).toBe(15000);
+      expect(value.DB_SLOW_QUERY_THRESHOLD_MS).toBe(200);
+      expect(value.DB_LOG_ALL_QUERIES).toBe(false);
 
       // Core environment defaults
       expect(value.NODE_ENV).toBe('development');
@@ -88,6 +90,8 @@ describe('envValidationSchema', () => {
         DB_POOL_ACQUISITION_TIMEOUT_MS: '3000',
         DB_POOL_IDLE_TIMEOUT_MS: '6000',
         DB_POOL_STATEMENT_TIMEOUT_MS: '12000',
+        DB_SLOW_QUERY_THRESHOLD_MS: '150',
+        DB_LOG_ALL_QUERIES: 'true',
         PORT: '8080',
         OTP_TTL: '600',
         OTP_RATE_LIMIT_TTL: '180',
@@ -106,6 +110,8 @@ describe('envValidationSchema', () => {
       expect(value.DB_POOL_ACQUISITION_TIMEOUT_MS).toBe(3000);
       expect(value.DB_POOL_IDLE_TIMEOUT_MS).toBe(6000);
       expect(value.DB_POOL_STATEMENT_TIMEOUT_MS).toBe(12000);
+      expect(value.DB_SLOW_QUERY_THRESHOLD_MS).toBe(150);
+      expect(value.DB_LOG_ALL_QUERIES).toBe(true);
       expect(value.PORT).toBe(8080);
       expect(value.OTP_TTL).toBe(600);
       expect(value.OTP_RATE_LIMIT_TTL).toBe(180);

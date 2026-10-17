@@ -29,7 +29,9 @@ export class DatabaseHealthIndicator {
   async isHealthy(key: string = 'database'): Promise<HealthIndicatorResult> {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return this.healthIndicatorService.check(key).up();
+      return this.healthIndicatorService.check(key).up({
+        pool: this.prisma.getPoolStatus(),
+      });
     } catch (error) {
       return this.healthIndicatorService.check(key).down({
         message: (error as Error).message,

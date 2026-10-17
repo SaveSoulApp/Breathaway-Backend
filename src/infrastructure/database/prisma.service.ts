@@ -1,17 +1,20 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { Pool, PoolConfig } from 'pg';
 
 import { ContextualLogger, LoggerService } from '@core/logger';
 
+import { DatabasePoolStatus } from './interfaces';
+
 /**
- * Service managing the database connection and Prisma client lifecycle.
+ * Service managing the database connection, connection pool observability,
+ * and Prisma client query lifecycle.
  *
  * Configures the underlying Node-Postgres connection pool (`pg.Pool`) with bounded
  * limits and acquisition timeouts tailored for stateless GCP Cloud Run autoscaling.
- * This prevents database connection starvation when Cloud Run scales horizontally.
+ * Monitors connection saturation, pool lifecycle events, and query performance.
  */
 @Injectable()
 export class PrismaService
@@ -20,6 +23,9 @@ export class PrismaService
 {
   private readonly pool: Pool;
   private readonly logger: ContextualLogger;
+  private readonly maxConnections: number;
+  private readonly slowQueryThresholdMs: number;
+  private readonly logAllQueries: boolean;
 
   constructor(configService: ConfigService, loggerService: LoggerService) {
     const databaseUrl = configService.getOrThrow<string>('DATABASE_URL');
@@ -35,6 +41,15 @@ export class PrismaService
     );
     const statementTimeout = Number(
       configService.get<number>('DB_POOL_STATEMENT_TIMEOUT_MS', 15000),
+    );
+
+    // Query performance thresholds
+    const slowQueryThreshold = Number(
+      configService.get<number>('DB_SLOW_QUERY_THRESHOLD_MS', 200),
+    );
+    const logAllQueriesConfig = configService.get<string | boolean>(
+      'DB_LOG_ALL_QUERIES',
+      false,
     );
 
     const poolConfig: PoolConfig = {
@@ -56,22 +71,28 @@ export class PrismaService
     };
 
     const pool = new Pool(poolConfig);
-    super({ adapter: new PrismaPg(pool) });
+    super({
+      adapter: new PrismaPg(pool),
+      log: [
+        { emit: 'event', level: 'query' },
+        { emit: 'event', level: 'error' },
+        { emit: 'event', level: 'warn' },
+      ],
+    });
 
     this.pool = pool;
+    this.maxConnections = poolConfig.max ?? 4;
+    this.slowQueryThresholdMs =
+      Number.isFinite(slowQueryThreshold) && slowQueryThreshold > 0
+        ? slowQueryThreshold
+        : 200;
+    this.logAllQueries =
+      logAllQueriesConfig === true || logAllQueriesConfig === 'true';
+
     this.logger = loggerService.forContext('PrismaService');
 
-    // Prevent unhandled errors from dropping idle clients and crashing the Node.js process
-    this.pool.on('error', (err: Error) => {
-      this.logger.error(
-        'Unexpected error on idle PostgreSQL connection pool client',
-        {
-          step: 'idle_client_error',
-          error: err.message,
-          stack: err.stack,
-        },
-      );
-    });
+    this.registerPoolEventListeners();
+    this.registerPrismaEventListeners();
 
     this.logger.info('Initialized bounded PostgreSQL connection pool', {
       step: 'init_pool',
@@ -80,7 +101,33 @@ export class PrismaService
       connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
       idleTimeoutMillis: poolConfig.idleTimeoutMillis,
       statement_timeout: poolConfig.statement_timeout,
+      slowQueryThresholdMs: this.slowQueryThresholdMs,
+      logAllQueries: this.logAllQueries,
     });
+  }
+
+  /**
+   * Retrieves real-time diagnostic status metrics of the PostgreSQL connection pool.
+   *
+   * @returns Telemetry metrics including active, idle, waiting counts, and saturation percentage.
+   */
+  getPoolStatus(): DatabasePoolStatus {
+    const totalCount = this.pool.totalCount ?? 0;
+    const idleCount = this.pool.idleCount ?? 0;
+    const activeCount = Math.max(0, totalCount - idleCount);
+    const waitingCount = this.pool.waitingCount ?? 0;
+    const max = this.maxConnections;
+    const utilizationPercent =
+      max > 0 ? Math.round((activeCount / max) * 100) : 0;
+
+    return {
+      totalCount,
+      idleCount,
+      activeCount,
+      waitingCount,
+      max,
+      utilizationPercent,
+    };
   }
 
   async onModuleInit(): Promise<void> {
@@ -102,5 +149,96 @@ export class PrismaService
     this.logger.info('Prisma connection pool drained successfully.', {
       step: 'drain_pool_success',
     });
+  }
+
+  /**
+   * Binds lifecycle and diagnostic event listeners to the underlying `pg.Pool`.
+   */
+  private registerPoolEventListeners(): void {
+    // Prevent unhandled errors from dropping idle clients and crashing Node.js
+    this.pool.on('error', (err: Error) => {
+      this.logger.error(
+        'Unexpected error on idle PostgreSQL connection pool client',
+        {
+          step: 'idle_client_error',
+          error: err.message,
+          stack: err.stack,
+        },
+      );
+    });
+
+    this.pool.on('connect', () => {
+      this.logger.debug('New PostgreSQL client connected to pool', {
+        step: 'pool_client_connected',
+        pool: this.getPoolStatus(),
+      });
+    });
+
+    this.pool.on('remove', () => {
+      this.logger.debug('PostgreSQL client removed from pool', {
+        step: 'pool_client_removed',
+        pool: this.getPoolStatus(),
+      });
+    });
+
+    this.pool.on('acquire', () => {
+      if ((this.pool.waitingCount ?? 0) > 0) {
+        this.logger.warn('PostgreSQL connection pool contention detected', {
+          step: 'pool_contention_detected',
+          pool: this.getPoolStatus(),
+        });
+      }
+    });
+  }
+
+  /**
+   * Registers Prisma Client event listeners for query performance and engine diagnostics.
+   */
+  private registerPrismaEventListeners(): void {
+    this.$on('query' as never, (event: Prisma.QueryEvent) => {
+      this.handleQueryEvent(event);
+    });
+
+    this.$on('error' as never, (event: Prisma.LogEvent) => {
+      this.logger.error('Prisma client engine error', {
+        step: 'prisma_engine_error',
+        message: event.message,
+        target: event.target,
+      });
+    });
+
+    this.$on('warn' as never, (event: Prisma.LogEvent) => {
+      this.logger.warn('Prisma client engine warning', {
+        step: 'prisma_engine_warn',
+        message: event.message,
+        target: event.target,
+      });
+    });
+  }
+
+  /**
+   * Analyzes executed query telemetry and emits structured warning or debug logs.
+   *
+   * SECURITY NOTICE: `event.params` is deliberately excluded to prevent logging
+   * sensitive data (passwords, tokens, PII). Only parameterized SQL query templates
+   * are logged.
+   */
+  private handleQueryEvent(event: Prisma.QueryEvent): void {
+    if (event.duration >= this.slowQueryThresholdMs) {
+      this.logger.warn('Prisma detected slow database query', {
+        step: 'slow_query_detected',
+        query: event.query,
+        durationMs: event.duration,
+        target: event.target,
+        pool: this.getPoolStatus(),
+      });
+    } else if (this.logAllQueries) {
+      this.logger.debug('Prisma query executed', {
+        step: 'db_query_executed',
+        query: event.query,
+        durationMs: event.duration,
+        target: event.target,
+      });
+    }
   }
 }

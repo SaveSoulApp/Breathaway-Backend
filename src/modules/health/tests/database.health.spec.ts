@@ -7,12 +7,20 @@ import { DatabaseHealthIndicator } from '../indicators/database.health';
 
 describe('DatabaseHealthIndicator', () => {
   let indicator: DatabaseHealthIndicator;
-  let mockPrisma: { $queryRaw: jest.Mock };
+  let mockPrisma: { $queryRaw: jest.Mock; getPoolStatus: jest.Mock };
   let mockHealthIndicatorService: { check: jest.Mock };
 
   beforeEach(async () => {
     mockPrisma = {
       $queryRaw: jest.fn(),
+      getPoolStatus: jest.fn().mockReturnValue({
+        totalCount: 2,
+        idleCount: 2,
+        activeCount: 0,
+        waitingCount: 0,
+        max: 4,
+        utilizationPercent: 0,
+      }),
     };
 
     mockHealthIndicatorService = {
@@ -37,18 +45,42 @@ describe('DatabaseHealthIndicator', () => {
     jest.clearAllMocks();
   });
 
-  it('should return up status when prisma $queryRaw succeeds', async () => {
+  it('should return up status with pool telemetry when prisma $queryRaw succeeds', async () => {
     mockPrisma.$queryRaw.mockResolvedValue([{ 1: 1 }]);
-    const mockUpResult = { database: { status: 'up' } };
+    const mockUpResult = {
+      database: {
+        status: 'up',
+        pool: {
+          totalCount: 2,
+          idleCount: 2,
+          activeCount: 0,
+          waitingCount: 0,
+          max: 4,
+          utilizationPercent: 0,
+        },
+      },
+    };
+    const upMock = jest.fn().mockReturnValue(mockUpResult);
     mockHealthIndicatorService.check.mockReturnValue({
-      up: jest.fn().mockReturnValue(mockUpResult),
+      up: upMock,
       down: jest.fn(),
     });
 
     const result = await indicator.isHealthy('database');
 
     expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+    expect(mockPrisma.getPoolStatus).toHaveBeenCalled();
     expect(mockHealthIndicatorService.check).toHaveBeenCalledWith('database');
+    expect(upMock).toHaveBeenCalledWith({
+      pool: {
+        totalCount: 2,
+        idleCount: 2,
+        activeCount: 0,
+        waitingCount: 0,
+        max: 4,
+        utilizationPercent: 0,
+      },
+    });
     expect(result).toEqual(mockUpResult);
   });
 

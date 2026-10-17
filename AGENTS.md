@@ -150,3 +150,15 @@ To guarantee distributed tracing context, bounded execution timeouts, and mainta
 - **Queue Boundary Bridge**: When dispatching asynchronous tasks or domain events to GCP Cloud Pub/Sub, `PubSubPublisherService` automatically propagates the active `requestId` (as `originRequestId`) and `traceContext` from CLS into message attributes.
 - **Worker Context Restoration**: `PubSubIngestionController` extracts `originRequestId` and `traceContext` from attributes and seeds them in CLS before invoking any `@PubSubListener` handler method.
 - **Unified Distributed Tracing**: Handlers, worker services, and delivery adapters inherit the originating `requestId` and GCP trace metadata (`logging.googleapis.com/trace`), ensuring background processing is fully observable and queryable in GCP Cloud Trace, Logs Explorer, and BigQuery.
+
+---
+
+## 10. Database Observability: Prisma ORM Performance & Pool Telemetry
+
+To guard Cloud SQL connection capacity under Cloud Run autoscaling and detect database query bottlenecks:
+
+- **Connection Pool Telemetry**: `PrismaService` exposes `getPoolStatus()` reporting `totalCount`, `idleCount`, `activeCount`, `waitingCount`, and `utilizationPercent`.
+- **Proactive Contention Detection**: Pool checkout (`acquire`) inspects `waitingCount`. If socket contention occurs (`waitingCount > 0`), a warning log (`step: 'pool_contention_detected'`) is immediately emitted with current pool metrics.
+- **Slow Query Detection**: Prisma Client query events (`$on('query')`) automatically detect queries exceeding `DB_SLOW_QUERY_THRESHOLD_MS` (default `200`ms) and emit warning logs (`step: 'slow_query_detected'`) with execution duration, target, and pool status.
+- **Strict PII Parameter Redaction**: Query parameter bindings (`event.params`) are **never** logged to prevent exposing customer passwords, tokens, emails, or phone numbers in Cloud Logging. Parameterized query templates (`SELECT * FROM "User" WHERE id = $1`) provide full structural visibility without PII risk.
+- **Readiness Probe Saturation Visibility**: `DatabaseHealthIndicator` embeds `prisma.getPoolStatus()` in the `/ready` Terminus response, giving Cloud Run load balancers and SRE monitors real-time database connection headroom.
