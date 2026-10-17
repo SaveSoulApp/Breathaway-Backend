@@ -78,6 +78,7 @@ const sidebars: SidebarsConfig = {
         'architecture/payments',
         'architecture/domain-events',
         'architecture/database',
+        'architecture/jwt-cache',
         'architecture/supabase-realtime',
         'architecture/logging',
         'architecture/http-client',

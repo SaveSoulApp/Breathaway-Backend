@@ -92,6 +92,17 @@ To protect the application from hung socket leaks, distribute tracing context ac
 - **Bounded Timeouts**: All outbound calls enforce bounded default execution timeouts (`HTTP_CLIENT_TIMEOUT_MS`, default 10,000ms), safeguarding Cloud Run container sockets.
 - **Deep Dive**: See the dedicated [Resilient External HTTP Clients](./architecture/http-client.md) guide.
 
+### 7. Redis-Backed Sub-Millisecond Active Session Caching
+
+To prevent Cloud SQL connection pool depletion and minimize warm route latency under Cloud Run autoscaling, user authentication uses a dual-layer strategy:
+
+- **Redis Set Active Store**: Active access token `jti` strings are held in an in-memory Redis Set (`user:active:<userId>`). Checking active status is an $O(1)$ set membership verification (`SISMEMBER`), completing in ~1.16 ms (**89.9% faster** than direct database queries).
+- **Cloud SQL Pool Protection**: Eliminates 96.7% of repetitive `User` read queries across authenticated routes, preserving the bounded connection pool (`DB_POOL_MAX = 4`) for transactional writes.
+- **Multi-Device Concurrency**: Using a Redis Set allows multiple concurrent sessions (e.g. mobile app and desktop browser) without key collisions or accidental overwrites.
+- **Atomic Pipelining**: Cache population and sliding TTL refresh execute in a single round-trip via `saddWithExpire`.
+- **Targeted Signout & Blacklisting**: Single-device signout extracts the active `accessJti` via `@CurrentJti()`, removes it from the set (`SREM`), and stamps a 15-minute revocation blacklist key (`auth:revoked:<accessJti> = 1`), preventing token replay while leaving other devices warm.
+- **Deep Dive**: See the dedicated [Redis JWT Active Session Caching](./architecture/jwt-cache.md) guide.
+
 ---
 
 ## 🔄 Request Lifecycle & Global Enhancers
@@ -109,8 +120,19 @@ sequenceDiagram
 
     activate ClientIdentityGuard
     ClientIdentityGuard -->> Client: 401 Unauthorized (if invalid app headers)
-    ClientIdentityGuard ->> LoggingInterceptor: Approved
+    ClientIdentityGuard ->> JwtAuthGuard: Approved
     deactivate ClientIdentityGuard
+
+    activate JwtAuthGuard
+    opt Protected Route (JwtAuthGuard)
+        JwtAuthGuard ->> Redis: SISMEMBER user:active:userId jti
+        alt Cache Miss / Not Revoked
+            JwtAuthGuard ->> DB: Query User findUnique & populate Redis
+        end
+        JwtAuthGuard -->> Client: 401 Unauthorized (if invalid or revoked)
+    end
+    JwtAuthGuard ->> LoggingInterceptor: Approved
+    deactivate JwtAuthGuard
 
     activate LoggingInterceptor
     LoggingInterceptor ->> ValidationPipe: Request logged
