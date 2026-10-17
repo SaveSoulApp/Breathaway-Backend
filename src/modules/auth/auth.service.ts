@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   AuthCredentialType,
   IdentityType,
@@ -49,6 +49,7 @@ import {
 import { USER_WELCOME_EVENT, UserWelcomeEvent } from './events';
 import { AuthCredentialService } from './services/auth-credential.service';
 import { AuthTokenService } from './services/auth-token.service';
+import { JwtAuthCacheService } from './services/jwt-auth-cache.service';
 import {
   AuthMethod,
   isEmailAuthMethod,
@@ -75,6 +76,8 @@ export class AuthService extends BaseService {
     private readonly authCredentialService: AuthCredentialService,
     private readonly authTokenService: AuthTokenService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    @Optional()
+    private readonly jwtAuthCacheService?: JwtAuthCacheService,
   ) {
     super(logger);
   }
@@ -1100,15 +1103,21 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Records a user logout event, terminates active refresh token sessions, and emits a USER_LOGOUT audit log.
+   * Records a user logout event, terminates active refresh token sessions, revokes active cache status, and emits a USER_LOGOUT audit log.
    *
    * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
    * @param refreshToken - Optional refresh token string to target specific session revocation.
+   * @param accessJti - Optional JWT ID of the active access token making the signout request for targeted single-device revocation.
    * @returns A confirmation message object.
    */
-  async signout(userId: string, refreshToken?: string) {
+  async signout(userId: string, refreshToken?: string, accessJti?: string) {
     this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
     await this.authTokenService.revokeSession(userId, refreshToken);
+    if (refreshToken && accessJti) {
+      await this.jwtAuthCacheService?.revokeUser(userId, accessJti);
+    } else {
+      await this.jwtAuthCacheService?.revokeUser(userId);
+    }
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,
@@ -1385,6 +1394,7 @@ export class AuthService extends BaseService {
     }
 
     // Step 3: Supabase Realtime & External Teardown
+    await this.jwtAuthCacheService?.revokeUser(userId);
     this.eventEmitter.emit(USER_DELETED_EVENT, new UserDeletedEvent(userId));
 
     // Step 4: Audit & Telemetry

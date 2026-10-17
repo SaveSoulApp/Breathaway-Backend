@@ -233,7 +233,11 @@ describe('AuthController', () => {
 
       const result = await controller.signout('user-id-123');
 
-      expect(service.signout).toHaveBeenCalledWith('user-id-123', undefined);
+      expect(service.signout).toHaveBeenCalledWith(
+        'user-id-123',
+        undefined,
+        undefined,
+      );
       expect(result).toEqual(mockSignoutResponse);
     });
 
@@ -248,6 +252,25 @@ describe('AuthController', () => {
       expect(service.signout).toHaveBeenCalledWith(
         'user-id-123',
         'specific-token',
+        undefined,
+      );
+      expect(result).toEqual(mockSignoutResponse);
+    });
+
+    it('should pass accessJti when available for targeted single-device signout', async () => {
+      const mockSignoutResponse = { message: 'Signout successful' };
+      service.signout.mockResolvedValue(mockSignoutResponse);
+
+      const result = await controller.signout(
+        'user-id-123',
+        { refreshToken: 'specific-token' },
+        'access-jti-abc',
+      );
+
+      expect(service.signout).toHaveBeenCalledWith(
+        'user-id-123',
+        'specific-token',
+        'access-jti-abc',
       );
       expect(result).toEqual(mockSignoutResponse);
     });

@@ -31,10 +31,26 @@ export const redisProvider: Provider = {
       return null;
     }
 
+    const connectTimeout = Number(
+      config.get<number>('REDIS_CONNECT_TIMEOUT_MS', 5000),
+    );
+    const commandTimeout = Number(
+      config.get<number>('REDIS_COMMAND_TIMEOUT_MS', 3000),
+    );
+
     const client = new Redis(redisUrl, {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
       enableReadyCheck: true,
+      connectTimeout:
+        Number.isFinite(connectTimeout) && connectTimeout > 0
+          ? connectTimeout
+          : 5000,
+      commandTimeout:
+        Number.isFinite(commandTimeout) && commandTimeout > 0
+          ? commandTimeout
+          : 3000,
+      keepAlive: 10000,
     });
 
     client.on('error', (err) => {

@@ -12,6 +12,7 @@ import type { Request } from 'express';
 export interface JwtPayload {
   userId: string;
   email: string;
+  jti?: string;
 }
 
 // 2. Extend the base Request to enforce the presence of the user object
@@ -40,5 +41,15 @@ export const CurrentUserId = createParamDecorator(
     }
 
     return request.user.userId;
+  },
+);
+
+/**
+ * Extracts the optional JWT ID (JTI) claim from the authenticated user payload.
+ */
+export const CurrentJti = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext): string | undefined => {
+    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
+    return request.user?.jti;
   },
 );

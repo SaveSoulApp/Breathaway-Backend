@@ -129,16 +129,163 @@ export class RedisService {
   /**
    * Deletes one or more keys from Redis.
    *
-   * @param key - The key to delete.
+   * @param keys - One or more keys to delete.
    * @returns The number of keys deleted (0 if absent or Redis is unconfigured).
    */
-  async del(key: string): Promise<number> {
-    if (!this.client) return 0;
+  async del(...keys: string[]): Promise<number> {
+    if (!this.client || keys.length === 0) return 0;
     try {
-      return await this.client.del(key);
+      return await this.client.del(...keys);
     } catch (error) {
       this.logger.error('Redis DEL failed', {
         step: 'redis_del',
+        keys,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Adds one or more members to a set stored at key.
+   *
+   * @param key - The set key.
+   * @param members - Members to add.
+   * @returns Number of elements that were added to the set.
+   */
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    if (!this.client || members.length === 0) return 0;
+    try {
+      return await this.client.sadd(key, ...members);
+    } catch (error) {
+      this.logger.error('Redis SADD failed', {
+        step: 'redis_sadd',
+        key,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Returns all members of the set value stored at key.
+   *
+   * @param key - The set key.
+   * @returns Array of set members (empty array if key doesn't exist or Redis is unconfigured).
+   */
+  async smembers(key: string): Promise<string[]> {
+    if (!this.client) return [];
+    try {
+      return await this.client.smembers(key);
+    } catch (error) {
+      this.logger.error('Redis SMEMBERS failed', {
+        step: 'redis_smembers',
+        key,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Removes one or more members from a set stored at key.
+   *
+   * @param key - The set key.
+   * @param members - Members to remove.
+   * @returns Number of members that were removed from the set.
+   */
+  async srem(key: string, ...members: string[]): Promise<number> {
+    if (!this.client || members.length === 0) return 0;
+    try {
+      return await this.client.srem(key, ...members);
+    } catch (error) {
+      this.logger.error('Redis SREM failed', {
+        step: 'redis_srem',
+        key,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Determines whether a member belongs to the set stored at key.
+   *
+   * @param key - The set key.
+   * @param member - The member to check.
+   * @returns True if the member is an element of the set, false if absent or Redis is unconfigured.
+   */
+  async sismember(key: string, member: string): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      const result = await this.client.sismember(key, member);
+      return result === 1;
+    } catch (error) {
+      this.logger.error('Redis SISMEMBER failed', {
+        step: 'redis_sismember',
+        key,
+        member,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Adds a member to a set and sets its expiration atomically using a Redis pipeline.
+   *
+   * Eliminates a network roundtrip and ensures the key is never left without an expiration.
+   *
+   * @param key - The set key.
+   * @param member - The member to add to the set.
+   * @param ttlSeconds - Expiration duration in seconds.
+   * @returns Number of members added (0 if member already exists or Redis is unconfigured).
+   */
+  async saddWithExpire(
+    key: string,
+    member: string,
+    ttlSeconds: number,
+  ): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      const pipeline = this.client.pipeline();
+      pipeline.sadd(key, member);
+      pipeline.expire(key, ttlSeconds);
+      const results = await pipeline.exec();
+
+      if (!results) return 0;
+      const [saddErr, saddRes] = results[0];
+      if (saddErr) throw saddErr;
+      const [expireErr] = results[1];
+      if (expireErr) throw expireErr;
+
+      return typeof saddRes === 'number' ? saddRes : 1;
+    } catch (error) {
+      this.logger.error('Redis SADD with EXPIRE failed', {
+        step: 'redis_sadd_expire',
+        key,
+        member,
+        ttlSeconds,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Sets a timeout on key in seconds.
+   *
+   * @param key - The key to set expiration on.
+   * @param seconds - Expiration duration in seconds.
+   * @returns 1 if the timeout was set, 0 if key does not exist or Redis is unconfigured.
+   */
+  async expire(key: string, seconds: number): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await this.client.expire(key, seconds);
+    } catch (error) {
+      this.logger.error('Redis EXPIRE failed', {
+        step: 'redis_expire',
         key,
         err: serializeError(error),
       });

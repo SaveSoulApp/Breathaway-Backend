@@ -28,3 +28,26 @@ export const CONCURRENT_ROTATION_WAIT_MS = 50;
  * before concluding the operation failed.
  */
 export const CONCURRENT_ROTATION_MAX_RETRIES = 5;
+
+/**
+ * Key prefix for caching positive active user JWT status in Redis.
+ * Key shape: user:active:<userId> (Redis Set of active token JTIs)
+ */
+export const AUTH_USER_ACTIVE_PREFIX = 'user:active:';
+
+/**
+ * Default TTL in seconds for user active status cache in Redis (5 minutes).
+ */
+export const DEFAULT_JWT_CACHE_TTL_SECONDS = 300;
+
+/**
+ * Key prefix for tracking explicitly revoked access token JTIs in Redis.
+ * Key shape: auth:revoked:<jti>
+ */
+export const AUTH_REVOKED_TOKEN_PREFIX = 'auth:revoked:';
+
+/**
+ * TTL in seconds for keeping revoked access token JTIs blacklisted in Redis (15 minutes).
+ * Covers the natural lifespan of standard access tokens.
+ */
+export const REVOKED_TOKEN_TTL_SECONDS = 15 * 60; // 900 seconds

@@ -51,6 +51,7 @@ import {
 } from '../dto';
 import { AuthCredentialService } from '../services/auth-credential.service';
 import { AuthTokenService } from '../services/auth-token.service';
+import { JwtAuthCacheService } from '../services/jwt-auth-cache.service';
 import {
   AuthMethod,
   getAuthMethodFromDecodedToken,
@@ -1537,6 +1538,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
     let service: AuthService;
     let eventEmitter: { emit: jest.Mock };
     let authTokenService: { revokeSession: jest.Mock };
+    let jwtAuthCacheService: { revokeUser: jest.Mock };
 
     beforeEach(async () => {
       eventEmitter = { emit: jest.fn() };
@@ -1554,6 +1556,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       };
 
+      jwtAuthCacheService = {
+        revokeUser: jest.fn().mockResolvedValue(undefined),
+      };
+
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           AuthService,
@@ -1566,18 +1572,22 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: EventEmitter2, useValue: eventEmitter },
           { provide: ClsService, useValue: { get: jest.fn() } },
           { provide: LoggerService, useValue: loggerMock },
+          { provide: JwtAuthCacheService, useValue: jwtAuthCacheService },
         ],
       }).compile();
 
       service = module.get<AuthService>(AuthService);
     });
 
-    it('should emit audit log, revoke session, and return confirmation message', async () => {
+    it('should emit audit log, revoke session and cache, and return confirmation message', async () => {
       const result = await service.signout('user-signout-123');
 
       expect(authTokenService.revokeSession).toHaveBeenCalledWith(
         'user-signout-123',
         undefined,
+      );
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
+        'user-signout-123',
       );
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         AUDIT_LOG_EVENT,
@@ -1585,6 +1595,24 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           actionType: AuditActionType.USER_LOGOUT,
           userId: 'user-signout-123',
         }),
+      );
+      expect(result).toEqual({ message: 'Signout successful' });
+    });
+
+    it('should revoke specific access token jti when both refreshToken and accessJti are provided', async () => {
+      const result = await service.signout(
+        'user-signout-123',
+        'refresh-token-val',
+        'access-jti-123',
+      );
+
+      expect(authTokenService.revokeSession).toHaveBeenCalledWith(
+        'user-signout-123',
+        'refresh-token-val',
+      );
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
+        'user-signout-123',
+        'access-jti-123',
       );
       expect(result).toEqual({ message: 'Signout successful' });
     });
@@ -1667,6 +1695,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
     let firebaseService: jest.Mocked<FirebaseService>;
     let encryptionService: jest.Mocked<IdentityCryptoService>;
     let eventEmitter: { emit: jest.Mock };
+    let jwtAuthCacheService: { revokeUser: jest.Mock };
 
     const userId = 'user-delete-123';
     const deleteDto: DeleteAccountRequestDto = {
@@ -1727,6 +1756,10 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         }),
       };
 
+      jwtAuthCacheService = {
+        revokeUser: jest.fn().mockResolvedValue(undefined),
+      };
+
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           AuthService,
@@ -1739,6 +1772,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: EventEmitter2, useValue: eventEmitter },
           { provide: ClsService, useValue: { get: jest.fn() } },
           { provide: LoggerService, useValue: loggerMock },
+          { provide: JwtAuthCacheService, useValue: jwtAuthCacheService },
         ],
       }).compile();
 
@@ -1829,6 +1863,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       expect(txMock.user.delete).toHaveBeenCalledWith({
         where: { id: userId },
       });
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(userId);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         USER_DELETED_EVENT,
         expect.objectContaining({ userId }),

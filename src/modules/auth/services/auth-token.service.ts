@@ -21,6 +21,7 @@ import {
   ROTATION_GRACE_TTL_SECONDS,
 } from '../constants';
 import { RefreshTokenRequestDto, UserAuthResponseDto } from '../dto';
+import { JwtAuthCacheService } from './jwt-auth-cache.service';
 
 /**
  * Decoded payload claims expected inside a signed refresh token JWT.
@@ -71,6 +72,8 @@ export class AuthTokenService extends BaseService {
     private readonly prisma: PrismaService,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly jwtAuthCacheService?: JwtAuthCacheService,
   ) {
     super(logger);
 
@@ -268,6 +271,7 @@ export class AuthTokenService extends BaseService {
             where: { userId, familyId: record.familyId, revokedAt: null },
             data: { revokedAt: DateUtil.now() },
           });
+          await this.jwtAuthCacheService?.revokeUser(userId);
           return;
         }
       } catch {
@@ -279,6 +283,8 @@ export class AuthTokenService extends BaseService {
       where: { userId, revokedAt: null },
       data: { revokedAt: DateUtil.now() },
     });
+
+    await this.jwtAuthCacheService?.revokeUser(userId);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -553,6 +559,8 @@ export class AuthTokenService extends BaseService {
       where: { familyId, userId, revokedAt: null },
       data: { revokedAt: DateUtil.now() },
     });
+
+    await this.jwtAuthCacheService?.revokeUser(userId);
 
     this.logger.warn(
       'Refresh token breach detected; terminated entire session family',
