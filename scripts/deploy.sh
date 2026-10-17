@@ -139,7 +139,6 @@ resolve_secret_versions() {
         fi
 
         (
-            local version
             version=$( (gcloud secrets versions describe "latest" \
                 --secret="${secret_name}" \
                 --project="${PROJECT_ID}" \
@@ -173,9 +172,9 @@ resolve_secret_versions() {
         fi
 
         if [[ "${version}" != "latest" ]]; then
-            ((resolved_count++))
+            resolved_count=$((resolved_count + 1))
         else
-            ((fallback_count++))
+            fallback_count=$((fallback_count + 1))
             print_warning "Failed to resolve concrete version for secret [${secret_name}]. Falling back to unpinned :latest."
         fi
 
