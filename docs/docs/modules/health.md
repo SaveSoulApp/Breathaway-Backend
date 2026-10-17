@@ -50,8 +50,9 @@ flowchart TD
 
 #### B. Readiness Probe (`GET /ready`)
 
-- **Database (`DatabaseHealthIndicator`)**: Executes a lightweight `SELECT 1` query via `PrismaService` to verify the PostgreSQL connection pool is ready and accepting queries.
+- **Database (`DatabaseHealthIndicator`)**: Executes a lightweight `SELECT 1` query via `PrismaService` to verify the PostgreSQL connection pool is ready and accepting queries, returning real-time connection pool metrics (`totalCount`, `idleCount`, `activeCount`, `waitingCount`, `utilizationPercent`).
 - **Cache (`RedisHealthIndicator`)**: Pings Redis via the global `REDIS_CLIENT`. If Redis is unconfigured (`REDIS_URL` omitted), it safely reports `up` with `{ enabled: false }` rather than failing the readiness probe in dev/staging environments.
+- **Probe Overhead & Frequency**: In Cloud Run, readiness probes gate container startup and traffic shifting (typical probe interval: 10–15s). High-frequency uptime monitors (e.g. sub-second pings) should target the zero-IO liveness probe (`/health`), reserving `/ready` for traffic admission to avoid unnecessary database connection checkouts.
 - **Result**: Returns HTTP `200 OK` if all dependencies are healthy, or `503 Service Unavailable` if PostgreSQL or Redis is degraded.
 
 ---

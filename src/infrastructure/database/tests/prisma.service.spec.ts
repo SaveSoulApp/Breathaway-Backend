@@ -407,6 +407,43 @@ describe('PrismaService', () => {
       );
     });
 
+    it('should support dynamic threshold adjustments at runtime via setSlowQueryThresholdMs', () => {
+      configService.get.mockReturnValue(undefined); // default 200ms
+      const service = new PrismaService(configService, loggerService);
+
+      expect(service.slowQueryThresholdMs).toBe(200);
+
+      // Dynamically raise threshold to 500ms
+      service.setSlowQueryThresholdMs(500);
+      expect(service.slowQueryThresholdMs).toBe(500);
+
+      expect(contextualLoggerMock.info).toHaveBeenCalledWith(
+        'Updated dynamic slow query threshold',
+        expect.objectContaining({
+          step: 'update_slow_query_threshold',
+          newThresholdMs: 500,
+        }),
+      );
+
+      const queryHandler = registeredPrismaListeners['query'];
+
+      // Query with 350ms duration was slow under 200ms, but should NOT be flagged under 500ms threshold
+      const queryEvent: Prisma.QueryEvent = {
+        timestamp: new Date(),
+        query: 'SELECT * FROM "User"',
+        params: '[]',
+        duration: 350,
+        target: 'public',
+      };
+
+      queryHandler(queryEvent);
+
+      expect(contextualLoggerMock.warn).not.toHaveBeenCalledWith(
+        'Prisma detected slow database query',
+        expect.anything(),
+      );
+    });
+
     it('should log Prisma engine error events', () => {
       configService.get.mockReturnValue(undefined);
       new PrismaService(configService, loggerService);

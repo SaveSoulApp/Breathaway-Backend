@@ -9,6 +9,18 @@ import { ContextualLogger, LoggerService } from '@core/logger';
 import { DatabasePoolStatus } from './interfaces';
 
 /**
+ * Type-safe log event levels matching Prisma.LogLevel.
+ */
+export type PrismaLogEventType = Extract<
+  Prisma.LogLevel,
+  'query' | 'error' | 'warn'
+>;
+
+const EVENT_QUERY = 'query' as const;
+const EVENT_ERROR = 'error' as const;
+const EVENT_WARN = 'warn' as const;
+
+/**
  * Service managing the database connection, connection pool observability,
  * and Prisma client query lifecycle.
  *
@@ -18,13 +30,14 @@ import { DatabasePoolStatus } from './interfaces';
  */
 @Injectable()
 export class PrismaService
-  extends PrismaClient
+  extends PrismaClient<Prisma.PrismaClientOptions, PrismaLogEventType>
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly pool: Pool;
   private readonly logger: ContextualLogger;
+  private readonly configService: ConfigService;
   private readonly maxConnections: number;
-  private readonly slowQueryThresholdMs: number;
+  private defaultSlowQueryThresholdMs: number;
   private readonly logAllQueries: boolean;
 
   constructor(configService: ConfigService, loggerService: LoggerService) {
@@ -74,15 +87,16 @@ export class PrismaService
     super({
       adapter: new PrismaPg(pool),
       log: [
-        { emit: 'event', level: 'query' },
-        { emit: 'event', level: 'error' },
-        { emit: 'event', level: 'warn' },
+        { emit: 'event', level: EVENT_QUERY },
+        { emit: 'event', level: EVENT_ERROR },
+        { emit: 'event', level: EVENT_WARN },
       ],
     });
 
     this.pool = pool;
+    this.configService = configService;
     this.maxConnections = poolConfig.max ?? 4;
-    this.slowQueryThresholdMs =
+    this.defaultSlowQueryThresholdMs =
       Number.isFinite(slowQueryThreshold) && slowQueryThreshold > 0
         ? slowQueryThreshold
         : 200;
@@ -104,6 +118,37 @@ export class PrismaService
       slowQueryThresholdMs: this.slowQueryThresholdMs,
       logAllQueries: this.logAllQueries,
     });
+  }
+
+  /**
+   * Retrieves the active slow query threshold in milliseconds.
+   * Dynamically inspects ConfigService for live configuration changes,
+   * falling back to the configured default.
+   */
+  get slowQueryThresholdMs(): number {
+    const dynamicConfig = Number(
+      this.configService.get<number>(
+        'DB_SLOW_QUERY_THRESHOLD_MS',
+        this.defaultSlowQueryThresholdMs,
+      ),
+    );
+    return Number.isFinite(dynamicConfig) && dynamicConfig > 0
+      ? dynamicConfig
+      : this.defaultSlowQueryThresholdMs;
+  }
+
+  /**
+   * Allows runtime dynamic adjustment of the slow query threshold
+   * (e.g. during database maintenance or performance diagnostics).
+   */
+  setSlowQueryThresholdMs(thresholdMs: number): void {
+    if (Number.isFinite(thresholdMs) && thresholdMs > 0) {
+      this.defaultSlowQueryThresholdMs = thresholdMs;
+      this.logger.info('Updated dynamic slow query threshold', {
+        step: 'update_slow_query_threshold',
+        newThresholdMs: thresholdMs,
+      });
+    }
   }
 
   /**
@@ -193,13 +238,15 @@ export class PrismaService
 
   /**
    * Registers Prisma Client event listeners for query performance and engine diagnostics.
+   *
+   * Type safety is enforced via PrismaLogEventType matching the super() constructor configuration.
    */
   private registerPrismaEventListeners(): void {
-    this.$on('query' as never, (event: Prisma.QueryEvent) => {
+    this.$on(EVENT_QUERY, (event) => {
       this.handleQueryEvent(event);
     });
 
-    this.$on('error' as never, (event: Prisma.LogEvent) => {
+    this.$on(EVENT_ERROR, (event) => {
       this.logger.error('Prisma client engine error', {
         step: 'prisma_engine_error',
         message: event.message,
@@ -207,7 +254,7 @@ export class PrismaService
       });
     });
 
-    this.$on('warn' as never, (event: Prisma.LogEvent) => {
+    this.$on(EVENT_WARN, (event) => {
       this.logger.warn('Prisma client engine warning', {
         step: 'prisma_engine_warn',
         message: event.message,
