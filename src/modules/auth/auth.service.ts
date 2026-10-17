@@ -1103,16 +1103,21 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Records a user logout event, terminates active refresh token sessions, and emits a USER_LOGOUT audit log.
+   * Records a user logout event, terminates active refresh token sessions, revokes active cache status, and emits a USER_LOGOUT audit log.
    *
    * @param userId - UUID of the user signing out, extracted from the JWT by the controller.
    * @param refreshToken - Optional refresh token string to target specific session revocation.
+   * @param accessJti - Optional JWT ID of the active access token making the signout request for targeted single-device revocation.
    * @returns A confirmation message object.
    */
-  async signout(userId: string, refreshToken?: string) {
+  async signout(userId: string, refreshToken?: string, accessJti?: string) {
     this.logger.event(LOG_EVENT.USER_SIGNED_OUT, { userId });
     await this.authTokenService.revokeSession(userId, refreshToken);
-    await this.jwtAuthCacheService?.revokeUser(userId);
+    if (refreshToken && accessJti) {
+      await this.jwtAuthCacheService?.revokeUser(userId, accessJti);
+    } else {
+      await this.jwtAuthCacheService?.revokeUser(userId);
+    }
     this.emitAuditLog({
       actionType: AuditActionType.USER_LOGOUT,
       userId: userId,

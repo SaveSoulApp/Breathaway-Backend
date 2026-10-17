@@ -6,8 +6,10 @@ import { RedisService } from '@infrastructure/redis';
 import { UserDeletedEvent } from '@modules/profiles/events';
 
 import {
+  AUTH_REVOKED_TOKEN_PREFIX,
   AUTH_USER_ACTIVE_PREFIX,
   DEFAULT_JWT_CACHE_TTL_SECONDS,
+  REVOKED_TOKEN_TTL_SECONDS,
 } from '../constants';
 import { JwtAuthCacheService } from '../services/jwt-auth-cache.service';
 
@@ -22,6 +24,7 @@ describe('JwtAuthCacheService', () => {
     smembers: jest.Mock;
     srem: jest.Mock;
     sismember: jest.Mock;
+    saddWithExpire: jest.Mock;
     expire: jest.Mock;
   };
   let mockConfigService: {
@@ -50,6 +53,7 @@ describe('JwtAuthCacheService', () => {
       smembers: jest.fn(),
       srem: jest.fn(),
       sismember: jest.fn(),
+      saddWithExpire: jest.fn(),
       expire: jest.fn(),
     };
 
@@ -117,6 +121,28 @@ describe('JwtAuthCacheService', () => {
     });
   });
 
+  describe('TTL sanitization', () => {
+    it('falls back to default TTL when configured TTL is 0, negative, or NaN', async () => {
+      const zeroService = await createModule({ JWT_CACHE_TTL_SECONDS: 0 });
+      await zeroService.setUserActive('user-1', 'jti-1');
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
+        expect.any(String),
+        'jti-1',
+        DEFAULT_JWT_CACHE_TTL_SECONDS,
+      );
+
+      const invalidService = await createModule({
+        JWT_CACHE_TTL_SECONDS: 'invalid-non-number',
+      });
+      await invalidService.setUserActive('user-1', 'jti-1');
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
+        expect.any(String),
+        'jti-1',
+        DEFAULT_JWT_CACHE_TTL_SECONDS,
+      );
+    });
+  });
+
   describe('isUserActive', () => {
     const userId = 'user-uuid-1';
     const jti = 'jti-token-abc';
@@ -177,51 +203,85 @@ describe('JwtAuthCacheService', () => {
     });
   });
 
+  describe('isTokenRevoked', () => {
+    const jti = 'jti-token-xyz';
+
+    it('returns true when token JTI is blacklisted in Redis', async () => {
+      mockRedisService.get.mockResolvedValue('1');
+
+      const result = await service.isTokenRevoked(jti);
+
+      expect(mockRedisService.get).toHaveBeenCalledWith(
+        `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
+      );
+      expect(result).toBe(true);
+    });
+
+    it('returns false when token JTI is not blacklisted (null in Redis)', async () => {
+      mockRedisService.get.mockResolvedValue(null);
+
+      const result = await service.isTokenRevoked(jti);
+
+      expect(result).toBe(false);
+    });
+
+    it('returns false immediately without calling Redis when jti is undefined', async () => {
+      const result = await service.isTokenRevoked(undefined);
+
+      expect(result).toBe(false);
+      expect(mockRedisService.get).not.toHaveBeenCalled();
+    });
+
+    it('returns false and logs warning when Redis throws error', async () => {
+      mockRedisService.get.mockRejectedValue(new Error('Redis timeout'));
+
+      const result = await service.isTokenRevoked(jti);
+
+      expect(result).toBe(false);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to query revoked token status in Redis, defaulting to unrevoked',
+        expect.objectContaining({ jti }),
+      );
+    });
+  });
+
   describe('setUserActive', () => {
     const userId = 'user-uuid-1';
     const jti = 'jti-token-abc';
 
-    it('adds jti to user set with configured TTL', async () => {
-      mockRedisService.sadd.mockResolvedValue(1);
-      mockRedisService.expire.mockResolvedValue(1);
+    it('adds jti to user set using saddWithExpire pipeline', async () => {
+      mockRedisService.saddWithExpire.mockResolvedValue(1);
 
       await service.setUserActive(userId, jti);
 
-      expect(mockRedisService.sadd).toHaveBeenCalledWith(
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         jti,
-      );
-      expect(mockRedisService.expire).toHaveBeenCalledWith(
-        `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         DEFAULT_JWT_CACHE_TTL_SECONDS,
       );
     });
 
     it('uses custom JWT_CACHE_TTL_SECONDS from config', async () => {
       const customService = await createModule({ JWT_CACHE_TTL_SECONDS: 600 });
-      mockRedisService.sadd.mockResolvedValue(1);
-      mockRedisService.expire.mockResolvedValue(1);
+      mockRedisService.saddWithExpire.mockResolvedValue(1);
 
       await customService.setUserActive(userId, jti);
 
-      expect(mockRedisService.expire).toHaveBeenCalledWith(
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
+        jti,
         600,
       );
     });
 
     it('adds userId as set member when jti is omitted', async () => {
-      mockRedisService.sadd.mockResolvedValue(1);
-      mockRedisService.expire.mockResolvedValue(1);
+      mockRedisService.saddWithExpire.mockResolvedValue(1);
 
       await service.setUserActive(userId);
 
-      expect(mockRedisService.sadd).toHaveBeenCalledWith(
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         userId,
-      );
-      expect(mockRedisService.expire).toHaveBeenCalledWith(
-        `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         DEFAULT_JWT_CACHE_TTL_SECONDS,
       );
     });
@@ -229,21 +289,22 @@ describe('JwtAuthCacheService', () => {
     it('appends multiple device sessions (laptop and phone) into the exact same user set', async () => {
       const laptopJti = 'jti_laptop_111';
       const phoneJti = 'jti_phone_222';
-      mockRedisService.sadd.mockResolvedValue(1);
-      mockRedisService.expire.mockResolvedValue(1);
+      mockRedisService.saddWithExpire.mockResolvedValue(1);
 
       // Laptop logs in
       await service.setUserActive(userId, laptopJti);
-      expect(mockRedisService.sadd).toHaveBeenCalledWith(
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         laptopJti,
+        DEFAULT_JWT_CACHE_TTL_SECONDS,
       );
 
       // Phone logs in
       await service.setUserActive(userId, phoneJti);
-      expect(mockRedisService.sadd).toHaveBeenCalledWith(
+      expect(mockRedisService.saddWithExpire).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         phoneJti,
+        DEFAULT_JWT_CACHE_TTL_SECONDS,
       );
       // Both sessions use the exact same key user:active:<userId>
       expect(service.getCacheKey(userId)).toBe(
@@ -251,8 +312,10 @@ describe('JwtAuthCacheService', () => {
       );
     });
 
-    it('does not throw and logs warning when Redis SADD fails', async () => {
-      mockRedisService.sadd.mockRejectedValue(new Error('Redis full'));
+    it('does not throw and logs warning when Redis saddWithExpire fails', async () => {
+      mockRedisService.saddWithExpire.mockRejectedValue(
+        new Error('Redis full'),
+      );
 
       await expect(service.setUserActive(userId, jti)).resolves.not.toThrow();
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -266,7 +329,7 @@ describe('JwtAuthCacheService', () => {
 
       await disabledService.setUserActive(userId, jti);
 
-      expect(mockRedisService.sadd).not.toHaveBeenCalled();
+      expect(mockRedisService.saddWithExpire).not.toHaveBeenCalled();
     });
   });
 
@@ -274,14 +337,21 @@ describe('JwtAuthCacheService', () => {
     const userId = 'user-uuid-1';
     const jti = 'jti-token-abc';
 
-    it('revokes specific device session via srem when jti is provided (leaving other devices intact)', async () => {
+    it('revokes specific device session via srem and blacklists jti in Redis', async () => {
       mockRedisService.srem.mockResolvedValue(1);
+      mockRedisService.set.mockResolvedValue('OK');
 
       await service.revokeUser(userId, jti);
 
       expect(mockRedisService.srem).toHaveBeenCalledWith(
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
         jti,
+      );
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
+        '1',
+        'EX',
+        REVOKED_TOKEN_TTL_SECONDS,
       );
       expect(mockRedisService.del).not.toHaveBeenCalled();
       expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -299,6 +369,7 @@ describe('JwtAuthCacheService', () => {
         `${AUTH_USER_ACTIVE_PREFIX}${userId}`,
       );
       expect(mockRedisService.srem).not.toHaveBeenCalled();
+      expect(mockRedisService.set).not.toHaveBeenCalled();
       expect(mockLogger.debug).toHaveBeenCalledWith(
         'Revoked all user active sessions from Redis cache',
         expect.objectContaining({ userId }),

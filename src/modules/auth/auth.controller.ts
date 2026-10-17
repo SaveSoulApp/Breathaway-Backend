@@ -22,6 +22,7 @@ import { Throttle } from '@nestjs/throttler';
 import {
   ApiStandardErrors,
   ClientIp,
+  CurrentJti,
   CurrentUserId,
   DeviceId,
   UserAgent,
@@ -337,8 +338,12 @@ export class AuthController extends BaseController {
     description: 'User successfully signed out',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  signout(@CurrentUserId() userId: string, @Body() dto?: SignoutRequestDto) {
-    return this.authService.signout(userId, dto?.refreshToken);
+  signout(
+    @CurrentUserId() userId: string,
+    @Body() dto?: SignoutRequestDto,
+    @CurrentJti() accessJti?: string,
+  ) {
+    return this.authService.signout(userId, dto?.refreshToken, accessJti);
   }
 
   /**

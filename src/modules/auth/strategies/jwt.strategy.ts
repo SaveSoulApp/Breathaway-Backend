@@ -57,10 +57,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return {
         userId: payload.sub,
         email: payload.email,
+        jti: payload.jti,
       };
     }
 
-    // 2. Cache miss or cache disabled: query PostgreSQL via Prisma
+    // 2. Cache miss: verify whether this specific token has been explicitly revoked
+    const isRevoked = await this.jwtAuthCacheService.isTokenRevoked(
+      payload.jti,
+    );
+    if (isRevoked) {
+      throw new UnauthorizedException('Session has been revoked');
+    }
+
+    // 3. Cache miss or cache disabled: query PostgreSQL via Prisma
     const user = await this.prisma.user.findFirst({
       where: {
         id: payload.sub,
@@ -77,12 +86,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    // 3. Populate Redis cache for subsequent requests within the configured TTL
+    // 4. Populate Redis cache for subsequent requests within the configured TTL
     await this.jwtAuthCacheService.setUserActive(payload.sub, payload.jti);
 
     return {
       userId: payload.sub,
       email: payload.email,
+      jti: payload.jti,
     };
   }
 }

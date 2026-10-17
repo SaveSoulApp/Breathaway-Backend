@@ -134,6 +134,38 @@ describe('JWT Authorization Benchmark (30 Requests under 3 mins)', () => {
       expire: jest.fn(async () => 1),
       ping: jest.fn(async () => 'PONG'),
       ttl: jest.fn(async () => 300),
+      pipeline: jest.fn(() => {
+        let pipelinedKey: string | undefined;
+        let pipelinedMember: string | undefined;
+        const pipe: {
+          sadd: jest.Mock;
+          expire: jest.Mock;
+          exec: jest.Mock;
+        } = {
+          sadd: jest.fn((k: string, m: string) => {
+            pipelinedKey = k;
+            pipelinedMember = m;
+            return pipe;
+          }),
+          expire: jest.fn(() => pipe),
+          exec: jest.fn(async () => {
+            await simulateDelay(REDIS_MIN_LATENCY_MS, REDIS_MAX_LATENCY_MS);
+            if (pipelinedKey && pipelinedMember) {
+              let set = inMemorySets.get(pipelinedKey);
+              if (!set) {
+                set = new Set();
+                inMemorySets.set(pipelinedKey, set);
+              }
+              set.add(pipelinedMember);
+            }
+            return [
+              [null, 1],
+              [null, 1],
+            ];
+          }),
+        };
+        return pipe;
+      }),
     };
 
     const mockPrisma = {

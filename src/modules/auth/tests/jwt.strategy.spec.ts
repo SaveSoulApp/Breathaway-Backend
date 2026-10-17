@@ -21,6 +21,7 @@ describe('JwtStrategy', () => {
   let jwtAuthCacheService: {
     isUserActive: jest.Mock;
     setUserActive: jest.Mock;
+    isTokenRevoked: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -45,6 +46,7 @@ describe('JwtStrategy', () => {
     jwtAuthCacheService = {
       isUserActive: jest.fn(),
       setUserActive: jest.fn(),
+      isTokenRevoked: jest.fn().mockResolvedValue(false),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -66,7 +68,7 @@ describe('JwtStrategy', () => {
       jti: 'jti-token-xyz',
     };
 
-    it('should return userId and email immediately when user is cached in Redis without hitting Prisma', async () => {
+    it('should return userId, email, and jti immediately when user is cached in Redis without hitting Prisma', async () => {
       // Arrange
       jwtAuthCacheService.isUserActive.mockResolvedValue(true);
 
@@ -77,6 +79,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         userId: 'user-uuid-1',
         email: 'test@example.com',
+        jti: 'jti-token-xyz',
       });
       expect(jwtAuthCacheService.isUserActive).toHaveBeenCalledWith(
         'user-uuid-1',
@@ -86,9 +89,23 @@ describe('JwtStrategy', () => {
       expect(jwtAuthCacheService.setUserActive).not.toHaveBeenCalled();
     });
 
+    it('should throw UnauthorizedException when token JTI has been revoked', async () => {
+      // Arrange
+      jwtAuthCacheService.isUserActive.mockResolvedValue(false);
+      jwtAuthCacheService.isTokenRevoked.mockResolvedValue(true);
+
+      // Act & Assert
+      await expect(strategy.validate(payload)).rejects.toThrow(
+        'Session has been revoked',
+      );
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+      expect(jwtAuthCacheService.setUserActive).not.toHaveBeenCalled();
+    });
+
     it('should query Prisma on cache miss, cache active status, and return user payload', async () => {
       // Arrange
       jwtAuthCacheService.isUserActive.mockResolvedValue(false);
+      jwtAuthCacheService.isTokenRevoked.mockResolvedValue(false);
       prisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-1' });
 
       // Act
@@ -98,6 +115,7 @@ describe('JwtStrategy', () => {
       expect(result).toEqual({
         userId: 'user-uuid-1',
         email: 'test@example.com',
+        jti: 'jti-token-xyz',
       });
       expect(prisma.user.findFirst).toHaveBeenCalledWith({
         where: { id: 'user-uuid-1', deletedAt: null },
@@ -112,6 +130,7 @@ describe('JwtStrategy', () => {
     it('should throw UnauthorizedException and not cache when user record is not found in database', async () => {
       // Arrange
       jwtAuthCacheService.isUserActive.mockResolvedValue(false);
+      jwtAuthCacheService.isTokenRevoked.mockResolvedValue(false);
       prisma.user.findFirst.mockResolvedValue(null);
 
       // Act & Assert
@@ -124,6 +143,7 @@ describe('JwtStrategy', () => {
     it('should throw UnauthorizedException when user is soft-deleted', async () => {
       // Arrange
       jwtAuthCacheService.isUserActive.mockResolvedValue(false);
+      jwtAuthCacheService.isTokenRevoked.mockResolvedValue(false);
       prisma.user.findFirst.mockResolvedValue(null);
 
       // Act & Assert

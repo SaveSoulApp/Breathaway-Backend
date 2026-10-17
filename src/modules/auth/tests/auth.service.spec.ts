@@ -1598,6 +1598,24 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       );
       expect(result).toEqual({ message: 'Signout successful' });
     });
+
+    it('should revoke specific access token jti when both refreshToken and accessJti are provided', async () => {
+      const result = await service.signout(
+        'user-signout-123',
+        'refresh-token-val',
+        'access-jti-123',
+      );
+
+      expect(authTokenService.revokeSession).toHaveBeenCalledWith(
+        'user-signout-123',
+        'refresh-token-val',
+      );
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
+        'user-signout-123',
+        'access-jti-123',
+      );
+      expect(result).toEqual({ message: 'Signout successful' });
+    });
   });
 
   describe('refresh', () => {

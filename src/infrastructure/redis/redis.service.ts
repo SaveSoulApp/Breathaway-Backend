@@ -232,6 +232,47 @@ export class RedisService {
   }
 
   /**
+   * Adds a member to a set and sets its expiration atomically using a Redis pipeline.
+   *
+   * Eliminates a network roundtrip and ensures the key is never left without an expiration.
+   *
+   * @param key - The set key.
+   * @param member - The member to add to the set.
+   * @param ttlSeconds - Expiration duration in seconds.
+   * @returns Number of members added (0 if member already exists or Redis is unconfigured).
+   */
+  async saddWithExpire(
+    key: string,
+    member: string,
+    ttlSeconds: number,
+  ): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      const pipeline = this.client.pipeline();
+      pipeline.sadd(key, member);
+      pipeline.expire(key, ttlSeconds);
+      const results = await pipeline.exec();
+
+      if (!results) return 0;
+      const [saddErr, saddRes] = results[0];
+      if (saddErr) throw saddErr;
+      const [expireErr] = results[1];
+      if (expireErr) throw expireErr;
+
+      return typeof saddRes === 'number' ? saddRes : 1;
+    } catch (error) {
+      this.logger.error('Redis SADD with EXPIRE failed', {
+        step: 'redis_sadd_expire',
+        key,
+        member,
+        ttlSeconds,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Sets a timeout on key in seconds.
    *
    * @param key - The key to set expiration on.

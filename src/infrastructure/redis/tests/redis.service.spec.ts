@@ -19,6 +19,7 @@ describe('RedisService', () => {
     expire: jest.Mock;
     ping: jest.Mock;
     ttl: jest.Mock;
+    pipeline: jest.Mock;
   } | null;
   let mockLogger: {
     log: jest.Mock;
@@ -68,6 +69,14 @@ describe('RedisService', () => {
         expire: jest.fn(),
         ping: jest.fn(),
         ttl: jest.fn(),
+        pipeline: jest.fn().mockReturnValue({
+          sadd: jest.fn().mockReturnThis(),
+          expire: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([
+            [null, 1],
+            [null, 1],
+          ]),
+        }),
       };
       service = await createService(client);
     });
@@ -307,6 +316,65 @@ describe('RedisService', () => {
       );
     });
 
+    it('saddWithExpire pipelines sadd and expire and returns count', async () => {
+      const mockPipelineObj = {
+        sadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, 1],
+          [null, 1],
+        ]),
+      };
+      mockRedisClient!.pipeline.mockReturnValue(mockPipelineObj);
+
+      const result = await service.saddWithExpire('set-key', 'm1', 300);
+
+      expect(mockRedisClient!.pipeline).toHaveBeenCalled();
+      expect(mockPipelineObj.sadd).toHaveBeenCalledWith('set-key', 'm1');
+      expect(mockPipelineObj.expire).toHaveBeenCalledWith('set-key', 300);
+      expect(mockPipelineObj.exec).toHaveBeenCalled();
+      expect(result).toBe(1);
+    });
+
+    it('saddWithExpire rethrows error and logs when pipeline fails', async () => {
+      const err = new Error('Pipeline failed');
+      const mockPipelineObj = {
+        sadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockRejectedValue(err),
+      };
+      mockRedisClient!.pipeline.mockReturnValue(mockPipelineObj);
+
+      await expect(
+        service.saddWithExpire('set-key', 'm1', 300),
+      ).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis SADD with EXPIRE failed',
+        expect.objectContaining({
+          key: 'set-key',
+          member: 'm1',
+          ttlSeconds: 300,
+        }),
+      );
+    });
+
+    it('saddWithExpire rethrows error when sadd step in pipeline returns error', async () => {
+      const saddErr = new Error('Command failed in pipeline');
+      const mockPipelineObj = {
+        sadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [saddErr, null],
+          [null, 1],
+        ]),
+      };
+      mockRedisClient!.pipeline.mockReturnValue(mockPipelineObj);
+
+      await expect(
+        service.saddWithExpire('set-key', 'm1', 300),
+      ).rejects.toThrow(saddErr);
+    });
+
     it('expire sets TTL on key and returns 1 on success', async () => {
       mockRedisClient!.expire.mockResolvedValue(1);
       const result = await service.expire('key-1', 300);
@@ -400,6 +468,11 @@ describe('RedisService', () => {
     it('sismember returns false gracefully', async () => {
       const result = await service.sismember('any-key', 'm1');
       expect(result).toBe(false);
+    });
+
+    it('saddWithExpire returns 0 gracefully', async () => {
+      const result = await service.saddWithExpire('any-key', 'm1', 300);
+      expect(result).toBe(0);
     });
 
     it('expire returns 0 gracefully', async () => {

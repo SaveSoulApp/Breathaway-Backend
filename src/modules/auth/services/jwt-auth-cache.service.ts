@@ -7,8 +7,10 @@ import { RedisService } from '@infrastructure/redis';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
 import {
+  AUTH_REVOKED_TOKEN_PREFIX,
   AUTH_USER_ACTIVE_PREFIX,
   DEFAULT_JWT_CACHE_TTL_SECONDS,
+  REVOKED_TOKEN_TTL_SECONDS,
 } from '../constants';
 
 /**
@@ -40,12 +42,16 @@ export class JwtAuthCacheService {
     this.cacheEnabled =
       typeof rawEnabled === 'boolean' ? rawEnabled : rawEnabled !== 'false';
 
-    this.ttlSeconds = Number(
+    const rawTtl = Number(
       this.configService.get<number>(
         'JWT_CACHE_TTL_SECONDS',
         DEFAULT_JWT_CACHE_TTL_SECONDS,
       ),
     );
+    this.ttlSeconds =
+      Number.isFinite(rawTtl) && rawTtl > 0
+        ? rawTtl
+        : DEFAULT_JWT_CACHE_TTL_SECONDS;
   }
 
   /**
@@ -98,6 +104,7 @@ export class JwtAuthCacheService {
 
   /**
    * Caches the user's active status in Redis by adding the token identifier to the user's set with TTL.
+   * Uses an atomic Redis pipeline to guarantee that key addition and TTL setting happen simultaneously.
    * Appends to existing active sessions (multi-device support) without overwriting.
    *
    * @param userId - The user UUID.
@@ -111,8 +118,7 @@ export class JwtAuthCacheService {
     try {
       const key = this.getCacheKey(userId);
       const member = jti ?? userId;
-      await this.redisService.sadd(key, member);
-      await this.redisService.expire(key, this.ttlSeconds);
+      await this.redisService.saddWithExpire(key, member, this.ttlSeconds);
     } catch (err) {
       this.logger.warn('Failed to cache user active status in Redis', {
         step: 'jwt_cache_set_failed',
@@ -124,8 +130,38 @@ export class JwtAuthCacheService {
   }
 
   /**
+   * Checks whether a specific access token JTI has been explicitly revoked / blacklisted.
+   *
+   * @param jti - The unique JWT ID claim.
+   * @returns True if the token was explicitly revoked, false otherwise.
+   */
+  async isTokenRevoked(jti?: string): Promise<boolean> {
+    if (!jti || !this.isEnabled || !this.redisService) {
+      return false;
+    }
+
+    try {
+      const val = await this.redisService.get(
+        `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
+      );
+      return val === '1';
+    } catch (err) {
+      this.logger.warn(
+        'Failed to query revoked token status in Redis, defaulting to unrevoked',
+        {
+          step: 'jwt_cache_revoked_check_failed',
+          jti,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      );
+      return false;
+    }
+  }
+
+  /**
    * Revokes active status in Redis.
-   * - If jti is provided: removes that specific device token from the set (SREM), keeping other devices intact.
+   * - If jti is provided: removes that specific device token from the set (SREM) and marks the JTI as revoked
+   *   with a bounded TTL (REVOKED_TOKEN_TTL_SECONDS) to prevent post-signout token reuse, keeping other devices intact.
    * - If jti is omitted: deletes the single user key (DEL), instantaneously invalidating all sessions across all devices.
    *
    * @param userId - The user UUID.
@@ -141,6 +177,12 @@ export class JwtAuthCacheService {
 
       if (jti) {
         await this.redisService.srem(key, jti);
+        await this.redisService.set(
+          `${AUTH_REVOKED_TOKEN_PREFIX}${jti}`,
+          '1',
+          'EX',
+          REVOKED_TOKEN_TTL_SECONDS,
+        );
         this.logger.debug('Revoked specific JWT session from Redis cache', {
           step: 'jwt_cache_session_revoked',
           userId,
