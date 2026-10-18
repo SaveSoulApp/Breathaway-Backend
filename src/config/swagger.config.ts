@@ -28,6 +28,7 @@ import { ReportsModule } from '@modules/reports/reports.module';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { UsersModule } from '@modules/users/users.module';
 import { WebhooksModule } from '@modules/webhooks/webhooks.module';
 
 import { applySwaggerBasicAuth } from './swagger-basic-auth.config';
@@ -77,8 +78,8 @@ function publicApiDocumentation(app: INestApplication): void {
     PaymentsModule,
     PreferencesModule,
     ProfilesModule,
-    SocialIdentitiesModule,
     SubscriptionsModule,
+    UsersModule,
     WebhooksModule,
   ];
   const publicConfig = new DocumentBuilder()
@@ -162,7 +163,9 @@ function publicApiDocumentation(app: INestApplication): void {
   Object.keys(publicDoc.paths).forEach((path) => {
     if (
       path.toLowerCase().includes('/admin') ||
-      path.endsWith('/notifications/send')
+      path.endsWith('/notifications/send') ||
+      path.includes('/social-identities') ||
+      path.includes('/internal/jobs')
     ) {
       delete publicDoc.paths[path];
     } else {
@@ -200,6 +203,8 @@ function publicApiDocumentation(app: INestApplication): void {
     'x-user-agent',
   ]);
 
+  sortOpenApiDocument(publicDoc);
+
   SwaggerModule.setup(SWAGGER_PUBLIC_PATH, app, publicDoc, {
     swaggerOptions: {
       docExpansion: 'none',
@@ -217,6 +222,8 @@ function publicApiDocumentation(app: INestApplication): void {
     title: 'BreathAway Public API Docs',
     specUrl: `/${SWAGGER_PUBLIC_PATH}-json`,
     redocOptions: {
+      sortTagsAlphabetically: true,
+      sortOperationsAlphabetically: true,
       theme: {
         colors: {
           primary: {
@@ -246,6 +253,7 @@ function adminApiDocumentation(app: INestApplication): void {
     MaintenanceModule,
     NotificationsModule,
     ReportsModule,
+    SocialIdentitiesModule,
     TransactionsModule,
   ];
   const adminConfig = new DocumentBuilder()
@@ -325,6 +333,8 @@ function adminApiDocumentation(app: INestApplication): void {
 
   applyGlobalSecurityToOperations(adminDoc, ['x-request-id', 'x-timezone']);
 
+  sortOpenApiDocument(adminDoc);
+
   SwaggerModule.setup(SWAGGER_ADMIN_PATH, app, adminDoc, {
     swaggerOptions: {
       docExpansion: 'none',
@@ -342,6 +352,8 @@ function adminApiDocumentation(app: INestApplication): void {
     title: 'BreathAway Admin API Docs',
     specUrl: `/${SWAGGER_ADMIN_PATH}-json`,
     redocOptions: {
+      sortTagsAlphabetically: true,
+      sortOperationsAlphabetically: true,
       theme: {
         colors: {
           primary: {
@@ -360,6 +372,58 @@ function adminApiDocumentation(app: INestApplication): void {
       res.setHeader('Expires', '0');
       adminRedocHandler(req, res);
     },
+  );
+}
+
+function sortOpenApiDocument(document: OpenAPIObject): void {
+  const tagsSet = new Set<string>();
+
+  if (document.paths) {
+    // Sort paths alphabetically by URL key
+    const sortedPaths: OpenAPIObject['paths'] = {};
+    Object.keys(document.paths)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((pathKey) => {
+        sortedPaths[pathKey] = document.paths[pathKey];
+        const pathItem = document.paths[pathKey] as Record<string, unknown>;
+        if (pathItem && typeof pathItem === 'object') {
+          Object.values(pathItem).forEach((operation: unknown) => {
+            if (
+              operation &&
+              typeof operation === 'object' &&
+              'tags' in operation &&
+              Array.isArray((operation as { tags?: string[] }).tags)
+            ) {
+              const op = operation as { tags: string[] };
+              op.tags.sort((t1, t2) => t1.localeCompare(t2));
+              op.tags.forEach((tag) => {
+                if (tag && typeof tag === 'string' && tag.trim().length > 0) {
+                  tagsSet.add(tag.trim());
+                }
+              });
+            }
+          });
+        }
+      });
+    document.paths = sortedPaths;
+  }
+
+  // Preserve existing tag descriptions and metadata while sorting tags alphabetically
+  type TagObject = NonNullable<OpenAPIObject['tags']>[number];
+  const existingTagsMap = new Map<string, TagObject>();
+  if (Array.isArray(document.tags)) {
+    document.tags.forEach((tag) => {
+      if (tag && tag.name) {
+        tagsSet.add(tag.name);
+        existingTagsMap.set(tag.name, tag);
+      }
+    });
+  }
+
+  const sortedTagNames = Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
+
+  document.tags = sortedTagNames.map(
+    (name) => existingTagsMap.get(name) || { name },
   );
 }
 

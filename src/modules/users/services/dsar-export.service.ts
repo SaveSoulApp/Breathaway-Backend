@@ -68,7 +68,7 @@ export class DsarExportService extends BaseService {
    */
   async requestExport(
     userId: string,
-    dto: RequestDsarExportRequestDto,
+    dto: RequestDsarExportRequestDto = {},
   ): Promise<DsarExportResponseDto> {
     const ctx = { userId, step: 'request_export' };
     this.logger.info('Received DSAR data export request', ctx);
@@ -110,7 +110,7 @@ export class DsarExportService extends BaseService {
     const now = new Date();
 
     // Check 24-hour cooldown on completed exports (bypassed if dto.force is true)
-    if (!dto.force) {
+    if (!dto?.force) {
       const latestCompleted = await this.prisma.dsarExport.findFirst({
         where: {
           userId,
@@ -153,7 +153,7 @@ export class DsarExportService extends BaseService {
 
     // 3. Resolve or generate AES-256 encryption passphrase
     const passphrase =
-      dto.passphrase?.trim() ||
+      dto?.passphrase?.trim() ||
       randomBytes(12).toString('base64url').slice(0, 16);
 
     // 4. Create PENDING export record in database

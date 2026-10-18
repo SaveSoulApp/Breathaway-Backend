@@ -25,7 +25,7 @@ import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
 @SkipClientIdentity()
-@ApiBearerAuth()
+@ApiBearerAuth('gcp-oidc')
 @UseGuards(GcpOidcAuthGuard)
 @ApiStandardErrors()
 @Controller({

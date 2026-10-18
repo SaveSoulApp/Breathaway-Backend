@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -16,6 +17,7 @@ import {
 
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
@@ -49,7 +51,7 @@ export class UsersController extends BaseController {
    * completes, a notification is sent directing the user to download the archive in-app.
    *
    * @param userId - Unique identifier of the authenticated user.
-   * @param dto - Optional user-defined encryption passphrase.
+   * @param dto - Optional user-defined encryption passphrase and cooldown override flag.
    * @returns DsarExportResponseDto with status PENDING and the encryption passphrase.
    */
   @Post('me/export')
@@ -58,6 +60,12 @@ export class UsersController extends BaseController {
     summary: 'Request personal data export (GDPR / CCPA data portability)',
     description:
       'Initiates an asynchronous export of all personal data. Responds immediately with status PENDING and the AES-256 encryption passphrase.',
+  })
+  @ApiBody({
+    type: RequestDsarExportRequestDto,
+    required: false,
+    description:
+      'Optional custom AES-256 passphrase and cooldown override flag',
   })
   @ApiResponse({
     status: HttpStatus.ACCEPTED,
@@ -68,9 +76,14 @@ export class UsersController extends BaseController {
     status: HttpStatus.CONFLICT,
     description: 'An export request is already in progress',
   })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'User account not found or deleted',
+  })
+  @SerializeExpose(DsarExportResponseDto)
   async requestExport(
     @CurrentUserId() userId: string,
-    @Body() dto: RequestDsarExportRequestDto,
+    @Body() dto: RequestDsarExportRequestDto = {},
   ): Promise<DsarExportResponseDto> {
     return this.dsarExportService.requestExport(userId, dto);
   }
@@ -100,6 +113,7 @@ export class UsersController extends BaseController {
     status: HttpStatus.NOT_FOUND,
     description: 'No export request found for this account',
   })
+  @SerializeExpose(DsarExportResponseDto)
   async getLatestExport(
     @CurrentUserId() userId: string,
   ): Promise<DsarExportResponseDto> {
