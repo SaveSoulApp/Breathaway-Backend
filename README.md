@@ -123,7 +123,7 @@ pnpm run deploy:dev
 pnpm run deploy:prod
 ```
 
-These scripts will execute `./scripts/deploy.sh` with the respective environment flag (`--env=dev` or `--env=prod`).
+These scripts will execute `./scripts/deploy/deploy.sh` with the respective environment flag (`--env=dev` or `--env=prod`).
 
 ---
 

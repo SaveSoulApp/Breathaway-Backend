@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -15,7 +16,8 @@ import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard'
 import { SocialIdentityResponseDto, VerifyInstagramRequestDto } from './dto';
 import { SocialidentitiesService } from './social-identities.service';
 
-@ApiTags('Social Identities')
+@ApiTags('Admin - Social Identities')
+@SkipClientIdentity()
 @ApiStandardErrors()
 @ApiBearerAuth('gcp-oidc')
 @Controller({

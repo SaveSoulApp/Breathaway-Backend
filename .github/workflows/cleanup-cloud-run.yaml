@@ -31,4 +31,4 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Run Cleanup Script
-        run: python ./scripts/cleanup-cloud-run.py
+        run: python ./scripts/maintenance/cleanup-cloud-run.py

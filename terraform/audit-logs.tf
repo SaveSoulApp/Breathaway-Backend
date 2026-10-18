@@ -122,7 +122,7 @@ resource "google_logging_project_sink" "app_logs_sink" {
   description = "Routes Breathaway API application logs to the observability log bucket"
 
   # serviceContext.service is set from the APP_NAME env var in the NestJS app.
-  # The current value in scripts/common.dev.sh is "BreathAway" — must match exactly.
+  # The current value in scripts/deploy/common.dev.sh is "BreathAway" — must match exactly.
   filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.serviceContext.service=\"BreathAway\""
 
   depends_on = [google_logging_project_bucket_config.app_logs_bucket]

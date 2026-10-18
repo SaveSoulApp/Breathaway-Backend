@@ -22,6 +22,7 @@ export class DsarExportResponseDto {
 
   @ApiProperty({
     enum: DsarExportStatus,
+    enumName: 'DsarExportStatus',
     description: 'Current lifecycle status of the export pipeline',
     example: DsarExportStatus.PENDING,
   })
@@ -61,6 +62,8 @@ export class DsarExportResponseDto {
   @ApiProperty({
     description: 'Timestamp when the export request was received',
     example: '2026-10-18T12:00:00.000Z',
+    type: String,
+    format: 'date-time',
   })
   @Expose()
   requestedAt: Date;
@@ -68,6 +71,8 @@ export class DsarExportResponseDto {
   @ApiPropertyOptional({
     description: 'Timestamp when the background export processing completed',
     example: '2026-10-18T12:00:08.000Z',
+    type: String,
+    format: 'date-time',
   })
   @Expose()
   completedAt?: Date | null;
@@ -76,6 +81,8 @@ export class DsarExportResponseDto {
     description:
       'Canonical expiration timestamp when the archive file will be permanently purged (7 days from creation)',
     example: '2026-10-25T12:00:08.000Z',
+    type: String,
+    format: 'date-time',
   })
   @Expose()
   expiresAt?: Date | null;

@@ -98,7 +98,7 @@ A core design goal is **zero code duplication and zero multi-repo overhead**. We
 
 ### How It Works
 
-1. **One Build Artifact**: `scripts/deploy.sh` executes Google Cloud Build to produce a single, production-hardened Docker image tagged with the Git commit hash:
+1. **One Build Artifact**: `scripts/deploy/deploy.sh` executes Google Cloud Build to produce a single, production-hardened Docker image tagged with the Git commit hash:
    ```bash
    asia-south1-docker.pkg.dev/breathaway-dev/breathaway-backend/backend-service:8f98b36
    ```
@@ -174,7 +174,7 @@ All cron jobs are managed declaratively in [`terraform/scheduler.tf`](file:///te
 | **`expire-credit-bundles-job`**        |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
 | **`warn-expiring-credit-bundles-job`** |  `0 10 * * *`  |   UTC    | `/api/v1/internal/jobs/warn-expiring-bundles`  | Scans credit bundles expiring in exactly 6 to 7 days daily at 10 AM, dispatching advance warning domain events to users.                             |
 | **`reconcile-payments-job`**           | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
-| **`purge-expired-user-sessions-job`**  |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.             |
+| **`purge-expired-user-sessions-job`**  |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.            |
 
 ---
 
@@ -192,6 +192,7 @@ In the dual-token model, access tokens expire every 15 minutes, prompting active
 ### 2. Database Index Impact & Performance Degradation
 
 The `UserSession` table maintains multiple mission-critical indexes:
+
 - `@@unique([jti])`: Looked up on every single token refresh.
 - `@@unique([tokenHash])`: Prevents duplicate hash collisions.
 - `@@index([userId])`: Queried on global signout and account deletion.
@@ -199,17 +200,21 @@ The `UserSession` table maintains multiple mission-critical indexes:
 - `@@index([expiresAt])`: Scanned by the retention purge job.
 
 If expired sessions accumulate without bound:
+
 1. **B-Tree Depth & Buffer Pool Thrashing**: As index sizes swell, B-Tree leaf pages no longer fit into PostgreSQL's `shared_buffers` in RAM. Every authentication and refresh query begins requiring physical disk I/O, degrading API latency.
 2. **Vacuum & Dead Tuple Overhead**: Accumulating millions of dead tuples stresses PostgreSQL's autovacuum daemon, increasing disk write amplification and table bloat on Cloud SQL.
 
 ### 3. Chunked Deletion Mechanics vs. Table-Level Lock Starvation
 
 Issuing a naive monolithic deletion query:
+
 ```sql
 -- ❌ Critical Anti-Pattern: Monolithic Delete
 DELETE FROM "UserSession" WHERE "expiresAt" < NOW() - INTERVAL '7 days';
 ```
+
 across millions of rows is hazardous in production:
+
 - It acquires exclusive row-level write locks across millions of tuples, stalling concurrent `INSERT INTO "UserSession"` statements triggered by live logging-in users.
 - It balloons PostgreSQL's Write-Ahead Log (WAL), causing extreme replication lag on Cloud SQL read replicas.
 - It risks timing out the HTTP connection to Cloud Scheduler (maximum 30-minute timeout).
@@ -302,21 +307,21 @@ src/
 
 ## 🚢 Deployment Script Operations
 
-Release operations are managed via [`scripts/deploy.sh`](file:///scripts/deploy.sh):
+Release operations are managed via [`scripts/deploy/deploy.sh`](file:///scripts/deploy/deploy.sh):
 
 ```bash
 # Full deployment (Builds image once, deploys backend-service AND maintenance-service)
-./scripts/deploy.sh --env=dev
+./scripts/deploy/deploy.sh --env=dev
 
 # Deploy only the public backend service:
-./scripts/deploy.sh --env=dev --only-public
+./scripts/deploy/deploy.sh --env=dev --only-public
 
 # Deploy only the internal maintenance service:
-./scripts/deploy.sh --env=dev --only-maintenance
+./scripts/deploy/deploy.sh --env=dev --only-maintenance
 
 # Skip maintenance service during backend updates:
-./scripts/deploy.sh --env=dev --no-maintenance
+./scripts/deploy/deploy.sh --env=dev --no-maintenance
 
 # Force image rebuild even if git commit tag exists in Artifact Registry:
-./scripts/deploy.sh --env=dev --force
+./scripts/deploy/deploy.sh --env=dev --force
 ```

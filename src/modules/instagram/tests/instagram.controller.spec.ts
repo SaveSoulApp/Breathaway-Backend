@@ -54,7 +54,11 @@ describe('InstagramController', () => {
   describe('refresh', () => {
     it('should refresh access token', async () => {
       const query = { token: 'test-token' };
-      const mockResult = { access_token: 'new-token' };
+      const mockResult = {
+        access_token: 'new-token',
+        token_type: 'bearer',
+        expires_in: 5184000,
+      };
       service.refreshAccessToken.mockResolvedValue(mockResult);
 
       const result = await controller.refresh(query);
@@ -66,7 +70,11 @@ describe('InstagramController', () => {
 
   describe('refreshEnvToken', () => {
     it('should refresh system access token', async () => {
-      const mockResult = { access_token: 'new-system-token' };
+      const mockResult = {
+        access_token: 'new-system-token',
+        token_type: 'bearer',
+        expires_in: 5184000,
+      };
       service.refreshSystemAccessToken.mockResolvedValue(mockResult);
 
       const result = await controller.refreshEnvToken();

@@ -7,14 +7,20 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '@common/decorators';
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
-import { RefreshInstagramTokenRequestDto } from './dto';
+import {
+  RefreshInstagramTokenRequestDto,
+  RefreshInstagramTokenResponseDto,
+} from './dto';
 import { InstagramService } from './instagram.service';
 
 @ApiTags('Instagram')
+@SkipClientIdentity()
 @ApiStandardErrors()
 @Controller({
   path: 'instagram',
@@ -52,10 +58,12 @@ export class InstagramController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'User access token refreshed successfully',
+    type: RefreshInstagramTokenResponseDto,
   })
+  @SerializeExpose(RefreshInstagramTokenResponseDto)
   async refresh(
     @Query() query: RefreshInstagramTokenRequestDto,
-  ): Promise<unknown> {
+  ): Promise<RefreshInstagramTokenResponseDto> {
     return this.instagramService.refreshAccessToken(query.token);
   }
 
@@ -77,8 +85,10 @@ export class InstagramController extends BaseController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'System access token refreshed successfully',
+    type: RefreshInstagramTokenResponseDto,
   })
-  async refreshEnvToken(): Promise<unknown> {
+  @SerializeExpose(RefreshInstagramTokenResponseDto)
+  async refreshEnvToken(): Promise<RefreshInstagramTokenResponseDto> {
     return this.instagramService.refreshSystemAccessToken();
   }
 }

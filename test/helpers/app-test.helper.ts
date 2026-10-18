@@ -23,6 +23,7 @@ import { AppValidationPipe } from '@core/pipes';
 import { PrismaExceptionFilter } from '@infrastructure/database/exception-filters/prisma-exception.filter';
 import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { HttpClientModule, HttpClientService } from '@infrastructure/http';
 import { RedisModule } from '@infrastructure/redis';
 import { AuthModule } from '@modules/auth/auth.module';
 import { AuthMethod } from '@modules/auth/utils/auth-method.utils';
@@ -86,6 +87,13 @@ export interface AppTestContext {
   app: INestApplication;
   prisma: PrismaService;
   mockFirebaseValidation: jest.Mock<Promise<FirebaseValidationResult>>;
+  mockHttpClient: {
+    get: jest.Mock;
+    post: jest.Mock;
+    put: jest.Mock;
+    patch: jest.Mock;
+    delete: jest.Mock;
+  };
 }
 
 /**
@@ -156,6 +164,15 @@ export async function createAuthTestApp(
     [string, string]
   >();
 
+  const mockHttpClient = {
+    get: jest.fn().mockResolvedValue({ data: {} }),
+    post: jest.fn().mockResolvedValue({ data: {} }),
+    put: jest.fn().mockResolvedValue({ data: {} }),
+    patch: jest.fn().mockResolvedValue({ data: {} }),
+    delete: jest.fn().mockResolvedValue({ data: {} }),
+    onModuleDestroy: jest.fn().mockResolvedValue(undefined),
+  };
+
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
@@ -173,6 +190,7 @@ export async function createAuthTestApp(
       }),
       LoggerModule,
       PrismaModule,
+      HttpClientModule,
       RedisModule,
       GcpSecretManagerModule,
       IdentityCryptoModule,
@@ -231,6 +249,8 @@ export async function createAuthTestApp(
         .mockRejectedValue(new Error('Secret not found in test')),
       onModuleDestroy: jest.fn().mockResolvedValue(undefined),
     })
+    .overrideProvider(HttpClientService)
+    .useValue(mockHttpClient)
     .overrideProvider('REDIS_CLIENT')
     .useValue(new InMemoryRedisClient())
     .compile();
@@ -291,7 +311,7 @@ export async function createAuthTestApp(
 
   const prisma = moduleFixture.get(PrismaService);
 
-  return { app, prisma, mockFirebaseValidation };
+  return { app, prisma, mockFirebaseValidation, mockHttpClient };
 }
 
 /**

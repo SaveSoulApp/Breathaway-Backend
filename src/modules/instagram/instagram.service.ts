@@ -12,6 +12,7 @@ import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from './application/exceptions';
+import { RefreshInstagramTokenResponseDto } from './dto';
 
 /**
  * Manages Instagram access token lifecycle by communicating directly with the
@@ -51,21 +52,24 @@ export class InstagramService extends BaseService {
    * @throws {InstagramGraphApiException} Propagates the Graph API error status and body when
    *   the token refresh request fails (e.g., token expired, invalid, or revoked).
    */
-  async refreshAccessToken(currentToken: string): Promise<unknown> {
+  async refreshAccessToken(
+    currentToken: string,
+  ): Promise<RefreshInstagramTokenResponseDto> {
     this.logger.log('Refreshing Instagram access token', { step: 'init' });
 
     try {
-      const response = await this.httpClient.get(
-        `${this.baseUrl}/refresh_access_token`,
-        {
-          params: {
-            grant_type: 'ig_refresh_token',
-            access_token: currentToken,
+      const response =
+        await this.httpClient.get<RefreshInstagramTokenResponseDto>(
+          `${this.baseUrl}/refresh_access_token`,
+          {
+            params: {
+              grant_type: 'ig_refresh_token',
+              access_token: currentToken,
+            },
           },
-        },
-      );
+        );
 
-      const data = response.data as Record<string, unknown>;
+      const data = response.data;
 
       this.logger.log('Instagram access token refreshed successfully', {
         step: 'complete',
@@ -100,7 +104,7 @@ export class InstagramService extends BaseService {
    *   available from Secret Manager or environment configuration.
    * @throws {InstagramGraphApiException} When the Graph API rejects the stored token.
    */
-  async refreshSystemAccessToken(): Promise<unknown> {
+  async refreshSystemAccessToken(): Promise<RefreshInstagramTokenResponseDto> {
     this.logger.log('Refreshing system Instagram access token', {
       step: 'init',
     });
@@ -134,8 +138,7 @@ export class InstagramService extends BaseService {
     }
 
     const result = await this.refreshAccessToken(accessToken);
-    const data = result as Record<string, unknown>;
-    const newToken = data?.access_token;
+    const newToken = result?.access_token;
     if (typeof newToken === 'string') {
       await this.gcpSecretManager.upsertSecret(
         this.instagramSecretName,
