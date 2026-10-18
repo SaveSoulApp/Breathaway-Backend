@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 /**
  * Request DTO for initiating a GDPR / CCPA Data Subject Access Request export.
@@ -17,4 +23,14 @@ export class RequestDsarExportRequestDto {
   @MinLength(8)
   @MaxLength(64)
   passphrase?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Set to true to force a fresh data export even if within the 24-hour cooldown window (e.g. if the previous passphrase was lost).',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }

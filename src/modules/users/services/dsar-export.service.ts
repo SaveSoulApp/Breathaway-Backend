@@ -107,44 +107,47 @@ export class DsarExportService extends BaseService {
       );
     }
 
-    // Check 24-hour cooldown on completed exports
-    const latestCompleted = await this.prisma.dsarExport.findFirst({
-      where: {
-        userId,
-        status: DsarExportStatus.COMPLETED,
-      },
-      orderBy: { requestedAt: 'desc' },
-    });
-
     const now = new Date();
-    if (latestCompleted && latestCompleted.expiresAt) {
-      const cooldownThreshold = new Date(
-        latestCompleted.requestedAt.getTime() +
-          this.cooldownHours * 60 * 60 * 1000,
-      );
 
-      // If within cooldown and the file is still active, return the existing export
-      if (now < cooldownThreshold && latestCompleted.expiresAt > now) {
-        this.logger.info(
-          'Export requested within cooldown window; returning existing active export',
-          {
-            ...ctx,
-            existingExportId: latestCompleted.id,
-          },
+    // Check 24-hour cooldown on completed exports (bypassed if dto.force is true)
+    if (!dto.force) {
+      const latestCompleted = await this.prisma.dsarExport.findFirst({
+        where: {
+          userId,
+          status: DsarExportStatus.COMPLETED,
+        },
+        orderBy: { requestedAt: 'desc' },
+      });
+
+      if (latestCompleted && latestCompleted.expiresAt) {
+        const cooldownThreshold = new Date(
+          latestCompleted.requestedAt.getTime() +
+            this.cooldownHours * 60 * 60 * 1000,
         );
-        let downloadUrl: string | null = null;
-        if (latestCompleted.storagePath) {
-          try {
-            downloadUrl = await this.storageService.getSignedDownloadUrl(
-              this.bucketName,
-              latestCompleted.storagePath,
-              this.signedUrlTtlMinutes,
-            );
-          } catch {
-            downloadUrl = null;
+
+        // If within cooldown and the file is still active, return the existing export
+        if (now < cooldownThreshold && latestCompleted.expiresAt > now) {
+          this.logger.info(
+            'Export requested within cooldown window; returning existing active export',
+            {
+              ...ctx,
+              existingExportId: latestCompleted.id,
+            },
+          );
+          let downloadUrl: string | null = null;
+          if (latestCompleted.storagePath) {
+            try {
+              downloadUrl = await this.storageService.getSignedDownloadUrl(
+                this.bucketName,
+                latestCompleted.storagePath,
+                this.signedUrlTtlMinutes,
+              );
+            } catch {
+              downloadUrl = null;
+            }
           }
+          return this.mapToResponseDto(latestCompleted, null, downloadUrl);
         }
-        return this.mapToResponseDto(latestCompleted, null, downloadUrl);
       }
     }
 

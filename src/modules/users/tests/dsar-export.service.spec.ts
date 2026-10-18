@@ -149,6 +149,26 @@ describe('DsarExportService', () => {
       expect(pubSubPublisher.publish).not.toHaveBeenCalled();
     });
 
+    it('should bypass the cooldown window and trigger fresh export if force is true', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      // No active pending/processing
+      (prisma.dsarExport.findFirst as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.dsarExport.create as jest.Mock).mockResolvedValue(
+        mockExportRecord,
+      );
+      pubSubPublisher.publish.mockResolvedValue('msg-123' as unknown as never);
+
+      const result = await service.requestExport(userId, {
+        force: true,
+        passphrase: 'ForcedNewPassphrase123!',
+      });
+
+      expect(result.id).toBe(exportId);
+      expect(result.status).toBe(DsarExportStatus.PENDING);
+      expect(result.passphrase).toBe('ForcedNewPassphrase123!');
+      expect(pubSubPublisher.publish).toHaveBeenCalled();
+    });
+
     it('should create a PENDING record, publish Pub/Sub event, and return passphrase', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.dsarExport.findFirst as jest.Mock)
