@@ -6,6 +6,8 @@
 /build
 .temp
 .tmp
+__pycache__/
+*.pyc
 
 # Environment & Secrets
 .env

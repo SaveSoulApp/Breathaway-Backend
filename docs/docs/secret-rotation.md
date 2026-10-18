@@ -24,7 +24,7 @@ Rotating a secret without dropping user connections or triggering container boot
 echo -n "new-secret-value-here" | gcloud secrets versions add database-url --project=breathaway-prod --data-file=-
 
 # 2. Deploy Cloud Run (deploy.sh auto-resolves and pins the new version number to the revision)
-./scripts/deploy.sh --env=prod
+./scripts/deploy/deploy.sh --env=prod
 
 # 3. Verify health and Cloud Run logs
 curl -f https://api.breathaway.app/health/ready
@@ -43,7 +43,7 @@ Cloud Run containers run in a stateless, autoscaled environment. Secrets are mou
 
 To prevent **autoscaling split-brain** and credential drift:
 
-1. **Dynamic Deploy-Time Version Pinning (`INFRA-03`)**: [`scripts/deploy.sh`](file:///scripts/deploy.sh) concurrently queries Secret Manager for the latest active version in the target GCP project and attaches concrete version numbers (e.g. `DATABASE_URL=database-url:4`) to the new Cloud Run revision.
+1. **Dynamic Deploy-Time Version Pinning (`INFRA-03`)**: [`scripts/deploy/deploy.sh`](file:///scripts/deploy/deploy.sh) concurrently queries Secret Manager for the latest active version in the target GCP project and attaches concrete version numbers (e.g. `DATABASE_URL=database-url:4`) to the new Cloud Run revision.
 2. **Environment Independence**: `dev` and `prod` maintain their own independent version sequences while sharing the exact same codebase and deployment tooling.
 3. **Graceful Instance Replacement**: Deploying a new revision triggers Cloud Run to boot fresh instances with the new secret, execute readiness probes (`/health/ready`), shift 100% of user traffic, and issue `SIGTERM` to safely drain and terminate all instances running the previous revision.
 
@@ -69,9 +69,9 @@ flowchart TD
         TF_IAM["terraform/backend-iam.tf<br/>roles/secretmanager.secretAccessor"]
     end
 
-    subgraph Layer3 ["Layer 3: Deployment Layer (scripts/)"]
-        SH_CONF["scripts/common.secrets.sh<br/>COMMON_SECRETS=('DATABASE_URL=${SECRET_DATABASE_URL}:latest')"]
-        SH_DEPLOY["scripts/deploy.sh<br/>resolve_secret_versions() in parallel"]
+    subgraph Layer3 ["Layer 3: Deployment Layer (scripts/deploy/)"]
+        SH_CONF["scripts/deploy/common.secrets.sh<br/>COMMON_SECRETS=('DATABASE_URL=${SECRET_DATABASE_URL}:latest')"]
+        SH_DEPLOY["scripts/deploy/deploy.sh<br/>resolve_secret_versions() in parallel"]
     end
 
     subgraph CloudRun ["GCP Cloud Run (Stateless Runtime)"]
@@ -94,7 +94,7 @@ flowchart TD
 2. **Terraform Infrastructure Layer (`terraform/secrets.tf` & `terraform/backend-iam.tf`)**:
    - Declares the secret in `local.secret_names`.
    - Binds `roles/secretmanager.secretAccessor` to `backend-service` runtime service account (least privilege).
-3. **Deployment Layer (`scripts/common.secrets.sh` & `scripts/deploy.sh`)**:
+3. **Deployment Layer (`scripts/deploy/common.secrets.sh` & `scripts/deploy/deploy.sh`)**:
    - `common.secrets.sh` exports canonical identifiers and maps them into `COMMON_SECRETS=(...)`.
    - `deploy.sh` resolves the latest active version per environment at deploy time, mounts pinned versions, and triggers a rolling Cloud Run revision update.
 
@@ -208,7 +208,7 @@ If you are **adding a new secret** or **renaming an existing secret**, follow th
    }
    ```
    Apply Terraform: `terraform plan` and `terraform apply`.
-3. **Deployment Layer (`scripts/common.secrets.sh`)**:
+3. **Deployment Layer (`scripts/deploy/common.secrets.sh`)**:
    ```bash
    export SECRET_NEW_SECRET="new-secret-name"
    COMMON_SECRETS+=(
@@ -224,10 +224,10 @@ Execute the deployment script for the target environment. The script automatical
 
 ```bash
 # For Development / Staging:
-./scripts/deploy.sh --env=dev
+./scripts/deploy/deploy.sh --env=dev
 
 # For Production:
-./scripts/deploy.sh --env=prod
+./scripts/deploy/deploy.sh --env=prod
 ```
 
 #### What Happens Under the Hood:
@@ -344,7 +344,7 @@ To avoid dropped database transactions during rotation, use the **Dual-User Data
    ```
 3. **Deploy Cloud Run Revision**:
    ```bash
-   ./scripts/deploy.sh --env=prod
+   ./scripts/deploy/deploy.sh --env=prod
    ```
 4. **Soak & Verify**: New instances connect as `breathaway_app_v2`. Old instances continue finishing requests as `breathaway_app_v1` until drained.
 5. **Drop Old User**: Once all traffic is on the new revision and old instances are terminated, safely drop the old user:
@@ -381,7 +381,7 @@ BreathAway uses envelope encryption with an active key ring stored in Secret Man
 5. **Deploy**:
 
    ```bash
-   ./scripts/deploy.sh --env=prod
+   ./scripts/deploy/deploy.sh --env=prod
    ```
 
    - New encryption writes use `key-2026-10`.
@@ -425,7 +425,7 @@ Chat message encryption uses room-level DEKs wrapped by a dedicated chat master 
 5. **Deploy**:
 
    ```bash
-   ./scripts/deploy.sh --env=prod
+   ./scripts/deploy/deploy.sh --env=prod
    ```
 
    - All newly created rooms will have their DEKs wrapped using `chat-v2` (`roomKeyId: "chat-v2"`).
@@ -438,7 +438,7 @@ Chat message encryption uses room-level DEKs wrapped by a dedicated chat master 
 When third-party providers (Razorpay, Meta) rotate their webhook HMAC signing keys:
 
 1. **Add New Version in Secret Manager**: Upload the new provider secret to Secret Manager.
-2. **Deploy Cloud Run**: Run `./scripts/deploy.sh --env=prod`. The new container instances boot with the new secret.
+2. **Deploy Cloud Run**: Run `./scripts/deploy/deploy.sh --env=prod`. The new container instances boot with the new secret.
 3. **Update Provider Dashboard**: In Meta or Razorpay developer portal, update the Webhook signing secret.
 4. **Monitor Ingestion**: Inspect `POST /api/v1/webhooks/meta` or `POST /api/v1/webhooks/razorpay` logs to confirm signatures pass verification.
 
@@ -490,7 +490,7 @@ Use this checklist during every secret rotation procedure:
 - [ ] Add new version to Secret Manager via stdin or secure file (avoid shell history leakage).
 - [ ] Verify version state is `ENABLED` (`gcloud secrets versions list`).
 - [ ] **DO NOT disable or destroy existing versions.**
-- [ ] Execute `./scripts/deploy.sh --env=<dev|prod>`.
+- [ ] Execute `./scripts/deploy/deploy.sh --env=<dev|prod>`.
 - [ ] Confirm in deploy output that all secrets were resolved and pinned to concrete version numbers.
 
 ### Verification & Monitoring

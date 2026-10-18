@@ -64,7 +64,7 @@ flowchart TD
 
 ## 🚢 Deployment Orchestration
 
-Releases to Google Cloud are managed by the unified deployment script [`scripts/deploy.sh`](file:///scripts/deploy.sh), triggered via root `pnpm` commands:
+Releases to Google Cloud are managed by the unified deployment script [`scripts/deploy/deploy.sh`](file:///scripts/deploy/deploy.sh), triggered via root `pnpm` commands:
 
 ```bash
 # Full deployment to Staging / Dev environment (both services)
@@ -76,34 +76,34 @@ pnpm run deploy:prod
 
 ### Advanced CLI Deployment Flags
 
-[`scripts/deploy.sh`](file:///scripts/deploy.sh) supports targeted deployments to minimize revision rollouts:
+[`scripts/deploy/deploy.sh`](file:///scripts/deploy/deploy.sh) supports targeted deployments to minimize revision rollouts:
 
 ```bash
 # Deploy only the public backend service:
-./scripts/deploy.sh --env=dev --only-public
+./scripts/deploy/deploy.sh --env=dev --only-public
 
 # Deploy only the internal maintenance worker:
-./scripts/deploy.sh --env=dev --only-maintenance
+./scripts/deploy/deploy.sh --env=dev --only-maintenance
 
 # Skip deploying maintenance service when updating backend:
-./scripts/deploy.sh --env=dev --no-maintenance
+./scripts/deploy/deploy.sh --env=dev --no-maintenance
 
 # Force image rebuild even if the Git commit tag already exists in Artifact Registry:
-./scripts/deploy.sh --env=dev --force
+./scripts/deploy/deploy.sh --env=dev --force
 
 # Skip resolving dynamic secret versions (fallback to unpinned :latest):
-./scripts/deploy.sh --env=dev --no-pin-secrets
+./scripts/deploy/deploy.sh --env=dev --no-pin-secrets
 ```
 
 ### 🔐 Dynamic Secret Version Pinning (INFRA-03)
 
-During deployment, `scripts/deploy.sh` dynamically queries GCP Secret Manager and pins exact numeric versions to the new Cloud Run revision. This ensures 100% credential consistency across autoscaled instances and enables one-click rollbacks.
+During deployment, `scripts/deploy/deploy.sh` dynamically queries GCP Secret Manager and pins exact numeric versions to the new Cloud Run revision. This ensures 100% credential consistency across autoscaled instances and enables one-click rollbacks.
 
 For comprehensive rotation protocols, dual-key migration recipes, and deprecation checklists, refer to the **[GCP Secret Rotation Runbook](./secret-rotation.md)**.
 
 ### Configuration & Sizing Parameterization
 
-Environment variables and resource sizing are declared in [`scripts/common.dev.sh`](file:///scripts/common.dev.sh) and [`scripts/common.prod.sh`](file:///scripts/common.prod.sh):
+Environment variables and resource sizing are declared in [`scripts/deploy/common.dev.sh`](file:///scripts/deploy/common.dev.sh) and [`scripts/deploy/common.prod.sh`](file:///scripts/deploy/common.prod.sh):
 
 ```bash
 # Public API Resource Sizing

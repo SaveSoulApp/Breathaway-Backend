@@ -163,13 +163,13 @@ Store this private key securely in **GCP Secret Manager** as `supabase-jwt-priva
 Run the helper script provided in the repository:
 
 ```bash
-node --env-file=.env -r ts-node/register scripts/export-supabase-public-key.ts
+node --env-file=.env -r ts-node/register scripts/utils/export-supabase-public-key.ts
 ```
 
 _(Or via GCP Secret Manager):_
 
 ```bash
-SUPABASE_JWT_PRIVATE_KEY="$(gcloud secrets versions access latest --secret=supabase-jwt-private-key --project=<PROJECT_ID>)" node -r ts-node/register scripts/export-supabase-public-key.ts
+SUPABASE_JWT_PRIVATE_KEY="$(gcloud secrets versions access latest --secret=supabase-jwt-private-key --project=<PROJECT_ID>)" node -r ts-node/register scripts/utils/export-supabase-public-key.ts
 ```
 
 The script will output the full JWK:
@@ -206,15 +206,15 @@ Each environment requires 4 key configuration items. Distribute them according t
 | `SUPABASE_URL`              | Supabase project URL (`https://<ref>.supabase.co`)    | Sensitive / Environment | GCP Secret Manager (`supabase-url`) & `.env`              |
 | `SUPABASE_SERVICE_ROLE_KEY` | Master server-side key (bypasses RLS)                 | **High Secret**         | GCP Secret Manager (`supabase-service-role-key`) & `.env` |
 | `SUPABASE_JWT_PRIVATE_KEY`  | ES256 private key used by backend to sign client JWTs | **High Secret**         | GCP Secret Manager (`supabase-jwt-private-key`) & `.env`  |
-| `SUPABASE_JWT_KEY_ID`       | Key ID (`kid`) matching Supabase JWT Signing Keys     | Non-sensitive           | `scripts/common.<env>.sh` & `.env`                        |
+| `SUPABASE_JWT_KEY_ID`       | Key ID (`kid`) matching Supabase JWT Signing Keys     | Non-sensitive           | `scripts/deploy/common.<env>.sh` & `.env`                 |
 
 #### Updating Deployment Scripts:
 
-1. In `scripts/common.dev.sh` or `scripts/common.prod.sh`:
+1. In `scripts/deploy/common.dev.sh` or `scripts/deploy/common.prod.sh`:
    ```bash
    export SUPABASE_JWT_KEY_ID='your-assigned-kid-here'
    ```
-2. Verify `scripts/deploy.sh` binds the secrets and environment variables:
+2. Verify `scripts/deploy/deploy.sh` binds the secrets and environment variables:
    - Secret bindings: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_PRIVATE_KEY`.
    - Environment variables: `"SUPABASE_JWT_KEY_ID=${SUPABASE_JWT_KEY_ID:-}"`.
 3. Deploy the backend service:
@@ -352,7 +352,7 @@ Before opening chat features to real users in production, ensure this checklist 
 - [ ] **Production Key Imported**: Production ES256 key imported into production Supabase JWT Signing Keys.
 - [ ] **Key Rotated**: Production key promoted to "Current" in Supabase Dashboard.
 - [ ] **Secrets Stored**: `supabase-url`, `supabase-service-role-key`, `supabase-jwt-private-key`, `gcp-secret-chat-master-keys`, and `active-chat-master-key-id` stored in GCP Secret Manager (`breathaway` project).
-- [ ] **Key ID Configured**: `SUPABASE_JWT_KEY_ID` configured in `scripts/common.prod.sh`.
+- [ ] **Key ID Configured**: `SUPABASE_JWT_KEY_ID` configured in `scripts/deploy/common.prod.sh`.
 - [ ] **Backend Deployed**: Cloud Run backend deployed with `deploy:prod`.
 - [ ] **Token & Key Verified**: Tested `GET /api/v1/chats/supabase-token` and `GET /api/v1/chats/rooms/:roomId/key`.
 - [ ] **Live Subscription Tested**: End-to-end WebSocket message delivery and in-browser WebCrypto decryption verified.

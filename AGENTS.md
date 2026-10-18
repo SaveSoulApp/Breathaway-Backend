@@ -30,19 +30,19 @@ Every secret managed in Google Cloud Secret Manager requires coordinated synchro
    - Verify [`terraform/backend-iam.tf`](terraform/backend-iam.tf) grants `roles/secretmanager.secretAccessor` on the secret to `backend-service` via `google_secret_manager_secret_iam_member` (scoped per-secret least privilege).
    - If the secret requires rotation or write capabilities (e.g., maintenance runner), update [`terraform/scheduler.tf`](terraform/scheduler.tf).
 
-3. **Bash Deployment Layer (`scripts/`)**:
-   - Declare `export SECRET_<NAME>="<canonical-secret-id>"` in [`scripts/common.secrets.sh`](scripts/common.secrets.sh).
-   - Add the container mapping into `COMMON_SECRETS=(...)` array in [`scripts/common.secrets.sh`](scripts/common.secrets.sh):
+3. **Bash Deployment Layer (`scripts/deploy/`)**:
+   - Declare `export SECRET_<NAME>="<canonical-secret-id>"` in [`scripts/deploy/common.secrets.sh`](scripts/deploy/common.secrets.sh).
+   - Add the container mapping into `COMMON_SECRETS=(...)` array in [`scripts/deploy/common.secrets.sh`](scripts/deploy/common.secrets.sh):
      ```bash
      "<CONTAINER_ENV_VAR_NAME>=${SECRET_<NAME>}:latest"
      ```
-   - [`scripts/deploy.sh`](scripts/deploy.sh) sources this array and automatically mounts secrets via `gcloud run deploy --update-secrets`.
+   - [`scripts/deploy/deploy.sh`](scripts/deploy/deploy.sh) sources this array and automatically mounts secrets via `gcloud run deploy --update-secrets`.
    - Never declare duplicate secret strings or arrays in `common.dev.sh`, `common.prod.sh`, or `deploy.sh`.
 
 4. **Deprecation / Deletion Protocol**:
    - When removing or deprecating a secret:
      1. Remove usages in application code and `GcpSecretName`.
-     2. Remove mapping in `scripts/common.secrets.sh` (`COMMON_SECRETS`).
+     2. Remove mapping in `scripts/deploy/common.secrets.sh` (`COMMON_SECRETS`).
      3. Remove from `terraform/secrets.tf` (`local.secret_names`).
      4. Only after deployment succeeds, delete or disable the secret versions in GCP Secret Manager to avoid breaking in-flight revisions.
 

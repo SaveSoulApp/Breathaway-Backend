@@ -1,5 +1,5 @@
 //RUN
-//node --env-file=.env -r ts-node/register scripts/export-supabase-public-key.ts
+//node --env-file=.env -r ts-node/register scripts/utils/export-supabase-public-key.ts
 
 import { createPrivateKey } from 'crypto';
 
@@ -11,10 +11,10 @@ function exportKeys() {
       'Error: SUPABASE_JWT_PRIVATE_KEY environment variable is not set.',
     );
     console.error(
-      'Usage: node --env-file=.env -r ts-node/register scripts/export-supabase-public-key.ts',
+      'Usage: node --env-file=.env -r ts-node/register scripts/utils/export-supabase-public-key.ts',
     );
     console.error(
-      '   or: SUPABASE_JWT_PRIVATE_KEY="..." npx ts-node scripts/export-supabase-public-key.ts',
+      '   or: SUPABASE_JWT_PRIVATE_KEY="..." npx ts-node scripts/utils/export-supabase-public-key.ts',
     );
     process.exit(1);
   }
@@ -42,7 +42,7 @@ function exportKeys() {
     );
     console.log('6. Copy the assigned Key ID ("kid") from the key row.');
     console.log(
-      '7. Set SUPABASE_JWT_KEY_ID=<copied-kid> in your .env, scripts/common.dev.sh, and Secret Manager.',
+      '7. Set SUPABASE_JWT_KEY_ID=<copied-kid> in your .env, scripts/deploy/common.dev.sh, and Secret Manager.',
     );
     console.log('======================================================\n');
   } catch (err: unknown) {

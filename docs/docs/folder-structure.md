@@ -99,3 +99,25 @@ src/modules/likes/
 ├── likes.types.ts         # Internal module types
 └── tests/                 # Unit tests (e.g., likes.service.spec.ts)
 ```
+
+---
+
+## 📁 The `scripts/` Directory Structure
+
+Utility scripts and operational automations are organized into domain-specific subdirectories:
+
+```
+scripts/
+├── deploy/                     # Cloud Run deployment orchestrator and environment configurations
+│   ├── deploy.sh               # Main build and deployment script
+│   ├── common.dev.sh           # Development environment settings
+│   ├── common.prod.sh          # Production environment settings
+│   └── common.secrets.sh       # Secret Manager container bindings (Layer 3)
+├── maintenance/                # Routine maintenance and operational cleanup
+│   └── cleanup-cloud-run.py    # Prunes stale Cloud Run revisions and unreferenced images
+├── setup/                      # One-time developer or infrastructure bootstrap scripts
+│   └── setup-wif.sh            # Sets up GCP Workload Identity Federation for GitHub Actions
+├── utils/                      # Helper utilities and operational tools
+│   └── export-supabase-public-key.ts # Exports Supabase private JWK for standby key import
+└── deploy.sh                   # Backward-compatible forwarding shim to deploy/deploy.sh
+```

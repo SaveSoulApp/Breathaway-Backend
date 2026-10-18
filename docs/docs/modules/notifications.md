@@ -1088,7 +1088,7 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                                |
 
 > [!CAUTION]
-> In production environments (Cloud Run), `BREVO_API_KEY` and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/common.secrets.sh`.
+> In production environments (Cloud Run), `BREVO_API_KEY` and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/deploy/common.secrets.sh`.
 
 ---
 
