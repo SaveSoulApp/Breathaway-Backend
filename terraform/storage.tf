@@ -13,6 +13,7 @@ resource "google_storage_bucket" "dsar_exports" {
   project                     = var.project_id
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
 
   # GDPR compliance & storage hygiene: automatically purge archives older than 7 days
   lifecycle_rule {
