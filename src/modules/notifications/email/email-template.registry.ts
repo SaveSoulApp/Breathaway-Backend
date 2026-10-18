@@ -77,4 +77,8 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
     templateFile: 'like-withdrawn',
     subject: 'Like Withdrawn — BreathAway',
   },
+  [EmailType.DSAR_EXPORT_READY]: {
+    templateFile: 'dsar-export-ready',
+    subject: 'Your BreathAway Personal Data Archive is Ready 📦',
+  },
 };

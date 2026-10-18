@@ -41,6 +41,10 @@ import {
   MATCH_CREATED_EVENT,
   MatchCreatedEvent,
 } from '@modules/match-resolver/events';
+import {
+  DSAR_EXPORT_COMPLETED_EVENT,
+  DsarExportCompletedEvent,
+} from '@modules/users/events';
 
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
@@ -506,6 +510,42 @@ export class NotificationEventsListener extends BaseService {
         senderId: event.senderId,
         recipientId: event.recipientId,
         step: 'handle_chat_message_sent_event',
+        err: serializeError(err),
+      });
+    }
+  }
+
+  @OnEvent(DSAR_EXPORT_COMPLETED_EVENT)
+  async handleDsarExportCompleted(
+    event: DsarExportCompletedEvent,
+  ): Promise<void> {
+    try {
+      const name = await this.resolveUserFirstName(event.userId);
+
+      await this.notificationsService.dispatch({
+        channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+        userIds: [event.userId],
+        type: NotificationType.DSAR_EXPORT_READY,
+        category: NotificationCategory.SECURITY,
+        priority: NotificationPriority.HIGH,
+        link: '/settings/privacy',
+        payload: {
+          name,
+          expiresAt: event.expiresAt.toUTCString(),
+          link: '/settings/privacy',
+        },
+      });
+
+      this.logger.info('Dispatched DSAR export ready notification', {
+        userId: event.userId,
+        exportId: event.exportId,
+        step: 'handle_dsar_export_completed',
+      });
+    } catch (err: unknown) {
+      this.logger.error('Failed to dispatch DSAR export ready notification', {
+        userId: event.userId,
+        exportId: event.exportId,
+        step: 'handle_dsar_export_completed',
         err: serializeError(err),
       });
     }

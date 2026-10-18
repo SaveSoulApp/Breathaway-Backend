@@ -42,3 +42,30 @@ resource "google_project_iam_member" "backend_service_browser" {
   member  = "serviceAccount:${google_service_account.backend_service.email}"
 }
 
+# 6. Grant backend-service Storage Object Admin on the DSAR exports bucket
+resource "google_storage_bucket_iam_member" "backend_service_dsar_storage" {
+  bucket = google_storage_bucket.dsar_exports.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.backend_service.email}"
+}
+
+# 7. Grant backend-service Service Account Token Creator on itself for V4 signed URL signing
+resource "google_service_account_iam_member" "backend_service_token_creator" {
+  service_account_id = google_service_account.backend_service.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.backend_service.email}"
+}
+
+# 8. Grant backend-service BigQuery Data Viewer and Job User for audit log export queries
+resource "google_project_iam_member" "backend_service_bigquery_viewer" {
+  project = var.project_id
+  role    = "roles/bigquery.dataViewer"
+  member  = "serviceAccount:${google_service_account.backend_service.email}"
+}
+
+resource "google_project_iam_member" "backend_service_bigquery_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.backend_service.email}"
+}
+

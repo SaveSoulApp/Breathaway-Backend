@@ -25,6 +25,7 @@ import {
 import { LikeSentEvent, LikeWithdrawnEvent } from '@modules/likes/events';
 import { LikesExpiredEvent } from '@modules/maintenance/events';
 import { MatchCreatedEvent } from '@modules/match-resolver/events';
+import { DsarExportCompletedEvent } from '@modules/users/events';
 
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
@@ -552,6 +553,62 @@ describe('NotificationEventsListener', () => {
       ).resolves.not.toThrow();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Failed to dispatch NEW_MESSAGE notification',
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('handleDsarExportCompleted', () => {
+    it('should dispatch DSAR_EXPORT_READY notification with resolved user firstName', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+
+      const expiresAt = new Date('2026-10-25T12:00:00Z');
+      const event = new DsarExportCompletedEvent(
+        'user-1',
+        'export-123',
+        expiresAt,
+      );
+
+      await listener.handleDsarExportCompleted(event);
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+          userIds: ['user-1'],
+          type: NotificationType.DSAR_EXPORT_READY,
+          category: NotificationCategory.SECURITY,
+          priority: NotificationPriority.HIGH,
+          link: '/settings/privacy',
+          payload: expect.objectContaining({
+            name: 'Alice',
+            expiresAt: expiresAt.toUTCString(),
+            link: '/settings/privacy',
+          }),
+        }),
+      );
+    });
+
+    it('should handle errors gracefully without throwing', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Alice',
+      } as never);
+      notificationsService.dispatch.mockRejectedValue(
+        new Error('Dispatch error'),
+      );
+
+      const event = new DsarExportCompletedEvent(
+        'user-1',
+        'export-123',
+        new Date('2026-10-25T12:00:00Z'),
+      );
+
+      await expect(
+        listener.handleDsarExportCompleted(event),
+      ).resolves.not.toThrow();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to dispatch DSAR export ready notification',
         expect.anything(),
       );
     });

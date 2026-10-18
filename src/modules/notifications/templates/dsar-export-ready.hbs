@@ -1,0 +1,83 @@
+{{!
+  Template: dsar-export-ready
+  Data keys:
+    - name             {string} Recipient's first name
+    - expiresAt        {string} Formatted expiration date (e.g. 7 days from generation)
+    - appUrl           {string} Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear      {number}
+}}
+<p class='email-greeting'>Your Personal Data Archive is Ready 📦</p>
+
+<p>
+  Hello{{#if name}} {{name}}{{/if}},
+</p>
+
+<p>
+  In accordance with your data portability request (GDPR Article 15/20 &amp;
+  CCPA § 1798.110), your personal data archive has been securely compiled.
+</p>
+
+<div class='email-alert email-alert--info'>
+  <strong>Security &amp; Privacy Notice:</strong><br />
+  To protect your sensitive personal information, no direct file download links
+  are sent via email. Please log in to your BreathAway account to securely
+  download your archive.
+</div>
+
+<div
+  style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px 24px; margin: 24px 0;'
+>
+  <table style='width: 100%; border-collapse: collapse;'>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Archive
+        Format:</td>
+      <td
+        style='padding: 6px 0; text-align: right; font-weight: 600; color: #1A1A2E; font-size: 14px;'
+      >AES-256 Encrypted ZIP</td>
+    </tr>
+    <tr>
+      <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Retention
+        Window:</td>
+      <td
+        style='padding: 6px 0; text-align: right; font-weight: 600; color: #E11D48; font-size: 14px;'
+      >Available for 7 Days</td>
+    </tr>
+    {{#if expiresAt}}
+      <tr>
+        <td style='padding: 6px 0; color: #6B7280; font-size: 14px;'>Expiration
+          Date:</td>
+        <td
+          style='padding: 6px 0; text-align: right; color: #6B7280; font-size: 13px;'
+        >{{expiresAt}}</td>
+      </tr>
+    {{/if}}
+  </table>
+</div>
+
+<p>
+  <strong>How to access your archive:</strong>
+</p>
+<ol
+  style='color: #4B5563; font-size: 14px; line-height: 1.6; padding-left: 20px; margin-bottom: 24px;'
+>
+  <li>Log in to your BreathAway mobile application or web portal.</li>
+  <li>Navigate to
+    <strong>Settings &gt; Privacy &amp; Data &gt; Export History</strong>.</li>
+  <li>Click
+    <strong>Download Archive</strong>
+    to download your encrypted export file.</li>
+  <li>Use the passphrase provided during your export request to decrypt and
+    extract your files.</li>
+</ol>
+
+<div style='text-align: center; margin: 32px 0;'>
+  <a href='{{appUrl}}/settings/privacy' class='email-btn'>Go to Privacy Settings
+    →</a>
+</div>
+
+<hr class='email-divider' />
+
+<p style='font-size: 13px; color: #9CA3AF; text-align: center;'>
+  BreathAway Privacy &amp; Compliance Team
+</p>

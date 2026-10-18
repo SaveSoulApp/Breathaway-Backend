@@ -989,4 +989,140 @@ export class ChatsService extends BaseService {
       });
     }
   }
+
+  /**
+   * Exports all decrypted chat history for the specified user for DSAR data portability.
+   *
+   * Fetches every chat room where the user is a participant (including blocked/archived rooms),
+   * unwraps room encryption keys, and decrypts all message contents.
+   *
+   * Redacts counterpart PII to protect third-party privacy under GDPR Article 15(4).
+   *
+   * @param userId - ULID of the authenticated data subject.
+   * @returns Array of chat room objects with decrypted message transcripts.
+   */
+  async exportChatHistory(userId: string): Promise<
+    Array<{
+      roomId: string;
+      createdAt: string;
+      messages: Array<{
+        id: string;
+        isSender: boolean;
+        content: string;
+        sentAt: string;
+        readAt: string | null;
+      }>;
+    }>
+  > {
+    try {
+      const response = await this.supabase
+        .from('ChatRoom')
+        .select(
+          'id, userOneId, userTwoId, wrappedRoomKey, roomKeyId, createdAt',
+        )
+        .or(`userOneId.eq.${userId},userTwoId.eq.${userId}`);
+
+      const rooms = response.data as Array<{
+        id: string;
+        userOneId: string;
+        userTwoId: string;
+        wrappedRoomKey: string;
+        roomKeyId: string;
+        createdAt: string;
+      }> | null;
+
+      if (response.error || !rooms) {
+        this.logger.warn(
+          'Failed to fetch user chat rooms from Supabase for DSAR export',
+          {
+            step: 'export_chat_history_fetch_rooms_error',
+            userId,
+            err: serializeError(response.error),
+          },
+        );
+        return [];
+      }
+
+      const results = [];
+
+      for (const room of rooms) {
+        let roomKey: Buffer | null = null;
+        try {
+          if (room.wrappedRoomKey && room.roomKeyId) {
+            roomKey = this.chatCryptoService.unwrapRoomKey(
+              room.wrappedRoomKey,
+              room.roomKeyId,
+            );
+          }
+        } catch (keyErr) {
+          this.logger.warn('Failed to unwrap room key during DSAR export', {
+            step: 'export_chat_history_unwrap_key_error',
+            userId,
+            roomId: room.id,
+            err: serializeError(keyErr),
+          });
+        }
+
+        const msgResponse = await this.supabase
+          .from('Message')
+          .select('id, senderId, content, createdAt, readAt')
+          .eq('roomId', room.id)
+          .order('createdAt', { ascending: true });
+
+        const messages = msgResponse.data as Array<{
+          id: string;
+          senderId: string;
+          content: string;
+          createdAt: string;
+          readAt: string | null;
+        }> | null;
+
+        if (msgResponse.error || !messages) {
+          continue;
+        }
+
+        const decryptedMessages = messages.map((msg) => {
+          let content = '[Encrypted message content unavailable]';
+          if (
+            roomKey &&
+            this.chatCryptoService.isEncryptedMessage(msg.content)
+          ) {
+            try {
+              content = this.chatCryptoService.decryptMessage(
+                msg.content,
+                roomKey,
+              );
+            } catch {
+              content = '[Message decryption failed]';
+            }
+          } else if (msg.content) {
+            content = msg.content;
+          }
+
+          return {
+            id: msg.id,
+            isSender: msg.senderId === userId,
+            content,
+            sentAt: msg.createdAt,
+            readAt: msg.readAt ?? null,
+          };
+        });
+
+        results.push({
+          roomId: room.id,
+          createdAt: room.createdAt,
+          messages: decryptedMessages,
+        });
+      }
+
+      return results;
+    } catch (err: unknown) {
+      this.logger.error('Unexpected error exporting chat history for DSAR', {
+        step: 'export_chat_history_unexpected_error',
+        userId,
+        err: serializeError(err),
+      });
+      return [];
+    }
+  }
 }

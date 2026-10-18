@@ -59,6 +59,16 @@ export const envValidationSchema = Joi.object({
   AUDIT_PUBSUB_TOPIC: Joi.string().default('audit-logs-topic'),
   META_VERIFY_TOKEN: Joi.string().optional(),
   META_APP_SECRET: Joi.string().optional(),
+  DSAR_EXPORT_BUCKET_NAME: Joi.string().default('breathaway-dsar-exports'),
+  DSAR_EXPORT_RETENTION_DAYS: Joi.number().integer().min(1).max(30).default(7),
+  DSAR_SIGNED_URL_TTL_MINUTES: Joi.number()
+    .integer()
+    .min(5)
+    .max(1440)
+    .default(60),
+  DSAR_EXPORT_COOLDOWN_HOURS: Joi.number().integer().min(1).max(72).default(24),
+  AUDIT_BIGQUERY_DATASET: Joi.string().default('audit_logs_dataset'),
+  AUDIT_BIGQUERY_TABLE: Joi.string().default('events'),
 
   // Authentication & Security
   JWT_EXPIRES_IN: Joi.string().default('15m'),

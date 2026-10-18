@@ -34,6 +34,11 @@ locals {
       subscription_name = "meta-webhooks-push-sub"
       ack_deadline      = 60
     }
+    dsar_export = {
+      topic_name        = "dsar-export"
+      subscription_name = "dsar-export-push-sub"
+      ack_deadline      = 300
+    }
   }
 }
 
