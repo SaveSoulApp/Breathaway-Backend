@@ -4,7 +4,8 @@ import { PassThrough } from 'stream';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DsarExportStatus } from '@prisma/client';
-import { ZipArchive } from 'archiver';
+import archiver, { Archiver, ArchiverOptions } from 'archiver';
+import archiverZipEncrypted from 'archiver-zip-encrypted';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
@@ -30,6 +31,7 @@ import {
 export class DsarExportWorkerService extends BaseService {
   private readonly bucketName: string;
   private readonly retentionDays: number;
+  private readonly encryptionMethod: 'zip20' | 'aes256';
 
   constructor(
     logger: LoggerService,
@@ -41,12 +43,24 @@ export class DsarExportWorkerService extends BaseService {
     private readonly bigQueryAuditService: BigQueryAuditService,
   ) {
     super(logger);
+    const configuredBucket = this.configService.get<string>(
+      'DSAR_EXPORT_BUCKET_NAME',
+    );
+    const projectId = this.configService.get<string>('GCP_PROJECT_ID');
     this.bucketName =
-      this.configService.get<string>('DSAR_EXPORT_BUCKET_NAME') ??
-      'breathaway-dsar-exports';
+      configuredBucket ??
+      (projectId ? `${projectId}-dsar-exports` : 'breathaway-dsar-exports');
     this.retentionDays = Number(
       this.configService.get<number>('DSAR_EXPORT_RETENTION_DAYS') ?? 7,
     );
+    this.encryptionMethod =
+      this.configService.get<'zip20' | 'aes256'>(
+        'DSAR_EXPORT_ENCRYPTION_METHOD',
+      ) ?? 'zip20';
+
+    if (!archiver.isRegisteredFormat('zip-encrypted')) {
+      archiver.registerFormat('zip-encrypted', archiverZipEncrypted);
+    }
   }
 
   /**
@@ -80,7 +94,7 @@ export class DsarExportWorkerService extends BaseService {
   async processExport(
     exportId: string,
     userId: string,
-    _passphrase?: string,
+    passphrase?: string,
   ): Promise<void> {
     const ctx = { exportId, userId, step: 'process_export' };
 
@@ -306,10 +320,22 @@ export class DsarExportWorkerService extends BaseService {
 
       passThrough.pipe(gcsWriteStream);
 
-      // Create streaming ZIP archive
-      const archive = new ZipArchive({
-        zlib: { level: 9 },
-      });
+      // Create streaming ZIP archive (password-protected if passphrase provided)
+      let archive: Archiver;
+      if (passphrase) {
+        if (!archiver.isRegisteredFormat('zip-encrypted')) {
+          archiver.registerFormat('zip-encrypted', archiverZipEncrypted);
+        }
+        archive = archiver.create('zip-encrypted', {
+          zlib: { level: 9 },
+          encryptionMethod: this.encryptionMethod,
+          password: passphrase,
+        } as ArchiverOptions);
+      } else {
+        archive = archiver.create('zip', {
+          zlib: { level: 9 },
+        });
+      }
 
       archive.on('error', (err) => {
         passThrough.destroy(err);
@@ -396,8 +422,9 @@ export class DsarExportWorkerService extends BaseService {
         userId,
         generatedAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
-        archiveFormat:
-          'Standard ZIP Archive (AES-256 Cloud Storage At-Rest & TLS In-Transit Encrypted)',
+        archiveFormat: passphrase
+          ? `Password-Protected ZIP Archive (${this.encryptionMethod.toUpperCase()})`
+          : 'Standard ZIP Archive',
         legalBasis:
           'GDPR Article 15 (Right of Access), GDPR Article 20 (Data Portability), CCPA § 1798.110',
         contact: 'privacy@breathaway.app',
@@ -427,11 +454,23 @@ export class DsarExportWorkerService extends BaseService {
 Export ID:    ${exportId}
 Generated At: ${now.toUTCString()}
 Expires At:   ${expiresAt.toUTCString()}
+Archive Type: ${passphrase ? `Password-Protected ZIP (${this.encryptionMethod.toUpperCase()})` : 'Standard ZIP'}
 
 This archive contains a machine-readable export of all personal data
 associated with your BreathAway account in accordance with GDPR Article 15/20
 and CCPA § 1798.110.
 
+${
+  passphrase
+    ? `Decryption Instructions:
+------------------------
+This archive is encrypted and password-protected. When extracting files using
+your operating system (macOS Archive Utility, Windows Explorer, iOS Files,
+or Linux unzip), you will be prompted for your archive passphrase. Enter the
+passphrase you received upon initiating your export request.
+`
+    : ''
+}
 File Descriptions:
 ------------------
 - profile.json: Account identifiers, display names, and demographic details.

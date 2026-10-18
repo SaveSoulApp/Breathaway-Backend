@@ -53,6 +53,7 @@ const NOTIFICATION_TYPE_TO_EMAIL_TYPE: Partial<
   [NotificationType.DEVICE_ADDED]: EmailType.DEVICE_ADDED,
   [NotificationType.LIKE_WITHDRAWN]: EmailType.LIKE_WITHDRAWN,
   [NotificationType.PAYMENT_COMPLETED]: EmailType.CREDITS_PURCHASED,
+  [NotificationType.DSAR_EXPORT_READY]: EmailType.DSAR_EXPORT_READY,
 };
 
 @Injectable()

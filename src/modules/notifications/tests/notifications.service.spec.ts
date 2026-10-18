@@ -14,6 +14,7 @@ import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service
 
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
 import { EmailService } from '../email/email.service';
+import { EmailType } from '../enums/email-type.enum';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationPriority } from '../enums/notification-priority.enum';
@@ -260,6 +261,38 @@ describe('NotificationsService', () => {
       ).not.toHaveBeenCalled();
       expect(emailService.send).toHaveBeenCalled();
       expect(fcmProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('should route DSAR_EXPORT_READY notifications to EmailService with EmailType.DSAR_EXPORT_READY', async () => {
+      const dto: SendNotificationRequestDto = {
+        userIds: ['user-1'],
+        channels: [NotificationChannel.EMAIL],
+        type: NotificationType.DSAR_EXPORT_READY,
+        category: NotificationCategory.SECURITY,
+        payload: {
+          name: 'Alice',
+          expiresAt: '2026-10-25',
+          link: '/settings/privacy',
+        },
+      };
+
+      const prefMap = new Map();
+      prefMap.set('user-1', { emailEnabled: true });
+      preferencesService.getPreferencesMany.mockResolvedValue(prefMap);
+      emailService.send.mockResolvedValue(undefined as never);
+
+      await service.processSendRequest(dto);
+
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emailType: EmailType.DSAR_EXPORT_READY,
+          userIds: ['user-1'],
+          templateData: expect.objectContaining({
+            name: 'Alice',
+            expiresAt: '2026-10-25',
+          }),
+        }),
+      );
     });
 
     it('should persist in bulk for multiple recipients when PUSH is requested', async () => {

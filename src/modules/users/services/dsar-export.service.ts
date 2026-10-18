@@ -38,9 +38,13 @@ export class DsarExportService extends BaseService {
     private readonly storageService: GcpStorageService,
   ) {
     super(logger);
+    const configuredBucket = this.configService.get<string>(
+      'DSAR_EXPORT_BUCKET_NAME',
+    );
+    const projectId = this.configService.get<string>('GCP_PROJECT_ID');
     this.bucketName =
-      this.configService.get<string>('DSAR_EXPORT_BUCKET_NAME') ??
-      'breathaway-dsar-exports';
+      configuredBucket ??
+      (projectId ? `${projectId}-dsar-exports` : 'breathaway-dsar-exports');
     this.cooldownHours = Number(
       this.configService.get<number>('DSAR_EXPORT_COOLDOWN_HOURS') ?? 24,
     );

@@ -65,6 +65,12 @@ resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_run_binding" {
   member   = "serviceAccount:${google_service_account.pubsub_invoker.email}"
 }
 
+# Dedicated topic for DSAR export background jobs
+resource "google_pubsub_topic" "dsar_export" {
+  name    = "dsar-export"
+  project = var.project_id
+}
+
 # 4. Pub/Sub Push Subscriptions with OIDC Authentication
 # Google Pub/Sub sends HTTP POST to /api/v1/pubsub/ingest with Authorization: Bearer <OIDC_TOKEN>
 resource "google_pubsub_subscription" "push_subscriptions" {
@@ -88,5 +94,6 @@ resource "google_pubsub_subscription" "push_subscriptions" {
   depends_on = [
     google_service_account_iam_member.pubsub_token_creator,
     google_cloud_run_v2_service_iam_member.pubsub_invoker_run_binding,
+    google_pubsub_topic.dsar_export,
   ]
 }

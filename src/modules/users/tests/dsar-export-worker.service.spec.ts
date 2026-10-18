@@ -16,20 +16,35 @@ import { ChatsService } from '@modules/chats/chats.service';
 import { DSAR_EXPORT_COMPLETED_EVENT } from '../events';
 import { DsarExportWorkerService } from '../services/dsar-export-worker.service';
 
+jest.mock('archiver-zip-encrypted', () => jest.fn());
+
 jest.mock('archiver', () => {
+  const createMockArchive = () => {
+    const pt = new PassThrough();
+    return {
+      append: jest.fn(),
+      pipe: jest.fn((dest) => pt.pipe(dest)),
+      on: jest.fn((event, cb) => pt.on(event, cb)),
+      finalize: jest.fn().mockImplementation(() => {
+        pt.end();
+        return Promise.resolve();
+      }),
+    };
+  };
+
+  const archiverFn = jest.fn(() => createMockArchive());
+  (archiverFn as unknown as Record<string, unknown>).create = jest.fn(() =>
+    createMockArchive(),
+  );
+  (archiverFn as unknown as Record<string, unknown>).isRegisteredFormat = jest
+    .fn()
+    .mockReturnValue(false);
+  (archiverFn as unknown as Record<string, unknown>).registerFormat = jest.fn();
+
   return {
-    ZipArchive: jest.fn().mockImplementation(() => {
-      const pt = new PassThrough();
-      return {
-        append: jest.fn(),
-        pipe: jest.fn((dest) => pt.pipe(dest)),
-        on: jest.fn((event, cb) => pt.on(event, cb)),
-        finalize: jest.fn().mockImplementation(() => {
-          pt.end();
-          return Promise.resolve();
-        }),
-      };
-    }),
+    __esModule: true,
+    default: archiverFn,
+    ...archiverFn,
   };
 });
 

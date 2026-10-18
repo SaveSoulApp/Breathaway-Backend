@@ -515,7 +515,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(DSAR_EXPORT_COMPLETED_EVENT)
+  @OnEvent(DSAR_EXPORT_COMPLETED_EVENT, { async: true })
   async handleDsarExportCompleted(
     event: DsarExportCompletedEvent,
   ): Promise<void> {
