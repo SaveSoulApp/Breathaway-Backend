@@ -100,4 +100,10 @@ export const PUSH_TEMPLATE_MAP: Partial<
       'Payment of {{currency}} {{amount}} was successful. {{creditsAdded}} credits added to your account.',
     ),
   },
+  [NotificationType.DSAR_EXPORT_READY]: {
+    title: Handlebars.compile('Personal Data Archive Ready 📦'),
+    body: Handlebars.compile(
+      'Your requested personal data archive is ready for download in settings.',
+    ),
+  },
 };

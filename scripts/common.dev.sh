@@ -31,6 +31,7 @@ export CORS_ORIGINS='["http://localhost:3000","http://localhost:5173","https://d
 
 export GCP_PROJECT_ID="${PROJECT_ID}"
 export GCP_BUCKET_NAME='breathaway-documents'
+export DSAR_EXPORT_BUCKET_NAME="${PROJECT_ID}-dsar-exports"
 
 export META_VERIFY_TOKEN='my_meta_verification_token'
 

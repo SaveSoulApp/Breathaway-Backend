@@ -93,6 +93,7 @@ model User {
   notifications Notification[]
   sessions      UserSession[]
   consentLedger ConsentLedger[]
+  dsarExports   DsarExport[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
   /// Null for email-only users or social accounts that have no phone credential.
@@ -878,4 +879,37 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, isRead])
   @@index([userId, category])
+}
+
+// ──────────────────────────────────────────────
+// DSAR Data Portability Exports (GDPR Art. 15/20 & CCPA § 1798.110)
+// ──────────────────────────────────────────────
+
+enum DsarExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model DsarExport {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status DsarExportStatus @default(PENDING)
+
+  storagePath    String?
+  fileSizeBytes  BigInt?
+  checksumSha256 String?
+
+  errorMessage String?
+
+  requestedAt DateTime  @default(now()) @db.Timestamptz
+  completedAt DateTime? @db.Timestamptz
+  expiresAt   DateTime? @db.Timestamptz
+
+  @@index([userId, requestedAt(sort: Desc)])
+  @@index([status])
 }

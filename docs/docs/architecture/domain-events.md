@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # 📡 Decoupled Domain Events Architecture
 
-The BreathAway backend utilizes an **event-driven, decoupled domain architecture** powered by `@nestjs/event-emitter`. Under this design, feature domain services (`Auth`, `Likes`, `MatchResolver`, `Credits`, `Devices`, `Identities`, `Maintenance`) emit strongly typed domain events rather than directly invoking downstream side-effect processors such as `NotificationsService`.
+The BreathAway backend utilizes an **event-driven, decoupled domain architecture** powered by `@nestjs/event-emitter`. Under this design, feature domain services (`Auth`, `Likes`, `MatchResolver`, `Credits`, `Devices`, `Identities`, `Maintenance`, `Users`) emit strongly typed domain events rather than directly invoking downstream side-effect processors such as `NotificationsService`.
 
 ---
 
@@ -58,6 +58,7 @@ flowchart TD
         MAINT["MaintenanceService"]
         IDENT["IdentitiesService"]
         DEV["DevicesService"]
+        USERS["DsarExportWorkerService"]
     end
 
     subgraph EventBroker["In-Memory Event Bus (EventEmitter2)"]
@@ -89,6 +90,7 @@ flowchart TD
     MAINT -->|LIKES_EXPIRED_EVENT| BUS
     IDENT -->|IDENTITY_ADDED / REMOVED| BUS
     DEV -->|DEVICE_ADDED_EVENT| BUS
+    USERS -->|DSAR_EXPORT_COMPLETED_EVENT| BUS
 
     BUS --> LISTENER
     LISTENER --> RESOLVER
@@ -120,6 +122,7 @@ All domain events are strongly typed classes accompanied by exported string cons
 | **Credits**               | `CREDITS_USED_EVENT` (`'credits.used'`)                      | `CreditsUsedEvent`          | Credits are debited from the user's ledger                                              |
 | **Credits**               | `CREDIT_BUNDLE_EXPIRING_EVENT` (`'credits.bundle-expiring'`) | `CreditBundleExpiringEvent` | Cron identifies credit bundles nearing expiry (7d / 2d)                                 |
 | **Maintenance**           | `LIKES_EXPIRED_EVENT` (`'likes.expired'`)                    | `LikesExpiredEvent`         | Nightly cron voids pending likes older than 90 days                                     |
+| **Users**                 | `DSAR_EXPORT_COMPLETED_EVENT` (`'dsar.export.completed'`)    | `DsarExportCompletedEvent`  | Personal data archive is assembled, encrypted, and uploaded to GCS (Email & Push sent)  |
 
 ---
 

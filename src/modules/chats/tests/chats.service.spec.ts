@@ -81,6 +81,7 @@ describe('ChatsService', () => {
       order: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       lt: jest.fn().mockReturnThis(),
+      gt: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       single: jest.fn(),
       update: jest.fn().mockReturnThis(),
@@ -1082,6 +1083,60 @@ describe('ChatsService', () => {
         'Exception while deleting chat rooms for user',
         expect.objectContaining({ userId: 'user-deleted' }),
       );
+    });
+  });
+
+  describe('exportChatHistory', () => {
+    it('should export and decrypt paginated chat history for user', async () => {
+      mockChatRoomQuery.or.mockResolvedValueOnce({
+        data: [
+          {
+            id: 'room-1',
+            userOneId: 'user-1',
+            userTwoId: 'user-2',
+            wrappedRoomKey: 'mock-wrapped-key',
+            roomKeyId: 'key-1',
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        error: null,
+      });
+
+      mockMessageQuery.limit.mockResolvedValueOnce({
+        data: [
+          {
+            id: 'msg-1',
+            senderId: 'user-1',
+            content: 'Hello World',
+            createdAt: '2026-01-01T00:01:00Z',
+            readAt: '2026-01-01T00:02:00Z',
+          },
+        ],
+        error: null,
+      });
+
+      const result = await service.exportChatHistory('user-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].roomId).toBe('room-1');
+      expect(result[0].messages).toHaveLength(1);
+      expect(result[0].messages[0]).toEqual({
+        id: 'msg-1',
+        isSender: true,
+        content: 'Hello World',
+        sentAt: '2026-01-01T00:01:00Z',
+        readAt: '2026-01-01T00:02:00Z',
+      });
+    });
+
+    it('should return empty array if fetching chat rooms fails', async () => {
+      mockChatRoomQuery.or.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Database error' },
+      });
+
+      const result = await service.exportChatHistory('user-1');
+      expect(result).toEqual([]);
     });
   });
 });

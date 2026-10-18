@@ -3,4 +3,5 @@ export enum PubSubTopic {
   IDENTITY_WORKFLOWS = 'identity-workflows',
   NOTIFICATIONS = 'notifications-stream',
   CREDIT_EXPIRY = 'credit-expiry',
+  DSAR_EXPORT = 'dsar-export',
 }

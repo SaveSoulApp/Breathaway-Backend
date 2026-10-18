@@ -27,9 +27,11 @@ import {
 import { GcpSecretManagerModule } from './core/gcp-secret-manager/gcp-secret-manager.module';
 import { IdentityCryptoModule } from './core/identity-crypto/identity-crypto.module';
 import { LoggerModule } from './core/logger';
+import { BigQueryModule } from './infrastructure/bigquery/bigquery.module';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { HttpClientModule } from './infrastructure/http';
 import { RedisModule } from './infrastructure/redis';
+import { GcpStorageModule } from './infrastructure/storage/gcp-storage.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -56,6 +58,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { UsersModule } from './modules/users/users.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
@@ -144,6 +147,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     RedisModule,
     GcpSecretManagerModule,
     IdentityCryptoModule,
+    GcpStorageModule,
+    BigQueryModule,
     EventEmitterModule.forRoot(),
 
     //Business Modules
@@ -174,6 +179,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     SubscriptionsModule,
     TransactionsModule,
     PaymentsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
