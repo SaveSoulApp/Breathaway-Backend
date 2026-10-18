@@ -1063,25 +1063,62 @@ export class ChatsService extends BaseService {
           });
         }
 
-        const msgResponse = await this.supabase
-          .from('Message')
-          .select('id, senderId, content, createdAt, readAt')
-          .eq('roomId', room.id)
-          .order('createdAt', { ascending: true });
-
-        const messages = msgResponse.data as Array<{
+        const allMessages: Array<{
           id: string;
           senderId: string;
           content: string;
           createdAt: string;
           readAt: string | null;
-        }> | null;
+        }> = [];
 
-        if (msgResponse.error || !messages) {
-          continue;
+        const PAGE_SIZE = 1000;
+        let cursor: string | null = null;
+        let hasMore = true;
+
+        while (hasMore) {
+          let query = this.supabase
+            .from('Message')
+            .select('id, senderId, content, createdAt, readAt')
+            .eq('roomId', room.id)
+            .order('createdAt', { ascending: true })
+            .limit(PAGE_SIZE);
+
+          if (cursor) {
+            query = query.gt('createdAt', cursor);
+          }
+
+          const msgResponse = await query;
+          const page =
+            (msgResponse.data as Array<{
+              id: string;
+              senderId: string;
+              content: string;
+              createdAt: string;
+              readAt: string | null;
+            }>) || [];
+
+          if (msgResponse.error || page.length === 0) {
+            if (msgResponse.error) {
+              this.logger.warn('Error fetching paginated messages in export', {
+                step: 'export_chat_history_fetch_page_error',
+                roomId: room.id,
+                cursor,
+                err: serializeError(msgResponse.error),
+              });
+            }
+            break;
+          }
+
+          allMessages.push(...page);
+
+          if (page.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            cursor = page[page.length - 1].createdAt;
+          }
         }
 
-        const decryptedMessages = messages.map((msg) => {
+        const decryptedMessages = allMessages.map((msg) => {
           let content = '[Encrypted message content unavailable]';
           if (
             roomKey &&
