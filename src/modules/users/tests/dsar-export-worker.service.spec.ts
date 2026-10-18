@@ -63,6 +63,9 @@ describe('DsarExportWorkerService', () => {
   beforeEach(async () => {
     const mockPrisma = {
       dsarExport: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ status: DsarExportStatus.PENDING }),
         update: jest.fn().mockResolvedValue({}),
       },
       user: {
@@ -377,6 +380,26 @@ describe('DsarExportWorkerService', () => {
           }),
         }),
       );
+    });
+
+    it('should return early without processing if export record is not found', async () => {
+      (prisma.dsarExport.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await worker.processExport(exportId, userId);
+
+      expect(prisma.dsarExport.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('should return early without processing if export record is already COMPLETED (idempotency)', async () => {
+      (prisma.dsarExport.findUnique as jest.Mock).mockResolvedValue({
+        status: DsarExportStatus.COMPLETED,
+      });
+
+      await worker.processExport(exportId, userId);
+
+      expect(prisma.dsarExport.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 

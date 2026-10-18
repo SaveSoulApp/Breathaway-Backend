@@ -98,7 +98,25 @@ export class DsarExportWorkerService extends BaseService {
   ): Promise<void> {
     const ctx = { exportId, userId, step: 'process_export' };
 
-    // 1. Transition state to PROCESSING
+    // 1. Idempotency Check & State Transition
+    const existing = await this.prisma.dsarExport.findUnique({
+      where: { id: exportId },
+      select: { status: true },
+    });
+
+    if (!existing) {
+      this.logger.warn('DSAR export record not found; terminating job', ctx);
+      return;
+    }
+
+    if (existing.status === DsarExportStatus.COMPLETED) {
+      this.logger.info(
+        'DSAR export job already completed; ignoring redundant trigger',
+        ctx,
+      );
+      return;
+    }
+
     await this.prisma.dsarExport.update({
       where: { id: exportId },
       data: { status: DsarExportStatus.PROCESSING },
@@ -107,183 +125,182 @@ export class DsarExportWorkerService extends BaseService {
     try {
       this.logger.info('Starting multi-store personal data extraction', ctx);
 
-      // 2. Extract and Decrypt Data
-      const [
-        userWithProfile,
-        identities,
-        credentials,
-        devices,
-        subscriptions,
-        paymentOrders,
-        transactions,
-        creditLedger,
-        notifications,
-        consents,
-        preferences,
-        likes,
-        matches,
-        blocks,
-        chatRooms,
-        auditLogs,
-      ] = await Promise.all([
-        this.extractUserAndProfile(userId),
-        this.extractIdentities(userId),
-        this.prisma.authCredential.findMany({
-          where: { userId },
-          select: {
-            type: true,
-            valueMasked: true,
-            isPrimary: true,
-            createdAt: true,
-          },
-        }),
-        this.prisma.device.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            platform: true,
-            deviceId: true,
-            appVersion: true,
-            isActive: true,
-            createdAt: true,
-          },
-        }),
-        this.prisma.userSubscription.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            plan: { select: { name: true, slug: true } },
-            status: true,
-            storePlatform: true,
-            currentPeriodStart: true,
-            currentPeriodEnd: true,
-            autoRenewing: true,
-            pricePaid: true,
-            currencyCode: true,
-            countryCode: true,
-            cancelledAt: true,
-            expiresAt: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.paymentOrder.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            plan: { select: { name: true, slug: true } },
-            amount: true,
-            originalAmount: true,
-            discountAmount: true,
-            currency: true,
-            gateway: true,
-            status: true,
-            gatewayOrderId: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.transaction.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            gateway: true,
-            gatewayTransactionId: true,
-            type: true,
-            status: true,
-            channel: true,
-            productId: true,
-            creditsGranted: true,
-            amount: true,
-            currency: true,
-            occurredAt: true,
-            createdAt: true,
-          },
-          orderBy: { occurredAt: 'desc' },
-        }),
-        this.prisma.creditLedger.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            amount: true,
-            transactionType: true,
-            source: true,
-            referenceId: true,
-            expiresAt: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'asc' },
-        }),
-        this.prisma.notification.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            type: true,
-            category: true,
-            priority: true,
-            title: true,
-            body: true,
-            action: true,
-            link: true,
-            isRead: true,
-            readAt: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.consentLedger.findMany({
-          where: { userId },
-          select: {
-            id: true,
-            channel: true,
-            consentGranted: true,
-            source: true,
-            ipAddress: true,
-            userAgent: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.notificationPreference.findUnique({
-          where: { userId },
-          select: {
-            pushEnabled: true,
-            whatsappEnabled: true,
-            smsEnabled: true,
-            emailEnabled: true,
-            updatedAt: true,
-          },
-        }),
-        this.prisma.like.findMany({
-          where: { senderUserId: userId },
-          select: {
-            id: true,
-            intent: true,
-            status: true,
-            label: true,
-            createdAt: true,
-            expiresAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.match.findMany({
-          where: { OR: [{ userOneId: userId }, { userTwoId: userId }] },
-          select: {
-            id: true,
-            status: true,
-            matchedAt: true,
-            updatedAt: true,
-          },
-          orderBy: { matchedAt: 'desc' },
-        }),
-        this.prisma.block.findMany({
-          where: { blockerUserId: userId },
-          select: {
-            id: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
+      // 2. Extract Data in Bounded Chunks to protect connection pool headroom
+      // Chunk 1: Account Core, Identity & Devices
+      const [userWithProfile, identities, credentials, devices] =
+        await Promise.all([
+          this.extractUserAndProfile(userId),
+          this.extractIdentities(userId),
+          this.prisma.authCredential.findMany({
+            where: { userId },
+            select: {
+              type: true,
+              valueMasked: true,
+              isPrimary: true,
+              createdAt: true,
+            },
+          }),
+          this.prisma.device.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              platform: true,
+              deviceId: true,
+              appVersion: true,
+              isActive: true,
+              createdAt: true,
+            },
+          }),
+        ]);
+
+      // Chunk 2: Subscriptions, Orders, Transactions & Credits
+      const [subscriptions, paymentOrders, transactions, creditLedger] =
+        await Promise.all([
+          this.prisma.userSubscription.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              plan: { select: { name: true, slug: true } },
+              status: true,
+              storePlatform: true,
+              currentPeriodStart: true,
+              currentPeriodEnd: true,
+              autoRenewing: true,
+              pricePaid: true,
+              currencyCode: true,
+              countryCode: true,
+              cancelledAt: true,
+              expiresAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.paymentOrder.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              plan: { select: { name: true, slug: true } },
+              amount: true,
+              originalAmount: true,
+              discountAmount: true,
+              currency: true,
+              gateway: true,
+              status: true,
+              gatewayOrderId: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.transaction.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              gateway: true,
+              gatewayTransactionId: true,
+              type: true,
+              status: true,
+              channel: true,
+              productId: true,
+              creditsGranted: true,
+              amount: true,
+              currency: true,
+              occurredAt: true,
+              createdAt: true,
+            },
+            orderBy: { occurredAt: 'desc' },
+          }),
+          this.prisma.creditLedger.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              amount: true,
+              transactionType: true,
+              source: true,
+              referenceId: true,
+              expiresAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'asc' },
+          }),
+        ]);
+
+      // Chunk 3: Notifications, Consents, Preferences & Social Interactions
+      const [notifications, consents, preferences, likes, matches, blocks] =
+        await Promise.all([
+          this.prisma.notification.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              type: true,
+              category: true,
+              priority: true,
+              title: true,
+              body: true,
+              action: true,
+              link: true,
+              isRead: true,
+              readAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.consentLedger.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              channel: true,
+              consentGranted: true,
+              source: true,
+              ipAddress: true,
+              userAgent: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.notificationPreference.findUnique({
+            where: { userId },
+            select: {
+              pushEnabled: true,
+              whatsappEnabled: true,
+              smsEnabled: true,
+              emailEnabled: true,
+              updatedAt: true,
+            },
+          }),
+          this.prisma.like.findMany({
+            where: { senderUserId: userId },
+            select: {
+              id: true,
+              intent: true,
+              status: true,
+              label: true,
+              createdAt: true,
+              expiresAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.match.findMany({
+            where: { OR: [{ userOneId: userId }, { userTwoId: userId }] },
+            select: {
+              id: true,
+              status: true,
+              matchedAt: true,
+              updatedAt: true,
+            },
+            orderBy: { matchedAt: 'desc' },
+          }),
+          this.prisma.block.findMany({
+            where: { blockerUserId: userId },
+            select: {
+              id: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+        ]);
+
+      // Chunk 4: External Datastores (Supabase Chat History & BigQuery Audit Logs)
+      const [chatRooms, auditLogs] = await Promise.all([
         this.chatsService.exportChatHistory(userId),
         this.bigQueryAuditService.queryUserAuditLogs(userId),
       ]);
