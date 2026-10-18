@@ -377,6 +377,15 @@ function adminApiDocumentation(app: INestApplication): void {
 
 function sortOpenApiDocument(document: OpenAPIObject): void {
   const tagsSet = new Set<string>();
+  const httpMethods = [
+    'get',
+    'post',
+    'put',
+    'delete',
+    'patch',
+    'options',
+    'head',
+  ] as const;
 
   if (document.paths) {
     // Sort paths alphabetically by URL key
@@ -387,16 +396,13 @@ function sortOpenApiDocument(document: OpenAPIObject): void {
         sortedPaths[pathKey] = document.paths[pathKey];
         const pathItem = document.paths[pathKey] as Record<string, unknown>;
         if (pathItem && typeof pathItem === 'object') {
-          Object.values(pathItem).forEach((operation: unknown) => {
-            if (
-              operation &&
-              typeof operation === 'object' &&
-              'tags' in operation &&
-              Array.isArray((operation as { tags?: string[] }).tags)
-            ) {
-              const op = operation as { tags: string[] };
-              op.tags.sort((t1, t2) => t1.localeCompare(t2));
-              op.tags.forEach((tag) => {
+          httpMethods.forEach((method) => {
+            const operation = pathItem[method] as
+              | { tags?: string[] }
+              | undefined;
+            if (operation && Array.isArray(operation.tags)) {
+              operation.tags.sort((t1, t2) => t1.localeCompare(t2));
+              operation.tags.forEach((tag) => {
                 if (tag && typeof tag === 'string' && tag.trim().length > 0) {
                   tagsSet.add(tag.trim());
                 }

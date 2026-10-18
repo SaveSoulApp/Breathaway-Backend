@@ -64,9 +64,7 @@ export class InstagramController extends BaseController {
   async refresh(
     @Query() query: RefreshInstagramTokenRequestDto,
   ): Promise<RefreshInstagramTokenResponseDto> {
-    return this.instagramService.refreshAccessToken(
-      query.token,
-    ) as Promise<RefreshInstagramTokenResponseDto>;
+    return this.instagramService.refreshAccessToken(query.token);
   }
 
   /**
@@ -91,6 +89,6 @@ export class InstagramController extends BaseController {
   })
   @SerializeExpose(RefreshInstagramTokenResponseDto)
   async refreshEnvToken(): Promise<RefreshInstagramTokenResponseDto> {
-    return this.instagramService.refreshSystemAccessToken() as Promise<RefreshInstagramTokenResponseDto>;
+    return this.instagramService.refreshSystemAccessToken();
   }
 }

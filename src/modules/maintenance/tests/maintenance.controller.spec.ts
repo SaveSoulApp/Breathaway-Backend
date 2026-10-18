@@ -139,6 +139,7 @@ describe('MaintenanceController', () => {
       // Arrange
       instagramService.refreshSystemAccessToken.mockResolvedValue({
         access_token: 'secret-token-that-must-not-be-leaked',
+        token_type: 'bearer',
         expires_in: 5184000,
       });
 
