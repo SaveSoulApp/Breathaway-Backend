@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: Modules Overview & Architecture
-description: Architectural map and directory of all 25 domain and infrastructure modules in the BreathAway backend.
+description: Architectural map and directory of all 26 domain and infrastructure modules in the BreathAway backend.
 ---
 
 # Modules Overview & Architecture
 
-The BreathAway backend is built upon a highly modular, decoupled **NestJS architecture**. The system is organized into **25 specialized feature and infrastructure modules**, each encapsulating a specific bounded domain context with strict DTO boundaries and dependency injection.
+The BreathAway backend is built upon a highly modular, decoupled **NestJS architecture**. The system is organized into **26 specialized feature and infrastructure modules**, each encapsulating a specific bounded domain context with strict DTO boundaries and dependency injection.
 
 ---
 
@@ -35,6 +35,7 @@ graph TB
 
     subgraph "Users & Relationships"
         Profiles[ProfilesModule]
+        Users[UsersModule]
         Preferences[PreferencesModule]
         Blocks[BlocksModule]
         Likes[LikesModule]
@@ -61,6 +62,7 @@ graph TB
     Credits --> Subscriptions
     Webhooks --> Subscriptions
     Likes --> Credits
+    Users --> PubSub
 ```
 
 ---
@@ -96,6 +98,7 @@ Secure onboarding, multi-factor verification, OAuth social graph linking, and en
 User profile management, discovery, mutual matching logic, and realtime messaging.
 
 - **[Profiles Module](./profiles.md)**: Comprehensive user profile CRUD, photos, prompts, bio, height, and location indexing.
+- **[Users Module](./users.md)**: Authenticated user operations, profile settings, and GDPR Article 15/20 & CCPA § 1798.110 personal data export pipeline (DSAR) with AES-256 encrypted archives.
 - **[Preferences Module](./preferences.md)**: Discovery preference filters (age range, distance radius, relationship goals, lifestyle criteria).
 - **[Blocks Module](./blocks.md)**: Two-way blocking mechanisms ensuring blocked users are excluded from discovery feeds and messaging.
 - **[Likes Module](./likes.md)**: Real-time like, pass, and super-like actions with rate limiting and quota verification.

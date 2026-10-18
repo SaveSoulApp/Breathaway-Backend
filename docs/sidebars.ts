@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'modules/profiles',
+        'modules/users',
         'modules/preferences',
         'modules/blocks',
         'modules/likes',
@@ -84,6 +85,7 @@ const sidebars: SidebarsConfig = {
         'architecture/http-client',
         'architecture/bigquery-insights',
         'architecture/maintenance-service',
+        'architecture/dsar-portability',
       ],
     },
     {
