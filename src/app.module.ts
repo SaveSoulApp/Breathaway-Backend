@@ -30,7 +30,10 @@ import { LoggerModule } from './core/logger';
 import { BigQueryModule } from './infrastructure/bigquery/bigquery.module';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { HttpClientModule } from './infrastructure/http';
-import { RedisModule } from './infrastructure/redis';
+import {
+  RedisModule,
+  ThrottlerStorageRedisService,
+} from './infrastructure/redis';
 import { GcpStorageModule } from './infrastructure/storage/gcp-storage.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -116,7 +119,10 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     }),
     //Rate limiting for the entire application
     ThrottlerModule.forRootAsync({
-      useFactory: () => ({
+      imports: [RedisModule],
+      inject: [ThrottlerStorageRedisService],
+      useFactory: (storage: ThrottlerStorageRedisService) => ({
+        storage,
         getTracker: (req: Record<string, unknown>) =>
           extractClientIp(req) || '127.0.0.1',
         throttlers: [

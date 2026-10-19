@@ -13,6 +13,7 @@ import { LoggerService } from '@core/logger';
 import { REDIS_CLIENT } from './redis.constants';
 import { redisProvider } from './redis.provider';
 import { RedisService } from './redis.service';
+import { ThrottlerStorageRedisService } from './throttler-storage-redis.service';
 
 /**
  * Global infrastructure module providing the singleton Redis connection pool
@@ -20,8 +21,8 @@ import { RedisService } from './redis.service';
  */
 @Global()
 @Module({
-  providers: [redisProvider, RedisService],
-  exports: [REDIS_CLIENT, RedisService],
+  providers: [redisProvider, RedisService, ThrottlerStorageRedisService],
+  exports: [REDIS_CLIENT, RedisService, ThrottlerStorageRedisService],
 })
 export class RedisModule implements OnApplicationShutdown {
   constructor(
