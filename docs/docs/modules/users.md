@@ -17,7 +17,7 @@ User privacy and data sovereignty are fundamental architectural tenets in Breath
 Key responsibilities include:
 
 - **Asynchronous Export Dispatch**: Accepting export requests and queueing them asynchronously via Google Cloud Pub/Sub, returning an immediate `202 Accepted` response with no client-side blocking.
-- **Passphrase-Protected Encryption**: Encrypting personal data archives end-to-end using AES-256 / Zip 2.0 (`archiver-zip-encrypted`) with a user-supplied or cryptographically generated passphrase.
+- **Passphrase-Protected Encryption**: Encrypting personal data archives end-to-end using AES-256 (`archiver-zip-encrypted`) with a user-supplied or cryptographically generated passphrase.
 - **Zero-Knowledge Architecture**: The decryption passphrase is never persisted in the database, audit logs, or storage metadata.
 - **Dynamic V4 Signed URLs**: Generating short-lived (1-hour TTL) Google Cloud Storage V4 signed URLs on-demand for downloading completed archives.
 - **Rate Limiting & Mutex**: Enforcing a 24-hour export cooldown window with an explicit `force` parameter to safely re-export if a passphrase was misplaced.

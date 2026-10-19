@@ -67,9 +67,6 @@ export const envValidationSchema = Joi.object({
     .max(1440)
     .default(60),
   DSAR_EXPORT_COOLDOWN_HOURS: Joi.number().integer().min(1).max(72).default(24),
-  DSAR_EXPORT_ENCRYPTION_METHOD: Joi.string()
-    .valid('zip20', 'aes256')
-    .default('zip20'),
   AUDIT_BIGQUERY_DATASET: Joi.string().default('audit_logs_dataset'),
   AUDIT_BIGQUERY_TABLE: Joi.string().default('events'),
 

@@ -196,7 +196,7 @@ To support archives containing hundreds of megabytes of media and chat history w
 
 1. **PassThrough Stream Pipeline**: Archiver outputs directly to a Node.js `PassThrough` stream, which feeds `GcpStorageService.createWriteStream()`. The archive is uploaded in real time as data is formatted.
 2. **On-the-fly SHA-256 Calculation**: As bytes pass through the stream, chunks are hashed incrementally (`hash.update(chunk)`), computing the cryptographic checksum without reading the file back from storage.
-3. **AES-256 / Zip 2.0 Encryption**: Files are encrypted inside the ZIP container using `archiver-zip-encrypted`. Clients can extract the archive using native OS utilities (macOS Archive Utility, Windows Explorer, iOS Files, Linux unzip) simply by supplying their passphrase.
+3. **AES-256 Encryption**: Files are encrypted inside the ZIP container using AES-256 (`archiver-zip-encrypted`). Clients can extract the archive using native OS utilities (macOS Archive Utility, Windows Explorer, iOS Files, Linux unzip) simply by supplying their passphrase.
 
 ---
 

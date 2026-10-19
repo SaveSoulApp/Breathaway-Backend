@@ -1,5 +1,6 @@
 import { PassThrough } from 'stream';
 
+import archiver from 'archiver';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -339,6 +340,15 @@ describe('DsarExportWorkerService', () => {
         `exports/${userId}/${exportId}.zip`,
         'application/zip',
         { userId, exportId },
+      );
+
+      // Check encrypted archive configuration enforces AES-256
+      expect(archiver.create).toHaveBeenCalledWith(
+        'zip-encrypted',
+        expect.objectContaining({
+          encryptionMethod: 'aes256',
+          password: 'TestPassphrase123!',
+        }),
       );
 
       // Check database update to COMPLETED
