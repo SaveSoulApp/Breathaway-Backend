@@ -577,6 +577,21 @@ describe('SubscriptionsService', () => {
           service.verifyAndCreateSubscription(userId, googleDto),
         ).rejects.toThrow(InvalidSubscriptionDatesException);
       });
+
+      it('should throw InvalidSubscriptionDatesException if Google expiryTime is missing or unparseable', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue({
+          ...validGooglePurchaseDetails,
+          startTime: '2026-06-28T00:00:00Z',
+          expiryTime: 'unparseable-date-string',
+        });
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, googleDto),
+        ).rejects.toThrow(InvalidSubscriptionDatesException);
+      });
     });
   });
 

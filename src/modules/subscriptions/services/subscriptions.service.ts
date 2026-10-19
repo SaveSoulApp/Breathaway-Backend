@@ -340,12 +340,20 @@ export class SubscriptionsService extends BaseService {
       return existing;
     }
 
-    if (expiresDate <= purchaseDate) {
+    if (
+      isNaN(purchaseDate.getTime()) ||
+      isNaN(expiresDate.getTime()) ||
+      expiresDate <= purchaseDate
+    ) {
       this.logger.warn(
         'Process client purchase failed: invalid subscription dates',
         { userId, expiresDate, purchaseDate, step: 'validate_dates' },
       );
-      throw new InvalidSubscriptionDatesException();
+      throw new InvalidSubscriptionDatesException(
+        isNaN(purchaseDate.getTime()) || isNaN(expiresDate.getTime())
+          ? 'Invalid or unparseable purchase or expiration date from store'
+          : 'expiresDate must be after purchaseDate',
+      );
     }
 
     return this.handleInitialPurchase({
