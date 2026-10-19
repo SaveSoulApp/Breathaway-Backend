@@ -34,7 +34,8 @@ export class VerifyPurchaseRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'Android package name (e.g. com.breathaway.app). Defaults to application package name.',
+      'Android package name (e.g. com.breathaway.app). Deprecated: strictly resolved from server configuration.',
+    deprecated: true,
   })
   @IsString()
   @IsOptional()

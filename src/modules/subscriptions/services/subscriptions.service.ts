@@ -269,7 +269,6 @@ export class SubscriptionsService extends BaseService {
       }
 
       const packageName =
-        dto.packageName ||
         this.configService.get<string>('GOOGLE_PACKAGE_NAME') ||
         'com.breathaway.app';
 
