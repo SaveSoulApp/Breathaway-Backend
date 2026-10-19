@@ -142,7 +142,8 @@ export class SubscriptionsController extends BaseController {
       'Verify an in-app purchase and create/return the user subscription',
     description:
       'Called by the mobile app after a successful StoreKit2 / Google Play Billing purchase. ' +
-      'Idempotent — returns the existing subscription if the purchaseToken was already processed.',
+      'Enforces cryptographic JWS signature verification for Apple and server-to-server Google Play ' +
+      'Developer API verification for Google. Idempotent — returns existing subscription if already processed.',
   })
   @ApiResponse({
     status: HttpStatus.OK,

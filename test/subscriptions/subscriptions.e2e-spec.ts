@@ -8,6 +8,8 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AppleSubscriptionService } from '@modules/subscriptions/services/apple-subscription.service';
+import { GoogleSubscriptionService } from '@modules/subscriptions/services/google-subscription.service';
 import { SubscriptionsModule } from '@modules/subscriptions/subscriptions.module';
 
 import { createAuthTestApp } from '../helpers/app-test.helper';
@@ -22,6 +24,8 @@ describe('SubscriptionsController (e2e)', () => {
   let prisma: PrismaService;
   let jwtService: JwtService;
   let configService: ConfigService;
+  let appleService: AppleSubscriptionService;
+  let googleService: GoogleSubscriptionService;
 
   const allCreatedUserIds: string[] = [];
   const allCreatedPlanIds: string[] = [];
@@ -37,6 +41,8 @@ describe('SubscriptionsController (e2e)', () => {
     prisma = context.prisma;
     jwtService = app.get(JwtService);
     configService = app.get(ConfigService);
+    appleService = app.get(AppleSubscriptionService);
+    googleService = app.get(GoogleSubscriptionService);
 
     // Seed test user
     const user = await prisma.user.create({ data: {} });
@@ -56,6 +62,7 @@ describe('SubscriptionsController (e2e)', () => {
         slug: `e2e-gold-${Date.now()}`,
         description: 'Gold tier subscription for E2E testing',
         appleProductId: storeProductId,
+        googleProductId: storeProductId,
         creditsGranted: 200,
         validityDays: 30,
         status: 'ACTIVE',
@@ -87,6 +94,10 @@ describe('SubscriptionsController (e2e)', () => {
     await cleanupTestUsers(prisma, allCreatedUserIds);
     await cleanupTestSubscriptionPlans(prisma, allCreatedPlanIds);
     await app.close();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('GET /api/v1/subscriptions/plans (Public & Localized)', () => {
@@ -171,6 +182,7 @@ describe('SubscriptionsController (e2e)', () => {
 
   describe('POST /api/v1/subscriptions/verify-purchase', () => {
     const purchaseToken = `token_${Date.now()}`;
+    const mockSignedJws = 'valid.storekit2.jws.token';
 
     it('rejects unauthenticated requests (401)', async () => {
       // Act
@@ -178,7 +190,7 @@ describe('SubscriptionsController (e2e)', () => {
         .post('/api/v1/subscriptions/verify-purchase')
         .send({
           storePlatform: StorePlatform.APPLE,
-          purchaseToken: 'unauth-token',
+          signedTransactionInfo: 'unauth-token',
           productId: storeProductId,
         });
 
@@ -197,10 +209,36 @@ describe('SubscriptionsController (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('verifies purchase, provisions subscription, and returns active record (200)', async () => {
+    it('rejects Apple verification when signedTransactionInfo is missing (400)', async () => {
+      // Act
+      const res = await authedRequest(app)
+        .post('/api/v1/subscriptions/verify-purchase')
+        .set('authorization', `Bearer ${testUserJwt}`)
+        .send({
+          storePlatform: StorePlatform.APPLE,
+          productId: storeProductId,
+        });
+
+      // Assert
+      expect(res.status).toBe(400);
+    });
+
+    it('verifies purchase with StoreKit 2 JWS, provisions subscription, and returns active record (200)', async () => {
       // Arrange
       const now = new Date();
       const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      jest.spyOn(appleService, 'verifyAndDecodeTransaction').mockReturnValue({
+        originalTransactionId: purchaseToken,
+        transactionId: purchaseToken,
+        productId: storeProductId,
+        purchaseDate: now.getTime(),
+        expiresDate: nextMonth.getTime(),
+        currency: 'USD',
+        price: 999,
+        bundleId: 'com.breathaway.app',
+        environment: 'Production',
+      });
 
       // Act
       const res = await authedRequest(app)
@@ -208,10 +246,8 @@ describe('SubscriptionsController (e2e)', () => {
         .set('authorization', `Bearer ${testUserJwt}`)
         .send({
           storePlatform: StorePlatform.APPLE,
-          purchaseToken,
+          signedTransactionInfo: mockSignedJws,
           productId: storeProductId,
-          purchaseDate: now.toISOString(),
-          expiresDate: nextMonth.toISOString(),
         });
 
       // Assert
@@ -226,21 +262,72 @@ describe('SubscriptionsController (e2e)', () => {
       const now = new Date();
       const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+      jest.spyOn(appleService, 'verifyAndDecodeTransaction').mockReturnValue({
+        originalTransactionId: purchaseToken,
+        transactionId: purchaseToken,
+        productId: storeProductId,
+        purchaseDate: now.getTime(),
+        expiresDate: nextMonth.getTime(),
+        currency: 'USD',
+        price: 999,
+        bundleId: 'com.breathaway.app',
+        environment: 'Production',
+      });
+
       // Act
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/verify-purchase')
         .set('authorization', `Bearer ${testUserJwt}`)
         .send({
           storePlatform: StorePlatform.APPLE,
-          purchaseToken,
+          signedTransactionInfo: mockSignedJws,
           productId: storeProductId,
-          purchaseDate: now.toISOString(),
-          expiresDate: nextMonth.toISOString(),
         });
 
       // Assert
       expect(res.status).toBe(200);
       expect(res.body.storeTransactionId).toBe(purchaseToken);
+    });
+
+    it('rejects verify-purchase when transaction is already claimed by another user (409 Conflict)', async () => {
+      // Arrange
+      const otherUser = await prisma.user.create({ data: {} });
+      allCreatedUserIds.push(otherUser.id);
+      const otherUserJwt = jwtService.sign({
+        sub: otherUser.id,
+        iss: configService.get<string>('JWT_ISSUER'),
+        aud: configService.get<string>('JWT_AUDIENCE'),
+      });
+
+      const now = new Date();
+      const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      jest
+        .spyOn(appleService, 'verifyAndDecodeTransaction')
+        .mockReturnValueOnce({
+          originalTransactionId: purchaseToken,
+          transactionId: purchaseToken,
+          productId: storeProductId,
+          purchaseDate: now.getTime(),
+          expiresDate: nextMonth.getTime(),
+          currency: 'USD',
+          price: 999,
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+        });
+
+      // Act
+      const res = await authedRequest(app)
+        .post('/api/v1/subscriptions/verify-purchase')
+        .set('authorization', `Bearer ${otherUserJwt}`)
+        .send({
+          storePlatform: StorePlatform.APPLE,
+          signedTransactionInfo: mockSignedJws,
+          productId: storeProductId,
+        });
+
+      // Assert
+      expect(res.status).toBe(409);
     });
 
     it('returns the active subscription now that one is provisioned via GET /me (200)', async () => {
@@ -260,16 +347,28 @@ describe('SubscriptionsController (e2e)', () => {
       const now = new Date();
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+      jest
+        .spyOn(appleService, 'verifyAndDecodeTransaction')
+        .mockReturnValueOnce({
+          originalTransactionId: `inv_token_${Date.now()}`,
+          transactionId: `inv_token_${Date.now()}`,
+          productId: storeProductId,
+          purchaseDate: now.getTime(),
+          expiresDate: yesterday.getTime(),
+          currency: 'USD',
+          price: 999,
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+        });
+
       // Act
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/verify-purchase')
         .set('authorization', `Bearer ${testUserJwt}`)
         .send({
           storePlatform: StorePlatform.APPLE,
-          purchaseToken: `inv_token_${Date.now()}`,
+          signedTransactionInfo: 'inv-dates-jws',
           productId: storeProductId,
-          purchaseDate: now.toISOString(),
-          expiresDate: yesterday.toISOString(),
         });
 
       // Assert
@@ -281,20 +380,67 @@ describe('SubscriptionsController (e2e)', () => {
       const now = new Date();
       const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+      jest
+        .spyOn(appleService, 'verifyAndDecodeTransaction')
+        .mockReturnValueOnce({
+          originalTransactionId: `unrec_token_${Date.now()}`,
+          transactionId: `unrec_token_${Date.now()}`,
+          productId: 'com.nonexistent.plan',
+          purchaseDate: now.getTime(),
+          expiresDate: nextMonth.getTime(),
+          currency: 'USD',
+          price: 999,
+          bundleId: 'com.breathaway.app',
+          environment: 'Production',
+        });
+
       // Act
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/verify-purchase')
         .set('authorization', `Bearer ${testUserJwt}`)
         .send({
           storePlatform: StorePlatform.APPLE,
-          purchaseToken: `unrec_token_${Date.now()}`,
+          signedTransactionInfo: 'unrec-jws',
           productId: 'com.nonexistent.plan',
-          purchaseDate: now.toISOString(),
-          expiresDate: nextMonth.toISOString(),
         });
 
       // Assert
       expect(res.status).toBe(404);
+    });
+
+    it('verifies Google Play purchase via Developer API, provisions subscription, and returns active record (200)', async () => {
+      // Arrange
+      const googleTxToken = `google_token_${Date.now()}`;
+      const now = new Date();
+      const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      jest.spyOn(googleService, 'verifyPurchase').mockResolvedValueOnce({
+        kind: 'androidpublisher#subscriptionPurchaseV2',
+        startTime: now.toISOString(),
+        expiryTime: nextMonth.toISOString(),
+        autoRenewing: true,
+        priceCurrencyCode: 'USD',
+        priceAmountMicros: '9990000',
+        countryCode: 'US',
+        acknowledgementState: 1,
+      });
+
+      // Act
+      const res = await authedRequest(app)
+        .post('/api/v1/subscriptions/verify-purchase')
+        .set('authorization', `Bearer ${testUserJwt}`)
+        .send({
+          storePlatform: StorePlatform.GOOGLE,
+          purchaseToken: googleTxToken,
+          productId: storeProductId,
+          packageName: 'com.breathaway.app',
+        });
+
+      // Assert
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(res.body.storePlatform).toBe(StorePlatform.GOOGLE);
+      expect(res.body.storeTransactionId).toBe(googleTxToken);
     });
 
     it('returns subscription history with pagination via GET /me/history (200)', async () => {

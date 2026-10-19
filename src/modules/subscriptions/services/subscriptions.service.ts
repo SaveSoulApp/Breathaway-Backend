@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   CreditSource,
   CurrencyCode,
@@ -17,10 +18,17 @@ import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 
 import {
+  InvalidAppleJwsException,
+  InvalidGooglePurchaseException,
   InvalidSubscriptionDatesException,
   SubscriptionNotFoundException,
 } from '../application/exceptions';
 import { VerifyPurchaseRequestDto } from '../dto';
+import { AppleSubscriptionService } from './apple-subscription.service';
+import {
+  GooglePurchaseDetails,
+  GoogleSubscriptionService,
+} from './google-subscription.service';
 import { SubscriptionPlansService } from './subscription-plans.service';
 
 interface InitialPurchaseParams {
@@ -96,6 +104,9 @@ export class SubscriptionsService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly subscriptionPlansService: SubscriptionPlansService,
     private readonly creditsService: CreditsService,
+    private readonly appleSubscriptionService: AppleSubscriptionService,
+    private readonly googleSubscriptionService: GoogleSubscriptionService,
+    private readonly configService: ConfigService,
   ) {
     super(logger);
   }
@@ -190,59 +201,156 @@ export class SubscriptionsService extends BaseService {
   /**
    * Processes a client-initiated in-app purchase and provisions the subscription.
    *
-   * Serves as the primary entry point for new subscriptions, overriding the latency
-   * of asynchronous webhooks. Implements idempotency to return the existing record
-   * if the purchase was already processed.
+   * Enforces cryptographic signature verification for Apple StoreKit 2 transactions
+   * and server-to-server authoritative verification against Google Play Developer API
+   * before persisting any subscription or granting credits.
+   *
+   * Implements strict idempotency to return the existing record if the purchase
+   * was already processed for this user, and prevents cross-account token replay.
    *
    * @param userId - ID of the authenticated user.
    * @param dto - Token and product details from the client SDK.
    * @returns The newly created or existing user subscription.
+   * @throws {InvalidAppleJwsException} When Apple JWS verification or claims validation fails.
+   * @throws {InvalidGooglePurchaseException} When Google Play purchase verification fails.
+   * @throws {ConflictException} When the purchase is already claimed by another user account.
    * @throws {InvalidSubscriptionDatesException} When expiration date precedes purchase date.
    */
   async verifyAndCreateSubscription(
     userId: string,
     dto: VerifyPurchaseRequestDto,
   ) {
+    let storeTransactionId: string;
+    let storeProductId: string;
+    let purchaseDate: Date;
+    let expiresDate: Date;
+    let currencyCode: CurrencyCode | undefined;
+    let pricePaid: number | undefined;
+    let countryCode: string | undefined;
+    let storeEventId: string | undefined;
+    let rawPayload: Record<string, unknown> | undefined;
+
+    if (dto.storePlatform === StorePlatform.APPLE) {
+      if (!dto.signedTransactionInfo) {
+        this.logger.warn(
+          'Client purchase verification failed: missing signedTransactionInfo for Apple platform',
+          { userId, step: 'validate_payload' },
+        );
+        throw new InvalidAppleJwsException(
+          'signedTransactionInfo (StoreKit 2 JWS token) is required for Apple purchases',
+        );
+      }
+
+      const txInfo = this.appleSubscriptionService.verifyAndDecodeTransaction(
+        dto.signedTransactionInfo,
+      );
+
+      storeTransactionId = txInfo.originalTransactionId;
+      storeProductId = txInfo.productId;
+      purchaseDate = new Date(txInfo.purchaseDate);
+      expiresDate = new Date(txInfo.expiresDate);
+      currencyCode = txInfo.currency
+        ? (txInfo.currency as CurrencyCode)
+        : undefined;
+      pricePaid = txInfo.price ? txInfo.price / 1000 : undefined;
+      countryCode = txInfo.storefront;
+      storeEventId = txInfo.transactionId;
+      rawPayload = txInfo as unknown as Record<string, unknown>;
+    } else {
+      // StorePlatform.GOOGLE
+      if (!dto.purchaseToken) {
+        this.logger.warn(
+          'Client purchase verification failed: missing purchaseToken for Google platform',
+          { userId, step: 'validate_payload' },
+        );
+        throw new InvalidGooglePurchaseException(
+          'purchaseToken is required for Google Play purchases',
+        );
+      }
+
+      const packageName =
+        dto.packageName ||
+        this.configService.get<string>('GOOGLE_PACKAGE_NAME') ||
+        'com.breathaway.app';
+
+      let purchaseDetails: GooglePurchaseDetails;
+      try {
+        purchaseDetails = await this.googleSubscriptionService.verifyPurchase(
+          packageName,
+          dto.productId,
+          dto.purchaseToken,
+        );
+      } catch (error) {
+        this.logger.warn(
+          'Google Play purchase verification failed against Developer API',
+          {
+            userId,
+            packageName,
+            productId: dto.productId,
+            purchaseToken: dto.purchaseToken,
+            step: 'verify_google_purchase',
+            err: serializeError(error),
+          },
+        );
+        throw new InvalidGooglePurchaseException(
+          'Google Play purchase verification failed: invalid or unconfirmed purchase token',
+        );
+      }
+
+      storeTransactionId = dto.purchaseToken;
+      storeProductId = dto.productId;
+      purchaseDate = new Date(purchaseDetails.startTime);
+      expiresDate = new Date(purchaseDetails.expiryTime);
+      currencyCode = purchaseDetails.priceCurrencyCode
+        ? (purchaseDetails.priceCurrencyCode as CurrencyCode)
+        : undefined;
+      pricePaid = purchaseDetails.priceAmountMicros
+        ? Number(purchaseDetails.priceAmountMicros) / 1_000_000
+        : undefined;
+      countryCode = purchaseDetails.countryCode;
+      rawPayload = purchaseDetails as unknown as Record<string, unknown>;
+    }
+
+    // Idempotency and anti-theft check: ensure transaction is not already claimed
     const existing = await this.prisma.userSubscription.findFirst({
-      where: { storeTransactionId: dto.purchaseToken },
+      where: { storeTransactionId },
       include: { plan: true },
       orderBy: { createdAt: 'desc' },
     });
 
     if (existing) {
+      if (existing.userId !== userId) {
+        this.logger.warn(
+          'Attempted to claim subscription transaction belonging to another user',
+          {
+            userId,
+            ownerId: existing.userId,
+            storeTransactionId,
+            step: 'check_ownership',
+          },
+        );
+        throw new ConflictException(
+          'This subscription purchase has already been claimed by another account',
+        );
+      }
+
       this.logger.debug(
-        'Subscription already exists for purchaseToken, returning existing',
-        { purchaseToken: dto.purchaseToken, step: 'check_existing' },
+        'Subscription already exists for storeTransactionId, returning existing',
+        { storeTransactionId, step: 'check_existing' },
       );
       return existing;
     }
 
     // Look up plan
-    const plan = await this.subscriptionPlansService.getPlanByStoreProductId(
+    await this.subscriptionPlansService.getPlanByStoreProductId(
       dto.storePlatform,
-      dto.productId,
+      storeProductId,
     );
-
-    // Determine purchase and expiry dates
-    let purchaseDate: Date;
-    let expiresDate: Date;
-
-    if (dto.purchaseDate && dto.expiresDate) {
-      // Client provided dates (Apple StoreKit2 / client-provided)
-      purchaseDate = DateUtil.parse(dto.purchaseDate);
-      expiresDate = DateUtil.parse(dto.expiresDate);
-    } else {
-      // Default: calculate from plan validityDays
-      purchaseDate = DateUtil.now();
-      expiresDate = DateUtil.dayjs(purchaseDate)
-        .add(plan.validityDays, 'days')
-        .toDate();
-    }
 
     if (expiresDate <= purchaseDate) {
       this.logger.warn(
         'Process client purchase failed: invalid subscription dates',
-        { userId, expiresDate, purchaseDate, step: 'validate' },
+        { userId, expiresDate, purchaseDate, step: 'validate_dates' },
       );
       throw new InvalidSubscriptionDatesException();
     }
@@ -250,10 +358,15 @@ export class SubscriptionsService extends BaseService {
     return this.handleInitialPurchase({
       userId,
       storePlatform: dto.storePlatform,
-      storeTransactionId: dto.purchaseToken,
-      storeProductId: dto.productId,
+      storeTransactionId,
+      storeProductId,
       purchaseDate,
       expiresDate,
+      currencyCode,
+      pricePaid,
+      countryCode,
+      storeEventId,
+      rawPayload,
     });
   }
 
@@ -278,6 +391,21 @@ export class SubscriptionsService extends BaseService {
     });
 
     if (existing) {
+      if (existing.userId !== params.userId) {
+        this.logger.warn(
+          'Attempted to claim subscription transaction belonging to another user',
+          {
+            userId: params.userId,
+            ownerId: existing.userId,
+            storeTransactionId: params.storeTransactionId,
+            step: 'check_ownership',
+          },
+        );
+        throw new ConflictException(
+          'This subscription purchase has already been claimed by another account',
+        );
+      }
+
       this.logger.debug(
         'Subscription already exists, skipping initial purchase',
         {
