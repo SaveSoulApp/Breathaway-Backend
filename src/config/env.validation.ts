@@ -82,6 +82,7 @@ export const envValidationSchema = Joi.object({
   SUPABASE_JWT_KEY_ID: Joi.string().optional(),
   REDIS_CONNECT_TIMEOUT_MS: Joi.number().integer().positive().default(5000),
   REDIS_COMMAND_TIMEOUT_MS: Joi.number().integer().positive().default(3000),
+  IS_THROTTLING_ENABLED_VIA_REDIS: Joi.boolean().default(true),
 
   // Business Domain Numeric Expirations
   CREDIT_EXPIRY_DAYS: Joi.number().integer().positive().default(90),

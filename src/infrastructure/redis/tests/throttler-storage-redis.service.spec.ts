@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 
@@ -18,7 +19,10 @@ describe('ThrottlerStorageRedisService', () => {
   };
   let mockLoggerService: { forContext: jest.Mock };
 
-  const createService = async (client: any) => {
+  const createService = async (
+    client: any,
+    isThrottlingEnabledViaRedis: boolean = true,
+  ) => {
     mockRedisClient = client;
 
     mockLogger = {
@@ -31,10 +35,24 @@ describe('ThrottlerStorageRedisService', () => {
       forContext: jest.fn().mockReturnValue(mockLogger),
     };
 
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        if (
+          key === 'IS_THROTTLING_ENABLED_VIA_REDIS' ||
+          key === 'isThrottlingEnabledViaRedis' ||
+          key === 'THROTTLING_REDIS_ENABLED'
+        ) {
+          return isThrottlingEnabledViaRedis;
+        }
+        return undefined;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThrottlerStorageRedisService,
         { provide: REDIS_CLIENT, useValue: mockRedisClient },
+        { provide: ConfigService, useValue: mockConfigService },
         { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
@@ -49,15 +67,19 @@ describe('ThrottlerStorageRedisService', () => {
     jest.clearAllMocks();
   });
 
-  describe('When Redis is configured', () => {
+  describe('When Redis is configured and isThrottlingEnabledViaRedis is true', () => {
     beforeEach(async () => {
-      await createService({
-        eval: jest.fn(),
-      });
+      await createService(
+        {
+          eval: jest.fn(),
+        },
+        true,
+      );
     });
 
-    it('should be defined', () => {
+    it('should be defined and report isRedisThrottlingActive true', () => {
       expect(service).toBeDefined();
+      expect(service.isRedisThrottlingActive).toBe(true);
     });
 
     it('should execute Redis Lua script and return formatted record under rate limit', async () => {
@@ -139,12 +161,60 @@ describe('ThrottlerStorageRedisService', () => {
     });
   });
 
-  describe('When Redis is unconfigured (null)', () => {
+  describe('When isThrottlingEnabledViaRedis is false', () => {
     beforeEach(async () => {
-      await createService(null);
+      await createService(
+        {
+          eval: jest.fn(),
+        },
+        false,
+      );
     });
 
-    it('should fall back to in-memory store without error', async () => {
+    it('should bypass Redis completely and use in-memory store even if Redis client exists', async () => {
+      expect(service.isRedisThrottlingActive).toBe(false);
+
+      const result1 = await service.increment(
+        'bypass-ip',
+        5000,
+        2,
+        5000,
+        'default',
+      );
+      expect(result1.totalHits).toBe(1);
+      expect(mockRedisClient!.eval).not.toHaveBeenCalled();
+
+      const result2 = await service.increment(
+        'bypass-ip',
+        5000,
+        2,
+        5000,
+        'default',
+      );
+      expect(result2.totalHits).toBe(2);
+      expect(mockRedisClient!.eval).not.toHaveBeenCalled();
+
+      const result3 = await service.increment(
+        'bypass-ip',
+        5000,
+        2,
+        5000,
+        'default',
+      );
+      expect(result3.totalHits).toBe(3);
+      expect(result3.isBlocked).toBe(true);
+      expect(mockRedisClient!.eval).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('When Redis is unconfigured (null)', () => {
+    beforeEach(async () => {
+      await createService(null, true);
+    });
+
+    it('should report isRedisThrottlingActive false and fall back to in-memory store', async () => {
+      expect(service.isRedisThrottlingActive).toBe(false);
+
       const result1 = await service.increment(
         'fallback-ip',
         5000,
