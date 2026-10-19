@@ -341,12 +341,6 @@ export class SubscriptionsService extends BaseService {
       return existing;
     }
 
-    // Look up plan
-    await this.subscriptionPlansService.getPlanByStoreProductId(
-      dto.storePlatform,
-      storeProductId,
-    );
-
     if (expiresDate <= purchaseDate) {
       this.logger.warn(
         'Process client purchase failed: invalid subscription dates',
