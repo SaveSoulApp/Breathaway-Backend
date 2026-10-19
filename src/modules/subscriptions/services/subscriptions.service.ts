@@ -385,46 +385,47 @@ export class SubscriptionsService extends BaseService {
    * @returns The newly created subscription.
    */
   async handleInitialPurchase(params: InitialPurchaseParams) {
-    // Idempotency: check if subscription already exists for this store transaction
-    const existing = await this.prisma.userSubscription.findFirst({
-      where: { storeTransactionId: params.storeTransactionId },
-      include: { plan: true },
-    });
-
-    if (existing) {
-      if (existing.userId !== params.userId) {
-        this.logger.warn(
-          'Attempted to claim subscription transaction belonging to another user',
-          {
-            userId: params.userId,
-            ownerId: existing.userId,
-            storeTransactionId: params.storeTransactionId,
-            step: 'check_ownership',
-          },
-        );
-        throw new ConflictException(
-          'This subscription purchase has already been claimed by another account',
-        );
-      }
-
-      this.logger.debug(
-        'Subscription already exists, skipping initial purchase',
-        {
-          storeTransactionId: params.storeTransactionId,
-          step: 'check_existing',
-        },
-      );
-      return existing;
-    }
-
     const plan = await this.subscriptionPlansService.getPlanByStoreProductId(
       params.storePlatform,
       params.storeProductId,
     );
 
+    let isNewSubscription = false;
     let subscription;
     try {
       subscription = await this.prisma.$transaction(async (tx) => {
+        // Idempotency: check inside transaction to prevent concurrent duplicate inserts
+        const existing = await tx.userSubscription.findFirst({
+          where: { storeTransactionId: params.storeTransactionId },
+          include: { plan: true },
+        });
+
+        if (existing) {
+          if (existing.userId !== params.userId) {
+            this.logger.warn(
+              'Attempted to claim subscription transaction belonging to another user',
+              {
+                userId: params.userId,
+                ownerId: existing.userId,
+                storeTransactionId: params.storeTransactionId,
+                step: 'check_ownership',
+              },
+            );
+            throw new ConflictException(
+              'This subscription purchase has already been claimed by another account',
+            );
+          }
+
+          this.logger.debug(
+            'Subscription already exists, skipping initial purchase',
+            {
+              storeTransactionId: params.storeTransactionId,
+              step: 'check_existing',
+            },
+          );
+          return existing;
+        }
+
         const sub = await tx.userSubscription.create({
           data: {
             userId: params.userId,
@@ -467,6 +468,7 @@ export class SubscriptionsService extends BaseService {
           tx,
         );
 
+        isNewSubscription = true;
         return sub;
       });
     } catch (error) {
@@ -479,16 +481,18 @@ export class SubscriptionsService extends BaseService {
       throw error;
     }
 
-    this.emitAuditLog({
-      actionType: AuditActionType.SUBSCRIPTION_CREATED,
-      userId: params.userId,
-      resourceId: subscription.id,
-      metadata: {
-        planId: plan.id,
-        storePlatform: params.storePlatform,
-        storeTransactionId: params.storeTransactionId,
-      },
-    });
+    if (isNewSubscription) {
+      this.emitAuditLog({
+        actionType: AuditActionType.SUBSCRIPTION_CREATED,
+        userId: params.userId,
+        resourceId: subscription.id,
+        metadata: {
+          planId: plan.id,
+          storePlatform: params.storePlatform,
+          storeTransactionId: params.storeTransactionId,
+        },
+      });
+    }
 
     return subscription;
   }
