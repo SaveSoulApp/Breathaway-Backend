@@ -1,11 +1,25 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   CurrencyCode,
   StorePlatform,
   SubscriptionEventType,
 } from '@prisma/client';
 
+import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
+import { GcpOidcAuthGuard } from '@common/guards';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -27,6 +41,7 @@ import { SubscriptionsService } from './services/subscriptions.service';
  * the state change.
  */
 @ApiTags('Subscriptions Webhooks')
+@SkipClientIdentity()
 @Controller({
   path: 'subscriptions/webhooks',
   version: ['1'],
@@ -100,9 +115,12 @@ export class SubscriptionsWebhookController extends BaseController {
   }
 
   /**
-   * Receives and processes Google Play Real-Time Developer Notifications.
+   * Receives and processes Google Play Real-Time Developer Notifications (RTDN).
    *
-   * Google sends a base64 encoded payload via Pub/Sub or direct webhook.
+   * Authenticated via Google Cloud Pub/Sub OIDC Bearer tokens to protect the
+   * endpoint against spoofed notifications and Google Play API quota exhaustion.
+   *
+   * Google sends a base64 encoded payload via Pub/Sub push subscription.
    * The notification is parsed, and the purchase token is verified against the
    * Google Play Developer API to determine the event type.
    *
@@ -111,6 +129,8 @@ export class SubscriptionsWebhookController extends BaseController {
    */
   @Post('google')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(GcpOidcAuthGuard)
+  @ApiBearerAuth('gcp-oidc')
   @ApiOperation({
     summary: 'Google Play Real-Time Developer Notification webhook',
   })

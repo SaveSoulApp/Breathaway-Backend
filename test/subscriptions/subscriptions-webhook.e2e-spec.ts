@@ -1,5 +1,11 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CurrencyCode, SubscriptionEventType } from '@prisma/client';
+import {
+  LoginTicket,
+  OAuth2Client,
+  VerifyIdTokenOptions,
+} from 'google-auth-library';
 
 import { AppleSubscriptionService } from '@modules/subscriptions/services/apple-subscription.service';
 import { GoogleSubscriptionService } from '@modules/subscriptions/services/google-subscription.service';
@@ -14,6 +20,9 @@ describe('SubscriptionsWebhookController (e2e)', () => {
   let appleService: AppleSubscriptionService;
   let googleService: GoogleSubscriptionService;
   let subscriptionsService: SubscriptionsService;
+  let configService: ConfigService;
+  let verifyIdTokenSpy: jest.SpyInstance;
+  const validOidcToken = 'valid-gcp-oidc-test-token';
 
   beforeAll(async () => {
     const context = await createAuthTestApp([SubscriptionsModule]);
@@ -21,9 +30,36 @@ describe('SubscriptionsWebhookController (e2e)', () => {
     appleService = app.get(AppleSubscriptionService);
     googleService = app.get(GoogleSubscriptionService);
     subscriptionsService = app.get(SubscriptionsService);
+    configService = app.get(ConfigService);
+
+    verifyIdTokenSpy = (
+      jest.spyOn(
+        OAuth2Client.prototype,
+        'verifyIdToken',
+      ) as unknown as jest.SpyInstance<
+        Promise<LoginTicket>,
+        [VerifyIdTokenOptions]
+      >
+    ).mockImplementation(async (opts) => {
+      if (opts.idToken === validOidcToken) {
+        const expectedProjectId =
+          configService.get<string>('GCP_PROJECT_ID') || 'test-project';
+        return {
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            aud:
+              configService.get<string>('GCP_OIDC_AUDIENCE') || 'test-audience',
+            email: `pubsub-invoker@${expectedProjectId}.iam.gserviceaccount.com`,
+            email_verified: true,
+          }),
+        } as unknown as LoginTicket;
+      }
+      throw new Error('Invalid OIDC token');
+    });
   });
 
   afterAll(async () => {
+    verifyIdTokenSpy.mockRestore();
     await app.close();
   });
 
@@ -102,9 +138,29 @@ describe('SubscriptionsWebhookController (e2e)', () => {
   });
 
   describe('POST /api/v1/subscriptions/webhooks/google', () => {
+    it('rejects requests missing Bearer token with 401 Unauthorized', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/subscriptions/webhooks/google')
+        .send({});
+
+      expect(res.status).toBe(401);
+      expect(res.body.detail).toBe('Invalid or missing Bearer token');
+    });
+
+    it('rejects requests with invalid Bearer token with 401 Unauthorized', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', 'Bearer invalid-token')
+        .send({});
+
+      expect(res.status).toBe(401);
+      expect(res.body.detail).toBe('Invalid OIDC token');
+    });
+
     it('rejects payload missing required message and subscription fields with 400', async () => {
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', `Bearer ${validOidcToken}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -119,6 +175,7 @@ describe('SubscriptionsWebhookController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', `Bearer ${validOidcToken}`)
         .send({
           message: {
             data: Buffer.from('non-sub-data').toString('base64'),
@@ -153,6 +210,7 @@ describe('SubscriptionsWebhookController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', `Bearer ${validOidcToken}`)
         .send({
           message: {
             data: Buffer.from('token-data').toString('base64'),
@@ -200,6 +258,7 @@ describe('SubscriptionsWebhookController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', `Bearer ${validOidcToken}`)
         .send({
           message: {
             data: Buffer.from('valid-data').toString('base64'),
@@ -226,6 +285,7 @@ describe('SubscriptionsWebhookController (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/webhooks/google')
+        .set('Authorization', `Bearer ${validOidcToken}`)
         .send({
           message: {
             data: 'invalid-base64',
