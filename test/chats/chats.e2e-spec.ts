@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { ChatsModule } from '@modules/chats/chats.module';
+import { ChatCryptoService } from '@modules/chats/services/chat-crypto.service';
 
 import { createAuthTestApp } from '../helpers/app-test.helper';
 import { cleanupTestUsers } from '../helpers/db-cleanup.helper';
@@ -26,6 +29,13 @@ describe('ChatsController (e2e)', () => {
   let prisma: PrismaService;
   let jwtService: JwtService;
   let configService: ConfigService;
+  let chatCryptoService: ChatCryptoService;
+
+  const validRoomId = randomUUID();
+  const otherRoomId = randomUUID();
+  let wrappedRoomKey: string;
+  let roomKeyId: string;
+  let rawKey: Buffer;
 
   const allCreatedUserIds: string[] = [];
   let validJwt: string;
@@ -46,7 +56,10 @@ describe('ChatsController (e2e)', () => {
       upsert: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       single: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
+      delete: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
       neq: jest.fn().mockReturnThis(),
       is: jest.fn().mockReturnThis(),
       lte: jest.fn().mockReturnThis(),
@@ -62,6 +75,12 @@ describe('ChatsController (e2e)', () => {
     prisma = context.prisma;
     jwtService = app.get(JwtService);
     configService = app.get(ConfigService);
+    chatCryptoService = app.get(ChatCryptoService);
+
+    rawKey = chatCryptoService.generateRoomKey();
+    const wrapped = chatCryptoService.wrapRoomKey(rawKey);
+    wrappedRoomKey = wrapped.wrappedRoomKey;
+    roomKeyId = wrapped.roomKeyId;
 
     // Seed test users
     const user1 = await prisma.user.create({ data: {} });
@@ -172,9 +191,15 @@ describe('ChatsController (e2e)', () => {
 
     it('POST /api/v1/chats/messages - sends a message to an actively matched user (201)', async () => {
       const mockMessage = { id: 'msg-1', content: 'e2e-hello' };
-      // 1st single() resolves the room lookup/upsert
-      mockSupabaseClient.single.mockResolvedValueOnce({
-        data: { id: 'room-1' },
+      // 1st maybeSingle() resolves the room lookup
+      mockSupabaseClient.maybeSingle.mockResolvedValueOnce({
+        data: {
+          id: validRoomId,
+          userOneId: seededUserId,
+          userTwoId: matchedUserId,
+          wrappedRoomKey,
+          roomKeyId,
+        },
         error: null,
       });
       // 2nd single() resolves the message insert
@@ -223,9 +248,11 @@ describe('ChatsController (e2e)', () => {
       // 1st single() resolves assertRoomParticipant for ChatRoom
       mockSupabaseClient.single.mockResolvedValueOnce({
         data: {
-          id: 'room-1',
+          id: validRoomId,
           userOneId: seededUserId,
           userTwoId: matchedUserId,
+          wrappedRoomKey,
+          roomKeyId,
         },
         error: null,
       });
@@ -237,10 +264,10 @@ describe('ChatsController (e2e)', () => {
       mockSupabaseClient.lte.mockResolvedValueOnce({ error: null });
 
       const res = await authedRequest(app)
-        .post('/api/v1/chats/room-1/messages/read')
+        .post(`/api/v1/chats/${validRoomId}/messages/read`)
         .set('authorization', `Bearer ${validJwt}`)
         .send({
-          messageId: '00000000-0000-0000-0000-000000000000',
+          messageId: randomUUID(),
         });
 
       expect(res.status).toBe(200);
@@ -251,27 +278,40 @@ describe('ChatsController (e2e)', () => {
       // assertRoomParticipant returns a room where user is NOT a participant
       mockSupabaseClient.single.mockResolvedValueOnce({
         data: {
-          id: 'room-other',
+          id: otherRoomId,
           userOneId: 'unrelated-user-1',
           userTwoId: 'unrelated-user-2',
+          wrappedRoomKey,
+          roomKeyId,
         },
         error: null,
       });
 
       const res = await authedRequest(app)
-        .post('/api/v1/chats/room-other/messages/read')
+        .post(`/api/v1/chats/${otherRoomId}/messages/read`)
         .set('authorization', `Bearer ${validJwt}`)
         .send({
-          messageId: '00000000-0000-0000-0000-000000000000',
+          messageId: randomUUID(),
         });
 
       expect(res.status).toBe(403);
     });
 
+    it('POST /api/v1/chats/:roomId/messages/read - rejects non-UUID roomId (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/chats/not-a-uuid/messages/read')
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          messageId: '00000000-0000-0000-0000-000000000000',
+        });
+
+      expect(res.status).toBe(400);
+    });
+
     it('GET /api/v1/chats/rooms - fetches chat rooms for user (200)', async () => {
       const mockRooms = [
         {
-          id: 'room-1',
+          id: validRoomId,
           userOneId: seededUserId,
           userTwoId: matchedUserId,
           createdAt: '2023-01-01T00:00:00.000Z',
@@ -295,24 +335,108 @@ describe('ChatsController (e2e)', () => {
       // 1st single() resolves assertRoomParticipant
       mockSupabaseClient.single.mockResolvedValueOnce({
         data: {
-          id: 'room-1',
+          id: validRoomId,
           userOneId: seededUserId,
           userTwoId: matchedUserId,
+          wrappedRoomKey,
+          roomKeyId,
         },
         error: null,
       });
-      const mockMessages = [{ id: 'msg-1' }];
+      const messageId = randomUUID();
+      const encryptedContent = chatCryptoService.encryptMessage(
+        'decrypted test message',
+        rawKey,
+      );
+      const mockDbMessage = {
+        id: messageId,
+        roomId: validRoomId,
+        senderId: matchedUserId,
+        content: encryptedContent,
+        createdAt: '2023-01-01T00:00:00.000Z',
+        readAt: null,
+      };
       mockSupabaseClient.limit.mockResolvedValueOnce({
-        data: mockMessages,
+        data: [mockDbMessage],
         error: null,
       });
 
       const res = await authedRequest(app)
-        .get('/api/v1/chats/room-1/messages?limit=10')
+        .get(`/api/v1/chats/${validRoomId}/messages?limit=10`)
         .set('authorization', `Bearer ${validJwt}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.messages).toEqual(mockMessages);
+      expect(res.body.messages).toHaveLength(1);
+      expect(res.body.messages[0]).toMatchObject({
+        id: messageId,
+        roomId: validRoomId,
+        senderId: matchedUserId,
+        content: 'decrypted test message',
+      });
+    });
+
+    it('GET /api/v1/chats/:roomId/key - retrieves unwrapped room encryption key (200)', async () => {
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: {
+          id: validRoomId,
+          userOneId: seededUserId,
+          userTwoId: matchedUserId,
+          wrappedRoomKey,
+          roomKeyId,
+        },
+        error: null,
+      });
+
+      const res = await authedRequest(app)
+        .get(`/api/v1/chats/${validRoomId}/key`)
+        .set('authorization', `Bearer ${validJwt}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.roomId).toBe(validRoomId);
+      expect(res.body.key).toBe(rawKey.toString('base64'));
+      expect(res.body.algorithm).toBe('AES-GCM-256');
+    });
+
+    it('GET /api/v1/chats/:roomId/key - rejects non-UUID roomId (400)', async () => {
+      const res = await authedRequest(app)
+        .get('/api/v1/chats/not-a-uuid/key')
+        .set('authorization', `Bearer ${validJwt}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('DELETE /api/v1/chats/:roomId/messages - deletes messages sent by the user (200)', async () => {
+      const messageId = randomUUID();
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: {
+          id: validRoomId,
+          userOneId: seededUserId,
+          userTwoId: matchedUserId,
+          wrappedRoomKey,
+          roomKeyId,
+        },
+        error: null,
+      });
+      // fetchAndValidateMessagesForDeletion
+      mockSupabaseClient.in.mockResolvedValueOnce({
+        data: [{ id: messageId, senderId: seededUserId }],
+        error: null,
+      });
+      // executeMessageDeletion
+      mockSupabaseClient.in.mockResolvedValueOnce({
+        count: 1,
+        error: null,
+      });
+
+      const res = await authedRequest(app)
+        .delete(`/api/v1/chats/${validRoomId}/messages`)
+        .set('authorization', `Bearer ${validJwt}`)
+        .send({
+          messageIds: [messageId],
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, deletedCount: 1 });
     });
 
     it('GET /api/v1/chats/rooms - rejects unauthenticated request (401)', async () => {

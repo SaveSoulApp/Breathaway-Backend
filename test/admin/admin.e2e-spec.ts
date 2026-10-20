@@ -425,12 +425,14 @@ describe('AdminModule (e2e)', () => {
 
     it('404 – blocks dev-login in production environment (SEC-03)', async () => {
       const configService = app.get(ConfigService);
-      const getSpy = jest
-        .spyOn(configService, 'get')
-        .mockImplementation((key: string) => {
-          if (key === 'NODE_ENV') return 'production';
-          return undefined;
-        });
+      const originalGet = configService.get.bind(configService);
+      const getSpy = jest.spyOn(configService, 'get').mockImplementation(((
+        key: string,
+        defaultValue?: unknown,
+      ) => {
+        if (key === 'NODE_ENV') return 'production';
+        return originalGet(key, defaultValue);
+      }) as never);
 
       const res = await authedRequest(app)
         .post('/api/v1/admin/dev-login')
@@ -438,7 +440,7 @@ describe('AdminModule (e2e)', () => {
         .send({ identifier });
 
       expect(res.status).toBe(404);
-      expect(res.body.message).toContain(
+      expect(res.body.detail || res.body.message).toContain(
         'Endpoint not available in production',
       );
 

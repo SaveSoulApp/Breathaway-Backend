@@ -58,6 +58,9 @@ export async function cleanupTestUsers(
   await prisma.authCredential.deleteMany({
     where: { userId: { in: userIds } },
   });
+  await prisma.dsarExport.deleteMany({
+    where: { userId: { in: userIds } },
+  });
   await prisma.identity.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }
