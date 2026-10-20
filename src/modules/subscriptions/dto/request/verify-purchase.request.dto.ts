@@ -10,12 +10,21 @@ export class VerifyPurchaseRequestDto {
   @IsEnum(StorePlatform)
   storePlatform: StorePlatform;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Apple originalTransactionId or Google purchaseToken used to correlate future webhook events',
+      'Apple originalTransactionId or Google purchaseToken used to correlate future webhook events. Required for Google Play.',
   })
   @IsString()
-  purchaseToken: string;
+  @IsOptional()
+  purchaseToken?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'StoreKit 2 cryptographically signed transaction JWS token. Required for Apple StoreKit 2.',
+  })
+  @IsString()
+  @IsOptional()
+  signedTransactionInfo?: string;
 
   @ApiProperty({
     description: 'Store product identifier (e.g. com.app.plan.monthly)',
@@ -25,7 +34,16 @@ export class VerifyPurchaseRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'Purchase date in ISO 8601 format. Required for Apple; Google is fetched via API.',
+      'Android package name (e.g. com.breathaway.app). Deprecated: strictly resolved from server configuration.',
+    deprecated: true,
+  })
+  @IsString()
+  @IsOptional()
+  packageName?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Purchase date in ISO 8601 format. Note: Authoritative dates are extracted directly from Apple/Google APIs.',
   })
   @IsDateString()
   @IsOptional()
@@ -33,7 +51,7 @@ export class VerifyPurchaseRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'Expiry date in ISO 8601 format. Required for Apple; Google is fetched via API.',
+      'Expiry date in ISO 8601 format. Note: Authoritative dates are extracted directly from Apple/Google APIs.',
   })
   @IsDateString()
   @IsOptional()

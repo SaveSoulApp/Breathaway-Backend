@@ -5,6 +5,8 @@ import {
   SubscriptionEventType,
 } from '@prisma/client';
 
+import { SKIP_CLIENT_IDENTITY_META } from '@common/guards/client-identity.guard';
+import { GcpOidcAuthGuard } from '@common/guards/gcp-oidc-auth.guard';
 import { LoggerService } from '@core/logger';
 
 import { AppleSubscriptionService } from '../services/apple-subscription.service';
@@ -56,7 +58,10 @@ describe('SubscriptionsWebhookController', () => {
         { provide: AppleSubscriptionService, useValue: mockAppleService },
         { provide: GoogleSubscriptionService, useValue: mockGoogleService },
       ],
-    }).compile();
+    })
+      .overrideGuard(GcpOidcAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile();
 
     controller = module.get<SubscriptionsWebhookController>(
       SubscriptionsWebhookController,
@@ -68,6 +73,32 @@ describe('SubscriptionsWebhookController', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('Security and Guard Configuration', () => {
+    it('should have SkipClientIdentity decorator applied to controller', () => {
+      const isSkipped = Reflect.getMetadata(
+        SKIP_CLIENT_IDENTITY_META,
+        SubscriptionsWebhookController,
+      );
+      expect(isSkipped).toBe(true);
+    });
+
+    it('should have GcpOidcAuthGuard applied to handleGoogleNotification', () => {
+      const guards = Reflect.getMetadata(
+        '__guards__',
+        controller.handleGoogleNotification,
+      );
+      expect(guards).toBeDefined();
+      expect(guards).toContain(GcpOidcAuthGuard);
+    });
+
+    it('should not have GcpOidcAuthGuard applied to handleAppleNotification', () => {
+      const guards =
+        Reflect.getMetadata('__guards__', controller.handleAppleNotification) ||
+        [];
+      expect(guards).not.toContain(GcpOidcAuthGuard);
+    });
   });
 
   describe('handleAppleNotification', () => {

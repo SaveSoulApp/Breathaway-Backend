@@ -231,6 +231,7 @@ build_env_vars_string() {
         "DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE}"
         "IPINFO_TIMEOUT_MS=${IPINFO_TIMEOUT_MS}"
         "SUPABASE_JWT_KEY_ID=${SUPABASE_JWT_KEY_ID:-}"
+        "IS_THROTTLING_ENABLED_VIA_REDIS=${IS_THROTTLING_ENABLED_VIA_REDIS:-true}"
     )
 
     # Join environment variables with ~ delimiter to handle commas safely (e.g. REQUIRED_PLATFORMS)

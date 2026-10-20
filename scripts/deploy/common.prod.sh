@@ -24,6 +24,7 @@ export NODE_ENV='production'
 export LOG_LEVEL='info'
 export SHOULD_LOG_RESPONSE='false'
 export DEPLOYMENT_ENV='gcp'
+export IS_THROTTLING_ENABLED_VIA_REDIS='true'
 
 export APP_NAME="BreathAway"
 export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'

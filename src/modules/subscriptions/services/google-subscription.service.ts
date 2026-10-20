@@ -32,7 +32,7 @@ interface GoogleNotificationPayload {
   subscriptionNotification: GoogleSubscriptionNotification;
 }
 
-interface GooglePurchaseDetails {
+export interface GooglePurchaseDetails {
   kind: string;
   startTime: string;
   expiryTime: string;

@@ -62,6 +62,7 @@ describe('envValidationSchema', () => {
       expect(value.JWT_CACHE_TTL_SECONDS).toBe(300);
       expect(value.REDIS_CONNECT_TIMEOUT_MS).toBe(5000);
       expect(value.REDIS_COMMAND_TIMEOUT_MS).toBe(3000);
+      expect(value.IS_THROTTLING_ENABLED_VIA_REDIS).toBe(true);
       expect(value.OTP_TTL).toBe(300);
       expect(value.OTP_RATE_LIMIT_TTL).toBe(120);
 

@@ -1,8 +1,6 @@
+import { ConflictException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  SubscriptionNotFoundException,
-  InvalidSubscriptionDatesException,
-} from '../application/exceptions';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditSource,
@@ -24,6 +22,12 @@ import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
 import { AuditActionType } from '@modules/audit/dto';
 import { CreditsService } from '@modules/credits/credits.service';
 
+import {
+  InvalidAppleJwsException,
+  InvalidGooglePurchaseException,
+  InvalidSubscriptionDatesException,
+  SubscriptionNotFoundException,
+} from '../application/exceptions';
 import { AppleSubscriptionService } from '../services/apple-subscription.service';
 import { GoogleSubscriptionService } from '../services/google-subscription.service';
 import { SubscriptionPlansService } from '../services/subscription-plans.service';
@@ -34,6 +38,9 @@ describe('SubscriptionsService', () => {
   let prisma: MockPrismaService;
   let creditsService: jest.Mocked<CreditsService>;
   let subscriptionPlansService: jest.Mocked<SubscriptionPlansService>;
+  let appleSubscriptionService: jest.Mocked<AppleSubscriptionService>;
+  let googleSubscriptionService: jest.Mocked<GoogleSubscriptionService>;
+  let configService: jest.Mocked<ConfigService>;
   let eventEmitter: jest.Mocked<EventEmitter2>;
 
   const userId = 'user-uuid-123';
@@ -99,6 +106,27 @@ describe('SubscriptionsService', () => {
       getPlanByStoreProductId: jest.fn().mockResolvedValue(mockPlan),
     };
 
+    const mockAppleSubscriptionService = {
+      parseNotification: jest.fn(),
+      mapNotificationType: jest.fn(),
+      verifyAndDecodeTransaction: jest.fn(),
+      verifyAndDecodeJws: jest.fn(),
+    };
+
+    const mockGoogleSubscriptionService = {
+      verifyPurchase: jest.fn(),
+      mapNotificationType: jest.fn(),
+      parseNotification: jest.fn(),
+    };
+
+    const mockConfigService = {
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'GOOGLE_PACKAGE_NAME') return 'com.breathaway.app';
+        if (key === 'APPLE_BUNDLE_ID') return 'com.breathaway.app';
+        return undefined;
+      }),
+    };
+
     const mockEventEmitter = {
       emit: jest.fn(),
     };
@@ -119,18 +147,13 @@ describe('SubscriptionsService', () => {
         },
         {
           provide: AppleSubscriptionService,
-          useValue: {
-            parseNotification: jest.fn(),
-            mapNotificationType: jest.fn(),
-          },
+          useValue: mockAppleSubscriptionService,
         },
         {
           provide: GoogleSubscriptionService,
-          useValue: {
-            verifyPurchase: jest.fn(),
-            mapNotificationType: jest.fn(),
-          },
+          useValue: mockGoogleSubscriptionService,
         },
+        { provide: ConfigService, useValue: mockConfigService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ClsService, useValue: mockClsService },
       ],
@@ -140,6 +163,9 @@ describe('SubscriptionsService', () => {
     prisma = module.get(PrismaService);
     creditsService = module.get(CreditsService);
     subscriptionPlansService = module.get(SubscriptionPlansService);
+    appleSubscriptionService = module.get(AppleSubscriptionService);
+    googleSubscriptionService = module.get(GoogleSubscriptionService);
+    configService = module.get(ConfigService);
     eventEmitter = module.get(EventEmitter2);
 
     // Standard Prisma mock transaction implementation
@@ -242,90 +268,330 @@ describe('SubscriptionsService', () => {
   });
 
   describe('verifyAndCreateSubscription', () => {
-    const dto = {
-      storePlatform: StorePlatform.APPLE,
+    const validAppleTxInfo = {
+      originalTransactionId: storeTransactionId,
+      transactionId: 'apple-tx-001',
       productId: storeProductId,
-      purchaseToken: storeTransactionId,
-      purchaseDate: '2026-06-28T00:00:00Z',
-      expiresDate: '2026-07-28T00:00:00Z',
+      purchaseDate: new Date('2026-06-28T00:00:00Z').getTime(),
+      expiresDate: new Date('2026-07-28T00:00:00Z').getTime(),
+      bundleId: 'com.breathaway.app',
+      environment: 'Production',
+      currency: 'USD',
+      price: 9990,
+      storefront: 'USA',
     };
 
-    it('should return existing subscription if already processed (idempotency)', async () => {
-      // Arrange
-      prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
+    const validGooglePurchaseDetails = {
+      kind: 'androidpublisher#subscriptionPurchaseV2',
+      startTime: '2026-06-28T00:00:00Z',
+      expiryTime: '2026-07-28T00:00:00Z',
+      autoRenewing: true,
+      priceCurrencyCode: 'USD',
+      priceAmountMicros: '9990000',
+      countryCode: 'US',
+      acknowledgementState: 1,
+    };
 
-      // Act
-      const result = await service.verifyAndCreateSubscription(userId, dto);
-
-      // Assert
-      expect(prisma.userSubscription.findFirst).toHaveBeenCalledWith({
-        where: { storeTransactionId: dto.purchaseToken },
-        include: { plan: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      expect(result).toEqual(mockSubscription);
-      expect(
-        subscriptionPlansService.getPlanByStoreProductId,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('should fetch plan, calculate dates, and route to handleInitialPurchase if new', async () => {
-      // Arrange
-      prisma.userSubscription.findFirst.mockResolvedValue(null); // not existing initially
-      // For handleInitialPurchase internal idempotency check, also return null
-      prisma.userSubscription.findFirst
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
-      prisma.userSubscription.create.mockResolvedValue(mockSubscription);
-
-      // Act
-      const result = await service.verifyAndCreateSubscription(userId, dto);
-
-      // Assert
-      expect(
-        subscriptionPlansService.getPlanByStoreProductId,
-      ).toHaveBeenCalledWith(dto.storePlatform, dto.productId);
-      expect(result).toEqual(mockSubscription);
-    });
-
-    it('should throw InvalidSubscriptionDatesException if expiresDate is before or equal to purchaseDate', async () => {
-      // Arrange
-      prisma.userSubscription.findFirst.mockResolvedValue(null);
-      const invalidDto = {
-        ...dto,
-        purchaseDate: '2026-07-28T00:00:00Z',
-        expiresDate: '2026-06-28T00:00:00Z',
-      };
-
-      // Act & Assert
-      await expect(
-        service.verifyAndCreateSubscription(userId, invalidDto),
-      ).rejects.toThrow(new InvalidSubscriptionDatesException());
-    });
-
-    it('should calculate dates from plan validityDays if not provided in dto', async () => {
-      // Arrange
-      prisma.userSubscription.findFirst.mockResolvedValue(null);
-      prisma.userSubscription.create.mockResolvedValue(mockSubscription);
-
-      const minimalDto = {
+    describe('Apple StoreKit 2', () => {
+      const appleDto = {
         storePlatform: StorePlatform.APPLE,
         productId: storeProductId,
-        purchaseToken: storeTransactionId,
+        signedTransactionInfo: 'valid.jws.token',
       };
 
-      // Act
-      await service.verifyAndCreateSubscription(userId, minimalDto);
+      it('should verify signedTransactionInfo, fetch plan, and provision subscription with credits', async () => {
+        // Arrange
+        appleSubscriptionService.verifyAndDecodeTransaction.mockReturnValue(
+          validAppleTxInfo,
+        );
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+        prisma.userSubscription.create.mockResolvedValue(mockSubscription);
 
-      // Assert
-      expect(prisma.userSubscription.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            currentPeriodStart: expect.any(Date),
-            currentPeriodEnd: expect.any(Date),
+        // Act
+        const result = await service.verifyAndCreateSubscription(
+          userId,
+          appleDto,
+        );
+
+        // Assert
+        expect(
+          appleSubscriptionService.verifyAndDecodeTransaction,
+        ).toHaveBeenCalledWith('valid.jws.token');
+        expect(
+          subscriptionPlansService.getPlanByStoreProductId,
+        ).toHaveBeenCalledWith(StorePlatform.APPLE, storeProductId);
+        expect(prisma.userSubscription.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              userId,
+              storePlatform: StorePlatform.APPLE,
+              storeTransactionId,
+              storeProductId,
+              currentPeriodStart: new Date(validAppleTxInfo.purchaseDate),
+              currentPeriodEnd: new Date(validAppleTxInfo.expiresDate),
+            }),
           }),
-        }),
-      );
+        );
+        expect(creditsService.grantCredits).toHaveBeenCalled();
+        expect(result).toEqual(mockSubscription);
+      });
+
+      it('should throw InvalidAppleJwsException if signedTransactionInfo is missing', async () => {
+        // Arrange
+        const missingJwsDto = {
+          storePlatform: StorePlatform.APPLE,
+          productId: storeProductId,
+        };
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, missingJwsDto as any),
+        ).rejects.toThrow(InvalidAppleJwsException);
+      });
+
+      it('should reject if appleSubscriptionService throws InvalidAppleJwsException', async () => {
+        // Arrange
+        appleSubscriptionService.verifyAndDecodeTransaction.mockImplementation(
+          () => {
+            throw new InvalidAppleJwsException(
+              'Invalid Apple JWS: cryptographic verification failed',
+            );
+          },
+        );
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, appleDto),
+        ).rejects.toThrow(InvalidAppleJwsException);
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+        expect(creditsService.grantCredits).not.toHaveBeenCalled();
+      });
+
+      it('should return existing subscription if already processed for same user (idempotency)', async () => {
+        // Arrange
+        appleSubscriptionService.verifyAndDecodeTransaction.mockReturnValue(
+          validAppleTxInfo,
+        );
+        prisma.userSubscription.findFirst.mockResolvedValue(mockSubscription);
+
+        // Act
+        const result = await service.verifyAndCreateSubscription(
+          userId,
+          appleDto,
+        );
+
+        // Assert
+        expect(prisma.userSubscription.findFirst).toHaveBeenCalledWith({
+          where: { storeTransactionId },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        expect(result).toEqual(mockSubscription);
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+        expect(creditsService.grantCredits).not.toHaveBeenCalled();
+      });
+
+      it('should throw ConflictException if transaction is already claimed by a different user (anti-theft)', async () => {
+        // Arrange
+        appleSubscriptionService.verifyAndDecodeTransaction.mockReturnValue(
+          validAppleTxInfo,
+        );
+        const differentUserSubscription = {
+          ...mockSubscription,
+          userId: 'other-victim-user-id',
+        };
+        prisma.userSubscription.findFirst.mockResolvedValue(
+          differentUserSubscription,
+        );
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, appleDto),
+        ).rejects.toThrow(ConflictException);
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+        expect(creditsService.grantCredits).not.toHaveBeenCalled();
+      });
+
+      it('should throw InvalidSubscriptionDatesException if Apple expiresDate <= purchaseDate', async () => {
+        // Arrange
+        appleSubscriptionService.verifyAndDecodeTransaction.mockReturnValue({
+          ...validAppleTxInfo,
+          purchaseDate: new Date('2026-07-28T00:00:00Z').getTime(),
+          expiresDate: new Date('2026-06-28T00:00:00Z').getTime(),
+        });
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, appleDto),
+        ).rejects.toThrow(InvalidSubscriptionDatesException);
+      });
+    });
+
+    describe('Google Play', () => {
+      const googleDto = {
+        storePlatform: StorePlatform.GOOGLE,
+        productId: storeProductId,
+        purchaseToken: 'google-purchase-token-xyz',
+      };
+
+      it('should verify purchase against Google Play Developer API and provision subscription with credits', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue(
+          validGooglePurchaseDetails,
+        );
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+        prisma.userSubscription.create.mockResolvedValue({
+          ...mockSubscription,
+          storePlatform: StorePlatform.GOOGLE,
+          storeTransactionId: googleDto.purchaseToken,
+        });
+
+        // Act
+        const result = await service.verifyAndCreateSubscription(
+          userId,
+          googleDto,
+        );
+
+        // Assert
+        expect(googleSubscriptionService.verifyPurchase).toHaveBeenCalledWith(
+          'com.breathaway.app',
+          storeProductId,
+          'google-purchase-token-xyz',
+        );
+        expect(
+          subscriptionPlansService.getPlanByStoreProductId,
+        ).toHaveBeenCalledWith(StorePlatform.GOOGLE, storeProductId);
+        expect(prisma.userSubscription.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              userId,
+              storePlatform: StorePlatform.GOOGLE,
+              storeTransactionId: 'google-purchase-token-xyz',
+              storeProductId,
+              currentPeriodStart: new Date(
+                validGooglePurchaseDetails.startTime,
+              ),
+              currentPeriodEnd: new Date(validGooglePurchaseDetails.expiryTime),
+            }),
+          }),
+        );
+        expect(creditsService.grantCredits).toHaveBeenCalled();
+        expect(result.storeTransactionId).toBe(googleDto.purchaseToken);
+      });
+
+      it('should throw InvalidGooglePurchaseException if purchaseToken is missing', async () => {
+        // Arrange
+        const missingTokenDto = {
+          storePlatform: StorePlatform.GOOGLE,
+          productId: storeProductId,
+        };
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, missingTokenDto as any),
+        ).rejects.toThrow(InvalidGooglePurchaseException);
+      });
+
+      it('should throw InvalidGooglePurchaseException if Google API verification fails', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockRejectedValue(
+          new Error('404 Not Found: Purchase token not recognized'),
+        );
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, googleDto),
+        ).rejects.toThrow(InvalidGooglePurchaseException);
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+        expect(creditsService.grantCredits).not.toHaveBeenCalled();
+      });
+
+      it('should return existing subscription if already processed for same user (idempotency)', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue(
+          validGooglePurchaseDetails,
+        );
+        prisma.userSubscription.findFirst.mockResolvedValue({
+          ...mockSubscription,
+          storeTransactionId: googleDto.purchaseToken,
+        });
+
+        // Act
+        const result = await service.verifyAndCreateSubscription(
+          userId,
+          googleDto,
+        );
+
+        // Assert
+        expect(googleSubscriptionService.verifyPurchase).toHaveBeenCalledWith(
+          'com.breathaway.app',
+          storeProductId,
+          googleDto.purchaseToken,
+        );
+        expect(prisma.userSubscription.findFirst).toHaveBeenCalledWith({
+          where: { storeTransactionId: googleDto.purchaseToken },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        expect(result.storeTransactionId).toBe(googleDto.purchaseToken);
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+      });
+
+      it('should throw ConflictException if Google purchase is already claimed by another user', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue(
+          validGooglePurchaseDetails,
+        );
+        const differentUserSub = {
+          ...mockSubscription,
+          userId: 'victim-account-id',
+          storeTransactionId: googleDto.purchaseToken,
+        };
+        prisma.userSubscription.findFirst.mockResolvedValue(differentUserSub);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, googleDto),
+        ).rejects.toThrow(ConflictException);
+        expect(googleSubscriptionService.verifyPurchase).toHaveBeenCalledWith(
+          'com.breathaway.app',
+          storeProductId,
+          googleDto.purchaseToken,
+        );
+        expect(prisma.userSubscription.create).not.toHaveBeenCalled();
+      });
+
+      it('should throw InvalidSubscriptionDatesException if Google expiryTime <= startTime', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue({
+          ...validGooglePurchaseDetails,
+          startTime: '2026-07-28T00:00:00Z',
+          expiryTime: '2026-06-28T00:00:00Z',
+        });
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, googleDto),
+        ).rejects.toThrow(InvalidSubscriptionDatesException);
+      });
+
+      it('should throw InvalidSubscriptionDatesException if Google expiryTime is missing or unparseable', async () => {
+        // Arrange
+        googleSubscriptionService.verifyPurchase.mockResolvedValue({
+          ...validGooglePurchaseDetails,
+          startTime: '2026-06-28T00:00:00Z',
+          expiryTime: 'unparseable-date-string',
+        });
+        prisma.userSubscription.findFirst.mockResolvedValue(null);
+
+        // Act & Assert
+        await expect(
+          service.verifyAndCreateSubscription(userId, googleDto),
+        ).rejects.toThrow(InvalidSubscriptionDatesException);
+      });
     });
   });
 

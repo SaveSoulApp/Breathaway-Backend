@@ -131,6 +131,21 @@ export class AppleSubscriptionService extends BaseService {
   }
 
   /**
+   * Cryptographically verifies and decodes an Apple StoreKit 2 transaction token (signedTransactionInfo).
+   *
+   * Validates ES256 signature, Apple Root CA certificate chain, bundle ID, and environment.
+   *
+   * @param jws - Compact JWS transaction token.
+   * @returns Verified AppleTransactionInfo.
+   * @throws {InvalidAppleJwsException} When JWS is invalid or verification fails.
+   */
+  verifyAndDecodeTransaction(jws: string): AppleTransactionInfo {
+    const transactionInfo = this.verifyAndDecodeJws<AppleTransactionInfo>(jws);
+    this.validateTransactionClaims(transactionInfo);
+    return transactionInfo;
+  }
+
+  /**
    * Cryptographically verifies and decodes an Apple StoreKit 2 compact JWS token.
    *
    * 1. Validates JWS format (header.payload.signature).

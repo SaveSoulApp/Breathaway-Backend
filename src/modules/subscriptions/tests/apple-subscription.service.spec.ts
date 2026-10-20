@@ -801,4 +801,44 @@ describe('AppleSubscriptionService', () => {
       });
     });
   });
+
+  describe('verifyAndDecodeTransaction', () => {
+    it('should successfully verify and decode a valid Apple transaction token', () => {
+      const txPayload = {
+        originalTransactionId: 'orig_apple_123',
+        transactionId: 'apple_tx_456',
+        productId: 'com.breathaway.plan.monthly',
+        purchaseDate: Date.now(),
+        expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        bundleId: 'com.breathaway.app',
+        environment: 'Production',
+        currency: 'USD',
+        price: 9990,
+        storefront: 'USA',
+      };
+
+      const jws = buildJws(txPayload);
+      const result = service.verifyAndDecodeTransaction(jws);
+
+      expect(result).toEqual(txPayload);
+    });
+
+    it('should reject transaction token with mismatched bundleId', () => {
+      const txPayload = {
+        originalTransactionId: 'orig_apple_123',
+        transactionId: 'apple_tx_456',
+        productId: 'com.breathaway.plan.monthly',
+        purchaseDate: Date.now(),
+        expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        bundleId: 'com.malicious.app',
+        environment: 'Production',
+      };
+
+      const jws = buildJws(txPayload);
+
+      expect(() => service.verifyAndDecodeTransaction(jws)).toThrow(
+        InvalidAppleJwsException,
+      );
+    });
+  });
 });

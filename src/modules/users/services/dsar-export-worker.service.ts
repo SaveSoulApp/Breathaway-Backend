@@ -31,7 +31,7 @@ import {
 export class DsarExportWorkerService extends BaseService {
   private readonly bucketName: string;
   private readonly retentionDays: number;
-  private readonly encryptionMethod: 'zip20' | 'aes256';
+  private static readonly ENCRYPTION_METHOD = 'aes256';
 
   constructor(
     logger: LoggerService,
@@ -53,10 +53,6 @@ export class DsarExportWorkerService extends BaseService {
     this.retentionDays = Number(
       this.configService.get<number>('DSAR_EXPORT_RETENTION_DAYS') ?? 7,
     );
-    this.encryptionMethod =
-      this.configService.get<'zip20' | 'aes256'>(
-        'DSAR_EXPORT_ENCRYPTION_METHOD',
-      ) ?? 'zip20';
 
     if (!archiver.isRegisteredFormat('zip-encrypted')) {
       archiver.registerFormat('zip-encrypted', archiverZipEncrypted);
@@ -345,7 +341,7 @@ export class DsarExportWorkerService extends BaseService {
         }
         archive = archiver.create('zip-encrypted', {
           zlib: { level: 9 },
-          encryptionMethod: this.encryptionMethod,
+          encryptionMethod: DsarExportWorkerService.ENCRYPTION_METHOD,
           password: passphrase,
         } as ArchiverOptions);
       } else {
@@ -440,7 +436,7 @@ export class DsarExportWorkerService extends BaseService {
         generatedAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
         archiveFormat: passphrase
-          ? `Password-Protected ZIP Archive (${this.encryptionMethod.toUpperCase()})`
+          ? 'Password-Protected ZIP Archive (AES-256)'
           : 'Standard ZIP Archive',
         legalBasis:
           'GDPR Article 15 (Right of Access), GDPR Article 20 (Data Portability), CCPA § 1798.110',
@@ -471,7 +467,7 @@ export class DsarExportWorkerService extends BaseService {
 Export ID:    ${exportId}
 Generated At: ${now.toUTCString()}
 Expires At:   ${expiresAt.toUTCString()}
-Archive Type: ${passphrase ? `Password-Protected ZIP (${this.encryptionMethod.toUpperCase()})` : 'Standard ZIP'}
+Archive Type: ${passphrase ? 'Password-Protected ZIP (AES-256)' : 'Standard ZIP'}
 
 This archive contains a machine-readable export of all personal data
 associated with your BreathAway account in accordance with GDPR Article 15/20
