@@ -11,6 +11,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
@@ -25,6 +26,7 @@ import { MaintenanceService } from './maintenance.service';
 
 @ApiTags('Internal Jobs')
 @SkipClientIdentity()
+@SkipThrottle()
 @ApiBearerAuth('gcp-oidc')
 @UseGuards(GcpOidcAuthGuard)
 @ApiStandardErrors()
