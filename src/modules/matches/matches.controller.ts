@@ -14,11 +14,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
 import {
   MatchListQueryRequestDto,
   MatchResponseDto,

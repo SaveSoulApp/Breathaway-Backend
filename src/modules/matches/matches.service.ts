@@ -588,7 +588,7 @@ export class MatchesService extends BaseService {
           identityId: targetIdentity.id,
           identityType: targetIdentity.type,
           step: 'decrypt_target_identity_label',
-          error: serializeError(error),
+          err: serializeError(error),
         },
       );
       return null;
