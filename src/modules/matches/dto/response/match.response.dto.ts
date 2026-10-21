@@ -31,7 +31,8 @@ export class MatchUserProfileDto {
 
 export class MatchOtherUserProfileDto extends MatchUserProfileDto {
   @ApiProperty({
-    description: 'The label associated with the like from this user',
+    description:
+      'The label associated with the like from this user, falling back to the matched identity (e.g. phone number or Instagram handle) when no label was set',
     required: false,
     nullable: true,
   })

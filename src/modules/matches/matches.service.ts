@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import {
   GenderType,
+  IdentityType,
   IntentType,
   LikeStatus,
   MatchStatus,
 } from '@prisma/client';
+import { parsePhoneNumberWithError } from 'libphonenumber-js';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -17,9 +20,23 @@ import { MatchNotFoundException } from './application/exceptions';
 import { MatchListQueryRequestDto } from './dto';
 
 /**
- * Minimal database projection for a match record with both participants and
- * their like labels. Used internally to avoid overfetching and to type the
- * `mapToResponseDto` transform safely.
+ * Minimal target identity projection needed to decrypt and format
+ * the public value when falling back for a match label.
+ */
+interface MatchTargetIdentity {
+  id: string;
+  type: IdentityType;
+  publicValueCiphertext: string;
+  publicValueIv: string;
+  publicValueTag: string;
+  publicValueWrappedKey: string;
+  publicValueKeyId: string;
+}
+
+/**
+ * Minimal database projection for a match record with both participants,
+ * their like labels, and target identities. Used internally to avoid overfetching
+ * and to type the `mapToResponseDto` transform safely.
  */
 interface MatchWithUsers {
   id: string;
@@ -47,9 +64,11 @@ interface MatchWithUsers {
   };
   likeOne: {
     label: string | null;
+    targetIdentity: MatchTargetIdentity;
   };
   likeTwo: {
     label: string | null;
+    targetIdentity: MatchTargetIdentity;
   };
 }
 
@@ -66,6 +85,7 @@ export class MatchesService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly identityCryptoService: IdentityCryptoService,
   ) {
     super(logger);
   }
@@ -146,11 +166,33 @@ export class MatchesService extends BaseService {
           likeOne: {
             select: {
               label: true,
+              targetIdentity: {
+                select: {
+                  id: true,
+                  type: true,
+                  publicValueCiphertext: true,
+                  publicValueIv: true,
+                  publicValueTag: true,
+                  publicValueWrappedKey: true,
+                  publicValueKeyId: true,
+                },
+              },
             },
           },
           likeTwo: {
             select: {
               label: true,
+              targetIdentity: {
+                select: {
+                  id: true,
+                  type: true,
+                  publicValueCiphertext: true,
+                  publicValueIv: true,
+                  publicValueTag: true,
+                  publicValueWrappedKey: true,
+                  publicValueKeyId: true,
+                },
+              },
             },
           },
         },
@@ -165,7 +207,9 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
-    const data = matches.map((match) => this.mapToResponseDto(match, userId));
+    const data = await Promise.all(
+      matches.map((match) => this.mapToResponseDto(match, userId)),
+    );
 
     return {
       data,
@@ -241,11 +285,33 @@ export class MatchesService extends BaseService {
         likeOne: {
           select: {
             label: true,
+            targetIdentity: {
+              select: {
+                id: true,
+                type: true,
+                publicValueCiphertext: true,
+                publicValueIv: true,
+                publicValueTag: true,
+                publicValueWrappedKey: true,
+                publicValueKeyId: true,
+              },
+            },
           },
         },
         likeTwo: {
           select: {
             label: true,
+            targetIdentity: {
+              select: {
+                id: true,
+                type: true,
+                publicValueCiphertext: true,
+                publicValueIv: true,
+                publicValueTag: true,
+                publicValueWrappedKey: true,
+                publicValueKeyId: true,
+              },
+            },
           },
         },
       },
@@ -261,7 +327,7 @@ export class MatchesService extends BaseService {
       step: 'complete',
     });
 
-    return this.mapToResponseDto(match, userId);
+    return await this.mapToResponseDto(match, userId);
   }
 
   /**
@@ -417,11 +483,13 @@ export class MatchesService extends BaseService {
     return false;
   }
 
-  private mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
+  private async mapToResponseDto(match: MatchWithUsers, currentUserId: string) {
     const isUserOne = match.userOneId === currentUserId;
     const me = isUserOne ? match.userOne : match.userTwo;
     const otherUser = isUserOne ? match.userTwo : match.userOne;
     const myLike = isUserOne ? match.likeOne : match.likeTwo;
+
+    const label = await this.resolveLikeLabel(myLike);
 
     return {
       id: match.id,
@@ -440,8 +508,114 @@ export class MatchesService extends BaseService {
         firstName: otherUser.profile?.firstName ?? '',
         lastName: otherUser.profile?.lastName ?? null,
         gender: otherUser.profile?.gender ?? null,
-        label: myLike?.label ?? null,
+        label,
       },
     };
+  }
+
+  /**
+   * Resolves the label to display for the other user from the caller's perspective.
+   *
+   * If the caller assigned an explicit non-empty label to their like, that value is
+   * returned directly (and decrypted downstream by DecryptionInterceptor if ciphertext).
+   * If the like label is null or whitespace, falls back to decrypting the target identity
+   * that the caller swiped on (e.g. international E.164 phone number or Instagram handle).
+   *
+   * @param like - The like record sent by the caller targeting the other user.
+   * @returns Decrypted label string, formatted fallback identity, or null.
+   */
+  private async resolveLikeLabel(
+    like?: {
+      label: string | null;
+      targetIdentity?: MatchTargetIdentity | null;
+    } | null,
+  ): Promise<string | null> {
+    if (!like) {
+      return null;
+    }
+
+    if (
+      like.label !== null &&
+      like.label !== undefined &&
+      like.label.trim().length > 0
+    ) {
+      return like.label;
+    }
+
+    if (!like.targetIdentity) {
+      return null;
+    }
+
+    return this.decryptTargetIdentityValue(like.targetIdentity);
+  }
+
+  /**
+   * Decrypts the public value of a target identity and normalises its output format.
+   *
+   * For PHONE identities, formats the number into international E.164 (`+` prefix).
+   * For other identity types (INSTAGRAM, EMAIL, etc.), returns the decrypted string as-is.
+   * Catches and suppresses decryption errors to prevent single-record failures from
+   * crashing the entire match list.
+   *
+   * @param targetIdentity - The encrypted target identity projection from the DB.
+   * @returns Formatted identity string, or null on failure.
+   */
+  private async decryptTargetIdentityValue(
+    targetIdentity: MatchTargetIdentity,
+  ): Promise<string | null> {
+    try {
+      const decrypted = await this.identityCryptoService.decryptPublicValue({
+        publicValueCiphertext: targetIdentity.publicValueCiphertext,
+        publicValueIv: targetIdentity.publicValueIv,
+        publicValueTag: targetIdentity.publicValueTag,
+        publicValueWrappedKey: targetIdentity.publicValueWrappedKey,
+        publicValueKeyId: targetIdentity.publicValueKeyId,
+      });
+
+      if (!decrypted || decrypted.trim().length === 0) {
+        return null;
+      }
+
+      if (targetIdentity.type === IdentityType.PHONE) {
+        return this.formatPhoneNumber(decrypted);
+      }
+
+      return decrypted;
+    } catch (error) {
+      this.logger.warn(
+        'Failed to decrypt target identity for match label fallback',
+        {
+          identityId: targetIdentity.id,
+          identityType: targetIdentity.type,
+          step: 'decrypt_target_identity_label',
+          error: serializeError(error),
+        },
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Formats a raw phone string into readable standard international format with spacing.
+   *
+   * Uses `libphonenumber-js` to parse and format into country-standard representation
+   * (e.g. `"+91 98765 43210"` for India, `"+1 415 555 2671"` for the US).
+   * If parsing fails, falls back gracefully to `+<digits>`.
+   *
+   * @param rawPhone - Digits or partially formatted phone number string.
+   * @returns Formatted international phone string.
+   */
+  private formatPhoneNumber(rawPhone: string): string {
+    const trimmed = rawPhone.trim();
+    const candidate = trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+    try {
+      const parsed = parsePhoneNumberWithError(candidate);
+      if (parsed.isValid()) {
+        return parsed.formatInternational();
+      }
+    } catch {
+      // Graceful degradation when parsing fails
+    }
+    return candidate;
   }
 }
