@@ -8,6 +8,7 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { IdentitiesService } from '@modules/identities/identities.service';
+import { InstagramService } from '@modules/instagram/instagram.service';
 import {
   LikeSummary,
   MatchResolverService,
@@ -29,7 +30,8 @@ import { SocialidentitiesService } from '@modules/social-identities/social-ident
  * All entry points are Pub/Sub listeners — there are no direct service-to-service
  * calls into this class. The two primary flows are:
  *   1. Instagram OTP verification: validates an OTP received via DM, links the
- *      sender's Instagram account to the BreathAway user, and fires a push notification.
+ *      sender's Instagram account to the BreathAway user, fires an automated DM reply,
+ *      and dispatches a push notification.
  *   2. Identity claimed: after any identity is claimed, retroactively resolves all
  *      pending likes that targeted the newly owned identity, completing deferred matches.
  */
@@ -41,6 +43,7 @@ export class IdentityWorkflowsService extends BaseService {
     private readonly oneTimePasswordsService: OneTimePasswordsService,
     private readonly socialidentitiesService: SocialidentitiesService,
     private readonly identitiesService: IdentitiesService,
+    private readonly instagramService: InstagramService,
     private readonly notificationsService: NotificationsService,
     private readonly matchResolverService: MatchResolverService,
   ) {
@@ -162,6 +165,20 @@ export class IdentityWorkflowsService extends BaseService {
         this.logger.event(LOG_EVENT.INSTAGRAM_IDENTITY_LINKED, {
           ...resolvedCtx,
         });
+
+        const replyText = `Your Instagram account (@${username}) has been verified on BreathAway! 🎉 You're all set.`;
+        this.instagramService
+          .sendDirectMessage(senderId, replyText)
+          .catch((err) => {
+            this.logger.error(
+              'Failed to send Instagram verification confirmation DM',
+              {
+                ...resolvedCtx,
+                step: 'send_instagram_reply',
+                err: serializeError(err),
+              },
+            );
+          });
 
         this.notificationsService
           .dispatch({

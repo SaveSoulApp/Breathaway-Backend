@@ -7,6 +7,8 @@ import {
   Like,
   LikeStatus,
 } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
+
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -14,13 +16,14 @@ import {
   createPrismaMock,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { IdentitiesService } from '@modules/identities/identities.service';
+import { InstagramService } from '@modules/instagram/instagram.service';
 import { MatchResolverService } from '@modules/match-resolver/match-resolver.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-passwords.service';
 import { SocialIdentityResponseDto } from '@modules/social-identities/dto/response/social-identity.response.dto';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
+
 import { IdentityWorkflowsService } from '../identity-workflows.service';
-import { ClsService } from 'nestjs-cls';
 
 describe('IdentityWorkflowsService', () => {
   let service: IdentityWorkflowsService;
@@ -28,6 +31,7 @@ describe('IdentityWorkflowsService', () => {
   let oneTimePasswordsService: jest.Mocked<OneTimePasswordsService>;
   let socialidentitiesService: jest.Mocked<SocialidentitiesService>;
   let identitiesService: jest.Mocked<IdentitiesService>;
+  let instagramService: jest.Mocked<InstagramService>;
   let notificationsService: jest.Mocked<NotificationsService>;
   let matchResolverService: jest.Mocked<MatchResolverService>;
   let contextualLogger: {
@@ -67,6 +71,13 @@ describe('IdentityWorkflowsService', () => {
       clearPendingInstagramHandle: jest.fn().mockResolvedValue(undefined),
     };
 
+    const mockInstagramService = {
+      sendDirectMessage: jest.fn().mockResolvedValue({
+        recipientId: 'sender_1',
+        messageId: 'mid_1',
+      }),
+    };
+
     const mockNotificationsService = {
       dispatch: jest.fn().mockResolvedValue(undefined),
     };
@@ -91,6 +102,7 @@ describe('IdentityWorkflowsService', () => {
           useValue: mockSocialidentitiesService,
         },
         { provide: IdentitiesService, useValue: mockIdentitiesService },
+        { provide: InstagramService, useValue: mockInstagramService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: MatchResolverService, useValue: mockMatchResolverService },
       ],
@@ -101,6 +113,7 @@ describe('IdentityWorkflowsService', () => {
     oneTimePasswordsService = module.get(OneTimePasswordsService);
     socialidentitiesService = module.get(SocialidentitiesService);
     identitiesService = module.get(IdentitiesService);
+    instagramService = module.get(InstagramService);
     notificationsService = module.get(NotificationsService);
     matchResolverService = module.get(MatchResolverService);
   });
@@ -160,6 +173,10 @@ describe('IdentityWorkflowsService', () => {
           userId: 'user_123',
         }),
       );
+      expect(instagramService.sendDirectMessage).toHaveBeenCalledWith(
+        'sender_1',
+        "Your Instagram account (@test_user) has been verified on BreathAway! 🎉 You're all set.",
+      );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           userIds: ['user_123'],
@@ -188,6 +205,10 @@ describe('IdentityWorkflowsService', () => {
         'JohnDoe',
         'sender_1',
         'user_123',
+      );
+      expect(instagramService.sendDirectMessage).toHaveBeenCalledWith(
+        'sender_1',
+        "Your Instagram account (@JohnDoe) has been verified on BreathAway! 🎉 You're all set.",
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -229,6 +250,7 @@ describe('IdentityWorkflowsService', () => {
           title: 'Instagram Verification Failed',
         }),
       );
+      expect(instagramService.sendDirectMessage).not.toHaveBeenCalled();
     });
 
     it('should warn when the instagram identity has no username', async () => {
@@ -240,6 +262,7 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(instagramService.sendDirectMessage).not.toHaveBeenCalled();
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Could not extract a valid username from Instagram identity payload',
         expect.objectContaining({
@@ -314,6 +337,38 @@ describe('IdentityWorkflowsService', () => {
           userId: 'user_123',
           step: 'notify',
           err: expect.objectContaining({ message: dispatchError.message }),
+        }),
+      );
+    });
+
+    it('should silently log when sendDirectMessage fails after identity is linked', async () => {
+      // Arrange
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'test_user',
+      } as unknown as SocialIdentityResponseDto);
+      identitiesService.claimOrCreateIdentity.mockResolvedValue(
+        {} as unknown as Identity,
+      );
+      const dmError = new Error('Instagram API unavailable');
+      instagramService.sendDirectMessage.mockRejectedValue(dmError);
+
+      // Act — must not throw
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      // Allow the fire-and-forget .catch() to run
+      await Promise.resolve();
+
+      // Assert — identity still linked, error logged via .catch
+      expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalled();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to send Instagram verification confirmation DM',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'send_instagram_reply',
+          err: expect.objectContaining({ message: dmError.message }),
         }),
       );
     });

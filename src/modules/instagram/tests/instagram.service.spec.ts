@@ -28,6 +28,7 @@ describe('InstagramService', () => {
   let logger: Record<string, jest.Mock>;
   const mockHttpClient = {
     get: jest.fn(),
+    post: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -285,6 +286,162 @@ describe('InstagramService', () => {
         'INSTAGRAM_ACCESS_TOKEN is not configured',
         { step: 'refresh_system' },
       );
+    });
+  });
+
+  describe('sendDirectMessage', () => {
+    const recipientId = '17841400008460056';
+    const messageText = 'Your identity has been verified!';
+
+    it('should successfully send a direct message using token from Secret Manager', async () => {
+      gcpSecretManager.getSecret.mockResolvedValueOnce('secret-manager-token');
+      mockHttpClient.post.mockResolvedValueOnce({
+        data: {
+          recipient_id: recipientId,
+          message_id: 'meta-msg-123',
+        },
+      });
+
+      const result = await service.sendDirectMessage(recipientId, messageText);
+
+      expect(gcpSecretManager.getSecret).toHaveBeenCalledWith(
+        GcpSecretName.INSTAGRAM_ACCESS_TOKEN,
+      );
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        'https://graph.instagram.com/v24.0/me/messages',
+        {
+          recipient: { id: recipientId },
+          message: { text: messageText },
+        },
+        {
+          headers: {
+            Authorization: 'Bearer secret-manager-token',
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      expect(result).toEqual({
+        recipientId,
+        messageId: 'meta-msg-123',
+      });
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Instagram direct message sent successfully',
+        expect.objectContaining({
+          recipientId,
+          messageId: 'meta-msg-123',
+          step: 'complete',
+        }),
+      );
+    });
+
+    it('should use custom INSTAGRAM_GRAPH_API_VERSION when configured in ConfigService', async () => {
+      gcpSecretManager.getSecret.mockResolvedValueOnce('secret-manager-token');
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'INSTAGRAM_GRAPH_API_VERSION') return 'v25.0';
+        return undefined;
+      });
+      mockHttpClient.post.mockResolvedValueOnce({
+        data: {
+          recipient_id: recipientId,
+          message_id: 'meta-msg-custom-ver',
+        },
+      });
+
+      const result = await service.sendDirectMessage(recipientId, messageText);
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        'https://graph.instagram.com/v25.0/me/messages',
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(result.messageId).toBe('meta-msg-custom-ver');
+    });
+
+    it('should fall back to ConfigService if Secret Manager fails and send message', async () => {
+      gcpSecretManager.getSecret.mockRejectedValueOnce(
+        new Error('Secret Manager error'),
+      );
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'INSTAGRAM_ACCESS_TOKEN') return 'config-token';
+        return undefined;
+      });
+      mockHttpClient.post.mockResolvedValueOnce({
+        data: {
+          recipient_id: recipientId,
+          message_id: 'meta-msg-456',
+        },
+      });
+
+      const result = await service.sendDirectMessage(recipientId, messageText);
+
+      expect(configService.get).toHaveBeenCalledWith('INSTAGRAM_ACCESS_TOKEN');
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        'https://graph.instagram.com/v24.0/me/messages',
+        expect.anything(),
+        {
+          headers: {
+            Authorization: 'Bearer config-token',
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      expect(result.messageId).toBe('meta-msg-456');
+    });
+
+    it('should throw MissingInstagramConfigException if token is not available', async () => {
+      gcpSecretManager.getSecret.mockRejectedValueOnce(
+        new Error('Secret not found'),
+      );
+      configService.get.mockReturnValueOnce(undefined);
+
+      await expect(
+        service.sendDirectMessage(recipientId, messageText),
+      ).rejects.toThrow(MissingInstagramConfigException);
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'INSTAGRAM_ACCESS_TOKEN is not configured',
+        expect.objectContaining({
+          recipientId,
+          step: 'send_dm',
+        }),
+      );
+    });
+
+    it('should throw InstagramGraphApiException when Graph API request fails with error response', async () => {
+      gcpSecretManager.getSecret.mockResolvedValueOnce('valid-token');
+      mockHttpClient.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: {
+              message: 'Invalid recipient ID',
+              type: 'OAuthException',
+              code: 100,
+            },
+          },
+        },
+      });
+
+      await expect(
+        service.sendDirectMessage(recipientId, messageText),
+      ).rejects.toThrow(InstagramGraphApiException);
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to send Instagram direct message',
+        expect.objectContaining({
+          recipientId,
+          step: 'send_dm',
+        }),
+      );
+    });
+
+    it('should throw InstagramGraphApiException when Graph API fails without response body', async () => {
+      gcpSecretManager.getSecret.mockResolvedValueOnce('valid-token');
+      mockHttpClient.post.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(
+        service.sendDirectMessage(recipientId, messageText),
+      ).rejects.toThrow(InstagramGraphApiException);
     });
   });
 });
