@@ -469,6 +469,47 @@ describe('MatchesService', () => {
       // Assert: graceful degradation returns null instead of throwing
       expect(result.data[0].otherUser.label).toBeNull();
     });
+
+    it('should map matches with bounded concurrency and preserve result ordering', async () => {
+      const match1 = {
+        ...mockMatchDataUserOne,
+        id: 'match-1',
+        likeOne: { label: 'Label 1', targetIdentity: mockTargetIdentityPhone },
+      };
+      const match2 = {
+        ...mockMatchDataUserOne,
+        id: 'match-2',
+        likeOne: { label: 'Label 2', targetIdentity: mockTargetIdentityPhone },
+      };
+      const match3 = {
+        ...mockMatchDataUserOne,
+        id: 'match-3',
+        likeOne: { label: null, targetIdentity: mockTargetIdentityPhone },
+      };
+
+      prisma.match.findMany.mockResolvedValue([
+        match1,
+        match2,
+        match3,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(3);
+      identityCryptoServiceMock.decryptPublicValue.mockResolvedValue(
+        '+1 555 123 4567',
+      );
+
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.data).toHaveLength(3);
+      expect(result.data[0].id).toBe('match-1');
+      expect(result.data[0].otherUser.label).toBe('Label 1');
+      expect(result.data[1].id).toBe('match-2');
+      expect(result.data[1].otherUser.label).toBe('Label 2');
+      expect(result.data[2].id).toBe('match-3');
+      expect(result.data[2].otherUser.label).toBe('+1 555 123 4567');
+    });
   });
 
   describe('findOneForUser', () => {

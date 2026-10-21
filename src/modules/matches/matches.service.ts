@@ -82,6 +82,8 @@ interface MatchWithUsers {
  */
 @Injectable()
 export class MatchesService extends BaseService {
+  private static readonly MAP_CONCURRENCY_LIMIT = 5;
+
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
@@ -207,8 +209,10 @@ export class MatchesService extends BaseService {
       totalMatchesCount: total,
     });
 
-    const data = await Promise.all(
-      matches.map((match) => this.mapToResponseDto(match, userId)),
+    const data = await this.mapWithConcurrency(
+      matches,
+      MatchesService.MAP_CONCURRENCY_LIMIT,
+      (match) => this.mapToResponseDto(match, userId),
     );
 
     return {
@@ -617,5 +621,40 @@ export class MatchesService extends BaseService {
       // Graceful degradation when parsing fails
     }
     return candidate;
+  }
+
+  /**
+   * Maps an array of items with a bounded concurrency pool to prevent unbounded
+   * parallel RPC calls (e.g. KMS envelope key unwrapping during match label fallback).
+   *
+   * @param items - Collection of items to process.
+   * @param limit - Maximum number of concurrent tasks.
+   * @param fn - Asynchronous mapping function applied to each item.
+   * @returns An array containing the mapped results in identical order.
+   */
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    if (items.length === 0) {
+      return [];
+    }
+
+    const results = new Array<R>(items.length);
+    let index = 0;
+
+    const worker = async () => {
+      while (index < items.length) {
+        const current = index++;
+        results[current] = await fn(items[current]);
+      }
+    };
+
+    const workerCount = Math.min(limit, items.length);
+    const workers = Array.from({ length: workerCount }, () => worker());
+    await Promise.all(workers);
+
+    return results;
   }
 }
