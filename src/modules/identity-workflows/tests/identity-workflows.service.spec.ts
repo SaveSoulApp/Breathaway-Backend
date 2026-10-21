@@ -175,7 +175,7 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(instagramService.sendDirectMessage).toHaveBeenCalledWith(
         'sender_1',
-        "Your Instagram account (@test_user) has been verified on BreathAway! 🎉 You're all set.",
+        expect.stringContaining('@test_user'),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -208,7 +208,7 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(instagramService.sendDirectMessage).toHaveBeenCalledWith(
         'sender_1',
-        "Your Instagram account (@JohnDoe) has been verified on BreathAway! 🎉 You're all set.",
+        expect.stringContaining('@JohnDoe'),
       );
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({

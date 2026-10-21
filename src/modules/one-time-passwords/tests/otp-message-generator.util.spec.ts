@@ -29,4 +29,13 @@ describe('OtpMessageGenerator', () => {
     expect(message).toContain(` ${sampleSlug} - `);
     expect(message).not.toContain(`${sampleSlug}.`);
   });
+
+  it('should not contain forbidden words: verification, verified, verify, code, or app', () => {
+    for (let i = 0; i < 100; i++) {
+      const message = OtpMessageGenerator.generateMessage(sampleSlug);
+      expect(message).not.toMatch(
+        /\b(verify|verified|verification|verifying|code|codes|apps?)\b/i,
+      );
+    }
+  });
 });

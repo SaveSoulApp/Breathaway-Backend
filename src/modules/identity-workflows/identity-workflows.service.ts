@@ -23,6 +23,8 @@ import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
 
+import { InstagramVerificationResponseGenerator } from './utils/instagram-verification-response-generator.util';
+
 /**
  * Reacts to identity-related Pub/Sub events and executes the multi-step workflows
  * that verify, link, and resolve matches for user identities.
@@ -166,7 +168,10 @@ export class IdentityWorkflowsService extends BaseService {
           ...resolvedCtx,
         });
 
-        const replyText = `Your Instagram account (@${username}) has been verified on BreathAway! 🎉 You're all set.`;
+        const replyText =
+          InstagramVerificationResponseGenerator.generateSuccessMessage(
+            username,
+          );
         this.instagramService
           .sendDirectMessage(senderId, replyText)
           .catch((err) => {
