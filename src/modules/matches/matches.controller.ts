@@ -14,11 +14,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { BaseController } from '@core/base';
-import { CurrentUserId, ApiStandardErrors } from '@common/decorators';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
+
 import {
   MatchListQueryRequestDto,
   MatchResponseDto,
@@ -57,7 +59,7 @@ export class MatchesController extends BaseController {
    *
    * @param query - Pagination parameters (`page`, `limit`; defaults: 1, 20).
    * @returns A paginated response containing match summaries with both users'
-   *   basic profile info and the like label from the other user's swipe.
+   *   basic profile info and the like label (falling back to the matched identity).
    */
   @Get()
   @ApiOperation({ summary: 'Get authenticated user active matches' })

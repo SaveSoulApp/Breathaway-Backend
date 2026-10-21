@@ -170,6 +170,22 @@ Internally, the database stores participants arbitrarily as `userOne` and `userT
 
 Dissolving a connection (Unmatching) acts as a soft-delete (stamping `deletedAt` and transitioning status to `UNMATCHED`). When this occurs, the service emits a `MATCH_UNMATCHED` audit event containing both user IDs. This allows backend moderators to detect abuse patterns, such as "rematch cycling" (matching, unmatching, and matching again rapidly).
 
+### 4. Match Label Fallback & Bounded KMS Concurrency
+
+When users view their matches (`GET /api/v1/matches`), each match includes an `otherUser.label` representing how the caller identified their counterpart:
+
+1. **Explicit Like Label**: If the user assigned a custom label when creating the like (e.g., `"Met at coffee shop"`), that value is returned directly.
+2. **Encrypted Target Identity Fallback**: If `like.label` is empty or null, the system falls back to decrypting the target identity the caller originally swiped on (`targetIdentity.publicValue`), formatted appropriately:
+   - **Phone Identities**: Formatted into readable international standard representation via `libphonenumber-js` (e.g. `+1 555 123 4567`).
+   - **Social Identities**: Returns the decrypted username (e.g. `johndoe`).
+3. **Bounded KMS Concurrency (`mapWithConcurrency`)**:
+   - Decrypting identity envelope keys requires unwrapping data encryption keys via GCP Cloud KMS (`this.keyManager.unwrapDataKey`).
+   - If an active user requests a page of 20 matches where likes lack explicit labels, an unbounded `Promise.all` would fire 20 parallel KMS RPC calls simultaneously, risking socket pool saturation and hitting GCP KMS quota thresholds.
+   - To guard system stability, `findAllForUser` executes mappings through `mapWithConcurrency` with a fixed concurrency cap of 5 (`MAP_CONCURRENCY_LIMIT = 5`). This pools asynchronous KMS round-trips while preserving exact pagination ordering.
+4. **Graceful Cryptographic Degradation**:
+   - Decryption errors are captured and logged with canonical structured metadata (`err: serializeError(error)`).
+   - If a single target identity cannot be decrypted (e.g. corrupt ciphertext), its label degrades gracefully to `null` without crashing the entire match list request.
+
 ---
 
 ## ⚙️ Managed Enums & States

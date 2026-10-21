@@ -12,7 +12,10 @@ import {
   InstagramGraphApiException,
   MissingInstagramConfigException,
 } from './application/exceptions';
-import { RefreshInstagramTokenResponseDto } from './dto';
+import {
+  RefreshInstagramTokenResponseDto,
+  SendInstagramMessageResponseDto,
+} from './dto';
 
 /**
  * Manages Instagram access token lifecycle by communicating directly with the
@@ -34,6 +37,12 @@ export class InstagramService extends BaseService {
   }
 
   private readonly baseUrl = 'https://graph.instagram.com';
+
+  /**
+   * Graph API version for Instagram endpoints.
+   * Defaults to v24.0 (supported through February 2028).
+   */
+  private readonly defaultApiVersion = 'v24.0';
 
   /**
    * Canonical Secret Manager secret identifier for the Instagram access token.
@@ -154,5 +163,100 @@ export class InstagramService extends BaseService {
       step: 'complete',
     });
     return result;
+  }
+
+  /**
+   * Sends a direct message to an Instagram user within the active 24-hour messaging window.
+   *
+   * @param recipientId - The user's Instagram-Scoped ID (IGSID)
+   * @param text - Plaintext message content
+   * @returns Metadata containing recipient ID and the created Meta message ID
+   */
+  async sendDirectMessage(
+    recipientId: string,
+    text: string,
+  ): Promise<SendInstagramMessageResponseDto> {
+    const maxMessageLength = 1000;
+    const sanitizedText =
+      text.length > maxMessageLength
+        ? `${text.slice(0, maxMessageLength - 3)}...`
+        : text;
+
+    const ctx = { recipientId, textLength: sanitizedText.length };
+    this.logger.log('Sending Instagram direct message', {
+      ...ctx,
+      step: 'init',
+    });
+
+    let accessToken: string | undefined;
+    try {
+      accessToken = await this.gcpSecretManager.getSecret(
+        this.instagramSecretName,
+      );
+    } catch (error) {
+      this.logger.warn(
+        'Could not fetch token from Secret Manager, falling back to ConfigService',
+        {
+          ...ctx,
+          step: 'fallback_config',
+          err: serializeError(error),
+        },
+      );
+      accessToken = this.configService.get<string>('INSTAGRAM_ACCESS_TOKEN');
+    }
+
+    if (!accessToken) {
+      this.logger.error('INSTAGRAM_ACCESS_TOKEN is not configured', {
+        ...ctx,
+        step: 'send_dm',
+      });
+      throw new MissingInstagramConfigException();
+    }
+
+    try {
+      const apiVersion =
+        this.configService.get<string>('INSTAGRAM_GRAPH_API_VERSION') ||
+        this.defaultApiVersion;
+      const url = `${this.baseUrl}/${apiVersion}/me/messages`;
+      const response = await this.httpClient.post<{
+        recipient_id: string;
+        message_id: string;
+      }>(
+        url,
+        {
+          recipient: { id: recipientId },
+          message: { text: sanitizedText },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      this.logger.log('Instagram direct message sent successfully', {
+        ...ctx,
+        messageId: response.data?.message_id,
+        step: 'complete',
+      });
+
+      return {
+        recipientId: response.data?.recipient_id,
+        messageId: response.data?.message_id,
+      };
+    } catch (error) {
+      this.logger.error('Failed to send Instagram direct message', {
+        ...ctx,
+        step: 'send_dm',
+        err: serializeError(error),
+      });
+      const err = error as {
+        response?: { data?: string | Record<string, unknown>; status?: number };
+      };
+      throw new InstagramGraphApiException(
+        err.response?.data || 'Failed to send direct message',
+      );
+    }
   }
 }

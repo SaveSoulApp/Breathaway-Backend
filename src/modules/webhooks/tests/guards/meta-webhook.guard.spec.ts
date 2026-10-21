@@ -203,6 +203,82 @@ describe('MetaWebhookGuard', () => {
       expect(() => guard.canActivate(context)).toThrow(
         new UnauthorizedException('Invalid Meta webhook signature'),
       );
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature verification failed',
+        expect.objectContaining({
+          step: 'signature_mismatch',
+        }),
+      );
+    });
+
+    it('should omit rawBodyPreview and signatures from mismatch warning log when DEPLOYMENT_ENV is not local (e.g. gcp)', () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'DEPLOYMENT_ENV') return 'gcp';
+        return undefined;
+      });
+
+      const payloadStr = JSON.stringify({
+        object: 'instagram',
+        secretData: 'sensitive_dm',
+      });
+      const rawBody = Buffer.from(payloadStr, 'utf8');
+      const wrongSignature = generateSignature(rawBody, 'wrong_secret');
+
+      const context = createMockContext(
+        { 'x-hub-signature-256': wrongSignature },
+        JSON.parse(payloadStr),
+        rawBody,
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException('Invalid Meta webhook signature'),
+      );
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature verification failed',
+        expect.not.objectContaining({
+          rawBodyPreview: expect.anything(),
+          receivedSig: expect.anything(),
+        }),
+      );
+    });
+
+    it('should include rawBodyPreview and signatures in mismatch warning log when DEPLOYMENT_ENV is local', () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'DEPLOYMENT_ENV') return 'local';
+        return undefined;
+      });
+
+      const payloadStr = JSON.stringify({
+        object: 'instagram',
+        secretData: 'sensitive_dm',
+      });
+      const rawBody = Buffer.from(payloadStr, 'utf8');
+      const wrongSignature = generateSignature(rawBody, 'wrong_secret');
+
+      const context = createMockContext(
+        {
+          'x-hub-signature-256': wrongSignature,
+          'x-hub-signature': 'sha1=legacy_hash',
+        },
+        JSON.parse(payloadStr),
+        rawBody,
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException('Invalid Meta webhook signature'),
+      );
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature verification failed',
+        expect.objectContaining({
+          step: 'signature_mismatch',
+          receivedSig: wrongSignature,
+          expectedSig: expect.stringMatching(/^sha256=/),
+          legacySha1Sig: 'sha1=legacy_hash',
+          rawBodyPreview: rawBody.toString('utf8').slice(0, 500),
+        }),
+      );
     });
 
     it('should throw UnauthorizedException when signature length does not match', () => {
@@ -215,6 +291,12 @@ describe('MetaWebhookGuard', () => {
       expect(() => guard.canActivate(context)).toThrow(
         new UnauthorizedException('Invalid Meta webhook signature'),
       );
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature verification failed',
+        expect.objectContaining({
+          step: 'signature_mismatch',
+        }),
+      );
     });
 
     it('should throw UnauthorizedException when signature lacks sha256= prefix', () => {
@@ -226,6 +308,65 @@ describe('MetaWebhookGuard', () => {
 
       expect(() => guard.canActivate(context)).toThrow(
         new UnauthorizedException('Invalid Meta webhook signature'),
+      );
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature missing sha256= prefix',
+        expect.objectContaining({
+          step: 'invalid_signature_prefix',
+        }),
+      );
+    });
+
+    it('should return true when META_APP_SECRET has leading or trailing whitespace / newlines', () => {
+      configService.getOrThrow.mockReturnValueOnce(`  ${mockSecret}\n\r  `);
+
+      const payloadStr = JSON.stringify({ object: 'instagram' });
+      const rawBody = Buffer.from(payloadStr, 'utf8');
+      const signature = generateSignature(rawBody, mockSecret);
+
+      const context = createMockContext(
+        { 'x-hub-signature-256': signature },
+        JSON.parse(payloadStr),
+        rawBody,
+      );
+
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+    });
+
+    it('should return true when signature header has leading or trailing whitespace', () => {
+      const payloadStr = JSON.stringify({ object: 'instagram' });
+      const rawBody = Buffer.from(payloadStr, 'utf8');
+      const signature = `  ${generateSignature(rawBody, mockSecret)}  `;
+
+      const context = createMockContext(
+        { 'x-hub-signature-256': signature },
+        JSON.parse(payloadStr),
+        rawBody,
+      );
+
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+    });
+
+    it('should throw InternalServerErrorException when META_APP_SECRET is only whitespace', () => {
+      configService.getOrThrow.mockReturnValueOnce('   \n  ');
+
+      const context = createMockContext(
+        { 'x-hub-signature-256': 'sha256=1234567890abcdef' },
+        { object: 'instagram' },
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new InternalServerErrorException(
+          'META_APP_SECRET configuration is empty',
+        ),
+      );
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'META_APP_SECRET is empty after trimming whitespace',
+        { step: 'empty_meta_app_secret' },
       );
     });
 

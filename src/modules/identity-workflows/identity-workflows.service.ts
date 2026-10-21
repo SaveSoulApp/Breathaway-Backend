@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { IdentityType, LikeStatus } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
 import { IdentitiesService } from '@modules/identities/identities.service';
+import { InstagramService } from '@modules/instagram/instagram.service';
 import {
   LikeSummary,
   MatchResolverService,
@@ -19,7 +23,8 @@ import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-pa
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
-import { IdentityType, LikeStatus } from '@prisma/client';
+
+import { InstagramVerificationResponseGenerator } from './utils/instagram-verification-response-generator.util';
 
 /**
  * Reacts to identity-related Pub/Sub events and executes the multi-step workflows
@@ -28,7 +33,8 @@ import { IdentityType, LikeStatus } from '@prisma/client';
  * All entry points are Pub/Sub listeners — there are no direct service-to-service
  * calls into this class. The two primary flows are:
  *   1. Instagram OTP verification: validates an OTP received via DM, links the
- *      sender's Instagram account to the BreathAway user, and fires a push notification.
+ *      sender's Instagram account to the BreathAway user, fires an automated DM reply,
+ *      and dispatches a push notification.
  *   2. Identity claimed: after any identity is claimed, retroactively resolves all
  *      pending likes that targeted the newly owned identity, completing deferred matches.
  */
@@ -40,6 +46,7 @@ export class IdentityWorkflowsService extends BaseService {
     private readonly oneTimePasswordsService: OneTimePasswordsService,
     private readonly socialidentitiesService: SocialidentitiesService,
     private readonly identitiesService: IdentitiesService,
+    private readonly instagramService: InstagramService,
     private readonly notificationsService: NotificationsService,
     private readonly matchResolverService: MatchResolverService,
   ) {
@@ -70,6 +77,16 @@ export class IdentityWorkflowsService extends BaseService {
     this.logger.info('Received Instagram OTP event', { ...ctx, step: 'init' });
 
     try {
+      this.logger.debug('Fetching Instagram social identity', {
+        ...ctx,
+        step: 'fetch_social_identity',
+      });
+      const identity =
+        await this.socialidentitiesService.verifyInstagramIdentity(
+          null,
+          senderId,
+        );
+
       this.logger.debug('Verifying extracted OTP', {
         ...ctx,
         step: 'verify_otp',
@@ -80,19 +97,72 @@ export class IdentityWorkflowsService extends BaseService {
 
       const resolvedCtx = { ...ctx, userId };
 
-      this.logger.debug('OTP verified successfully, fetching identity', {
-        ...resolvedCtx,
-        step: 'fetch_social_identity',
+      this.emitAuditLog({
+        actionType: AuditActionType.SOCIAL_IDENTITY_VERIFIED,
+        userId,
+        metadata: {
+          platform: 'instagram',
+          maskedPlatformId: senderId,
+        },
       });
-      const identity =
-        await this.socialidentitiesService.verifyInstagramIdentity(
-          userId,
-          senderId,
-        );
 
       const username = identity.username;
 
       if (username) {
+        const expectedHandle =
+          await this.identitiesService.getPendingInstagramHandle(userId);
+
+        if (expectedHandle) {
+          const normalizedExpected = normalizeIdentityValue(
+            expectedHandle,
+            IdentityType.INSTAGRAM,
+          );
+          const normalizedActual = normalizeIdentityValue(
+            username,
+            IdentityType.INSTAGRAM,
+          );
+
+          if (normalizedExpected !== normalizedActual) {
+            this.logger.warn(
+              'Instagram handle mismatch between pending intent and DM sender',
+              {
+                ...resolvedCtx,
+                step: 'handle_mismatch',
+                expected: normalizedExpected,
+                actual: normalizedActual,
+              },
+            );
+
+            await this.identitiesService.clearPendingInstagramHandle(userId);
+
+            this.notificationsService
+              .dispatch({
+                userIds: [userId],
+                channels: [NotificationChannel.PUSH],
+                title: 'Instagram Verification Failed',
+                body: `The Instagram account you messaged from (@${username}) does not match the handle you entered (@${expectedHandle}).`,
+                type: NotificationType.SYSTEM_ALERT,
+                category: NotificationCategory.SECURITY,
+                priority: NotificationPriority.HIGH,
+              })
+              .catch((err) => {
+                this.logger.error(
+                  'Failed to dispatch handle mismatch notification',
+                  {
+                    ...resolvedCtx,
+                    step: 'notify_mismatch',
+                    err: serializeError(err),
+                  },
+                );
+              });
+
+            return;
+          }
+        }
+
+        // Clear the pending intent now that it's matched/verified
+        await this.identitiesService.clearPendingInstagramHandle(userId);
+
         this.logger.debug(
           'Instagram identity found, claiming/linking identity',
           {
@@ -110,7 +180,23 @@ export class IdentityWorkflowsService extends BaseService {
           ...resolvedCtx,
         });
 
-        // TODO: take the next steps
+        const replyText =
+          InstagramVerificationResponseGenerator.generateSuccessMessage(
+            username,
+          );
+        this.instagramService
+          .sendDirectMessage(senderId, replyText)
+          .catch((err) => {
+            this.logger.error(
+              'Failed to send Instagram verification confirmation DM',
+              {
+                ...resolvedCtx,
+                step: 'send_instagram_reply',
+                err: serializeError(err),
+              },
+            );
+          });
+
         this.notificationsService
           .dispatch({
             userIds: [userId],

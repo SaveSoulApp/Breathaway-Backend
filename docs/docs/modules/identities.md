@@ -90,3 +90,11 @@ If the service discovers a duplicate, unverified identity during an update opera
 ### 3. Asynchronous Match Triggers
 
 After successfully claiming an identity, the service does not resolve matches synchronously. Instead, it acts as a fire-and-forget publisher, emitting `IDENTITY_CLAIMED` to Pub/Sub. This prevents heavy match-resolution logic from delaying the user's HTTP response.
+
+### 4. Pending Handle State Management (Redis)
+
+To ensure that the user claiming an Instagram handle is the exact person messaging from that handle on Instagram:
+
+- **`setPendingInstagramHandle(userId, handle)`**: When the user enters their Instagram handle during onboarding, it is cached in Redis under `pending_ig_handle:<userId>` with a TTL aligned with the OTP expiration window.
+- **`getPendingInstagramHandle(userId)`**: During webhook processing, `IdentityWorkflowsService` retrieves this value and compares it against the sender's actual Instagram handle returned by the Meta Graph API.
+- **`clearPendingInstagramHandle(userId)`**: Automatically deleted upon successful identity verification or upon handle mismatch, guaranteeing stale intents do not persist.

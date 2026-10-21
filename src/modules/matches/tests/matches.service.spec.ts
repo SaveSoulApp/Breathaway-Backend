@@ -1,9 +1,10 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { IntentType, MatchStatus } from '@prisma/client';
+import { IdentityType, IntentType, MatchStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -17,10 +18,33 @@ import { MatchesService } from '../matches.service';
 describe('MatchesService', () => {
   let service: MatchesService;
   let prisma: MockPrismaService;
+  let identityCryptoServiceMock: {
+    decryptPublicValue: jest.Mock;
+  };
 
   const currentUserId = 'user-id-123';
   const otherUserId = 'other-user-id';
   const matchId = 'match-id-123';
+
+  const mockTargetIdentityPhone = {
+    id: 'identity-phone-1',
+    type: IdentityType.PHONE,
+    publicValueCiphertext: 'cipher-phone',
+    publicValueIv: 'iv-phone',
+    publicValueTag: 'tag-phone',
+    publicValueWrappedKey: 'key-phone',
+    publicValueKeyId: 'key-id-phone',
+  };
+
+  const mockTargetIdentityInstagram = {
+    id: 'identity-ig-1',
+    type: IdentityType.INSTAGRAM,
+    publicValueCiphertext: 'cipher-ig',
+    publicValueIv: 'iv-ig',
+    publicValueTag: 'tag-ig',
+    publicValueWrappedKey: 'key-ig',
+    publicValueKeyId: 'key-id-ig',
+  };
 
   const mockMatchDataUserOne = {
     id: matchId,
@@ -45,6 +69,14 @@ describe('MatchesService', () => {
         lastName: 'enc:v1:key:iv:tag:wrapped:Smith',
         gender: null,
       },
+    },
+    likeOne: {
+      label: null,
+      targetIdentity: null,
+    },
+    likeTwo: {
+      label: null,
+      targetIdentity: null,
     },
   };
 
@@ -112,7 +144,77 @@ describe('MatchesService', () => {
     },
   };
 
+  const expectedPrismaSelect = {
+    id: true,
+    status: true,
+    matchedAt: true,
+    intentOne: true,
+    intentTwo: true,
+    userOneId: true,
+    userTwoId: true,
+    userOne: {
+      select: {
+        id: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            gender: true,
+          },
+        },
+      },
+    },
+    userTwo: {
+      select: {
+        id: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            gender: true,
+          },
+        },
+      },
+    },
+    likeOne: {
+      select: {
+        label: true,
+        targetIdentity: {
+          select: {
+            id: true,
+            type: true,
+            publicValueCiphertext: true,
+            publicValueIv: true,
+            publicValueTag: true,
+            publicValueWrappedKey: true,
+            publicValueKeyId: true,
+          },
+        },
+      },
+    },
+    likeTwo: {
+      select: {
+        label: true,
+        targetIdentity: {
+          select: {
+            id: true,
+            type: true,
+            publicValueCiphertext: true,
+            publicValueIv: true,
+            publicValueTag: true,
+            publicValueWrappedKey: true,
+            publicValueKeyId: true,
+          },
+        },
+      },
+    },
+  };
+
   beforeEach(async () => {
+    identityCryptoServiceMock = {
+      decryptPublicValue: jest.fn(),
+    };
+
     const loggerServiceMock = {
       forContext: jest.fn().mockReturnValue({
         log: jest.fn(),
@@ -131,6 +233,7 @@ describe('MatchesService', () => {
         MatchesService,
         { provide: PrismaService, useValue: createPrismaMock() },
         { provide: LoggerService, useValue: loggerServiceMock },
+        { provide: IdentityCryptoService, useValue: identityCryptoServiceMock },
       ],
     }).compile();
 
@@ -179,49 +282,7 @@ describe('MatchesService', () => {
         },
         skip: 0,
         take: 20,
-        select: {
-          id: true,
-          status: true,
-          matchedAt: true,
-          intentOne: true,
-          intentTwo: true,
-          userOneId: true,
-          userTwoId: true,
-          userOne: {
-            select: {
-              id: true,
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  gender: true,
-                },
-              },
-            },
-          },
-          userTwo: {
-            select: {
-              id: true,
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  gender: true,
-                },
-              },
-            },
-          },
-          likeOne: {
-            select: {
-              label: true,
-            },
-          },
-          likeTwo: {
-            select: {
-              label: true,
-            },
-          },
-        },
+        select: expectedPrismaSelect,
       });
       expect(result).toEqual({
         data: [expectedResponseDataUserOne],
@@ -262,6 +323,193 @@ describe('MatchesService', () => {
         },
       });
     });
+
+    it('should return explicit like label when caller has set a label', async () => {
+      // Arrange
+      const matchWithExplicitLabel = {
+        ...mockMatchDataUserOne,
+        likeOne: {
+          label: 'enc:v1:explicit-label-ciphertext',
+          targetIdentity: mockTargetIdentityPhone,
+        },
+      };
+      prisma.match.findMany.mockResolvedValue([
+        matchWithExplicitLabel,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
+
+      // Act
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      // Assert: identity decryption should NOT be called since explicit label exists
+      expect(
+        identityCryptoServiceMock.decryptPublicValue,
+      ).not.toHaveBeenCalled();
+      expect(result.data[0].otherUser.label).toBe(
+        'enc:v1:explicit-label-ciphertext',
+      );
+    });
+
+    it('should fallback to readable standard formatted phone number when label is null and target identity is PHONE', async () => {
+      // Arrange
+      const matchWithPhoneIdentity = {
+        ...mockMatchDataUserOne,
+        likeOne: {
+          label: null,
+          targetIdentity: mockTargetIdentityPhone,
+        },
+      };
+      prisma.match.findMany.mockResolvedValue([
+        matchWithPhoneIdentity,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
+      identityCryptoServiceMock.decryptPublicValue.mockResolvedValue(
+        '919876543210',
+      );
+
+      // Act
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      // Assert
+      expect(identityCryptoServiceMock.decryptPublicValue).toHaveBeenCalledWith(
+        {
+          publicValueCiphertext: mockTargetIdentityPhone.publicValueCiphertext,
+          publicValueIv: mockTargetIdentityPhone.publicValueIv,
+          publicValueTag: mockTargetIdentityPhone.publicValueTag,
+          publicValueWrappedKey: mockTargetIdentityPhone.publicValueWrappedKey,
+          publicValueKeyId: mockTargetIdentityPhone.publicValueKeyId,
+        },
+      );
+      expect(result.data[0].otherUser.label).toBe('+91 98765 43210');
+    });
+
+    it('should fallback to Instagram handle when label is null and target identity is INSTAGRAM', async () => {
+      // Arrange
+      const matchWithInstagramIdentity = {
+        ...mockMatchDataUserOne,
+        likeOne: {
+          label: null,
+          targetIdentity: mockTargetIdentityInstagram,
+        },
+      };
+      prisma.match.findMany.mockResolvedValue([
+        matchWithInstagramIdentity,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
+      identityCryptoServiceMock.decryptPublicValue.mockResolvedValue(
+        'sarah_smith',
+      );
+
+      // Act
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      // Assert
+      expect(result.data[0].otherUser.label).toBe('sarah_smith');
+    });
+
+    it('should fallback to identity value when user is userTwo and label is null', async () => {
+      // Arrange: current user is userTwo, so caller's like is likeTwo
+      const matchWhereUserIsTwo = {
+        ...mockMatchDataUserTwo,
+        likeTwo: {
+          label: null,
+          targetIdentity: mockTargetIdentityInstagram,
+        },
+      };
+      prisma.match.findMany.mockResolvedValue([
+        matchWhereUserIsTwo,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
+      identityCryptoServiceMock.decryptPublicValue.mockResolvedValue(
+        'jane_doe',
+      );
+
+      // Act
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      // Assert
+      expect(result.data[0].otherUser.label).toBe('jane_doe');
+    });
+
+    it('should return null when target identity decryption throws an error', async () => {
+      // Arrange
+      const matchWithCorruptIdentity = {
+        ...mockMatchDataUserOne,
+        likeOne: {
+          label: null,
+          targetIdentity: mockTargetIdentityPhone,
+        },
+      };
+      prisma.match.findMany.mockResolvedValue([
+        matchWithCorruptIdentity,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(1);
+      identityCryptoServiceMock.decryptPublicValue.mockRejectedValue(
+        new Error('KMS unwrapping failed'),
+      );
+
+      // Act
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      // Assert: graceful degradation returns null instead of throwing
+      expect(result.data[0].otherUser.label).toBeNull();
+    });
+
+    it('should map matches with bounded concurrency and preserve result ordering', async () => {
+      const match1 = {
+        ...mockMatchDataUserOne,
+        id: 'match-1',
+        likeOne: { label: 'Label 1', targetIdentity: mockTargetIdentityPhone },
+      };
+      const match2 = {
+        ...mockMatchDataUserOne,
+        id: 'match-2',
+        likeOne: { label: 'Label 2', targetIdentity: mockTargetIdentityPhone },
+      };
+      const match3 = {
+        ...mockMatchDataUserOne,
+        id: 'match-3',
+        likeOne: { label: null, targetIdentity: mockTargetIdentityPhone },
+      };
+
+      prisma.match.findMany.mockResolvedValue([
+        match1,
+        match2,
+        match3,
+      ] as unknown as Awaited<ReturnType<typeof prisma.match.findMany>>);
+      prisma.match.count.mockResolvedValue(3);
+      identityCryptoServiceMock.decryptPublicValue.mockResolvedValue(
+        '+1 555 123 4567',
+      );
+
+      const result = await service.findAllForUser(currentUserId, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.data).toHaveLength(3);
+      expect(result.data[0].id).toBe('match-1');
+      expect(result.data[0].otherUser.label).toBe('Label 1');
+      expect(result.data[1].id).toBe('match-2');
+      expect(result.data[1].otherUser.label).toBe('Label 2');
+      expect(result.data[2].id).toBe('match-3');
+      expect(result.data[2].otherUser.label).toBe('+1 555 123 4567');
+    });
   });
 
   describe('findOneForUser', () => {
@@ -285,49 +533,7 @@ describe('MatchesService', () => {
           userOne: { deletedAt: null },
           userTwo: { deletedAt: null },
         },
-        select: {
-          id: true,
-          status: true,
-          matchedAt: true,
-          intentOne: true,
-          intentTwo: true,
-          userOneId: true,
-          userTwoId: true,
-          userOne: {
-            select: {
-              id: true,
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  gender: true,
-                },
-              },
-            },
-          },
-          userTwo: {
-            select: {
-              id: true,
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  gender: true,
-                },
-              },
-            },
-          },
-          likeOne: {
-            select: {
-              label: true,
-            },
-          },
-          likeTwo: {
-            select: {
-              label: true,
-            },
-          },
-        },
+        select: expectedPrismaSelect,
       });
       expect(result).toEqual(expectedResponseDataUserOne);
     });

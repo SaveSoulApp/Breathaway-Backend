@@ -1,21 +1,24 @@
-import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Identity, IdentityType } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
+
 import { DateUtil } from '@common/utils/date.utils';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { RedisService } from '@infrastructure/redis';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
+
 import {
   IdentityAlreadyExistsException,
   IdentityAlreadyClaimedException,
   IdentityNotFoundException,
 } from '../application/exceptions';
-
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Test, TestingModule } from '@nestjs/testing';
-import { Identity, IdentityType } from '@prisma/client';
 import {
   CreateIdentityRequestDto,
   LookupIdentityRequestDto,
@@ -33,13 +36,17 @@ import {
   mockPlatformIdData,
   mockUserId,
 } from './mocks/identities.mock';
-import { ClsService } from 'nestjs-cls';
 
 describe('IdentitiesService', () => {
   let service: IdentitiesService;
   let prisma: MockPrismaService;
   let encryption: jest.Mocked<IdentityCryptoService>;
   let pubSubPublisher: jest.Mocked<PubSubPublisherService>;
+  let redisService: {
+    get: jest.Mock;
+    set: jest.Mock;
+    del: jest.Mock;
+  };
   let eventEmitter: { emit: jest.Mock };
   let contextualLogger: {
     info: jest.Mock;
@@ -67,6 +74,7 @@ describe('IdentitiesService', () => {
       processPlatformId: jest.fn(),
       decryptPublicValue: jest.fn(),
       decryptPlatformId: jest.fn(),
+      maskPublicValue: jest.fn((val) => val),
     };
 
     const mockLoggerService = {
@@ -75,6 +83,12 @@ describe('IdentitiesService', () => {
 
     const mockPubSubPublisherService = {
       publish: jest.fn().mockResolvedValue('mock-message-id'),
+    };
+
+    redisService = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -89,6 +103,7 @@ describe('IdentitiesService', () => {
           provide: PubSubPublisherService,
           useValue: mockPubSubPublisherService,
         },
+        { provide: RedisService, useValue: redisService },
       ],
     }).compile();
 
@@ -239,6 +254,78 @@ describe('IdentitiesService', () => {
           mockCreateIdentityRequestDto as CreateIdentityRequestDto,
         ),
       ).rejects.toThrow(IdentityAlreadyExistsException);
+    });
+
+    it('should store pending Instagram handle in Redis with TTL and return ephemeral response without database write', async () => {
+      const instagramDto = {
+        type: IdentityType.INSTAGRAM,
+        publicValue: 'mohit_insta',
+      };
+      encryption.processPublicValue.mockResolvedValue({
+        ...mockEncryptedData,
+        publicValueMasked: 'm••••a',
+      });
+      prisma.identity.findFirst.mockResolvedValue(null);
+
+      const result = await service.create(mockUserId, instagramDto);
+
+      expect(prisma.identity.create).not.toHaveBeenCalled();
+      expect(prisma.identity.update).not.toHaveBeenCalled();
+      expect(redisService.set).toHaveBeenCalledWith(
+        `pending_identity:instagram:${mockUserId}`,
+        'mohit_insta',
+        'EX',
+        900,
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: `pending_${mockUserId}_instagram`,
+          type: IdentityType.INSTAGRAM,
+          isVerified: false,
+          publicValueMasked: 'm••••a',
+          userId: mockUserId,
+        }),
+      );
+    });
+
+    it('should throw IdentityAlreadyExistsException if Instagram handle is already verified by someone', async () => {
+      const instagramDto = {
+        type: IdentityType.INSTAGRAM,
+        publicValue: 'mohit_insta',
+      };
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst.mockResolvedValue({
+        ...mockIdentityData,
+        type: IdentityType.INSTAGRAM,
+        userId: 'other-user',
+        isVerified: true,
+      } as Identity);
+
+      await expect(service.create(mockUserId, instagramDto)).rejects.toThrow(
+        IdentityAlreadyExistsException,
+      );
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should throw IdentityAlreadyExistsException if caller already has a verified Instagram identity', async () => {
+      const instagramDto = {
+        type: IdentityType.INSTAGRAM,
+        publicValue: 'mohit_insta',
+      };
+      encryption.processPublicValue.mockResolvedValue(mockEncryptedData);
+      prisma.identity.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          ...mockIdentityData,
+          type: IdentityType.INSTAGRAM,
+          userId: mockUserId,
+          isVerified: true,
+        } as Identity);
+
+      await expect(service.create(mockUserId, instagramDto)).rejects.toThrow(
+        IdentityAlreadyExistsException,
+      );
+      expect(redisService.set).not.toHaveBeenCalled();
     });
   });
 
