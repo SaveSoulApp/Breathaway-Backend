@@ -1,29 +1,6 @@
-# Variables (You can extract these to variables.tf if you prefer)
-variable "project_id" {
-  type    = string
-  default = "breathaway-dev"
-}
-
-variable "region" {
-  type    = string
-  default = "asia-south1"
-}
-
-variable "service_name" {
-  type    = string
-  default = "backend-service"
-}
-
-variable "maintenance_service_name" {
-  type    = string
-  default = "maintenance-service"
-}
-
-variable "instagram_secret_name" {
-  type        = string
-  description = "Secret Manager secret identifier for the Instagram access token"
-  default     = "access-token-instagram"
-}
+# scheduler.tf
+#
+# Cloud Scheduler jobs and dedicated runner service accounts for background operations.
 
 # Data block to get the deployed backend Cloud Run service details dynamically (like its URL)
 data "google_cloud_run_v2_service" "backend_service" {
