@@ -2,12 +2,11 @@ jest.mock('nanoid', () => ({
   nanoid: () => 'mocked-id',
 }));
 
-import { NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { THROTTLER_LIMIT } from '@nestjs/throttler/dist/throttler.constants';
 
+import { NonProductionGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import { AuthService } from '@modules/auth/auth.service';
 import { AUTH_DEV_LOGIN_THROTTLE } from '@modules/auth/constants';
@@ -17,6 +16,7 @@ import { ConsumeCreditsRequestDto } from '@modules/credits/dto';
 
 import { AdminController } from '../admin.controller';
 import { AdminService } from '../admin.service';
+import { TruncateDatabaseRequestDto } from '../dto';
 import { AdminOidcAuthGuard } from '../guards/admin-oidc-auth.guard';
 
 describe('AdminController', () => {
@@ -24,7 +24,6 @@ describe('AdminController', () => {
   let adminService: jest.Mocked<AdminService>;
   let creditsService: jest.Mocked<CreditsService>;
   let authService: jest.Mocked<AuthService>;
-  let configService: jest.Mocked<ConfigService>;
   let reflector: Reflector;
 
   const mockLoggerService = {
@@ -38,6 +37,7 @@ describe('AdminController', () => {
   beforeEach(async () => {
     const mockAdminService = {
       deleteAccount: jest.fn(),
+      truncateDatabase: jest.fn(),
     };
 
     const mockCreditsService = {
@@ -57,10 +57,11 @@ describe('AdminController', () => {
         { provide: AdminService, useValue: mockAdminService },
         { provide: CreditsService, useValue: mockCreditsService },
         { provide: AuthService, useValue: mockAuthService },
-        { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
     })
       .overrideGuard(AdminOidcAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .overrideGuard(NonProductionGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .compile();
 
@@ -68,7 +69,6 @@ describe('AdminController', () => {
     adminService = module.get(AdminService);
     creditsService = module.get(CreditsService);
     authService = module.get(AuthService);
-    configService = module.get(ConfigService);
     reflector = module.get<Reflector>(Reflector);
   });
 
@@ -104,8 +104,6 @@ describe('AdminController', () => {
         source: 'ADMIN_GRANT' as any,
       };
 
-      // The controller reads timezone from req (attached by TimezoneMiddleware).
-
       // Act
       const result = await controller.grantCredits(dto);
 
@@ -137,9 +135,8 @@ describe('AdminController', () => {
   });
 
   describe('devLogin', () => {
-    it('should invoke authService.devLogin with developer credentials and metadata in non-production', async () => {
+    it('should invoke authService.devLogin with developer credentials and metadata', async () => {
       // Arrange
-      configService.get.mockReturnValue('development');
       const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
       const mockDevResponse = {
         userId: 'dev-user-1',
@@ -168,62 +165,6 @@ describe('AdminController', () => {
       expect(result).toEqual(mockDevResponse);
     });
 
-    it('should throw NotFoundException in production environment', async () => {
-      // Arrange
-      jest.spyOn(configService, 'get').mockReturnValue('production');
-
-      // Act & Assert
-      await expect(
-        controller.devLogin({ identifier: 'user@example.com' }),
-      ).rejects.toThrow(NotFoundException);
-      expect(authService.devLogin).not.toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException when NODE_ENV is production', async () => {
-      // Arrange
-      configService.get.mockImplementation((key: string) => {
-        if (key === 'NODE_ENV') return 'production';
-        return undefined;
-      });
-      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
-
-      // Act & Assert
-      await expect(
-        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
-      ).rejects.toThrow(NotFoundException);
-      expect(authService.devLogin).not.toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException when DEPLOYMENT_ENV is production', async () => {
-      // Arrange
-      configService.get.mockImplementation((key: string) => {
-        if (key === 'DEPLOYMENT_ENV') return 'production';
-        return 'development';
-      });
-      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
-
-      // Act & Assert
-      await expect(
-        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
-      ).rejects.toThrow(NotFoundException);
-      expect(authService.devLogin).not.toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException when NODE_ENV or DEPLOYMENT_ENV has uppercase or whitespace', async () => {
-      // Arrange
-      configService.get.mockImplementation((key: string) => {
-        if (key === 'NODE_ENV') return ' PRODUCTION ';
-        return 'development';
-      });
-      const dto: DevLoginRequestDto = { identifier: 'dev@breathaway.test' };
-
-      // Act & Assert
-      await expect(
-        controller.devLogin(dto, '127.0.0.1', 'DevClient', 'device-dev-1'),
-      ).rejects.toThrow(NotFoundException);
-      expect(authService.devLogin).not.toHaveBeenCalled();
-    });
-
     it('should attach dev-login throttling metadata to /dev-login', () => {
       // Act
       const shortLimit = reflector.get(
@@ -238,6 +179,47 @@ describe('AdminController', () => {
       // Assert
       expect(shortLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.short.limit);
       expect(longLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.long.limit);
+    });
+
+    it('should have NonProductionGuard applied to devLogin', () => {
+      // Act
+      const guards = reflector.get('__guards__', controller.devLogin);
+
+      // Assert
+      expect(guards).toContain(NonProductionGuard);
+    });
+  });
+
+  describe('truncateDatabase', () => {
+    const dto: TruncateDatabaseRequestDto = {
+      confirmation: 'CONFIRM_TRUNCATE',
+      reason: 'Automated test suite reset',
+    };
+
+    it('should invoke adminService.truncateDatabase and return response', async () => {
+      // Arrange
+      const mockResponse = {
+        success: true,
+        message: 'Database truncated successfully',
+        truncatedTables: ['User', 'UserProfile'],
+        timestamp: new Date().toISOString(),
+      };
+      adminService.truncateDatabase.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await controller.truncateDatabase(dto);
+
+      // Assert
+      expect(adminService.truncateDatabase).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should have NonProductionGuard applied to truncateDatabase', () => {
+      // Act
+      const guards = reflector.get('__guards__', controller.truncateDatabase);
+
+      // Assert
+      expect(guards).toContain(NonProductionGuard);
     });
   });
 });

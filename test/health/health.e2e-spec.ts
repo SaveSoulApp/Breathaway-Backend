@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { MemoryHealthIndicator } from '@nestjs/terminus';
 import request from 'supertest';
 
 import { HealthModule } from '@modules/health/health.module';
@@ -12,6 +13,15 @@ describe('HealthController (e2e)', () => {
   beforeAll(async () => {
     const context = await createAuthTestApp([HealthModule]);
     app = context.app;
+
+    // Isolate liveness probe from Jest process heap/RSS growth across suites
+    const memory = app.get(MemoryHealthIndicator);
+    jest.spyOn(memory, 'checkHeap').mockResolvedValue({
+      memory_heap: { status: 'up' },
+    } as never);
+    jest.spyOn(memory, 'checkRSS').mockResolvedValue({
+      memory_rss: { status: 'up' },
+    } as never);
   });
 
   afterAll(async () => {

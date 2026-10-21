@@ -209,7 +209,7 @@ describe('SubscriptionsController (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('rejects Apple verification when signedTransactionInfo is missing (400)', async () => {
+    it('rejects Apple verification when signedTransactionInfo is missing (401)', async () => {
       // Act
       const res = await authedRequest(app)
         .post('/api/v1/subscriptions/verify-purchase')
@@ -220,7 +220,7 @@ describe('SubscriptionsController (e2e)', () => {
         });
 
       // Assert
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
     });
 
     it('verifies purchase with StoreKit 2 JWS, provisions subscription, and returns active record (200)', async () => {

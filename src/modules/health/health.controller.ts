@@ -6,6 +6,7 @@ import {
   HealthCheckService,
   MemoryHealthIndicator,
 } from '@nestjs/terminus';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
@@ -17,6 +18,7 @@ import { RedisHealthIndicator } from './indicators/redis.health';
 
 @ApiTags('Health')
 @SkipClientIdentity()
+@SkipThrottle()
 @Controller({
   version: VERSION_NEUTRAL,
 })

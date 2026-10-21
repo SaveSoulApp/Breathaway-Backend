@@ -4,14 +4,13 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
+  ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -22,6 +21,7 @@ import {
   ApiStandardErrors,
   ClientIp,
   DeviceId,
+  NonProductionOnly,
   UserAgent,
 } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
@@ -40,7 +40,11 @@ import {
 } from '@modules/credits/dto';
 
 import { AdminService } from './admin.service';
-import { DeleteAccountRequestDto } from './dto';
+import {
+  DeleteAccountRequestDto,
+  TruncateDatabaseRequestDto,
+  TruncateDatabaseResponseDto,
+} from './dto';
 import { AdminOidcAuthGuard } from './guards/admin-oidc-auth.guard';
 
 @ApiTags('Admin')
@@ -58,7 +62,6 @@ export class AdminController extends BaseController {
     private readonly adminService: AdminService,
     private readonly creditsService: CreditsService,
     private readonly authService: AuthService,
-    private readonly configService: ConfigService,
   ) {
     super(logger);
   }
@@ -146,16 +149,16 @@ export class AdminController extends BaseController {
    * Bypasses standard external OAuth or OTP checks to authenticate a developer during testing.
    *
    * Callable only by authorized GCP administrators via Google Cloud ID tokens in non-production environments.
-   * In production, this endpoint is strictly blocked with a 404 NotFoundException to prevent account impersonation (SEC-03).
+   * In production, this endpoint is strictly blocked with a 404 NotFoundException via `@NonProductionOnly()`.
    *
    * @param dto - The developer user's identifier (email or phone).
    * @param clientIp - Optional client IP address from request headers.
    * @param userAgent - Optional client user-agent string.
    * @param deviceId - Optional unique device identifier.
    * @returns The authenticated user details and JWT access and refresh tokens.
-   * @throws {NotFoundException} When running in production or when no user exists with the provided credential.
    */
   @Post('dev-login')
+  @NonProductionOnly()
   @Throttle(AUTH_DEV_LOGIN_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -184,29 +187,31 @@ export class AdminController extends BaseController {
     @UserAgent() userAgent?: string,
     @DeviceId() deviceId?: string,
   ): Promise<UserAuthResponseDto> {
-    const nodeEnv = this.configService
-      .get<string>('NODE_ENV')
-      ?.toLowerCase()
-      .trim();
-    const deploymentEnv = this.configService
-      .get<string>('DEPLOYMENT_ENV')
-      ?.toLowerCase()
-      .trim();
-
-    if (nodeEnv === 'production' || deploymentEnv === 'production') {
-      this.logger.warn('Blocked dev-login attempt in production environment', {
-        step: 'dev_login_blocked',
-        nodeEnv,
-        deploymentEnv,
-        clientIp,
-      });
-      throw new NotFoundException('Endpoint not available in production');
-    }
-
     return this.authService.devLogin(dto, {
       ipAddress: clientIp,
       userAgent,
       deviceId,
     });
+  }
+
+  /**
+   * Truncates database contents for internal and staging testing from scratch.
+   *
+   * Callable only by authorized GCP administrators via Google Cloud ID tokens in non-production environments.
+   * In production, this endpoint is strictly blocked with a 404 NotFoundException via `@NonProductionOnly()`.
+   * Completely excluded from Swagger and Redoc documentation via `@ApiExcludeEndpoint()`.
+   *
+   * @param dto - Container with confirmation phrase and optional reason.
+   * @returns Summary of truncated tables and timestamp.
+   */
+  @Post('database/truncate')
+  @NonProductionOnly()
+  @ApiExcludeEndpoint()
+  @HttpCode(HttpStatus.OK)
+  @SerializeExpose(TruncateDatabaseResponseDto)
+  async truncateDatabase(
+    @Body() dto: TruncateDatabaseRequestDto,
+  ): Promise<TruncateDatabaseResponseDto> {
+    return this.adminService.truncateDatabase(dto);
   }
 }

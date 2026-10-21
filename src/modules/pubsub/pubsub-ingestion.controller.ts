@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { ApiStandardErrors } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
@@ -34,6 +35,7 @@ import { PubSubRegistryService } from './pubsub-registry.service';
   version: ['1'],
 })
 @SkipClientIdentity()
+@SkipThrottle()
 @UseGuards(GcpOidcAuthGuard)
 /**
  * Internal HTTP endpoint that receives GCP Pub/Sub push-delivery messages and

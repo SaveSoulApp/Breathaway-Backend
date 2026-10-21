@@ -126,21 +126,22 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
         getTracker: (req: Record<string, unknown>) =>
           extractClientIp(req) || '127.0.0.1',
         throttlers: [
-          {
-            name: 'short',
-            ttl: seconds(1),
-            limit: 5,
-          },
+          // Disabled to reduce Redis key creation and command volume:
+          // {
+          //   name: 'short',
+          //   ttl: seconds(1),
+          //   limit: 5,
+          // },
           {
             name: 'medium',
             ttl: seconds(10),
             limit: 20,
           },
-          {
-            name: 'long',
-            ttl: seconds(60),
-            limit: 50,
-          },
+          // {
+          //   name: 'long',
+          //   ttl: seconds(60),
+          //   limit: 50,
+          // },
         ],
       }),
     }),
