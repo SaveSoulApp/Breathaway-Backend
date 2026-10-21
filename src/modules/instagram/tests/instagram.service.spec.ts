@@ -334,6 +334,31 @@ describe('InstagramService', () => {
       );
     });
 
+    it('should defensively truncate messages longer than 1000 characters to 1000 characters with ellipsis', async () => {
+      gcpSecretManager.getSecret.mockResolvedValueOnce('secret-manager-token');
+      mockHttpClient.post.mockResolvedValueOnce({
+        data: {
+          recipient_id: recipientId,
+          message_id: 'meta-msg-long',
+        },
+      });
+
+      const longText = 'A'.repeat(1200);
+      const expectedText = `${'A'.repeat(997)}...`;
+
+      const result = await service.sendDirectMessage(recipientId, longText);
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        'https://graph.instagram.com/v24.0/me/messages',
+        {
+          recipient: { id: recipientId },
+          message: { text: expectedText },
+        },
+        expect.anything(),
+      );
+      expect(result.messageId).toBe('meta-msg-long');
+    });
+
     it('should use custom INSTAGRAM_GRAPH_API_VERSION when configured in ConfigService', async () => {
       gcpSecretManager.getSecret.mockResolvedValueOnce('secret-manager-token');
       configService.get.mockImplementation((key: string) => {

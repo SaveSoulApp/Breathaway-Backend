@@ -176,7 +176,13 @@ export class InstagramService extends BaseService {
     recipientId: string,
     text: string,
   ): Promise<SendInstagramMessageResponseDto> {
-    const ctx = { recipientId, textLength: text.length };
+    const maxMessageLength = 1000;
+    const sanitizedText =
+      text.length > maxMessageLength
+        ? `${text.slice(0, maxMessageLength - 3)}...`
+        : text;
+
+    const ctx = { recipientId, textLength: sanitizedText.length };
     this.logger.log('Sending Instagram direct message', {
       ...ctx,
       step: 'init',
@@ -219,7 +225,7 @@ export class InstagramService extends BaseService {
         url,
         {
           recipient: { id: recipientId },
-          message: { text },
+          message: { text: sanitizedText },
         },
         {
           headers: {

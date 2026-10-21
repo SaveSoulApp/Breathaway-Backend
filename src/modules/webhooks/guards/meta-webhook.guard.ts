@@ -108,8 +108,8 @@ export class MetaWebhookGuard extends BaseGuard implements CanActivate {
       sigBuffer.length !== expectedBuffer.length ||
       !timingSafeEqual(sigBuffer, expectedBuffer)
     ) {
-      const isProduction =
-        this.configService.get<string>('NODE_ENV') === 'production';
+      const isLocal =
+        this.configService.get<string>('DEPLOYMENT_ENV') === 'local';
 
       this.logger.warn('Meta webhook signature verification failed', {
         step: 'signature_mismatch',
@@ -117,14 +117,14 @@ export class MetaWebhookGuard extends BaseGuard implements CanActivate {
         receivedSigLength: sigBuffer.length,
         expectedSigLength: expectedBuffer.length,
         rawBodyLength: rawBody.length,
-        ...(isProduction
-          ? {}
-          : {
+        ...(isLocal
+          ? {
               receivedSig,
               expectedSig: expectedSignature,
               legacySha1Sig: request.headers['x-hub-signature'],
               rawBodyPreview: rawBody.toString('utf8').slice(0, 500),
-            }),
+            }
+          : {}),
       });
       throw new UnauthorizedException('Invalid Meta webhook signature');
     }

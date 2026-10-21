@@ -211,9 +211,9 @@ describe('MetaWebhookGuard', () => {
       );
     });
 
-    it('should omit rawBodyPreview and signatures from mismatch warning log when in production', () => {
+    it('should omit rawBodyPreview and signatures from mismatch warning log when DEPLOYMENT_ENV is not local (e.g. gcp)', () => {
       configService.get.mockImplementation((key: string) => {
-        if (key === 'NODE_ENV') return 'production';
+        if (key === 'DEPLOYMENT_ENV') return 'gcp';
         return undefined;
       });
 
@@ -239,6 +239,44 @@ describe('MetaWebhookGuard', () => {
         expect.not.objectContaining({
           rawBodyPreview: expect.anything(),
           receivedSig: expect.anything(),
+        }),
+      );
+    });
+
+    it('should include rawBodyPreview and signatures in mismatch warning log when DEPLOYMENT_ENV is local', () => {
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'DEPLOYMENT_ENV') return 'local';
+        return undefined;
+      });
+
+      const payloadStr = JSON.stringify({
+        object: 'instagram',
+        secretData: 'sensitive_dm',
+      });
+      const rawBody = Buffer.from(payloadStr, 'utf8');
+      const wrongSignature = generateSignature(rawBody, 'wrong_secret');
+
+      const context = createMockContext(
+        {
+          'x-hub-signature-256': wrongSignature,
+          'x-hub-signature': 'sha1=legacy_hash',
+        },
+        JSON.parse(payloadStr),
+        rawBody,
+      );
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException('Invalid Meta webhook signature'),
+      );
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook signature verification failed',
+        expect.objectContaining({
+          step: 'signature_mismatch',
+          receivedSig: wrongSignature,
+          expectedSig: expect.stringMatching(/^sha256=/),
+          legacySha1Sig: 'sha1=legacy_hash',
+          rawBodyPreview: rawBody.toString('utf8').slice(0, 500),
         }),
       );
     });
