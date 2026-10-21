@@ -1,3 +1,7 @@
+# backend-iam.tf
+#
+# Dedicated Service Account and Least-Privilege IAM Bindings for Breathaway Backend Service.
+
 # Dedicated Service Account for the Public Backend Cloud Run Service
 resource "google_service_account" "backend_service" {
   account_id   = "backend-service"
@@ -68,4 +72,3 @@ resource "google_project_iam_member" "backend_service_bigquery_job_user" {
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.backend_service.email}"
 }
-

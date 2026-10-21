@@ -1,13 +1,6 @@
 # pubsub.tf
 #
 # GCP Pub/Sub Push Subscriptions with Google Service Account OIDC Authentication.
-#
-# Eliminates plaintext secret token leakage in Cloud Run access logs (httpRequest.requestUrl)
-# by switching from legacy "?token=..." query parameters to short-lived Google OIDC ID tokens
-# passed in the "Authorization: Bearer <JWT>" header.
-#
-# Relies on variables (project_id, region, service_name) and data sources (backend_service, project)
-# declared in scheduler.tf and audit-logs.tf.
 
 locals {
   pubsub_push_endpoint = "${data.google_cloud_run_v2_service.backend_service.uri}/api/v1/pubsub/ingest"

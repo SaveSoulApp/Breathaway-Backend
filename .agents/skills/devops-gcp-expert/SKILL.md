@@ -86,7 +86,7 @@ tasks (e.g., "just review this Dockerfile").
 - **Cross-Layer Synchronization Protocol**: Whenever adding, modifying, or deprecating a secret,
   changes MUST touch all three code layers simultaneously:
   1. **TypeScript**: `src/common/enums/gcp-secret-name.enum.ts` (`GcpSecretName` enum) + `index.ts`.
-  2. **Terraform**: `terraform/secrets.tf` (`local.secret_names`) + `terraform/backend-iam.tf`
+  2. **Terraform**: `terraform/modules/backend/secrets.tf` (`local.secret_names`) + `terraform/modules/backend/backend-iam.tf`
      (`google_secret_manager_secret_iam_member` per-secret least-privilege binding).
   3. **Deployment Scripts**: `scripts/deploy/common.secrets.sh` (`export SECRET_<NAME>=...` and
      `COMMON_SECRETS=(...)` container mapping array), consumed by `scripts/deploy/deploy.sh`.
@@ -146,7 +146,7 @@ When doing a full infrastructure/deployment review, verify all of the following:
 - [ ] Secret rotation strategy exists for long-lived credentials (DB password, API keys)
 - [ ] Any added, renamed, or deprecated secret is synchronized across all 3 layers:
   - TypeScript: `src/common/enums/gcp-secret-name.enum.ts` (`GcpSecretName` enum)
-  - Terraform: `terraform/secrets.tf` (`local.secret_names`) + `terraform/backend-iam.tf`
+  - Terraform: `terraform/modules/backend/secrets.tf` (`local.secret_names`) + `terraform/modules/backend/backend-iam.tf`
   - Deployment: `scripts/deploy/common.secrets.sh` (`export SECRET_*` + `COMMON_SECRETS` array)
 - [ ] Cloud Run secret mounts (`--update-secrets`) match IAM `google_secret_manager_secret_iam_member` permissions
 

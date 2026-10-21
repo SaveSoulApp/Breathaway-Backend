@@ -1,13 +1,10 @@
-# main.tf
-
-# Initialize the Google provider (if you haven't already)
-provider "google" {
-  project = "breathaway-dev"
-  region  = "asia-south1"
-}
+# artifact-registry.tf
+#
+# Dedicated Artifact Registry Docker repository for Breathaway NestJS backend container images.
 
 resource "google_artifact_registry_repository" "breathaway_backend_nestjs_repo" {
-  location      = "asia-south1"
+  project       = var.project_id
+  location      = var.region
   repository_id = "breathaway-backend"
   description   = "Docker repository for NestJS app"
   format        = "DOCKER"

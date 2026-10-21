@@ -9,7 +9,7 @@
 
 resource "google_storage_bucket" "dsar_exports" {
   name                        = "${var.project_id}-dsar-exports"
-  location                    = "asia-south1"
+  location                    = var.region
   project                     = var.project_id
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
