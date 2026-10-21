@@ -8,6 +8,7 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
@@ -44,13 +45,65 @@ import {
  */
 @Injectable()
 export class IdentitiesService extends BaseService {
+  private static readonly PENDING_INSTAGRAM_TTL_SECONDS = 900; // 15 minutes
+
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly encryption: IdentityCryptoService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    private readonly redisService: RedisService,
   ) {
     super(logger);
+  }
+
+  // ----- Redis pending Instagram helpers -----
+
+  private getPendingInstagramRedisKey(userId: string): string {
+    return `pending_identity:instagram:${userId}`;
+  }
+
+  /**
+   * Stores an unverified Instagram handle as an ephemeral verification intent in Redis.
+   *
+   * By keeping unverified Instagram handles in Redis rather than PostgreSQL, we prevent
+   * squatting or locking the handle to a user who may have mistyped it or abandoned the flow.
+   *
+   * @param userId - UUID of the user attempting verification.
+   * @param handle - Plaintext Instagram handle entered by the user.
+   */
+  async setPendingInstagramHandle(
+    userId: string,
+    handle: string,
+  ): Promise<void> {
+    const key = this.getPendingInstagramRedisKey(userId);
+    await this.redisService.set(
+      key,
+      handle.trim(),
+      'EX',
+      IdentitiesService.PENDING_INSTAGRAM_TTL_SECONDS,
+    );
+  }
+
+  /**
+   * Retrieves the pending unverified Instagram handle stored in Redis for the given user, if any.
+   *
+   * @param userId - UUID of the user.
+   * @returns The raw pending Instagram handle string, or null if expired or not set.
+   */
+  async getPendingInstagramHandle(userId: string): Promise<string | null> {
+    const key = this.getPendingInstagramRedisKey(userId);
+    return this.redisService.get(key);
+  }
+
+  /**
+   * Clears the ephemeral pending Instagram handle from Redis upon successful verification or deletion.
+   *
+   * @param userId - UUID of the user.
+   */
+  async clearPendingInstagramHandle(userId: string): Promise<void> {
+    const key = this.getPendingInstagramRedisKey(userId);
+    await this.redisService.del(key);
   }
 
   private isActivelyOwned(identity: Identity): boolean {
@@ -110,6 +163,65 @@ export class IdentitiesService extends BaseService {
    */
   async create(userId: string, dto: CreateIdentityRequestDto) {
     const ctx = { userId, identityType: dto.type };
+
+    // --- Ephemeral Instagram flow ---
+    // For Instagram, we do NOT allocate a database row with userId until verified via DM OTP.
+    // This prevents unverified handles from squatting or hanging in PostgreSQL.
+    if (dto.type === IdentityType.INSTAGRAM) {
+      const publicValueData = await this.encryption.processPublicValue(
+        dto.publicValue,
+        dto.type,
+      );
+
+      // Check if this handle is already actively owned (verified) by another user
+      const existing = await this.prisma.identity.findFirst({
+        where: {
+          type: dto.type,
+          publicValueHash: publicValueData.publicValueHash,
+          deletedAt: null,
+        },
+      });
+
+      if (existing && this.isActivelyOwned(existing)) {
+        throw new IdentityAlreadyExistsException();
+      }
+
+      // Check if caller already has a verified Instagram identity
+      const userVerified = await this.prisma.identity.findFirst({
+        where: {
+          userId,
+          type: dto.type,
+          isVerified: true,
+          deletedAt: null,
+        },
+      });
+
+      if (userVerified) {
+        throw new IdentityAlreadyExistsException();
+      }
+
+      await this.setPendingInstagramHandle(userId, dto.publicValue);
+
+      this.logger.debug(
+        'Stored pending Instagram verification intent in Redis',
+        {
+          ...ctx,
+          step: 'store_pending_instagram',
+          maskedValue: publicValueData.publicValueMasked,
+        },
+      );
+
+      return {
+        id: `pending_${userId}_instagram`,
+        type: IdentityType.INSTAGRAM,
+        publicValueMasked: publicValueData.publicValueMasked,
+        isVerified: false,
+        verifiedAt: null,
+        createdAt: DateUtil.now(),
+        deletedAt: null,
+        userId,
+      };
+    }
 
     const publicValueData = await this.encryption.processPublicValue(
       dto.publicValue,
@@ -230,6 +342,7 @@ export class IdentitiesService extends BaseService {
         userId: true,
       },
     });
+
     return identities.map((id) => this.toMaskedResponse(id));
   }
 

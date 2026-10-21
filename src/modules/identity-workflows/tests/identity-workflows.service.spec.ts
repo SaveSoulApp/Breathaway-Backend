@@ -63,6 +63,8 @@ describe('IdentityWorkflowsService', () => {
 
     const mockIdentitiesService = {
       claimOrCreateIdentity: jest.fn(),
+      getPendingInstagramHandle: jest.fn().mockResolvedValue(null),
+      clearPendingInstagramHandle: jest.fn().mockResolvedValue(undefined),
     };
 
     const mockNotificationsService = {
@@ -162,6 +164,69 @@ describe('IdentityWorkflowsService', () => {
         expect.objectContaining({
           userIds: ['user_123'],
           title: 'Identity Claimed',
+        }),
+      );
+    });
+
+    it('should link identity and clear pending handle when expected handle matches the verified username', async () => {
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'JohnDoe',
+      } as unknown as SocialIdentityResponseDto);
+      identitiesService.getPendingInstagramHandle.mockResolvedValue('@johndoe');
+      identitiesService.claimOrCreateIdentity.mockResolvedValue(
+        {} as unknown as Identity,
+      );
+
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      expect(
+        identitiesService.clearPendingInstagramHandle,
+      ).toHaveBeenCalledWith('user_123');
+      expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
+        IdentityType.INSTAGRAM,
+        'JohnDoe',
+        'sender_1',
+        'user_123',
+      );
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userIds: ['user_123'],
+          title: 'Identity Claimed',
+        }),
+      );
+    });
+
+    it('should warn and not link identity when expected handle does not match verified username', async () => {
+      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'actual_user',
+      } as unknown as SocialIdentityResponseDto);
+      identitiesService.getPendingInstagramHandle.mockResolvedValue(
+        'wrong_user',
+      );
+
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(
+        identitiesService.clearPendingInstagramHandle,
+      ).not.toHaveBeenCalled();
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Instagram handle mismatch between pending intent and DM sender',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          userId: 'user_123',
+          step: 'handle_mismatch',
+          expected: 'wrong_user',
+          actual: 'actual_user',
+        }),
+      );
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userIds: ['user_123'],
+          title: 'Instagram Verification Failed',
         }),
       );
     });

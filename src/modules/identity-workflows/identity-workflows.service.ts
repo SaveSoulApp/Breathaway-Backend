@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { IdentityType, LikeStatus } from '@prisma/client';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
+import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -19,7 +21,6 @@ import { OneTimePasswordsService } from '@modules/one-time-passwords/one-time-pa
 import { PubSubEvent } from '@modules/pubsub/enums';
 import { PubSubListener } from '@modules/pubsub/pubsub.decorator';
 import { SocialidentitiesService } from '@modules/social-identities/social-identities.service';
-import { IdentityType, LikeStatus } from '@prisma/client';
 
 /**
  * Reacts to identity-related Pub/Sub events and executes the multi-step workflows
@@ -93,6 +94,58 @@ export class IdentityWorkflowsService extends BaseService {
       const username = identity.username;
 
       if (username) {
+        const expectedHandle =
+          await this.identitiesService.getPendingInstagramHandle(userId);
+
+        if (expectedHandle) {
+          const normalizedExpected = normalizeIdentityValue(
+            expectedHandle,
+            IdentityType.INSTAGRAM,
+          );
+          const normalizedActual = normalizeIdentityValue(
+            username,
+            IdentityType.INSTAGRAM,
+          );
+
+          if (normalizedExpected !== normalizedActual) {
+            this.logger.warn(
+              'Instagram handle mismatch between pending intent and DM sender',
+              {
+                ...resolvedCtx,
+                step: 'handle_mismatch',
+                expected: normalizedExpected,
+                actual: normalizedActual,
+              },
+            );
+
+            this.notificationsService
+              .dispatch({
+                userIds: [userId],
+                channels: [NotificationChannel.PUSH],
+                title: 'Instagram Verification Failed',
+                body: `The Instagram account you messaged from (@${username}) does not match the handle you entered (@${expectedHandle}).`,
+                type: NotificationType.SYSTEM_ALERT,
+                category: NotificationCategory.SECURITY,
+                priority: NotificationPriority.HIGH,
+              })
+              .catch((err) => {
+                this.logger.error(
+                  'Failed to dispatch handle mismatch notification',
+                  {
+                    ...resolvedCtx,
+                    step: 'notify_mismatch',
+                    err: serializeError(err),
+                  },
+                );
+              });
+
+            return;
+          }
+        }
+
+        // Clear the pending intent now that it's matched/verified
+        await this.identitiesService.clearPendingInstagramHandle(userId);
+
         this.logger.debug(
           'Instagram identity found, claiming/linking identity',
           {
@@ -110,7 +163,6 @@ export class IdentityWorkflowsService extends BaseService {
           ...resolvedCtx,
         });
 
-        // TODO: take the next steps
         this.notificationsService
           .dispatch({
             userIds: [userId],
