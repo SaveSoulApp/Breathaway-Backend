@@ -158,7 +158,7 @@ describe('IdentityWorkflowsService', () => {
       );
       expect(
         socialidentitiesService.verifyInstagramIdentity,
-      ).toHaveBeenCalledWith('user_123', 'sender_1');
+      ).toHaveBeenCalledWith(null, 'sender_1');
       expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
         IdentityType.INSTAGRAM,
         'test_user',
@@ -198,6 +198,9 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       expect(
+        socialidentitiesService.verifyInstagramIdentity,
+      ).toHaveBeenCalledWith(null, 'sender_1');
+      expect(
         identitiesService.clearPendingInstagramHandle,
       ).toHaveBeenCalledWith('user_123');
       expect(identitiesService.claimOrCreateIdentity).toHaveBeenCalledWith(
@@ -218,7 +221,7 @@ describe('IdentityWorkflowsService', () => {
       );
     });
 
-    it('should warn and not link identity when expected handle does not match verified username', async () => {
+    it('should warn, clear pending handle, and not link identity when expected handle does not match verified username', async () => {
       oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
       socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
         username: 'actual_user',
@@ -232,7 +235,7 @@ describe('IdentityWorkflowsService', () => {
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(
         identitiesService.clearPendingInstagramHandle,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalledWith('user_123');
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Instagram handle mismatch between pending intent and DM sender',
         expect.objectContaining({
@@ -251,6 +254,29 @@ describe('IdentityWorkflowsService', () => {
         }),
       );
       expect(instagramService.sendDirectMessage).not.toHaveBeenCalled();
+    });
+
+    it('should not consume OTP if Instagram identity verification fails', async () => {
+      const error = new Error('Instagram Graph API failure');
+      socialidentitiesService.verifyInstagramIdentity.mockRejectedValue(error);
+
+      await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
+
+      expect(
+        socialidentitiesService.verifyInstagramIdentity,
+      ).toHaveBeenCalledWith(null, 'sender_1');
+      expect(
+        oneTimePasswordsService.verifyAndConsumeOtp,
+      ).not.toHaveBeenCalled();
+      expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Error during OTP verification flow',
+        expect.objectContaining({
+          messageId: 'msg_1',
+          senderId: 'sender_1',
+          step: 'verify_otp',
+        }),
+      );
     });
 
     it('should warn when the instagram identity has no username', async () => {
@@ -275,6 +301,9 @@ describe('IdentityWorkflowsService', () => {
     });
 
     it('should catch and log errors during the flow', async () => {
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'test_user',
+      } as unknown as SocialIdentityResponseDto);
       const error = new Error('OTP verification failed');
       oneTimePasswordsService.verifyAndConsumeOtp.mockRejectedValue(error);
 
@@ -282,7 +311,7 @@ describe('IdentityWorkflowsService', () => {
 
       expect(
         socialidentitiesService.verifyInstagramIdentity,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalledWith(null, 'sender_1');
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Error during OTP verification flow',
@@ -296,6 +325,9 @@ describe('IdentityWorkflowsService', () => {
     });
 
     it('should handle non-Error objects thrown during the flow', async () => {
+      socialidentitiesService.verifyInstagramIdentity.mockResolvedValue({
+        username: 'test_user',
+      } as unknown as SocialIdentityResponseDto);
       oneTimePasswordsService.verifyAndConsumeOtp.mockRejectedValue(
         'String error',
       );
@@ -304,7 +336,7 @@ describe('IdentityWorkflowsService', () => {
 
       expect(
         socialidentitiesService.verifyInstagramIdentity,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalledWith(null, 'sender_1');
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalled();
     });
@@ -397,9 +429,8 @@ describe('IdentityWorkflowsService', () => {
       );
     });
 
-    it('should catch errors thrown by verifyInstagramIdentity after OTP is consumed', async () => {
+    it('should catch errors thrown by verifyInstagramIdentity before OTP is consumed', async () => {
       // Arrange
-      oneTimePasswordsService.verifyAndConsumeOtp.mockResolvedValue('user_123');
       const socialError = new Error('Instagram API error');
       socialidentitiesService.verifyInstagramIdentity.mockRejectedValue(
         socialError,
@@ -409,6 +440,9 @@ describe('IdentityWorkflowsService', () => {
       await service.handleInstagramOtpReceived(defaultData, defaultMessageId);
 
       // Assert
+      expect(
+        oneTimePasswordsService.verifyAndConsumeOtp,
+      ).not.toHaveBeenCalled();
       expect(identitiesService.claimOrCreateIdentity).not.toHaveBeenCalled();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Error during OTP verification flow',

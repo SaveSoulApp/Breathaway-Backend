@@ -7,6 +7,7 @@ import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { InstagramService } from '@modules/instagram/instagram.service';
 import {
@@ -76,6 +77,16 @@ export class IdentityWorkflowsService extends BaseService {
     this.logger.info('Received Instagram OTP event', { ...ctx, step: 'init' });
 
     try {
+      this.logger.debug('Fetching Instagram social identity', {
+        ...ctx,
+        step: 'fetch_social_identity',
+      });
+      const identity =
+        await this.socialidentitiesService.verifyInstagramIdentity(
+          null,
+          senderId,
+        );
+
       this.logger.debug('Verifying extracted OTP', {
         ...ctx,
         step: 'verify_otp',
@@ -86,15 +97,14 @@ export class IdentityWorkflowsService extends BaseService {
 
       const resolvedCtx = { ...ctx, userId };
 
-      this.logger.debug('OTP verified successfully, fetching identity', {
-        ...resolvedCtx,
-        step: 'fetch_social_identity',
+      this.emitAuditLog({
+        actionType: AuditActionType.SOCIAL_IDENTITY_VERIFIED,
+        userId,
+        metadata: {
+          platform: 'instagram',
+          maskedPlatformId: senderId,
+        },
       });
-      const identity =
-        await this.socialidentitiesService.verifyInstagramIdentity(
-          userId,
-          senderId,
-        );
 
       const username = identity.username;
 
@@ -122,6 +132,8 @@ export class IdentityWorkflowsService extends BaseService {
                 actual: normalizedActual,
               },
             );
+
+            await this.identitiesService.clearPendingInstagramHandle(userId);
 
             this.notificationsService
               .dispatch({
