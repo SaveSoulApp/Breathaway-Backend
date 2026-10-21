@@ -5,8 +5,33 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
-import { AdminUserNotFoundException } from './application/exceptions';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
+
+import { AdminUserNotFoundException } from './application/exceptions';
+import { TruncateDatabaseRequestDto, TruncateDatabaseResponseDto } from './dto';
+
+export const TRUNCATED_DATABASE_TABLES = [
+  'AuthCredential',
+  'Block',
+  'ChatRoom',
+  'ConsentLedger',
+  'CreditLedger',
+  'Device',
+  'DsarExport',
+  'Identity',
+  'Like',
+  'Match',
+  'Message',
+  'Notification',
+  'NotificationPreference',
+  'PaymentOrder',
+  'SubscriptionEvent',
+  'Transaction',
+  'User',
+  'UserProfile',
+  'UserSession',
+  'UserSubscription',
+] as const;
 
 @Injectable()
 export class AdminService extends BaseService {
@@ -87,5 +112,83 @@ export class AdminService extends BaseService {
       USER_DELETED_EVENT,
       new UserDeletedEvent(targetUserId),
     );
+  }
+
+  /**
+   * Truncates database contents for internal and staging testing from scratch.
+   *
+   * Executes atomic CASCADE truncation across all 20 user, session, interaction,
+   * ledger, and order tables, while completely preserving subscription plans,
+   * pricing history, and payment gateway configurations.
+   *
+   * @param dto - Container for confirmation keyword and operational reason.
+   * @returns Summary of successfully truncated tables and execution timestamp.
+   */
+  async truncateDatabase(
+    dto: TruncateDatabaseRequestDto,
+  ): Promise<TruncateDatabaseResponseDto> {
+    const ctx = { reason: dto.reason };
+
+    this.logger.warn('Admin database truncate initiated', {
+      ...ctx,
+      step: 'initiate_truncate',
+    });
+
+    const truncateSql = `
+      TRUNCATE TABLE
+        "AuthCredential",
+        "Block",
+        "ChatRoom",
+        "ConsentLedger",
+        "CreditLedger",
+        "Device",
+        "DsarExport",
+        "Identity",
+        "Like",
+        "Match",
+        "Message",
+        "Notification",
+        "NotificationPreference",
+        "PaymentOrder",
+        "SubscriptionEvent",
+        "Transaction",
+        "User",
+        "UserProfile",
+        "UserSession",
+        "UserSubscription"
+      RESTART IDENTITY CASCADE;
+    `;
+
+    try {
+      await this.prisma.$executeRawUnsafe(truncateSql);
+    } catch (error) {
+      this.logger.error('Admin database truncate failed', {
+        ...ctx,
+        step: 'execute_truncate',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+
+    this.logger.event(LOG_EVENT.ADMIN_DATABASE_TRUNCATED, {
+      truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+      reason: dto.reason,
+    });
+
+    this.emitAuditLog({
+      actionType: AuditActionType.ADMIN_DATABASE_TRUNCATED,
+      userId: 'SYSTEM',
+      metadata: {
+        truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+        reason: dto.reason,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Database truncated successfully',
+      truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+      timestamp: new Date().toISOString(),
+    };
   }
 }

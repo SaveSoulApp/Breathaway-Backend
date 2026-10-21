@@ -150,7 +150,8 @@ export type LogEvent =
   | 'OTP_VERIFICATION_FAILED'
 
   // ── Admin ──────────────────────────────────────────────────────────────────
-  | 'ADMIN_ACCOUNT_DELETED';
+  | 'ADMIN_ACCOUNT_DELETED'
+  | 'ADMIN_DATABASE_TRUNCATED';
 
 /**
  * Constant object providing IDE autocompletion and preventing typos at call-sites.
@@ -299,4 +300,5 @@ export const LOG_EVENT = {
 
   // Admin
   ADMIN_ACCOUNT_DELETED: 'ADMIN_ACCOUNT_DELETED',
+  ADMIN_DATABASE_TRUNCATED: 'ADMIN_DATABASE_TRUNCATED',
 } as const satisfies Record<LogEvent, LogEvent>;

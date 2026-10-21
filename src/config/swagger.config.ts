@@ -305,6 +305,8 @@ function adminApiDocumentation(app: INestApplication): void {
       !path.endsWith('/notifications/send')
     ) {
       delete adminDoc.paths[path];
+    } else if (path.includes('/admin/database/truncate')) {
+      delete adminDoc.paths[path];
     } else {
       const pathItem = adminDoc.paths[path] as Record<string, unknown>;
       if (pathItem && typeof pathItem === 'object') {

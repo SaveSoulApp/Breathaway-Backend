@@ -1,12 +1,14 @@
-import { LoggerService } from '@core/logger';
-import { PrismaService } from '@infrastructure/database/prisma.service';
-import { AuditActionType } from '@modules/audit/dto';
-import { AdminUserNotFoundException } from '../application/exceptions';
-
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
-import { AdminService } from '../admin.service';
+
+import { LOG_EVENT, LoggerService } from '@core/logger';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { AuditActionType } from '@modules/audit/dto';
+
+import { AdminService, TRUNCATED_DATABASE_TABLES } from '../admin.service';
+import { AdminUserNotFoundException } from '../application/exceptions';
+import { TruncateDatabaseRequestDto } from '../dto';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -35,6 +37,7 @@ describe('AdminService', () => {
       findUnique: jest.fn(),
     },
     $transaction: jest.fn((callback) => callback(mockTx)),
+    $executeRawUnsafe: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -118,6 +121,84 @@ describe('AdminService', () => {
           reason,
         },
       });
+    });
+  });
+
+  describe('truncateDatabase', () => {
+    const dto: TruncateDatabaseRequestDto = {
+      confirmation: 'CONFIRM_TRUNCATE',
+      reason: 'Automated test suite reset',
+    };
+
+    it('should execute raw SQL truncate with CASCADE across all 20 tables and return response', async () => {
+      // Arrange
+      (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue(1);
+
+      // Act
+      const result = await service.truncateDatabase(dto);
+
+      // Assert
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+      const executedSql: string = (prisma.$executeRawUnsafe as jest.Mock).mock
+        .calls[0][0];
+
+      expect(executedSql).toContain('TRUNCATE TABLE');
+      expect(executedSql).toContain('CASCADE');
+      expect(executedSql).toContain('RESTART IDENTITY');
+
+      // Verify each of the 20 tables is included
+      for (const table of TRUNCATED_DATABASE_TABLES) {
+        expect(executedSql).toContain(`"${table}"`);
+      }
+
+      // Verify preserved tables are NOT included in the SQL
+      expect(executedSql).not.toContain('"SubscriptionPlan"');
+      expect(executedSql).not.toContain('"SubscriptionPlanPrice"');
+      expect(executedSql).not.toContain('"SubscriptionPlanPriceHistory"');
+      expect(executedSql).not.toContain('"PaymentGatewayRoute"');
+
+      // Verify audit and logger events
+      expect((service as any).emitAuditLog).toHaveBeenCalledWith({
+        actionType: AuditActionType.ADMIN_DATABASE_TRUNCATED,
+        userId: 'SYSTEM',
+        metadata: {
+          truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+          reason: dto.reason,
+        },
+      });
+
+      expect((service as any).logger.event).toHaveBeenCalledWith(
+        LOG_EVENT.ADMIN_DATABASE_TRUNCATED,
+        {
+          truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+          reason: dto.reason,
+        },
+      );
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Database truncated successfully',
+        truncatedTables: [...TRUNCATED_DATABASE_TABLES],
+        timestamp: expect.any(String),
+      });
+    });
+
+    it('should rethrow error if $executeRawUnsafe fails', async () => {
+      // Arrange
+      const dbError = new Error('Database connection failed');
+      (prisma.$executeRawUnsafe as jest.Mock).mockRejectedValue(dbError);
+
+      // Act & Assert
+      await expect(service.truncateDatabase(dto)).rejects.toThrow(
+        'Database connection failed',
+      );
+      expect((service as any).logger.error).toHaveBeenCalledWith(
+        'Admin database truncate failed',
+        expect.objectContaining({
+          step: 'execute_truncate',
+          reason: dto.reason,
+        }),
+      );
     });
   });
 });

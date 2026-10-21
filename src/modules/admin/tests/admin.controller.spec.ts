@@ -17,6 +17,7 @@ import { ConsumeCreditsRequestDto } from '@modules/credits/dto';
 
 import { AdminController } from '../admin.controller';
 import { AdminService } from '../admin.service';
+import { TruncateDatabaseRequestDto } from '../dto';
 import { AdminOidcAuthGuard } from '../guards/admin-oidc-auth.guard';
 
 describe('AdminController', () => {
@@ -38,6 +39,7 @@ describe('AdminController', () => {
   beforeEach(async () => {
     const mockAdminService = {
       deleteAccount: jest.fn(),
+      truncateDatabase: jest.fn(),
     };
 
     const mockCreditsService = {
@@ -238,6 +240,74 @@ describe('AdminController', () => {
       // Assert
       expect(shortLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.short.limit);
       expect(longLimit).toBe(AUTH_DEV_LOGIN_THROTTLE.long.limit);
+    });
+  });
+
+  describe('truncateDatabase', () => {
+    const dto: TruncateDatabaseRequestDto = {
+      confirmation: 'CONFIRM_TRUNCATE',
+      reason: 'Automated test suite reset',
+    };
+
+    it('should invoke adminService.truncateDatabase and return response in non-production', async () => {
+      // Arrange
+      configService.get.mockReturnValue('development');
+      const mockResponse = {
+        success: true,
+        message: 'Database truncated successfully',
+        truncatedTables: ['User', 'UserProfile'],
+        timestamp: new Date().toISOString(),
+      };
+      adminService.truncateDatabase.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await controller.truncateDatabase(dto, '127.0.0.1');
+
+      // Assert
+      expect(adminService.truncateDatabase).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should throw NotFoundException in production environment when NODE_ENV is production', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      });
+
+      // Act & Assert
+      await expect(
+        controller.truncateDatabase(dto, '127.0.0.1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(adminService.truncateDatabase).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException in production environment when DEPLOYMENT_ENV is production', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'DEPLOYMENT_ENV') return 'production';
+        return 'development';
+      });
+
+      // Act & Assert
+      await expect(
+        controller.truncateDatabase(dto, '127.0.0.1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(adminService.truncateDatabase).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException when environment variable has whitespace or uppercase', async () => {
+      // Arrange
+      configService.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return ' PRODUCTION ';
+        return 'development';
+      });
+
+      // Act & Assert
+      await expect(
+        controller.truncateDatabase(dto, '127.0.0.1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(adminService.truncateDatabase).not.toHaveBeenCalled();
     });
   });
 });

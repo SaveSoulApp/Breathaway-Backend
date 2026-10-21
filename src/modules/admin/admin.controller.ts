@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
+  ApiExcludeEndpoint,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -40,7 +41,11 @@ import {
 } from '@modules/credits/dto';
 
 import { AdminService } from './admin.service';
-import { DeleteAccountRequestDto } from './dto';
+import {
+  DeleteAccountRequestDto,
+  TruncateDatabaseRequestDto,
+  TruncateDatabaseResponseDto,
+} from './dto';
 import { AdminOidcAuthGuard } from './guards/admin-oidc-auth.guard';
 
 @ApiTags('Admin')
@@ -208,5 +213,50 @@ export class AdminController extends BaseController {
       userAgent,
       deviceId,
     });
+  }
+
+  /**
+   * Truncates database contents for internal and staging testing from scratch.
+   *
+   * Callable only by authorized GCP administrators via Google Cloud ID tokens in non-production environments.
+   * In production, this endpoint is strictly blocked with a 404 NotFoundException.
+   * Completely excluded from Swagger and Redoc documentation via @ApiExcludeEndpoint().
+   *
+   * @param dto - Container with confirmation phrase and optional reason.
+   * @param clientIp - Optional client IP address from request headers.
+   * @returns Summary of truncated tables and timestamp.
+   * @throws {NotFoundException} When running in production environment.
+   */
+  @Post('database/truncate')
+  @ApiExcludeEndpoint()
+  @HttpCode(HttpStatus.OK)
+  @SerializeExpose(TruncateDatabaseResponseDto)
+  async truncateDatabase(
+    @Body() dto: TruncateDatabaseRequestDto,
+    @ClientIp() clientIp?: string,
+  ): Promise<TruncateDatabaseResponseDto> {
+    const nodeEnv = this.configService
+      .get<string>('NODE_ENV')
+      ?.toLowerCase()
+      .trim();
+    const deploymentEnv = this.configService
+      .get<string>('DEPLOYMENT_ENV')
+      ?.toLowerCase()
+      .trim();
+
+    if (nodeEnv === 'production' || deploymentEnv === 'production') {
+      this.logger.warn(
+        'Blocked database truncate attempt in production environment',
+        {
+          step: 'truncate_db_blocked',
+          nodeEnv,
+          deploymentEnv,
+          clientIp,
+        },
+      );
+      throw new NotFoundException('Endpoint not available in production');
+    }
+
+    return this.adminService.truncateDatabase(dto);
   }
 }
