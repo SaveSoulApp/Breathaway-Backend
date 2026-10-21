@@ -28,6 +28,24 @@ The `WebhooksModule` receives incoming, automated event payloads dispatched from
 
 ---
 
+## 🛡️ Meta Webhook Ingress & Cryptographic Hardening
+
+The `MetaWebhookGuard` enforces authentication on all inbound webhooks from Meta (Instagram and WhatsApp messaging):
+
+### 1. Cryptographic Validation
+
+- **HMAC-SHA256 Header**: Meta signs payloads using the app secret and passes the digest in the `X-Hub-Signature-256` header (formatted as `sha256=<hex_digest>`).
+- **Timing-Safe Equality**: Compares the expected HMAC buffer with the received signature buffer using `crypto.timingSafeEqual` to prevent timing side-channel attacks.
+- **Secret & Header Trimming**: Automatically trims leading and trailing whitespace/newlines from `META_APP_SECRET` and signature headers to prevent formatting anomalies from causing intermittent verification failures.
+
+### 2. PII Protection in Structured Cloud Logging
+
+- When signature verification fails, diagnostic logging is strictly environment-scoped.
+- **Remote Environments (`DEPLOYMENT_ENV !== 'local'`)**: In staging and production on GCP Cloud Run, `rawBodyPreview` (which contains unredacted customer message text) and expected HMAC digests are omitted from logs. This eliminates PII leakage and protects secret derivation vectors in Google Cloud Logging.
+- **Local Development (`DEPLOYMENT_ENV === 'local'`)**: Attaches truncated `rawBodyPreview` and signature digests to assist developers in debugging webhook payloads locally.
+
+---
+
 ## 💳 Cashfree Payment Webhooks
 
 The Cashfree webhook listener processes order fulfillment and payment failure events originating from Cashfree Payment Gateway 2.0.
@@ -75,6 +93,7 @@ The `verifyMetaWebhook` method enforces Meta's challenge-response protocol. When
 ### Controllers & Guards
 
 - **[WebhooksController](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/webhooks/webhooks.controller.ts)**: Public webhook router (`/api/v1/webhooks`), decorated with `@SkipClientIdentity()`.
+- **[MetaWebhookGuard](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/webhooks/guards/meta-webhook.guard.ts)**: Validates `X-Hub-Signature-256` HMAC-SHA256 against `META_APP_SECRET`, with secret trimming and environment-scoped diagnostic logging.
 - **[CashfreeWebhookGuard](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/webhooks/guards/cashfree-webhook.guard.ts)**: Validates `x-webhook-signature` against `timestamp + rawBody`.
 - **[RazorpayWebhookGuard](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/webhooks/guards/razorpay-webhook.guard.ts)**: Validates `X-Razorpay-Signature` against `rawBody`.
 - **[RevenueCatWebhookGuard](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/webhooks/guards/revenuecat-webhook.guard.ts)**: Validates authorization header against shared secret.
