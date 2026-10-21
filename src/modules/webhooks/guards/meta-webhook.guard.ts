@@ -45,21 +45,38 @@ export class MetaWebhookGuard extends BaseGuard implements CanActivate {
       throw new UnauthorizedException('Missing X-Hub-Signature-256 header');
     }
 
-    const receivedSig = Array.isArray(signatureHeader)
+    const rawReceivedSig = Array.isArray(signatureHeader)
       ? signatureHeader[0]
       : signatureHeader;
 
-    if (!receivedSig || !receivedSig.trim()) {
+    if (!rawReceivedSig || !rawReceivedSig.trim()) {
       throw new UnauthorizedException(
         'Missing X-Hub-Signature-256 header value',
       );
     }
 
+    const receivedSig = rawReceivedSig.trim();
+
     if (!receivedSig.toLowerCase().startsWith('sha256=')) {
+      this.logger.warn('Meta webhook signature missing sha256= prefix', {
+        step: 'invalid_signature_prefix',
+        receivedPrefix: receivedSig.slice(0, 10),
+      });
       throw new UnauthorizedException('Invalid Meta webhook signature');
     }
 
-    const appSecret = this.configService.getOrThrow<string>('META_APP_SECRET');
+    const rawAppSecret =
+      this.configService.getOrThrow<string>('META_APP_SECRET');
+    const appSecret = rawAppSecret.trim();
+
+    if (!appSecret) {
+      this.logger.error('META_APP_SECRET is empty after trimming whitespace', {
+        step: 'empty_meta_app_secret',
+      });
+      throw new InternalServerErrorException(
+        'META_APP_SECRET configuration is empty',
+      );
+    }
 
     // The raw body Buffer is attached to the request by the global rawBody middleware (configured in main.ts)
     const rawBodyBuffer = (request as Request & { rawBody?: Buffer }).rawBody;
@@ -84,13 +101,31 @@ export class MetaWebhookGuard extends BaseGuard implements CanActivate {
       .digest('hex');
     const expectedSignature = `sha256=${computedHash}`;
 
-    const sigBuffer = Buffer.from(receivedSig.trim().toLowerCase(), 'utf8');
+    const sigBuffer = Buffer.from(receivedSig.toLowerCase(), 'utf8');
     const expectedBuffer = Buffer.from(expectedSignature.toLowerCase(), 'utf8');
 
     if (
       sigBuffer.length !== expectedBuffer.length ||
       !timingSafeEqual(sigBuffer, expectedBuffer)
     ) {
+      const isProduction =
+        this.configService.get<string>('NODE_ENV') === 'production';
+
+      this.logger.warn('Meta webhook signature verification failed', {
+        step: 'signature_mismatch',
+        appSecretLength: appSecret.length,
+        receivedSigLength: sigBuffer.length,
+        expectedSigLength: expectedBuffer.length,
+        rawBodyLength: rawBody.length,
+        ...(isProduction
+          ? {}
+          : {
+              receivedSig,
+              expectedSig: expectedSignature,
+              legacySha1Sig: request.headers['x-hub-signature'],
+              rawBodyPreview: rawBody.toString('utf8').slice(0, 500),
+            }),
+      });
       throw new UnauthorizedException('Invalid Meta webhook signature');
     }
 
