@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ValidateNested } from 'class-validator';
+import { IsOptional, ValidateNested } from 'class-validator';
 
 export class TimeframeDto {
   @ApiProperty({ nullable: true })
@@ -53,6 +53,9 @@ export class PlatformSplitDto {
 
   @ApiProperty()
   ios: number;
+
+  @ApiProperty()
+  web: number;
 }
 
 export class IntentStatsDto {
@@ -80,6 +83,34 @@ export class IntentSplitDto {
   open: IntentStatsDto;
 }
 
+export class LikeStatusSummaryDto {
+  @ApiProperty({ description: 'Active likes awaiting a match' })
+  pending: number;
+
+  @ApiProperty({ description: 'Likes successfully matched' })
+  matched: number;
+
+  @ApiProperty({ description: 'Likes voided or expired' })
+  voided: number;
+
+  @ApiProperty({ description: 'Likes withdrawn by sender' })
+  withdrawn: number;
+
+  @ApiProperty({ description: 'Soft-deleted likes' })
+  deleted: number;
+}
+
+export class MatchStatusSummaryDto {
+  @ApiProperty({ description: 'Active matches' })
+  active: number;
+
+  @ApiProperty({ description: 'Unmatched pairings' })
+  unmatched: number;
+
+  @ApiProperty({ description: 'Matches severed due to blocks' })
+  blocked: number;
+}
+
 export class CreditsGivenSplitDto {
   @ApiProperty()
   purchase: number;
@@ -95,6 +126,37 @@ export class CreditsGivenSplitDto {
 
   @ApiProperty()
   likeUsage: number;
+
+  @ApiProperty()
+  expired: number;
+
+  @ApiProperty()
+  subscription: number;
+}
+
+export class TotalFinancialSummaryDto {
+  @ApiProperty({ description: 'Total gross revenue collected' })
+  totalGrossRevenue: number;
+
+  @ApiProperty({ description: 'Current active paid subscriptions count' })
+  activeSubscriptions: number;
+
+  @ApiProperty({ description: 'Total successful payment orders' })
+  successfulOrders: number;
+}
+
+export class TotalChatSummaryDto {
+  @ApiProperty({ description: 'Total chat rooms' })
+  totalRooms: number;
+
+  @ApiProperty({ description: 'Active chat rooms with at least 1 message' })
+  activeRooms: number;
+
+  @ApiProperty({ description: 'Total messages exchanged' })
+  totalMessages: number;
+
+  @ApiProperty({ description: 'Percentage of messages that have been read' })
+  readRatePercent: number;
 }
 
 // TOTAL REPORT DTOs
@@ -114,6 +176,20 @@ export class TotalUsersReportDto {
 export class TotalIdentitiesReportDto {
   @ApiProperty()
   total: number;
+
+  @ApiPropertyOptional({
+    description: 'Identities claimed by registered users',
+  })
+  @IsOptional()
+  claimed?: number;
+
+  @ApiPropertyOptional({ description: 'Unclaimed identities in viral pool' })
+  @IsOptional()
+  unclaimed?: number;
+
+  @ApiPropertyOptional({ description: 'Verified identities count' })
+  @IsOptional()
+  verified?: number;
 
   @ApiProperty()
   averagePerUser: number;
@@ -156,6 +232,12 @@ export class TotalLikesReportDto {
   @ValidateNested()
   @Type(() => IntentSplitDto)
   intentSplit: IntentSplitDto;
+
+  @ApiPropertyOptional({ type: LikeStatusSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LikeStatusSummaryDto)
+  statusSplit?: LikeStatusSummaryDto;
 }
 
 export class TotalMatchesReportDto {
@@ -164,6 +246,18 @@ export class TotalMatchesReportDto {
 
   @ApiProperty()
   averagePerUser: number;
+
+  @ApiPropertyOptional({
+    description: 'Match conversion rate as (2 * matches / likes) * 100',
+  })
+  @IsOptional()
+  conversionRatePercent?: number;
+
+  @ApiPropertyOptional({ type: MatchStatusSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchStatusSummaryDto)
+  statusSplit?: MatchStatusSummaryDto;
 }
 
 export class BlocksReportDto {
@@ -189,6 +283,12 @@ export class TotalCreditsReportDto {
 
   @ApiProperty()
   utilisedTotal: number;
+
+  @ApiPropertyOptional({
+    description: 'Net circulating unspent credit balance',
+  })
+  @IsOptional()
+  circulatingBalance?: number;
 }
 
 export class ReportTotalResponseDto {
@@ -226,6 +326,18 @@ export class ReportTotalResponseDto {
   @ValidateNested()
   @Type(() => TotalCreditsReportDto)
   credits: TotalCreditsReportDto;
+
+  @ApiPropertyOptional({ type: TotalFinancialSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TotalFinancialSummaryDto)
+  financial?: TotalFinancialSummaryDto;
+
+  @ApiPropertyOptional({ type: TotalChatSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TotalChatSummaryDto)
+  chat?: TotalChatSummaryDto;
 }
 
 // TIMEFRAME REPORT DTOs
@@ -243,6 +355,22 @@ export class TimeframeIdentitiesReportDto {
   @ApiProperty()
   created: number;
 
+  @ApiPropertyOptional({ description: 'Identities claimed in timeframe' })
+  @IsOptional()
+  claimed?: number;
+
+  @ApiPropertyOptional({
+    description: 'Unclaimed identities created in timeframe',
+  })
+  @IsOptional()
+  unclaimed?: number;
+
+  @ApiPropertyOptional({
+    description: 'Average identities per acquired user in timeframe',
+  })
+  @IsOptional()
+  averagePerUser?: number;
+
   @ApiProperty({ type: IdentitySplitDto })
   @ValidateNested()
   @Type(() => IdentitySplitDto)
@@ -252,6 +380,12 @@ export class TimeframeIdentitiesReportDto {
 export class TimeframeDevicesReportDto {
   @ApiProperty()
   registered: number;
+
+  @ApiPropertyOptional({
+    description: 'Average devices per acquired user in timeframe',
+  })
+  @IsOptional()
+  averagePerUser?: number;
 
   @ApiProperty({ type: PlatformSplitDto })
   @ValidateNested()
@@ -263,6 +397,12 @@ export class TimeframeLikesReportDto {
   @ApiProperty()
   made: number;
 
+  @ApiPropertyOptional({
+    description: 'Average likes per acquired user in timeframe',
+  })
+  @IsOptional()
+  averagePerUser?: number;
+
   @ApiProperty({ type: IdentitySplitDto })
   @ValidateNested()
   @Type(() => IdentitySplitDto)
@@ -272,11 +412,35 @@ export class TimeframeLikesReportDto {
   @ValidateNested()
   @Type(() => IntentSplitDto)
   intentSplit: IntentSplitDto;
+
+  @ApiPropertyOptional({ type: LikeStatusSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LikeStatusSummaryDto)
+  statusSplit?: LikeStatusSummaryDto;
 }
 
 export class TimeframeMatchesReportDto {
   @ApiProperty()
   matched: number;
+
+  @ApiPropertyOptional({
+    description: 'Average matches per acquired user in timeframe',
+  })
+  @IsOptional()
+  averagePerUser?: number;
+
+  @ApiPropertyOptional({
+    description: 'Match conversion rate as (2 * matches / likes) * 100',
+  })
+  @IsOptional()
+  conversionRatePercent?: number;
+
+  @ApiPropertyOptional({ type: MatchStatusSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchStatusSummaryDto)
+  statusSplit?: MatchStatusSummaryDto;
 }
 
 export class TimeframeCreditsGivenDto {
@@ -297,6 +461,12 @@ export class TimeframeCreditsReportDto {
 
   @ApiProperty()
   utilisedTotal: number;
+
+  @ApiPropertyOptional({
+    description: 'Net circulating unspent credit balance in timeframe',
+  })
+  @IsOptional()
+  circulatingBalance?: number;
 }
 
 export class ReportTimeframeResponseDto {
@@ -339,4 +509,16 @@ export class ReportTimeframeResponseDto {
   @ValidateNested()
   @Type(() => TimeframeCreditsReportDto)
   credits: TimeframeCreditsReportDto;
+
+  @ApiPropertyOptional({ type: TotalFinancialSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TotalFinancialSummaryDto)
+  financial?: TotalFinancialSummaryDto;
+
+  @ApiPropertyOptional({ type: TotalChatSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TotalChatSummaryDto)
+  chat?: TotalChatSummaryDto;
 }
