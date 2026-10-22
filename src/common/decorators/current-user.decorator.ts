@@ -13,6 +13,7 @@ export interface JwtPayload {
   userId: string;
   email: string;
   jti?: string;
+  familyId?: string;
 }
 
 // 2. Extend the base Request to enforce the presence of the user object
@@ -30,7 +31,6 @@ export interface AuthenticatedRequest extends Request {
  * Fails safely with an internal server error if the auth guard was missing or misconfigured.
  */
 export const CurrentUserId = createParamDecorator(
-  // Explicitly declare the return type of the decorator
   (data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
 
@@ -51,5 +51,15 @@ export const CurrentJti = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): string | undefined => {
     const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
     return request.user?.jti;
+  },
+);
+
+/**
+ * Extracts the optional session family identifier (familyId) from the authenticated user payload.
+ */
+export const CurrentFamilyId = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext): string | undefined => {
+    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
+    return request.user?.familyId;
   },
 );

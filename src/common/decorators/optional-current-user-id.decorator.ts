@@ -1,7 +1,7 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { JwtPayload } from './current-user-id.decorator';
+import { JwtPayload } from './current-user.decorator';
 
 /**
  * Extracts the authenticated user's ID from the JWT payload injected into the request object,

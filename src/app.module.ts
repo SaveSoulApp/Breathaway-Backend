@@ -58,6 +58,7 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PubSubModule } from './modules/pubsub/pubsub.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { SocialIdentitiesModule } from './modules/social-identities/social-identities.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
@@ -183,6 +184,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     AuditModule,
     ChatsModule,
     ReportsModule,
+    SessionsModule,
     SubscriptionsModule,
     TransactionsModule,
     PaymentsModule,

@@ -117,9 +117,13 @@ export class AuthTokenService extends BaseService {
       .add(this.refreshExpiresInSeconds, 'second')
       .toDate();
 
-    // 1. Generate short-lived Access Token
+    // 1. Resolve family identifier for session lineage
+    const familyId =
+      typeof metadata?.familyId === 'string' ? metadata.familyId : nanoid(24);
+
+    // 2. Generate short-lived Access Token
     const accessToken = this.jwtService.sign(
-      {},
+      { familyId },
       {
         subject: user.id,
         audience: this.audience,
@@ -129,10 +133,8 @@ export class AuthTokenService extends BaseService {
       },
     );
 
-    // 2. Generate long-lived Refresh Token (Option B: Signed JWT with Family ID)
+    // 3. Generate long-lived Refresh Token (Option B: Signed JWT with Family ID)
     const refreshJti = nanoid(32);
-    const familyId =
-      typeof metadata?.familyId === 'string' ? metadata.familyId : nanoid(24);
 
     const refreshPayload = {
       familyId,
