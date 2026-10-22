@@ -3,6 +3,7 @@ import { IsNumber, IsString } from 'class-validator';
 
 import { AllowNonWhitelisted } from '@common/decorators/allow-non-whitelisted.decorator';
 import { CashfreeWebhookRequestDto } from '@modules/webhooks/dto/request/cashfree-payment-webhook.request.dto';
+import { MetaWebhookDto } from '@modules/webhooks/dto/request/meta-webhook.request.dto';
 import { RevenueCatWebhookRequestDto } from '@modules/webhooks/dto/request/revenuecat-webhook.request.dto';
 
 import { AppValidationPipe } from '../app-validation.pipe';
@@ -215,6 +216,43 @@ describe('AppValidationPipe', () => {
       // Assert
       expect(result).toBeDefined();
       expect(result.type).toBe('TEST_WEBHOOK');
+    });
+
+    it('should accept MetaWebhookDto carrying echo and undeclared properties without failing validation', async () => {
+      // Arrange — simulates Meta's echo webhook callback with extra properties
+      const payload = {
+        object: 'instagram',
+        entry: [
+          {
+            id: '17841444873658434',
+            time: 1776449143000,
+            messaging: [
+              {
+                sender: { id: '17841444873658434' },
+                recipient: { id: '1541822564611680' },
+                timestamp: 1776449143009,
+                message: {
+                  mid: 'aWdfZAG1faXRlbTox...',
+                  text: 'Instagram direct message sent successfully',
+                  is_echo: true,
+                  app_id: 123456789,
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      // Act
+      const result = (await pipe.transform(payload, {
+        type: 'body',
+        metatype: MetaWebhookDto,
+      })) as MetaWebhookDto;
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.object).toBe('instagram');
+      expect(result.entry[0].messaging?.[0].message?.is_echo).toBe(true);
     });
   });
 });

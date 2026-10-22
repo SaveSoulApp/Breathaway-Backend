@@ -111,5 +111,65 @@ describe('Meta Webhook Parser Utils', () => {
         timestamp: 12345,
       });
     });
+
+    it('should ignore echo messages where is_echo is true', () => {
+      const entry: MetaWebhookEntryDto = {
+        id: '1',
+        time: 123,
+        messaging: [
+          {
+            sender: { id: 'page-1' },
+            recipient: { id: 'user-1' },
+            timestamp: 12345,
+            message: {
+              mid: 'm-echo-1',
+              text: 'Your account has been linked successfully!',
+              is_echo: true,
+            },
+          },
+        ],
+      };
+
+      const result = extractMessages(entry);
+      expect(result).toEqual([]);
+    });
+
+    it('should extract non-echo messages and ignore echo messages in the same entry', () => {
+      const entry: MetaWebhookEntryDto = {
+        id: '1',
+        time: 123,
+        messaging: [
+          {
+            sender: { id: 'page-1' },
+            recipient: { id: 'user-1' },
+            timestamp: 12345,
+            message: {
+              mid: 'm-echo-1',
+              text: 'Bot outbound reply',
+              is_echo: true,
+            },
+          },
+          {
+            sender: { id: 'user-1' },
+            recipient: { id: 'page-1' },
+            timestamp: 12346,
+            message: {
+              mid: 'm-user-1',
+              text: 'hello from user',
+            },
+          },
+        ],
+      };
+
+      const result = extractMessages(entry);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        senderId: 'user-1',
+        recipientId: 'page-1',
+        messageId: 'm-user-1',
+        text: 'hello from user',
+        timestamp: 12346,
+      });
+    });
   });
 });

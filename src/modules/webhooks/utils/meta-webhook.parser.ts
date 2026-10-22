@@ -27,7 +27,8 @@ export function extractMessages(
   }
 
   return entry.messaging.flatMap((event) => {
-    if (!event.message?.text) {
+    // Skip events without text or messages that are echoes of outbound messages sent by the page
+    if (!event.message?.text || event.message.is_echo) {
       return [];
     }
 
