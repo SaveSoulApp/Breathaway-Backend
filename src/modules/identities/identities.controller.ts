@@ -217,7 +217,8 @@ export class IdentitiesController extends BaseController {
   }
 
   /**
-   * Soft-deletes an identity by stamping `deletedAt` and disassociating it from the user
+   * Soft-deletes an identity by stamping `deletedAt`, clearing verification state
+   * (`isVerified = false`, `verifiedAt = null`), and disassociating it from the user
    * (`userId` set to null), making it reclaimable by another account in the future.
    *
    * @param id - UUID of the identity to delete.

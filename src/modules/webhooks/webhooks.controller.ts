@@ -66,9 +66,14 @@ export class WebhooksController extends BaseController {
    * Authenticates incoming requests via `MetaWebhookGuard` using HMAC-SHA256
    * signature verification (`X-Hub-Signature-256`) computed over the raw payload
    * with the Meta App Secret (`META_APP_SECRET`).
+   *
+   * Validates payload against `MetaWebhookDto`. Annotated with `@AllowNonWhitelisted()`
+   * because Meta's webhook schemas include echo messages, attachments, read receipts,
+   * delivery receipts, and evolving fields that should not cause 400 Bad Request.
    */
   @Post('meta')
   @UseGuards(MetaWebhookGuard)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Handle Meta Webhook events' })
   @ApiHeader({
     name: 'X-Hub-Signature-256',
@@ -76,7 +81,7 @@ export class WebhooksController extends BaseController {
     required: true,
   })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.OK,
     description: 'Events successfully received',
   })
   @ApiResponse({

@@ -1,12 +1,15 @@
-import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
+
+import { AllowNonWhitelisted } from '@common/decorators';
 
 /**
  * Represents the message object inside a messaging event.
@@ -16,6 +19,7 @@ import {
  * { "mid": "aWdfZAG1fa...", "text": "Hi" }
  * ```
  */
+@AllowNonWhitelisted()
 export class MetaMessageDto {
   @ApiProperty({
     description: 'Message ID',
@@ -29,11 +33,25 @@ export class MetaMessageDto {
   @IsOptional()
   @IsString()
   text?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether the message was sent as an echo by the page',
+  })
+  @IsOptional()
+  @IsBoolean()
+  is_echo?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Meta application ID that sent the message',
+  })
+  @IsOptional()
+  app_id?: number | string;
 }
 
 /**
  * Represents a sender or recipient with an ID.
  */
+@AllowNonWhitelisted()
 export class MetaParticipantDto {
   @ApiProperty({
     description: 'Participant ID (Sender or Recipient)',
@@ -55,6 +73,7 @@ export class MetaParticipantDto {
  * }
  * ```
  */
+@AllowNonWhitelisted()
 export class MetaMessagingEventDto {
   @ApiProperty({
     description: 'Sender of the message',
@@ -94,6 +113,7 @@ export class MetaMessagingEventDto {
  * Each entry corresponds to one page/account and may contain
  * multiple messaging events.
  */
+@AllowNonWhitelisted()
 export class MetaWebhookEntryDto {
   @ApiProperty({
     description: 'Page or Account ID',
@@ -129,6 +149,7 @@ export class MetaWebhookEntryDto {
  * }
  * ```
  */
+@AllowNonWhitelisted()
 export class MetaWebhookDto {
   @ApiProperty({
     description: 'Object type (usually "instagram")',

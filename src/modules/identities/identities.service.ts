@@ -593,10 +593,13 @@ export class IdentitiesService extends BaseService {
   }
 
   /**
-   * Soft-deletes an identity by stamping `deletedAt` and setting `userId` to null.
+   * Soft-deletes an identity by stamping `deletedAt`, clearing verification state
+   * (`isVerified = false`, `verifiedAt = null`), and setting `userId` to null.
    *
    * Nulling `userId` means the identity becomes reclaimable by any user who presents
-   * the same public value in the future, preventing permanent orphaning of hashed records.
+   * the same public value in the future, preventing permanent orphaning of hashed records
+   * while preserving historical likes and audit trails. Resetting verification ensures
+   * any future claimant must independently re-verify ownership.
    *
    * @param id     - UUID of the identity to delete.
    * @param userId - UUID of the user who must own it.
@@ -610,6 +613,8 @@ export class IdentitiesService extends BaseService {
         data: {
           deletedAt: DateUtil.now(),
           userId: null,
+          isVerified: false,
+          verifiedAt: null,
         },
       });
     } catch (error) {

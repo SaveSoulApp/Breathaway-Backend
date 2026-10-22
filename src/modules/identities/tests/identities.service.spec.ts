@@ -704,6 +704,8 @@ describe('IdentitiesService', () => {
         data: {
           deletedAt: expect.any(Date),
           userId: null,
+          isVerified: false,
+          verifiedAt: null,
         },
       });
     });
