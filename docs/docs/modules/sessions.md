@@ -79,7 +79,19 @@ The `SessionMetadataParser` extracts clean, user-friendly device models and brow
 
 ---
 
-### 4. Current Session Detection
+### 4. Tentative IP Geolocation Resolution
+
+To provide users with meaningful context on where their account is being accessed from, `SessionsService` enriches active session records with tentative geographic location data resolved from `session.ipAddress` via `IpGeolocationService`:
+
+- **Data Points**: City, administrative region/state, ISO 3166-1 alpha-2 country code, localized English country name (resolved via Node.js native `Intl.DisplayNames`), timezone, and a pre-formatted human-readable display string (e.g. `"Mumbai, India"`).
+- **Sub-Millisecond Distributed Caching**: IP geolocations are cached in Redis (`ip:geo:<ip>`) with a 30-day TTL. Subsequent requests for the same IP address execute in sub-millisecond time and consume zero external API quota.
+- **Deduplicated Parallel Resolution**: When a user holds multiple active sessions across the same IP address, distinct IP addresses are deduplicated and queried concurrently via `Promise.all`.
+- **Private & Reserved IP Bypass**: Localhost, loopback (`127.0.0.1`, `::1`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and link-local ranges immediately evaluate to `null` without network calls.
+- **Fail-Safe Operation**: If the IPinfo service times out or is unreachable, or if an IP cannot be resolved, the `location` field gracefully defaults to `null` without failing the session query.
+
+---
+
+### 5. Current Session Detection
 
 To prevent users from accidentally terminating their current session or to display a **"Current Device"** badge in client UIs, `SessionsService.isCurrentSession` evaluates:
 
@@ -88,7 +100,7 @@ To prevent users from accidentally terminating their current session or to displ
 
 ---
 
-### 5. Push Notification Synchronization
+### 6. Push Notification Synchronization
 
 When a session is revoked:
 
@@ -151,6 +163,14 @@ x-device-id: device-uuid-1
       "familyId": "mYL0ZxWdgUxMBK7-NWFwWMSF",
       "isCurrent": true,
       "ipAddress": "49.43.243.115",
+      "location": {
+        "city": "Mumbai",
+        "region": "Maharashtra",
+        "countryCode": "IN",
+        "countryName": "India",
+        "timezone": "Asia/Kolkata",
+        "formatted": "Mumbai, India"
+      },
       "device": {
         "deviceId": "device-uuid-1",
         "platform": "IOS",
@@ -169,6 +189,14 @@ x-device-id: device-uuid-1
       "familyId": "kLP9YxWedGxMBK8-PWFwWMSX",
       "isCurrent": false,
       "ipAddress": "103.21.125.42",
+      "location": {
+        "city": "Bengaluru",
+        "region": "Karnataka",
+        "countryCode": "IN",
+        "countryName": "India",
+        "timezone": "Asia/Kolkata",
+        "formatted": "Bengaluru, India"
+      },
       "device": {
         "deviceId": "web-session-id",
         "platform": "WEB",
@@ -258,6 +286,7 @@ x-device-id: device-uuid-1
 
 - **[`UserSessionsResponseDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/user-sessions.response.dto.ts)**: Composite response container.
 - **[`SessionResponseDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/session.response.dto.ts)**: Single session descriptor.
+- **[`SessionLocationDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/session-location.response.dto.ts)**: Tentative geographic location descriptor (city, region, country, timezone, formatted label).
 - **[`SessionDeviceDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/session-device.response.dto.ts)**: Correlated device information.
 - **[`AssociatedDeviceResponseDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/associated-device.response.dto.ts)**: Registered push device descriptor.
 - **[`RevokeOtherSessionsResponseDto`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/sessions/dto/response/revoke-other-sessions.response.dto.ts)**: Revocation summary report.

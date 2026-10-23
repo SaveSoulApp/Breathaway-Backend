@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { UAParser } from 'ua-parser-js';
 
 import { LoggerService } from '@core/logger';
+import { UserAgentUtils } from '@common/utils/user-agent.utils';
 
 import {
   Platform,
@@ -103,16 +104,7 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
-    const userAgentHeader = headers['x-user-agent'];
-    const standardUserAgent = headers['user-agent'];
-
-    const userAgent =
-      typeof userAgentHeader === 'string' && userAgentHeader.trim().length > 0
-        ? userAgentHeader
-        : typeof standardUserAgent === 'string' &&
-            standardUserAgent.trim().length > 0
-          ? standardUserAgent
-          : undefined;
+    const userAgent = UserAgentUtils.resolveCanonicalUserAgent(headers);
 
     if (!userAgent)
       throw new BadRequestException('x-user-agent header is required');

@@ -5,7 +5,9 @@ import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
 import { HttpClientService } from '@infrastructure/http';
+import { RedisService } from '@infrastructure/redis';
 
+import { IpLocation } from '../interfaces/ip-geolocation.interface';
 import { IpGeolocationService } from '../ip-geolocation.service';
 
 describe('IpGeolocationService', () => {
@@ -13,6 +15,12 @@ describe('IpGeolocationService', () => {
   let configService: jest.Mocked<ConfigService>;
   const mockHttpClient = {
     get: jest.fn(),
+  };
+
+  const mockRedisService = {
+    isConfigured: true,
+    get: jest.fn(),
+    set: jest.fn(),
   };
 
   const mockLogger = {
@@ -27,9 +35,16 @@ describe('IpGeolocationService', () => {
   const createModule = async (options?: {
     token?: string;
     timeout?: number;
+    redisConfigured?: boolean;
+    redisService?: any;
   }) => {
     const token = options && 'token' in options ? options.token : 'test-token';
     const timeout = options?.timeout ?? 1500;
+    const redis =
+      options?.redisService ??
+      (options && options.redisConfigured === false
+        ? { isConfigured: false, get: jest.fn(), set: jest.fn() }
+        : mockRedisService);
 
     const mockConfigService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
@@ -45,6 +60,7 @@ describe('IpGeolocationService', () => {
         { provide: LoggerService, useValue: mockLogger },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: HttpClientService, useValue: mockHttpClient },
+        { provide: RedisService, useValue: redis },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: ClsService, useValue: { get: jest.fn() } },
       ],
@@ -222,6 +238,233 @@ describe('IpGeolocationService', () => {
 
       // Act
       const result = await service.getCountryCodeByIp('8.8.8.8');
+
+      // Assert
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getLocationByIp', () => {
+    it('should return null when ip is undefined or empty', async () => {
+      // Act
+      const result1 = await service.getLocationByIp(undefined);
+      const result2 = await service.getLocationByIp('');
+
+      // Assert
+      expect(result1).toBeNull();
+      expect(result2).toBeNull();
+      expect(mockRedisService.get).not.toHaveBeenCalled();
+      expect(mockHttpClient.get).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['127.0.0.1'],
+      ['::1'],
+      ['localhost'],
+      ['10.0.0.1'],
+      ['192.168.1.1'],
+      ['172.16.0.1'],
+      ['169.254.169.254'],
+      ['0.0.0.0'],
+      ['fe80::1'],
+      ['::ffff:127.0.0.1'],
+    ])(
+      'should return null immediately for private/reserved IP: %s without cache or HTTP call',
+      async (privateIp) => {
+        // Act
+        const result = await service.getLocationByIp(privateIp);
+
+        // Assert
+        expect(result).toBeNull();
+        expect(mockRedisService.get).not.toHaveBeenCalled();
+        expect(mockHttpClient.get).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should return cached location from Redis without making HTTP request on cache hit', async () => {
+      // Arrange
+      const cachedLocation: IpLocation = {
+        city: 'Mumbai',
+        region: 'Maharashtra',
+        countryCode: 'IN',
+        countryName: 'India',
+        timezone: 'Asia/Kolkata',
+        formatted: 'Mumbai, India',
+      };
+      mockRedisService.get.mockResolvedValueOnce(
+        JSON.stringify(cachedLocation),
+      );
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
+
+      // Assert
+      expect(result).toEqual(cachedLocation);
+      expect(mockRedisService.get).toHaveBeenCalledWith('ip:geo:49.43.243.115');
+      expect(mockHttpClient.get).not.toHaveBeenCalled();
+    });
+
+    it('should fetch from standard IPinfo, format location, and cache in Redis on cache miss', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockHttpClient.get.mockResolvedValueOnce({
+        data: {
+          ip: '49.43.243.115',
+          city: 'Bengaluru',
+          region: 'Karnataka',
+          country: 'IN',
+          loc: '12.9716,77.5946',
+          timezone: 'Asia/Kolkata',
+        },
+      });
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
+
+      // Assert
+      expect(result).toEqual({
+        city: 'Bengaluru',
+        region: 'Karnataka',
+        countryCode: 'IN',
+        countryName: 'India',
+        timezone: 'Asia/Kolkata',
+        formatted: 'Bengaluru, India',
+      });
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
+        'https://ipinfo.io/49.43.243.115?token=test-token',
+        expect.objectContaining({
+          timeout: 1500,
+          headers: { Accept: 'application/json' },
+        }),
+      );
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        'ip:geo:49.43.243.115',
+        JSON.stringify(result),
+        'EX',
+        2592000, // 30 days
+      );
+    });
+
+    it('should resolve US country name and format location correctly', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockHttpClient.get.mockResolvedValueOnce({
+        data: {
+          ip: '8.8.8.8',
+          city: 'Mountain View',
+          region: 'California',
+          country: 'US',
+          timezone: 'America/Los_Angeles',
+        },
+      });
+
+      // Act
+      const result = await service.getLocationByIp('8.8.8.8');
+
+      // Assert
+      expect(result).toEqual({
+        city: 'Mountain View',
+        region: 'California',
+        countryCode: 'US',
+        countryName: 'United States',
+        timezone: 'America/Los_Angeles',
+        formatted: 'Mountain View, United States',
+      });
+    });
+
+    it('should format location with only country if city is missing', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockHttpClient.get.mockResolvedValueOnce({
+        data: {
+          ip: '1.1.1.1',
+          country: 'AU',
+        },
+      });
+
+      // Act
+      const result = await service.getLocationByIp('1.1.1.1');
+
+      // Assert
+      expect(result?.city).toBeNull();
+      expect(result?.countryCode).toBe('AU');
+      expect(result?.countryName).toBe('Australia');
+      expect(result?.formatted).toBe('Australia');
+    });
+
+    it('should return null when IPINFO_TOKEN is not configured', async () => {
+      // Arrange
+      await createModule({ token: undefined });
+      mockRedisService.get.mockResolvedValueOnce(null);
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
+
+      // Assert
+      expect(result).toBeNull();
+      expect(mockHttpClient.get).not.toHaveBeenCalled();
+    });
+
+    it('should gracefully handle Redis read error and fall back to IPinfo query', async () => {
+      // Arrange
+      mockRedisService.get.mockRejectedValueOnce(
+        new Error('Redis connection refused'),
+      );
+      mockHttpClient.get.mockResolvedValueOnce({
+        data: {
+          city: 'London',
+          country: 'GB',
+        },
+      });
+
+      // Act
+      const result = await service.getLocationByIp('81.2.69.142');
+
+      // Assert
+      expect(result).toEqual(
+        expect.objectContaining({
+          city: 'London',
+          countryCode: 'GB',
+          countryName: 'United Kingdom',
+          formatted: 'London, United Kingdom',
+        }),
+      );
+    });
+
+    it('should gracefully handle Redis write error and still return resolved location', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockRedisService.set.mockRejectedValueOnce(
+        new Error('Redis readonly replica'),
+      );
+      mockHttpClient.get.mockResolvedValueOnce({
+        data: {
+          city: 'Berlin',
+          country: 'DE',
+        },
+      });
+
+      // Act
+      const result = await service.getLocationByIp('91.198.174.192');
+
+      // Assert
+      expect(result).toEqual(
+        expect.objectContaining({
+          city: 'Berlin',
+          countryCode: 'DE',
+          countryName: 'Germany',
+          formatted: 'Berlin, Germany',
+        }),
+      );
+    });
+
+    it('should return null gracefully when IPinfo HTTP call fails', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockHttpClient.get.mockRejectedValueOnce(new Error('Network timeout'));
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
 
       // Assert
       expect(result).toBeNull();

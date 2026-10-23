@@ -5,6 +5,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { AuditActionType } from '@modules/audit/dto';
 import { JwtAuthCacheService } from '@modules/auth/services/jwt-auth-cache.service';
 
@@ -27,6 +28,7 @@ export class SessionsService extends BaseService {
     logger: LoggerService,
     private readonly prisma: PrismaService,
     private readonly jwtAuthCacheService: JwtAuthCacheService,
+    private readonly ipGeolocationService: IpGeolocationService,
   ) {
     super(logger);
   }
@@ -80,7 +82,24 @@ export class SessionsService extends BaseService {
     // Set of device IDs that currently have an active session
     const activeDeviceIds = new Set<string>();
 
-    // 3. Transform sessions into response DTOs
+    // 3. Resolve tentative geolocation for distinct session IP addresses in parallel
+    const uniqueIps = [
+      ...new Set(
+        activeSessions
+          .map((s) => s.ipAddress)
+          .filter((ip): ip is string => Boolean(ip)),
+      ),
+    ];
+
+    const locationEntries = await Promise.all(
+      uniqueIps.map(async (ip) => {
+        const loc = await this.ipGeolocationService.getLocationByIp(ip);
+        return [ip, loc] as const;
+      }),
+    );
+    const locationMap = new Map(locationEntries);
+
+    // 4. Transform sessions into response DTOs
     const sessions: SessionResponseDto[] = activeSessions.map((session) => {
       if (session.deviceId) {
         activeDeviceIds.add(session.deviceId);
@@ -98,6 +117,10 @@ export class SessionsService extends BaseService {
         currentDeviceId,
       );
 
+      const location = session.ipAddress
+        ? (locationMap.get(session.ipAddress) ?? null)
+        : null;
+
       const deviceDto: SessionDeviceDto = {
         deviceId: session.deviceId ?? null,
         platform: matchingDevice?.platform ?? parsedUa.platform,
@@ -113,6 +136,7 @@ export class SessionsService extends BaseService {
         familyId: session.familyId,
         isCurrent,
         ipAddress: session.ipAddress ?? null,
+        location,
         device: deviceDto,
         createdAt: session.createdAt.toISOString(),
         lastActiveAt: session.updatedAt.toISOString(),
@@ -120,7 +144,7 @@ export class SessionsService extends BaseService {
       };
     });
 
-    // 4. Transform registered devices into response DTOs
+    // 5. Transform registered devices into response DTOs
     const devicesDto: AssociatedDeviceResponseDto[] = registeredDevices.map(
       (device) => ({
         id: device.id,

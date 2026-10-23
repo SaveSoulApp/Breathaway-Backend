@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { IpGeolocationModule } from '@infrastructure/ip-geolocation';
 import { AuthModule } from '@modules/auth/auth.module';
 
 import { SessionsController } from './sessions.controller';
@@ -11,7 +12,7 @@ import { SessionsService } from './sessions.service';
  * revoke active logins across devices.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, IpGeolocationModule],
   controllers: [SessionsController],
   providers: [SessionsService],
   exports: [SessionsService],

@@ -10,6 +10,7 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { IpGeolocationService } from '@infrastructure/ip-geolocation';
 import { JwtAuthCacheService } from '@modules/auth/services/jwt-auth-cache.service';
 
 import { SessionsService } from '../sessions.service';
@@ -18,6 +19,10 @@ describe('SessionsService', () => {
   let service: SessionsService;
   let prisma: MockPrismaService;
   let jwtAuthCacheService: { revokeUser: jest.Mock };
+  let ipGeolocationService: {
+    getLocationByIp: jest.Mock;
+    getCountryCodeByIp: jest.Mock;
+  };
   let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
@@ -51,6 +56,11 @@ describe('SessionsService', () => {
       revokeUser: jest.fn().mockResolvedValue(undefined),
     };
 
+    ipGeolocationService = {
+      getLocationByIp: jest.fn().mockResolvedValue(null),
+      getCountryCodeByIp: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionsService,
@@ -58,6 +68,7 @@ describe('SessionsService', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: JwtAuthCacheService, useValue: jwtAuthCacheService },
+        { provide: IpGeolocationService, useValue: ipGeolocationService },
         { provide: LoggerService, useValue: logger },
       ],
     }).compile();
@@ -213,6 +224,84 @@ describe('SessionsService', () => {
 
       // Assert
       expect(result.sessions[0].isCurrent).toBe(true);
+    });
+
+    it('should resolve and attach tentative IP geolocation for distinct session IP addresses', async () => {
+      // Arrange
+      const now = new Date();
+      const expiry = new Date(Date.now() + 100000);
+
+      const mockSessions = [
+        {
+          id: '01SESSION1',
+          userId: mockUserId,
+          jti: 'jti-1',
+          tokenHash: 'hash-1',
+          familyId: 'family-1',
+          deviceId: 'device-1',
+          userAgent: 'BreathAway/1.0.0 (Web 1.0; Browser)',
+          ipAddress: '49.43.243.115',
+          expiresAt: expiry,
+          revokedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: '01SESSION2',
+          userId: mockUserId,
+          jti: 'jti-2',
+          tokenHash: 'hash-2',
+          familyId: 'family-2',
+          deviceId: 'device-2',
+          userAgent: 'BreathAway/1.0.0 (Web 1.0; Browser)',
+          ipAddress: '49.43.243.115', // Same IP as session 1 (deduplication)
+          expiresAt: expiry,
+          revokedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: '01SESSION3',
+          userId: mockUserId,
+          jti: 'jti-3',
+          tokenHash: 'hash-3',
+          familyId: 'family-3',
+          deviceId: 'device-3',
+          userAgent: 'BreathAway/1.0.0 (Web 1.0; Browser)',
+          ipAddress: null, // No IP address
+          expiresAt: expiry,
+          revokedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ];
+
+      prisma.userSession.findMany.mockResolvedValue(mockSessions as any);
+      prisma.device.findMany.mockResolvedValue([]);
+
+      const mockLocation = {
+        city: 'Mumbai',
+        region: 'Maharashtra',
+        countryCode: 'IN',
+        countryName: 'India',
+        timezone: 'Asia/Kolkata',
+        formatted: 'Mumbai, India',
+      };
+      ipGeolocationService.getLocationByIp.mockResolvedValue(mockLocation);
+
+      // Act
+      const result = await service.getUserSessions(mockUserId);
+
+      // Assert
+      // Deduplicated IP check: only one call for '49.43.243.115'
+      expect(ipGeolocationService.getLocationByIp).toHaveBeenCalledTimes(1);
+      expect(ipGeolocationService.getLocationByIp).toHaveBeenCalledWith(
+        '49.43.243.115',
+      );
+
+      expect(result.sessions[0].location).toEqual(mockLocation);
+      expect(result.sessions[1].location).toEqual(mockLocation);
+      expect(result.sessions[2].location).toBeNull();
     });
   });
 

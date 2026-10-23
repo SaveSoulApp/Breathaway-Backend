@@ -553,5 +553,35 @@ describe(ClientIdentityGuard.name, () => {
         },
       });
     });
+
+    it('should prioritize real browser user-agent when x-user-agent is synthetic web placeholder', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web',
+          'x-user-agent': 'BreathAway/1.0.0 (Web 1.0; Browser)',
+          'user-agent':
+            'Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Android 16',
+          deviceModel: 'Google Pixel 10',
+        },
+      });
+    });
   });
 });

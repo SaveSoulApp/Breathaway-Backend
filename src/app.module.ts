@@ -10,6 +10,7 @@ import { ClsModule } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
 import { extractClientIp } from '@common/utils/request.utils';
+import { UserAgentUtils } from '@common/utils/user-agent.utils';
 import { AppValidationPipe } from '@core/pipes';
 
 import { AppController } from './app.controller';
@@ -85,16 +86,10 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
           // Extract public client IP (GCP Cloud Load Balancer / reverse proxy aware)
           cls.set('ipAddress', extractClientIp(req));
 
-          // Extract user agent prioritizing x-user-agent with standard user-agent fallback
-          const userAgent =
-            req.headers['x-user-agent'] || req.headers['user-agent'];
+          // Extract user agent using canonical resolution (mobile x-user-agent vs native browser user-agent)
           cls.set(
             'userAgent',
-            typeof userAgent === 'string'
-              ? userAgent.trim()
-              : Array.isArray(userAgent) && userAgent.length > 0
-                ? userAgent[0]?.trim()
-                : undefined,
+            UserAgentUtils.resolveCanonicalUserAgent(req.headers),
           );
 
           // Extract device identifier

@@ -36,9 +36,9 @@ describe('SessionMetadataParser', () => {
 
       expect(result).toEqual({
         platform: DevicePlatform.WEB,
-        deviceModel: 'Browser',
-        os: 'Web 1.0',
-        browser: 'Browser',
+        deviceModel: 'Web Browser',
+        os: 'Web',
+        browser: 'Web Browser',
         appVersion: '1.0.0',
       });
     });
@@ -53,7 +53,7 @@ describe('SessionMetadataParser', () => {
       expect(result.platform).toBe(DevicePlatform.WEB);
       expect(result.browser).toContain('Chrome');
       expect(result.os).toContain('macOS');
-      expect(result.deviceModel).toBeDefined();
+      expect(result.deviceModel).toBe('Apple Macintosh');
     });
 
     it('should parse Safari on iPhone User-Agent', () => {
@@ -62,7 +62,7 @@ describe('SessionMetadataParser', () => {
       const result = SessionMetadataParser.parse(ua);
 
       expect(result.platform).toBe(DevicePlatform.IOS);
-      expect(result.deviceModel).toContain('iPhone');
+      expect(result.deviceModel).toBe('Apple iPhone');
       expect(result.os).toContain('iOS');
       expect(result.browser).toContain('Safari');
     });
@@ -75,6 +75,18 @@ describe('SessionMetadataParser', () => {
       expect(result.platform).toBe(DevicePlatform.ANDROID);
       expect(result.os).toContain('Android');
       expect(result.browser).toContain('Chrome');
+      expect(result.deviceModel).toBe('Samsung SM-S928B');
+    });
+
+    it('should parse Chrome on Pixel 10 Android User-Agent with vendor and model', () => {
+      const ua =
+        'Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36';
+      const result = SessionMetadataParser.parse(ua);
+
+      expect(result.platform).toBe(DevicePlatform.ANDROID);
+      expect(result.deviceModel).toBe('Google Pixel 10');
+      expect(result.os).toBe('Android 16');
+      expect(result.browser).toBe('Mobile Chrome 155.0.0.0');
     });
   });
 

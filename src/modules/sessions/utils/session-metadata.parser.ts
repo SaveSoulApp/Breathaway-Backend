@@ -48,11 +48,20 @@ export class SessionMetadataParser {
     if (match) {
       const [, , version, rawPlatform, osVersion, deviceModel] = match;
 
+      const isWebPlaceholder =
+        rawPlatform.toLowerCase() === 'web' &&
+        (deviceModel.trim().toLowerCase() === 'browser' ||
+          deviceModel.trim() === '');
+
       return {
         platform: this.normalizePlatform(rawPlatform),
-        deviceModel: deviceModel.trim() || null,
-        os: `${rawPlatform} ${osVersion}`.trim() || null,
-        browser: rawPlatform.toLowerCase() === 'web' ? 'Browser' : null,
+        deviceModel: isWebPlaceholder
+          ? 'Web Browser'
+          : deviceModel.trim() || null,
+        os: isWebPlaceholder
+          ? 'Web'
+          : `${rawPlatform} ${osVersion}`.trim() || null,
+        browser: rawPlatform.toLowerCase() === 'web' ? 'Web Browser' : null,
         appVersion: version.trim() || null,
       };
     }
@@ -70,13 +79,7 @@ export class SessionMetadataParser {
       .join(' ')
       .trim();
 
-    const rawModel =
-      [parsed.device.vendor, parsed.device.model]
-        .filter(Boolean)
-        .join(' ')
-        .trim() ||
-      parsed.os.name ||
-      null;
+    const rawModel = this.resolveDeviceModel(parsed);
 
     let platform: DevicePlatform = DevicePlatform.WEB;
     const osNameLower = (parsed.os.name || '').toLowerCase();
@@ -97,6 +100,30 @@ export class SessionMetadataParser {
       browser: rawBrowser || null,
       appVersion: null,
     };
+  }
+
+  /**
+   * Resolves a clean hardware device model from UAParser result.
+   */
+  private static resolveDeviceModel(result: UAParser.IResult): string | null {
+    const { vendor, model } = result.device;
+    if (vendor && model) {
+      if (model.toLowerCase().startsWith(vendor.toLowerCase())) {
+        return model;
+      }
+      return `${vendor} ${model}`;
+    }
+    if (model) {
+      return model;
+    }
+    if (result.os.name) {
+      const osLower = result.os.name.toLowerCase();
+      if (osLower.includes('mac')) return 'Macintosh';
+      if (osLower.includes('windows')) return 'Windows';
+      if (osLower.includes('linux')) return 'Linux';
+      return result.os.name;
+    }
+    return null;
   }
 
   /**

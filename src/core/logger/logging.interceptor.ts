@@ -8,6 +8,8 @@ import { ClsService } from 'nestjs-cls';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
+import { UserAgentUtils } from '@common/utils/user-agent.utils';
+
 import { LoggerService } from './logger.service';
 
 /**
@@ -68,7 +70,7 @@ export class LoggingInterceptor implements NestInterceptor {
       httpRequest: {
         method,
         url,
-        userAgent: headers['x-user-agent'] ?? headers['user-agent'],
+        userAgent: UserAgentUtils.resolveCanonicalUserAgent(headers),
         remoteIp: ip,
       },
     });

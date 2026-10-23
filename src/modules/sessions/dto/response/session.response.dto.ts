@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 
 import { SessionDeviceDto } from './session-device.response.dto';
+import { SessionLocationDto } from './session-location.response.dto';
 
 /**
  * Represents an active authenticated session for the user.
@@ -36,6 +37,16 @@ export class SessionResponseDto {
   })
   @Expose()
   ipAddress?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Estimated geographic location resolved from client IP address',
+    type: () => SessionLocationDto,
+    nullable: true,
+  })
+  @Expose()
+  @Type(() => SessionLocationDto)
+  location?: SessionLocationDto | null;
 
   @ApiProperty({
     description: 'Device hardware and software metadata',

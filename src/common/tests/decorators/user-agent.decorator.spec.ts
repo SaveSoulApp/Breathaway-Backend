@@ -45,6 +45,21 @@ describe('@UserAgent Decorator', () => {
     expect(result).toBe('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
   });
 
+  it('should prioritize standard user-agent when x-user-agent is a synthetic web placeholder', () => {
+    const context = createMockExecutionContext({
+      headers: {
+        'x-user-agent': 'BreathAway/1.0.0 (Web 1.0; Browser)',
+        'user-agent':
+          'Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 Chrome/155.0.0.0',
+      },
+    });
+
+    const result = factory(null, context);
+    expect(result).toBe(
+      'Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 Chrome/155.0.0.0',
+    );
+  });
+
   it('should handle array x-user-agent header', () => {
     const context = createMockExecutionContext({
       headers: {
