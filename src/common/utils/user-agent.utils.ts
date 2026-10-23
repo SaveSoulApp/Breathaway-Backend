@@ -59,4 +59,68 @@ export class UserAgentUtils {
   static getMajorVersion(userAgentData: UserAgentData): number {
     return parseInt(userAgentData.version.split('.')[0], 10);
   }
+
+  /**
+   * Determines whether a user agent string is a generic web placeholder
+   * (e.g. "BreathAway/1.0.0 (Web 1.0; Browser)" or contains platform "Web" with "Browser").
+   */
+  static isSyntheticWebUserAgent(ua?: string | null): boolean {
+    if (!ua || typeof ua !== 'string') return false;
+    const lower = ua.toLowerCase();
+    return (
+      lower.includes('(web') &&
+      (lower.includes('browser') || lower.includes('web 1.0'))
+    );
+  }
+
+  /**
+   * Resolves the canonical user agent from incoming request headers.
+   *
+   * 1. If `x-user-agent` is present and represents a native mobile application (iOS/Android),
+   *    prioritizes `x-user-agent` to preserve app versioning and device model.
+   * 2. If `x-user-agent` is a generic web placeholder or omitted, and standard `user-agent`
+   *    is available, prioritizes standard `user-agent` to capture rich hardware, OS, and browser details.
+   * 3. Falls back to whichever header is available.
+   *
+   * @param headers - Incoming HTTP request headers map.
+   * @returns Canonical user agent string, or undefined if neither is present.
+   */
+  static resolveCanonicalUserAgent(
+    headers?: Record<string, string | string[] | undefined>,
+  ): string | undefined {
+    if (!headers) return undefined;
+
+    const rawXUserAgent = headers['x-user-agent'];
+    const xUserAgent = Array.isArray(rawXUserAgent)
+      ? rawXUserAgent[0]?.trim()
+      : typeof rawXUserAgent === 'string'
+        ? rawXUserAgent.trim()
+        : undefined;
+
+    const rawStandardUserAgent = headers['user-agent'];
+    const standardUserAgent = Array.isArray(rawStandardUserAgent)
+      ? rawStandardUserAgent[0]?.trim()
+      : typeof rawStandardUserAgent === 'string'
+        ? rawStandardUserAgent.trim()
+        : undefined;
+
+    // If x-user-agent is the synthetic web placeholder and standard user-agent is available, prefer standard
+    if (
+      xUserAgent &&
+      this.isSyntheticWebUserAgent(xUserAgent) &&
+      standardUserAgent &&
+      standardUserAgent.length > 0
+    ) {
+      return standardUserAgent;
+    }
+
+    // Otherwise prioritize x-user-agent (native mobile apps)
+    if (xUserAgent && xUserAgent.length > 0) {
+      return xUserAgent;
+    }
+
+    return standardUserAgent && standardUserAgent.length > 0
+      ? standardUserAgent
+      : undefined;
+  }
 }

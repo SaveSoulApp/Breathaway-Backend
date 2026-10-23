@@ -1,9 +1,3 @@
-import { ApiStandardErrors } from '@common/decorators';
-import { CurrentUserId } from '@common/decorators/current-user-id.decorator';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
-import { SerializeExpose } from '@common/interceptors';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import { Body, Controller, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -11,6 +5,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
 import { OneTimePasswordsService } from './one-time-passwords.service';
 

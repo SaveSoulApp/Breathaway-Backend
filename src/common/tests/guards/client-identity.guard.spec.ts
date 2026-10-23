@@ -150,7 +150,7 @@ describe(ClientIdentityGuard.name, () => {
     );
   });
 
-  it('should throw BadRequestException if x-user-agent is missing', () => {
+  it('should throw BadRequestException if User-Agent is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -161,11 +161,11 @@ describe(ClientIdentityGuard.name, () => {
     });
 
     expect(() => guard.canActivate(context)).toThrow(
-      new BadRequestException('x-user-agent header is required'),
+      new BadRequestException('User-Agent or x-user-agent header is required'),
     );
   });
 
-  it('should throw BadRequestException if x-user-agent format is invalid', () => {
+  it('should throw BadRequestException if User-Agent format is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -178,7 +178,7 @@ describe(ClientIdentityGuard.name, () => {
 
     expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
-        'x-user-agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
+        'User-Agent format is invalid: expected TestApp/Version (Platform OSVersion; DeviceModel) or valid browser User-Agent',
       ),
     );
   });
@@ -550,6 +550,36 @@ describe(ClientIdentityGuard.name, () => {
           platform: 'web',
           osVersion: 'Android 13',
           deviceModel: 'Google Pixel 7',
+        },
+      });
+    });
+
+    it('should prioritize real browser user-agent when x-user-agent is synthetic web placeholder', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web',
+          'x-user-agent': 'BreathAway/1.0.0 (Web 1.0; Browser)',
+          'user-agent':
+            'Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Android 16',
+          deviceModel: 'Google Pixel 10',
         },
       });
     });

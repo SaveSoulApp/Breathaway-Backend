@@ -154,11 +154,32 @@ describe('JwtStrategy', () => {
       );
       expect(jwtAuthCacheService.setUserActive).not.toHaveBeenCalled();
     });
+
+    it('should return familyId along with user payload when present in token', async () => {
+      // Arrange
+      jwtAuthCacheService.isUserActive.mockResolvedValue(true);
+
+      // Act
+      const result = await strategy.validate({
+        ...payload,
+        familyId: 'family-xyz',
+      });
+
+      // Assert
+      expect(result).toEqual({
+        userId: 'user-uuid-1',
+        email: 'test@example.com',
+        jti: 'jti-token-xyz',
+        familyId: 'family-xyz',
+      });
+    });
   });
 
   describe('Integration: RedisService failure fallback resilience', () => {
     let integrationStrategy: JwtStrategy;
-    let integrationPrisma: { user: { findFirst: jest.Mock } };
+    let integrationPrisma: {
+      user: { findFirst: jest.Mock };
+    };
     let mockRedisService: {
       isConfigured: boolean;
       sismember: jest.Mock;

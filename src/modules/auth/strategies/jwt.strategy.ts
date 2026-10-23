@@ -11,6 +11,7 @@ interface JwtPayload {
   sub: string;
   email?: string;
   jti?: string;
+  familyId?: string;
   [key: string]: unknown;
 }
 
@@ -58,6 +59,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         userId: payload.sub,
         email: payload.email,
         jti: payload.jti,
+        familyId: payload.familyId,
       };
     }
 
@@ -93,6 +95,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       userId: payload.sub,
       email: payload.email,
       jti: payload.jti,
+      familyId: payload.familyId,
     };
   }
 }

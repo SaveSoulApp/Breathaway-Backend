@@ -90,6 +90,9 @@ The `POST /api/v1/auth/signout` endpoint enables granular session termination ac
   - **Immediate Access Token Blacklisting**: `JwtAuthCacheService.revokeAccessToken(accessJti)` sets `auth:revoked:<accessJti> = 1` with a 15-minute TTL (`REVOKED_TOKEN_TTL_SECONDS = 900`), ensuring that even if the client holds an unexpired access token, subsequent requests fail immediately with `401 Unauthorized` without querying PostgreSQL.
 - **Global Logout**: If the endpoint is called without a `refreshToken`, `AuthTokenService` invalidates **all** active database sessions belonging to the user (`where: { userId, revokedAt: null }`), and `JwtAuthCacheService.revokeUser(userId)` executes `DEL user:active:<userId>`, instantaneously disconnecting all devices across the entire platform.
 
+> [!TIP]
+> **Active Sessions & Remote Device Revocation**: For user-facing device inspection, active session discovery, and remote device termination (e.g., logging out a stolen phone or all other browsers), see the dedicated **[Sessions Module](./sessions.md)** (`/api/v1/sessions`).
+
 ### 6. Standardized Response Contract (`UserAuthResponseDto`)
 
 All authentication endpoints (`/signup`, `/signin`, `/social-signin`, `/refresh`, as well as `/admin/dev-login`) return a strictly standardized, pure `camelCase` response model:

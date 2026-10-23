@@ -317,6 +317,8 @@ model UserSession {
   @@index([userId])
   @@index([familyId])
   @@index([expiresAt])
+  @@index([userId, revokedAt, expiresAt])
+  @@index([userId, familyId, revokedAt])
 }
 
 model CreditLedger {

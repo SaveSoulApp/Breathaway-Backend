@@ -89,9 +89,9 @@ Refresh tokens contain structured claims that link the token to an explicit sess
 ```
 
 - **`sub` (Subject)**: The authenticating user's ULID.
-- **`jti` (JWT ID)**: A cryptographically random 32-character string (`nanoid(32)`). Indexed uniquely in PostgreSQL (`UserSession.jti`) to enable $O(1)$ session lookups.
-- **`familyId`**: A 24-character lineage identifier (`nanoid(24)`). Generated upon initial authentication and preserved across subsequent rotations on that device.
-- **`token_type`**: Must be explicitly set to `'refresh'`. Any token lacking this claim is immediately rejected.
+- **`jti` (JWT ID)**: A cryptographically random string (`nanoid(24)` for access tokens, `nanoid(32)` for refresh tokens).
+- **`familyId`**: A 24-character lineage identifier (`nanoid(24)`). Generated upon initial authentication and embedded in **both Access Tokens and Refresh Tokens** to uniquely link every request to its originating session family across rotations.
+- **`token_type`**: Set to `'refresh'` on refresh tokens. Access tokens omit this claim or default to standard bearer tokens.
 
 ---
 
@@ -389,6 +389,44 @@ BreathAway executes an automated, chunked retention cleanup job:
 - **Grace Period**: Purges sessions where `expiresAt < NOW() - INTERVAL '7 days'`, retaining a 7-day audit horizon for forensics.
 - **Batching**: Iteratively deletes in chunks of 5,000 rows to avoid PostgreSQL lock escalation and WAL buffer exhaustion.
 - **Documentation**: See [Maintenance Module](/modules/maintenance#5-scheduled-user-session-retention-cleanup) for execution details.
+
+---
+
+### 📱 Active Sessions & Remote Session Management
+
+To allow users to view, manage, and terminate their login sessions across web and mobile devices, BreathAway provides dedicated session endpoints managed by the **[Sessions Module](/modules/sessions)**:
+
+| Endpoint               | Method   | Description                                                                                                        |
+| :--------------------- | :------- | :----------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/sessions`     | `GET`    | Lists all active sessions with correlated hardware/push devices, User-Agent metadata, and current session markers. |
+| `/api/v1/sessions/:id` | `DELETE` | Terminates a specific session by ULID or lineage `familyId`, deactivating push notifications on that device.       |
+| `/api/v1/sessions`     | `DELETE` | Terminates all other active sessions for the user while preserving the caller's current session.                   |
+
+#### Current User Parameter Decorators
+
+Controllers handle authenticated request contexts using the parameter decorators defined in [`src/common/decorators/current-user.decorator.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/decorators/current-user.decorator.ts):
+
+```typescript
+import {
+  CurrentFamilyId,
+  CurrentJti,
+  CurrentUserId,
+} from '@common/decorators';
+
+@Delete('sessions')
+@UseGuards(JwtAuthGuard)
+async revokeOtherSessions(
+  @CurrentUserId() userId: string,
+  @CurrentFamilyId() currentFamilyId?: string,
+  @CurrentDeviceId() currentDeviceId?: string,
+) {
+  return this.sessionsService.revokeAllOtherSessions(userId, currentFamilyId, currentDeviceId);
+}
+```
+
+- **`@CurrentUserId()`**: Extracts `request.user.userId`. Throws `InternalServerErrorException` if the route is missing a guard.
+- **`@CurrentFamilyId()`**: Extracts `request.user.familyId` (the active session family lineage).
+- **`@CurrentJti()`**: Extracts `request.user.jti` (the specific access token ID).
 
 ---
 

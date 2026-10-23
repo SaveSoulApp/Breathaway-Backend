@@ -1,18 +1,46 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { HttpClientService } from '@infrastructure/http';
+import { RedisService } from '@infrastructure/redis';
 
-import { IpinfoLiteResponse } from './interfaces/ip-geolocation.interface';
+import {
+  IpinfoLiteResponse,
+  IpinfoStandardResponse,
+  IpLocation,
+} from './interfaces/ip-geolocation.interface';
 
 /**
- * Service providing server-side IP country geolocation using IPinfo Lite.
+ * Cache key prefix for IP geolocation entries in Redis.
+ */
+const IP_GEO_CACHE_PREFIX = 'ip:geo:';
+
+/**
+ * 30-day TTL for IP geolocation cache in Redis (in seconds).
+ * Physical IP geolocations rarely shift within a 30-day window.
+ */
+const IP_GEO_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/**
+ * Negative cache sentinel value stored in Redis when IP geolocation lookups fail or return empty.
+ */
+const IP_GEO_NEG_CACHE_SENTINEL = '__neg__';
+
+/**
+ * 5-minute TTL for negative IP geolocation cache in Redis (in seconds).
+ * Prevents downstream API timeouts and rate limits from continuously stalling session queries.
+ */
+const IP_GEO_NEG_CACHE_TTL_SECONDS = 5 * 60;
+
+/**
+ * Service providing server-side IP country geolocation using IPinfo Lite
+ * and detailed tentative location (city, region, country) using standard IPinfo.
  *
- * Designed to provide an authoritative country signal for localization
- * (e.g. subscription pricing and currency) without storing or persisting customer IPs.
+ * Implements distributed Redis caching to minimize external API consumption
+ * and achieve sub-millisecond retrieval on active session audits.
  */
 @Injectable()
 export class IpGeolocationService extends BaseService {
@@ -23,6 +51,8 @@ export class IpGeolocationService extends BaseService {
     logger: LoggerService,
     private readonly configService: ConfigService,
     private readonly httpClient: HttpClientService,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {
     super(logger);
     this.token = this.configService.get<string>('IPINFO_TOKEN');
@@ -90,6 +120,170 @@ export class IpGeolocationService extends BaseService {
       });
       return null;
     }
+  }
+
+  /**
+   * Resolves tentative geographic location (city, region, country, and formatted string)
+   * for a given public IP address using IPinfo, with Redis caching (30-day TTL).
+   *
+   * Bypasses external calls for private, loopback, or invalid IP addresses.
+   * Employs short-TTL (5-minute) negative caching for failed requests or unrecognized
+   * addresses to prevent downstream timeouts from stalling user endpoints.
+   *
+   * @param ip - Public IPv4 or IPv6 client address.
+   * @returns Resolved IpLocation or `null`.
+   */
+  async getLocationByIp(ip?: string): Promise<IpLocation | null> {
+    if (!ip) {
+      return null;
+    }
+
+    const cleanIp = this.cleanIp(ip);
+
+    if (this.isPrivateOrReservedIp(cleanIp)) {
+      return null;
+    }
+
+    // 1. Check Redis cache first (sub-millisecond return)
+    if (this.redisService?.isConfigured) {
+      try {
+        const cached = await this.redisService.get(
+          `${IP_GEO_CACHE_PREFIX}${cleanIp}`,
+        );
+        if (cached) {
+          if (cached === IP_GEO_NEG_CACHE_SENTINEL) {
+            return null;
+          }
+          return JSON.parse(cached) as IpLocation;
+        }
+      } catch (err) {
+        this.logger.warn('Failed to read IP geolocation from Redis cache', {
+          step: 'read_ip_geo_cache_failed',
+          cleanIp,
+          error: serializeError(err),
+        });
+      }
+    }
+
+    if (!this.token) {
+      this.logger.warn(
+        'IPINFO_TOKEN is not configured; skipping IP geolocation',
+        {
+          step: 'check_token',
+        },
+      );
+      return null;
+    }
+
+    // 2. Query standard IPinfo API
+    const startTime = Date.now();
+    try {
+      const url = `https://ipinfo.io/${cleanIp}?token=${this.token}`;
+      const response = await this.httpClient.get<IpinfoStandardResponse>(url, {
+        timeout: this.timeoutMs,
+        headers: { Accept: 'application/json' },
+      });
+
+      const data = response.data;
+      if (!data) {
+        await this.cacheNegativeResult(cleanIp);
+        return null;
+      }
+
+      const countryCode = data.country?.trim().toUpperCase() || null;
+      const countryName = countryCode
+        ? this.resolveCountryName(countryCode)
+        : null;
+      const city = data.city?.trim() || null;
+      const region = data.region?.trim() || null;
+      const timezone = data.timezone?.trim() || null;
+      const formatted = this.formatLocation(city, countryName);
+
+      const location: IpLocation = {
+        city,
+        region,
+        countryCode,
+        countryName,
+        timezone,
+        formatted,
+      };
+
+      // 3. Cache in Redis
+      if (this.redisService?.isConfigured) {
+        try {
+          await this.redisService.set(
+            `${IP_GEO_CACHE_PREFIX}${cleanIp}`,
+            JSON.stringify(location),
+            'EX',
+            IP_GEO_CACHE_TTL_SECONDS,
+          );
+        } catch (err) {
+          this.logger.warn('Failed to cache IP geolocation in Redis', {
+            step: 'write_ip_geo_cache_failed',
+            cleanIp,
+            error: serializeError(err),
+          });
+        }
+      }
+
+      return location;
+    } catch (error) {
+      this.logger.warn('IPinfo geolocation request failed', {
+        step: 'fetch_location',
+        durationMs: Date.now() - startTime,
+        cleanIp,
+        err: serializeError(error),
+      });
+      await this.cacheNegativeResult(cleanIp);
+      return null;
+    }
+  }
+
+  /**
+   * Caches a negative lookup sentinel in Redis with a short TTL to guard against repetitive timeouts.
+   */
+  private async cacheNegativeResult(cleanIp: string): Promise<void> {
+    if (this.redisService?.isConfigured) {
+      try {
+        await this.redisService.set(
+          `${IP_GEO_CACHE_PREFIX}${cleanIp}`,
+          IP_GEO_NEG_CACHE_SENTINEL,
+          'EX',
+          IP_GEO_NEG_CACHE_TTL_SECONDS,
+        );
+      } catch (err) {
+        this.logger.warn('Failed to cache negative IP geolocation in Redis', {
+          step: 'write_ip_geo_neg_cache_failed',
+          cleanIp,
+          error: serializeError(err),
+        });
+      }
+    }
+  }
+
+  /**
+   * Resolves the human-readable English country name for an ISO 3166-1 alpha-2 country code.
+   */
+  private resolveCountryName(countryCode: string): string | null {
+    try {
+      const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+      return displayNames.of(countryCode) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Formats city and country into a clean, human-readable display string.
+   */
+  private formatLocation(
+    city: string | null,
+    countryName: string | null,
+  ): string | null {
+    if (city && countryName) {
+      return `${city}, ${countryName}`;
+    }
+    return city ?? countryName ?? null;
   }
 
   /**
