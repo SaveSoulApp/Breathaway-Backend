@@ -54,24 +54,41 @@ stateDiagram-v2
 ### 3.1 Record a Like / Action
 
 - **Endpoint**: `POST /api/v1/likes`
-- **Guard**: `JwtAuthGuard`
-- **Request Body**:
+- **Guards**: `JwtAuthGuard`, `RequireTimezoneGuard`
+- **Query Parameters**:
+  - `async` (optional, boolean, default: `false`): When `false`, executes match resolution synchronously and returns `matchId` immediately. When `true`, delegates match resolution to an asynchronous background task.
+- **Headers**:
+  - `Authorization: Bearer <token>`
+  - `x-timezone: <IANA-Timezone>` (e.g. `America/New_York`)
+- **Request Body (`CreateLikeRequestDto`)**:
   ```json
   {
-    "targetUserId": "c4b8b6e2-2ef8-4903-b09e-716b5399583c",
-    "type": "LIKE",
-    "idempotencyKey": "a9d9c8c1-1e9a-41f2-875f-554477889900"
+    "targetIdentityId": "01J23C4D5E6F7G8H9J0K1L2M3N",
+    "intent": "CASUAL",
+    "label": "Met at coffee shop"
   }
   ```
-- **Response**: `201 Created`
+- **Response (`LikeResponseDto`)**: `201 Created`
   ```json
   {
-    "success": true,
-    "isMatch": true,
-    "matchId": "f7a1b2c3-d4e5-6789-0123-abcdef456789",
-    "remainingLikes": 42
+    "id": "01M5F3E5DA9G9DMEM93V3K1T5F",
+    "intent": "CASUAL",
+    "status": "MATCHED",
+    "label": "Met at coffee shop",
+    "targetIdentity": {
+      "id": "01J23C4D5E6F7G8H9J0K1L2M3N",
+      "type": "PHONE_NUMBER",
+      "value": "+1234567890",
+      "isVerified": true
+    },
+    "matchId": "01M5F3E5DA9G9DMEM93V3K1T5M",
+    "expiresAt": "2026-10-25T04:00:00.000Z",
+    "createdAt": "2026-10-24T00:30:00.000Z"
   }
   ```
+
+> [!NOTE]
+> `matchId` is populated with the match identifier whenever `status` is `MATCHED`. When `status` is `PENDING`, `matchId` is `null`. Multi-channel user notifications (Push, Email, WhatsApp) are always dispatched asynchronously out-of-band via domain events (`MATCH_CREATED_EVENT`).
 
 ---
 

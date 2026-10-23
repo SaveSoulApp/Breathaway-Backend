@@ -10,9 +10,10 @@ The `MatchResolverModule` is an internal background orchestrator responsible for
 
 ## 📋 Purpose & Responsibilities
 
-- **Synchronous Pipeline Trigger**: Invoked immediately after a new `Like` record is written to the database.
-- **Mutual Interest Evaluation**: Searches for a reverse like (where the target user has liked the current sender).
-- **Concurrency & Scaling**: Employs unique safety checks to resolve simultaneous mutual likes without duplicate matches or database transaction failures.
+- **Dual-Mode Pipeline Trigger**: Invoked immediately after a new `Like` record is written to the database (synchronously by default in `POST /api/v1/likes`, or asynchronously when `?async=true` or triggered via `IDENTITY_CLAIMED` domain events).
+- **Mutual Interest & Compatibility Evaluation**: Searches for a reciprocal like (where the target user has liked the current sender), verifies intent compatibility (e.g. `RELATIONSHIP` vs `CASUAL`), and verifies that neither party has blocked the other.
+- **Typed Match Return**: Returns `Promise<Match | null>` so caller services can immediately access the formed `Match.id` and pass it back in client responses.
+- **Concurrency & Scaling**: Employs deterministic sorting and idempotent P2002 race handling to resolve simultaneous mutual likes without duplicate matches or transaction deadlocks.
 
 ---
 
@@ -31,15 +32,15 @@ When creating or querying a match, the service dynamically sorts the user IDs le
 
 This ensures that regardless of which user liked whom first, the database query always targets the same canonical row configuration.
 
-### 2. Prisma P2002 Swallowing (Idempotent Resolution)
+### 2. Prisma P2002 Swallowing & Concurrent Match Recovery
 
 If both users like each other simultaneously, the transactions will run concurrently:
 
 1. Thread 1 updates User A's like to `MATCHED` and attempts to insert the `Match` record.
 2. Thread 2 updates User B's like to `MATCHED` and attempts to insert the `Match` record.
-3. Whichever thread finishes first successfully creates the `Match`.
-4. The slower thread will fail with a Prisma unique constraint violation error (**`P2002`**).
-5. The `MatchResolverService` explicitly catches the `P2002` error and swallows it, logging a warning but returning a success status. This ensures that the user's action completes successfully rather than rolling back because the match had already been established by the other user.
+3. Whichever thread finishes first successfully creates the `Match` and returns it.
+4. The slower thread will fail with a Prisma unique constraint violation error (**`P2002`**) on the composite key `(userOneId, userTwoId)`.
+5. The `MatchResolverService` explicitly catches the `P2002` error. Instead of failing or returning `null`, it queries the database for the existing `Match` record committed by Thread 1 and returns it. This guarantees that both concurrent callers receive the valid `Match` entity (and its `id`), preventing client errors while ensuring immediate access to `matchId`.
 
 ---
 
@@ -48,13 +49,13 @@ If both users like each other simultaneously, the transactions will run concurre
 ```mermaid
 sequenceDiagram
     autonumber
-    participant App as Like Service
+    participant App as Like Service / Event Listener
     participant Resolver as MatchResolverService
     participant DB as Database (Prisma)
     participant Events as EventEmitter2
     participant Listener as NotificationEventsListener
 
-    App ->> Resolver: resolveFromLike(newLike)
+    App ->> Resolver: resolveFromLike(newLike) [Synchronous or Async]
     activate Resolver
     Resolver ->> DB: Query reverse Like (target likes sender)
     activate DB
@@ -68,11 +69,15 @@ sequenceDiagram
     alt Success (First thread)
         DB -->> Resolver: Match created successfully
         Resolver ->> Events: emit(MATCH_CREATED_EVENT, MatchCreatedEvent)
-        Events ->> Listener: @OnEvent: Multi-channel dispatch (Push/Email/WhatsApp to both users)
+        Note over Events, Listener: Asynchronous notification dispatch (@OnEvent)
+        Events ->> Listener: Multi-channel dispatch (Push/Email/WhatsApp to both users)
+        Resolver -->> App: Return created Match
     else P2002 Unique Constraint Violation (Second concurrent thread)
         DB -->> Resolver: P2002 Error (Match already exists)
-        Note over Resolver: Catches & swallows P2002 error
-        Resolver -->> App: Return successfully (Idempotent match)
+        Note over Resolver: Catches P2002 & queries DB for existing Match
+        Resolver ->> DB: match.findUnique / findFirst({ userOneId, userTwoId })
+        DB -->> Resolver: Existing Match record
+        Resolver -->> App: Return existing Match
     end
     deactivate DB
     deactivate Resolver

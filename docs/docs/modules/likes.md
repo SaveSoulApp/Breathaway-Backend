@@ -12,6 +12,7 @@ The `LikesModule` manages liking mechanics, capturing user intents, and executin
 
 - **Liking Mechanics**: Persists connection intents from one user to another's identity.
 - **Pre-Flight Validation**: Provides `POST /likes/can-create` to evaluate match/like eligibility instantly without executing DB transactions or consuming credits.
+- **Instant Match Handshake**: Resolves mutual interest synchronously during like creation by default, returning `status: "MATCHED"` and `matchId` immediately without client polling or guesswork, with an optional `?async=true` parameter for fire-and-forget background execution.
 - **Relational Intent Capturing**: Tracks the specific dating/connection intents of the sender to ensure mutual compatibility checks.
 - **Credit Deductions Integration**: Integrates with the `CreditsModule` to deduct credit balances for specific actions (such as sending a super-like).
 - **Idempotent Re-Liking & Soft-Delete Resurrection**: Seamlessly handles re-liking previously deleted, withdrawn, or voided likes by updating the existing record back to `PENDING` rather than inserting a duplicate row or throwing a unique constraint conflict.
@@ -35,9 +36,9 @@ sequenceDiagram
     participant Resolver as MatchResolverService
     participant Audit as AuditModule
 
-    Client->>Controller: POST /api/v1/likes (DTO, x-timezone)
-    Note over Controller: JwtAuthGuard validates token (userId)<br/>RequireTimezoneGuard extracts req.timezone
-    Controller->>Service: create(userId, dto, timezone)
+    Client->>Controller: POST /api/v1/likes?async=false (DTO, x-timezone)
+    Note over Controller: JwtAuthGuard validates token (userId)<br/>RequireTimezoneGuard extracts req.timezone<br/>CreateLikeQueryDto parses optional ?async
+    Controller->>Service: create(userId, dto, timezone, isAsync)
 
     rect rgb(240, 248, 255)
     Note over Service, Credits: Phase 1: Pre-Flight Credit Verification
@@ -114,9 +115,18 @@ sequenceDiagram
     end
 
     rect rgb(255, 240, 255)
-    Note over Service, Resolver: Phase 6: Non-Blocking Asynchronous Match Resolution
-    Service->>Resolver: resolveFromLike(like) [Async / Non-blocking]
-    Note over Resolver, DB: Checks target user for mutual reverse like, intent compatibility, and active blocks.<br/>If mutual, decrypts labels, creates Match atomically, and dispatches push notifications.
+    Note over Service, Resolver: Phase 6: Mutual Match Resolution (Dual-Mode Handshake)
+    alt Synchronous Resolution (Default: async = false)
+        Service->>Resolver: await resolveFromLike(like)
+        Note over Resolver, DB: Checks target user for reciprocal like, intent compatibility, and blocks.<br/>If mutual, updates both Likes to MATCHED and atomically creates Match.
+        Resolver-->>Service: Match record (or null if no match)
+        opt Match Formed
+            Service->>Service: status = MATCHED, matchId = match.id
+        end
+    else Fire-and-Forget Background Mode (?async=true)
+        Service->)Resolver: resolveFromLike(like) (Unawaited background task)
+        Note over Service: Returns immediately with status: PENDING, matchId: null
+    end
     end
 
     rect rgb(245, 245, 255)
@@ -129,14 +139,14 @@ sequenceDiagram
         Service->>Crypto: decryptText(like.label)
         Crypto-->>Service: decrypted label
     end
-    Service-->>Controller: Hydrated Like with targetIdentity publicValue & decrypted label
-    Controller-->>Client: 201 Created (LikeResponseDto)
+    Service-->>Controller: Hydrated Like with targetIdentity, decrypted label, status, and matchId
+    Controller-->>Client: 201 Created (LikeResponseDto with matchId)
     end
 ```
 
 ### Key Execution Phases Explained
 
-1. **Guard Execution**: `JwtAuthGuard` validates the caller's JWT token and extracts the authenticated `userId`. `RequireTimezoneGuard` extracts and validates the client's `x-timezone` header, attaching it to `req.timezone` to compute accurate midnight expiration dates.
+1. **Guard Execution**: `JwtAuthGuard` validates the caller's JWT token and extracts the authenticated `userId`. `RequireTimezoneGuard` extracts and validates the client's `x-timezone` header, attaching it to `req.timezone` to compute accurate midnight expiration dates. `CreateLikeQueryDto` extracts the optional `?async` boolean query parameter (default `false`).
 2. **Phase 1 (Credit Pre-Check)**: Before performing database queries or mutations, `CreditsService.hasSufficientCredits` ensures the user possesses at least `CREDITS_PER_LIKE` credits. If insufficient, an audit log (`USAGE_DENIED`) is recorded and `InsufficientCreditsException` is thrown.
 3. **Phase 2 (Target Identity Resolution)**: If the client passed raw identity details (`targetIdentity`) rather than a known UUID, phone numbers are normalized to E.164 (using the caller's verified country code if omitted). SHA-256 hashing and AES-256 envelope encryption are performed by `IdentityCryptoService`. If no matching row exists, an unresolved "Ghost Identity" (`userId = null`) is created so intent can be registered even before the target registers.
 4. **Phase 3 (Identity & Self-Like Validation)**: Verifies the target identity exists and ensures `targetIdentity.userId !== userId` (self-liking is rejected with `SelfLikeException`).
@@ -147,8 +157,11 @@ sequenceDiagram
 6. **Phase 5 (Atomic Transaction & Label Envelope Encryption)**: If the client passed an optional personal `label`, `LikesService` encrypts it via `IdentityCryptoService.encryptText()` using AES-256-GCM envelope encryption wrapped by GCP Cloud KMS before persisting. Inside a Prisma `$transaction`:
    - Either updates an existing inactive row back to `PENDING` (preserving row ID and audit trail) or inserts a new row with the encrypted ciphertext.
    - Atomically deducts credits via `CreditsService.consumeCredits`, appending an immutable ledger entry.
-7. **Phase 6 (Asynchronous Match Resolution)**: Calls `MatchResolverService.resolveFromLike` without blocking the HTTP response. If the counterpart previously liked this user with compatible intent, a mutual match is instantiated and both participants' labels are decrypted prior to dispatching notifications.
-8. **Phase 7 (Response Hydration & Audit)**: Emits `LIKE_CREATED` audit event, concurrently decrypts the target identity's `publicValue` via `IdentitiesService` and the personal `label` via `IdentityCryptoService.decryptText()`, and returns `LikeResponseDto` with HTTP 201.
+7. **Phase 6 (Dual-Mode Match Resolution)**:
+   - **Synchronous Handshake (Default)**: `LikesService.create()` synchronously awaits `MatchResolverService.resolveFromLike()`. If the counterpart has already liked this user with compatible intent, the resolver creates/reactivates the `Match`, marks both likes as `MATCHED`, and returns the `Match` record. `LikesService` sets `status: MATCHED` and populates `matchId: match.id`. If no reciprocal like exists, it returns `status: PENDING` and `matchId: null`.
+   - **Asynchronous Execution (`?async=true`)**: The resolver is dispatched as an unawaited background task, immediately returning `status: PENDING` and `matchId: null`.
+   - **Decoupled Notifications**: In both modes, downstream notifications (push, email, WhatsApp) are dispatched asynchronously out-of-band via `@OnEvent(MATCH_CREATED_EVENT, { async: true })`, ensuring notification delivery latency never impacts the client.
+8. **Phase 7 (Response Hydration & Audit)**: Emits `LIKE_CREATED` audit event, concurrently decrypts the target identity's `publicValue` via `IdentitiesService` and the personal `label` via `IdentityCryptoService.decryptText()`, and returns `LikeResponseDto` (including `matchId: string | null`) with HTTP 201.
 
 ---
 
@@ -194,12 +207,30 @@ If the user subsequently attempts to like the same identity again:
 - **Full Operational Parity**: The resurrected like executes all standard liking operations:
   1. Verifies and deducts user credits atomically via `CreditsService.consumeCredits`.
   2. Emits a `LIKE_CREATED` audit log.
-  3. Dispatches asynchronous mutual match resolution via `MatchResolverService.resolveFromLike`.
+  3. Dispatches mutual match resolution (synchronously by default, or asynchronously if `?async=true`) via `MatchResolverService.resolveFromLike`.
 - **Pre-Flight Validation**: The `POST /api/v1/likes/can-create` endpoint recognizes soft-deleted records as re-likable, returning `{ canCreate: true }` as long as no active match exists and the user is not liking themselves.
 
-### 5. Asynchronous Match Resolution
+### 5. Instant Match Handshake & Dual-Mode Resolution
 
-After a like is successfully persisted, the `LikesService` asynchronously delegates to the `MatchResolverService`. This design ensures that the critical path (deducting credits and saving the intent) is fast and isolated from the heavy logic of evaluating mutual connections. Failures in the resolver do not roll back the like creation.
+Mutual match resolution supports two operational modes controlled by the `?async` query parameter:
+
+#### Synchronous Handshake (Default: `?async=false` or omitted)
+
+When User A likes User B, and User B has already liked User A, the client needs to transition the user directly to the new match screen (`/matches/:matchId`). Previously, clients had to snapshot and diff `/api/v1/matches` before and after liking to deduce which match was created, introducing extra round trips and race conditions when multiple matches land concurrently.
+
+By default, `LikesService.create()` synchronously awaits `MatchResolverService.resolveFromLike()`:
+
+- **When a match forms**: The like response payload immediately includes `status: "MATCHED"` and `matchId: "<match-id>"`. The client navigates directly to `/matches/:matchId` without additional round trips or guessing.
+- **When no match forms**: The response returns `status: "PENDING"` and `matchId: null`.
+- **Fault Isolation**: If match resolution encounters an unexpected failure, the like creation itself is not rolled back; the like remains safely persisted in `PENDING` status.
+
+#### Fire-and-Forget Background Resolution (`?async=true`)
+
+For background ingestion, batch processing, or swipe flows that do not require an immediate match response, clients can supply `POST /api/v1/likes?async=true`. In this mode, `resolveFromLike()` is dispatched asynchronously in the background without awaiting, returning `status: "PENDING"` and `matchId: null` immediately.
+
+#### Decoupled Notification Guarantee
+
+Even during synchronous match resolution, user notifications (Push, Email, WhatsApp) **never** block the HTTP response. Match notifications are dispatched out-of-band via `@OnEvent(MATCH_CREATED_EVENT, { async: true })`, ensuring external third-party communication APIs (FCM, SendGrid, Twilio) do not add latency to the like creation response.
 
 ### 6. Persistent Annotations (Labels) & Compact Envelope Encryption
 
@@ -273,3 +304,64 @@ stateDiagram-v2
 - **`VOIDED`**: The like expired without a response, or was system-voided when the other party dissolved a previous match. Can transition back to `PENDING` on re-like.
 - **`WITHDRAWN`**: The like was withdrawn when the user dissolved a previous match. Can transition back to `PENDING` on re-like.
 - **`DELETED`**: The sender explicitly soft-deleted the pending like. If the user likes the same identity again, this row is resurrected back to `PENDING` rather than creating a duplicate or throwing a conflict.
+
+---
+
+## 📡 API Endpoints & Contract
+
+### 1. Create a Like (`POST /api/v1/likes`)
+
+- **Guards**: `JwtAuthGuard`, `RequireTimezoneGuard`
+- **Query Parameters**:
+  | Parameter | Type | Required | Default | Description |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `async` | `boolean` | No | `false` | When `true`, executes match resolution asynchronously in the background. When `false` (default), resolves matches synchronously and populates `matchId` immediately. |
+- **Headers**:
+  - `Authorization: Bearer <access_token>`
+  - `x-timezone: <IANA-Timezone>` (e.g. `America/New_York`, `Asia/Kolkata`)
+- **Request Body (`CreateLikeRequestDto`)**:
+  ```json
+  {
+    "targetIdentityId": "01J23C4D5E6F7G8H9J0K1L2M3N",
+    "intent": "CASUAL",
+    "label": "Coffee meetup"
+  }
+  ```
+- **Response (`LikeResponseDto` - HTTP 201 Created)**:
+  ```json
+  {
+    "id": "01M5F3E5DA9G9DMEM93V3K1T5F",
+    "intent": "CASUAL",
+    "status": "MATCHED",
+    "label": "Coffee meetup",
+    "targetIdentity": {
+      "id": "01J23C4D5E6F7G8H9J0K1L2M3N",
+      "type": "PHONE_NUMBER",
+      "value": "+1234567890",
+      "isVerified": true
+    },
+    "matchId": "01M5F3E5DA9G9DMEM93V3K1T5M",
+    "expiresAt": "2026-10-25T04:00:00.000Z",
+    "createdAt": "2026-10-24T00:30:00.000Z"
+  }
+  ```
+
+> [!NOTE]
+> `matchId` is populated with the match identifier (`string`) whenever `status` is `MATCHED`. If `status` is `PENDING`, `matchId` is `null`.
+
+### 2. Check Like Eligibility (`POST /api/v1/likes/can-create`)
+
+- **Guards**: `JwtAuthGuard`
+- **Request Body (`CanCreateLikeRequestDto`)**:
+  ```json
+  {
+    "targetIdentityId": "01J23C4D5E6F7G8H9J0K1L2M3N"
+  }
+  ```
+- **Response (`CanCreateLikeResponseDto` - HTTP 200 OK)**:
+  ```json
+  {
+    "canCreate": true,
+    "reason": null
+  }
+  ```
