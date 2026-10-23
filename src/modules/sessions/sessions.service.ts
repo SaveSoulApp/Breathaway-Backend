@@ -207,29 +207,30 @@ export class SessionsService extends BaseService {
 
     const now = DateUtil.now();
 
-    // 2. Mark entire session lineage as revoked in PostgreSQL
-    await this.prisma.userSession.updateMany({
-      where: {
-        userId,
-        familyId: session.familyId,
-        revokedAt: null,
-      },
-      data: { revokedAt: now },
-    });
-
-    // 3. Deactivate associated device in Device table if deviceId is present
-    if (session.deviceId) {
-      await this.prisma.device.updateMany({
+    // 2. Mark entire session lineage as revoked in PostgreSQL and deactivate device in an atomic transaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userSession.updateMany({
         where: {
           userId,
-          deviceId: session.deviceId,
-          isActive: true,
+          familyId: session.familyId,
+          revokedAt: null,
         },
-        data: { isActive: false },
+        data: { revokedAt: now },
       });
-    }
 
-    // 4. Invalidate Redis active status for this specific token
+      if (session.deviceId) {
+        await tx.device.updateMany({
+          where: {
+            userId,
+            deviceId: session.deviceId,
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+      }
+    });
+
+    // 3. Invalidate Redis active status for this specific refresh token JTI
     if (session.jti) {
       await this.jwtAuthCacheService.revokeUser(userId, session.jti);
     }
@@ -280,23 +281,29 @@ export class SessionsService extends BaseService {
       ...(currentFamilyId && { familyId: { not: currentFamilyId } }),
     };
 
-    // 2. Revoke in PostgreSQL
-    const result = await this.prisma.userSession.updateMany({
-      where: whereClause,
-      data: { revokedAt: now },
+    // 2. Revoke in PostgreSQL and deactivate other push devices in an atomic transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const sessionResult = await tx.userSession.updateMany({
+        where: whereClause,
+        data: { revokedAt: now },
+      });
+
+      if (currentDeviceId) {
+        await tx.device.updateMany({
+          where: {
+            userId,
+            deviceId: { not: currentDeviceId },
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+      }
+
+      return sessionResult;
     });
 
-    // 3. Deactivate other push devices if current device is known
-    if (currentDeviceId) {
-      await this.prisma.device.updateMany({
-        where: {
-          userId,
-          deviceId: { not: currentDeviceId },
-          isActive: true,
-        },
-        data: { isActive: false },
-      });
-    }
+    // 3. Invalidate user's active session set in Redis so other devices are forced to revalidate against PostgreSQL
+    await this.jwtAuthCacheService.revokeUser(userId);
 
     // 4. Emit security audit event
     this.emitAuditLog({
@@ -328,7 +335,13 @@ export class SessionsService extends BaseService {
     if (currentFamilyId) {
       return session.familyId === currentFamilyId;
     }
-    if (currentDeviceId && session.deviceId) {
+    // Only fall back to deviceId matching if deviceId is non-generic (avoiding web placeholder collisions)
+    if (
+      currentDeviceId &&
+      session.deviceId &&
+      currentDeviceId !== 'web' &&
+      session.deviceId !== 'web'
+    ) {
       return session.deviceId === currentDeviceId;
     }
     return false;

@@ -81,20 +81,9 @@ export class SessionMetadataParser {
 
     const rawModel = this.resolveDeviceModel(parsed);
 
-    let platform: DevicePlatform = DevicePlatform.WEB;
-    const osNameLower = (parsed.os.name || '').toLowerCase();
-    if (
-      osNameLower.includes('ios') ||
-      osNameLower.includes('iphone') ||
-      osNameLower.includes('ipad')
-    ) {
-      platform = DevicePlatform.IOS;
-    } else if (osNameLower.includes('android')) {
-      platform = DevicePlatform.ANDROID;
-    }
-
+    // Standard browser requests represent web application sessions regardless of mobile or desktop OS
     return {
-      platform,
+      platform: DevicePlatform.WEB,
       deviceModel: rawModel,
       os: rawOs || null,
       browser: rawBrowser || null,

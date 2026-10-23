@@ -25,6 +25,17 @@ const IP_GEO_CACHE_PREFIX = 'ip:geo:';
 const IP_GEO_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /**
+ * Negative cache sentinel value stored in Redis when IP geolocation lookups fail or return empty.
+ */
+const IP_GEO_NEG_CACHE_SENTINEL = '__neg__';
+
+/**
+ * 5-minute TTL for negative IP geolocation cache in Redis (in seconds).
+ * Prevents downstream API timeouts and rate limits from continuously stalling session queries.
+ */
+const IP_GEO_NEG_CACHE_TTL_SECONDS = 5 * 60;
+
+/**
  * Service providing server-side IP country geolocation using IPinfo Lite
  * and detailed tentative location (city, region, country) using standard IPinfo.
  *
@@ -116,7 +127,8 @@ export class IpGeolocationService extends BaseService {
    * for a given public IP address using IPinfo, with Redis caching (30-day TTL).
    *
    * Bypasses external calls for private, loopback, or invalid IP addresses.
-   * Fails safely by returning `null` if IPinfo is unreachable or unconfigured.
+   * Employs short-TTL (5-minute) negative caching for failed requests or unrecognized
+   * addresses to prevent downstream timeouts from stalling user endpoints.
    *
    * @param ip - Public IPv4 or IPv6 client address.
    * @returns Resolved IpLocation or `null`.
@@ -139,6 +151,9 @@ export class IpGeolocationService extends BaseService {
           `${IP_GEO_CACHE_PREFIX}${cleanIp}`,
         );
         if (cached) {
+          if (cached === IP_GEO_NEG_CACHE_SENTINEL) {
+            return null;
+          }
           return JSON.parse(cached) as IpLocation;
         }
       } catch (err) {
@@ -171,6 +186,7 @@ export class IpGeolocationService extends BaseService {
 
       const data = response.data;
       if (!data) {
+        await this.cacheNegativeResult(cleanIp);
         return null;
       }
 
@@ -218,7 +234,30 @@ export class IpGeolocationService extends BaseService {
         cleanIp,
         err: serializeError(error),
       });
+      await this.cacheNegativeResult(cleanIp);
       return null;
+    }
+  }
+
+  /**
+   * Caches a negative lookup sentinel in Redis with a short TTL to guard against repetitive timeouts.
+   */
+  private async cacheNegativeResult(cleanIp: string): Promise<void> {
+    if (this.redisService?.isConfigured) {
+      try {
+        await this.redisService.set(
+          `${IP_GEO_CACHE_PREFIX}${cleanIp}`,
+          IP_GEO_NEG_CACHE_SENTINEL,
+          'EX',
+          IP_GEO_NEG_CACHE_TTL_SECONDS,
+        );
+      } catch (err) {
+        this.logger.warn('Failed to cache negative IP geolocation in Redis', {
+          step: 'write_ip_geo_neg_cache_failed',
+          cleanIp,
+          error: serializeError(err),
+        });
+      }
     }
   }
 

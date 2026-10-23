@@ -150,7 +150,7 @@ describe(ClientIdentityGuard.name, () => {
     );
   });
 
-  it('should throw BadRequestException if x-user-agent is missing', () => {
+  it('should throw BadRequestException if User-Agent is missing', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -161,11 +161,11 @@ describe(ClientIdentityGuard.name, () => {
     });
 
     expect(() => guard.canActivate(context)).toThrow(
-      new BadRequestException('x-user-agent header is required'),
+      new BadRequestException('User-Agent or x-user-agent header is required'),
     );
   });
 
-  it('should throw BadRequestException if x-user-agent format is invalid', () => {
+  it('should throw BadRequestException if User-Agent format is invalid', () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
@@ -178,7 +178,7 @@ describe(ClientIdentityGuard.name, () => {
 
     expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
-        'x-user-agent must follow format: TestApp/Version (Platform OSVersion; DeviceModel)',
+        'User-Agent format is invalid: expected TestApp/Version (Platform OSVersion; DeviceModel) or valid browser User-Agent',
       ),
     );
   });

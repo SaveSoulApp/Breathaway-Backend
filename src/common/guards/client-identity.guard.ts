@@ -107,7 +107,9 @@ export class ClientIdentityGuard implements CanActivate {
     const userAgent = UserAgentUtils.resolveCanonicalUserAgent(headers);
 
     if (!userAgent)
-      throw new BadRequestException('x-user-agent header is required');
+      throw new BadRequestException(
+        'User-Agent or x-user-agent header is required',
+      );
 
     const uaData = this.validateAndParseUserAgent(userAgent);
 
@@ -163,7 +165,7 @@ export class ClientIdentityGuard implements CanActivate {
     }
 
     throw new BadRequestException(
-      `x-user-agent must follow format: ${this.appName}/Version (Platform OSVersion; DeviceModel)`,
+      `User-Agent format is invalid: expected ${this.appName}/Version (Platform OSVersion; DeviceModel) or valid browser User-Agent`,
     );
   }
 

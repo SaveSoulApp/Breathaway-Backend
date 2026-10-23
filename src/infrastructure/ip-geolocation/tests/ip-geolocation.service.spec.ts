@@ -458,7 +458,7 @@ describe('IpGeolocationService', () => {
       );
     });
 
-    it('should return null gracefully when IPinfo HTTP call fails', async () => {
+    it('should return null gracefully when IPinfo HTTP call fails and write negative cache sentinel', async () => {
       // Arrange
       mockRedisService.get.mockResolvedValueOnce(null);
       mockHttpClient.get.mockRejectedValueOnce(new Error('Network timeout'));
@@ -468,6 +468,43 @@ describe('IpGeolocationService', () => {
 
       // Assert
       expect(result).toBeNull();
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        'ip:geo:49.43.243.115',
+        '__neg__',
+        'EX',
+        300,
+      );
+    });
+
+    it('should return null immediately when negative cache sentinel is hit without calling HTTP', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce('__neg__');
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
+
+      // Assert
+      expect(result).toBeNull();
+      expect(mockRedisService.get).toHaveBeenCalledWith('ip:geo:49.43.243.115');
+      expect(mockHttpClient.get).not.toHaveBeenCalled();
+    });
+
+    it('should cache negative sentinel when IPinfo returns empty data', async () => {
+      // Arrange
+      mockRedisService.get.mockResolvedValueOnce(null);
+      mockHttpClient.get.mockResolvedValueOnce({ data: null });
+
+      // Act
+      const result = await service.getLocationByIp('49.43.243.115');
+
+      // Assert
+      expect(result).toBeNull();
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        'ip:geo:49.43.243.115',
+        '__neg__',
+        'EX',
+        300,
+      );
     });
   });
 });

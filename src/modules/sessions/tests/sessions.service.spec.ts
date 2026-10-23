@@ -18,7 +18,9 @@ import { SessionsService } from '../sessions.service';
 describe('SessionsService', () => {
   let service: SessionsService;
   let prisma: MockPrismaService;
-  let jwtAuthCacheService: { revokeUser: jest.Mock };
+  let jwtAuthCacheService: {
+    revokeUser: jest.Mock;
+  };
   let ipGeolocationService: {
     getLocationByIp: jest.Mock;
     getCountryCodeByIp: jest.Mock;
@@ -51,6 +53,14 @@ describe('SessionsService', () => {
     } as unknown as jest.Mocked<LoggerService>;
 
     prisma = createPrismaMock();
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (cb: (tx: any) => Promise<any>) => {
+        if (typeof cb === 'function') {
+          return cb(prisma);
+        }
+        return cb;
+      },
+    );
 
     jwtAuthCacheService = {
       revokeUser: jest.fn().mockResolvedValue(undefined),
@@ -351,6 +361,7 @@ describe('SessionsService', () => {
         data: { isActive: false },
       });
 
+      expect(prisma.$transaction).toHaveBeenCalled();
       expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(
         mockUserId,
         'jti-1',
@@ -383,6 +394,7 @@ describe('SessionsService', () => {
 
       // Assert
       expect(result).toEqual({ revokedCount: 3 });
+      expect(prisma.$transaction).toHaveBeenCalled();
 
       expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
         where: {
@@ -402,6 +414,8 @@ describe('SessionsService', () => {
         },
         data: { isActive: false },
       });
+
+      expect(jwtAuthCacheService.revokeUser).toHaveBeenCalledWith(mockUserId);
     });
   });
 });

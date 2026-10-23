@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import {
   ApiStandardErrors,
@@ -26,6 +27,7 @@ import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
+import { SESSIONS_REVOKE_THROTTLE } from './constants';
 import { RevokeOtherSessionsResponseDto, UserSessionsResponseDto } from './dto';
 import { SessionsService } from './sessions.service';
 
@@ -78,6 +80,7 @@ export class SessionsController extends BaseController {
    * Revokes a specific active session by its ID or familyId (remote sign-out).
    */
   @Delete(':id')
+  @Throttle(SESSIONS_REVOKE_THROTTLE)
   @ApiOperation({
     summary: 'Revoke a specific active session (log out of device)',
   })
@@ -107,6 +110,7 @@ export class SessionsController extends BaseController {
    * current session making this request.
    */
   @Delete()
+  @Throttle(SESSIONS_REVOKE_THROTTLE)
   @ApiOperation({
     summary: 'Revoke all other active sessions except the current one',
   })
