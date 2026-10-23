@@ -83,7 +83,7 @@ describe('IdentityWorkflowsService', () => {
     };
 
     const mockMatchResolverService = {
-      resolveFromLike: jest.fn().mockResolvedValue(undefined),
+      resolveFromLike: jest.fn().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -578,7 +578,7 @@ describe('IdentityWorkflowsService', () => {
       // First like resolution fails, second succeeds
       matchResolverService.resolveFromLike
         .mockRejectedValueOnce(new Error('resolution error'))
-        .mockResolvedValueOnce(undefined);
+        .mockResolvedValueOnce(null);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 
@@ -648,7 +648,7 @@ describe('IdentityWorkflowsService', () => {
         { id: identityId },
       ] as unknown as Identity[]);
       prisma.like.findMany.mockResolvedValue(likes as unknown as Like[]);
-      matchResolverService.resolveFromLike.mockResolvedValue(undefined);
+      matchResolverService.resolveFromLike.mockResolvedValue(null);
 
       await service.handleIdentityClaimed({ userId }, messageId);
 

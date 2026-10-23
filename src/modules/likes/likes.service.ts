@@ -179,6 +179,7 @@ export class LikesService extends BaseService {
    * @param userId   - UUID of the authenticated user sending the like.
    * @param dto      - Payload containing the target identity reference, intent, and optional label.
    * @param timezone - Optional IANA timezone string. Reserved for future use (e.g. time-limited likes).
+   * @param isAsync  - When true, match resolution runs in the background. Defaults to false (synchronous).
    * @returns The created like with the decrypted target identity `publicValue` attached.
    * @throws {BadRequestException} When neither `targetIdentityId` nor `targetIdentity` is supplied,
    *   or when the user attempts to like an identity that maps to themselves.
@@ -189,6 +190,7 @@ export class LikesService extends BaseService {
     userId: string,
     dto: CreateLikeRequestDto,
     timezone?: string,
+    isAsync = false,
   ): Promise<CreateLikeResult> {
     const ctx = { userId, targetIdentityId: dto.targetIdentityId };
     this.logger.log('Like creation started', { ...ctx, step: 'init' });
@@ -546,21 +548,47 @@ export class LikesService extends BaseService {
       throw err;
     }
 
-    // Step 6: Async match resolution (non-fatal)
-    this.matchResolverService.resolveFromLike(like).catch((err) => {
-      this.logger.error('Match resolution failed after like creation', {
+    // Step 6: Match resolution
+    let matchId: string | null = null;
+    let finalStatus = like.status;
+    if (isAsync) {
+      this.matchResolverService.resolveFromLike(like).catch((err) => {
+        this.logger.error('Match resolution failed after like creation', {
+          ...ctx,
+          step: 'match_resolution',
+          likeId: like.id,
+          err: serializeError(err),
+        });
+      });
+
+      this.logger.debug('Match resolution triggered asynchronously', {
         ...ctx,
         step: 'match_resolution',
         likeId: like.id,
-        err: serializeError(err),
       });
-    });
-
-    this.logger.debug('Match resolution triggered asynchronously', {
-      ...ctx,
-      step: 'match_resolution',
-      likeId: like.id,
-    });
+    } else {
+      try {
+        const match = await this.matchResolverService.resolveFromLike(like);
+        if (match) {
+          finalStatus = LikeStatus.MATCHED;
+          matchId = match.id;
+        }
+        this.logger.debug('Match resolution executed synchronously', {
+          ...ctx,
+          step: 'match_resolution',
+          likeId: like.id,
+          matched: match !== null,
+          matchId,
+        });
+      } catch (err) {
+        this.logger.error('Match resolution failed after like creation', {
+          ...ctx,
+          step: 'match_resolution',
+          likeId: like.id,
+          err: serializeError(err),
+        });
+      }
+    }
 
     this.emitAuditLog({
       actionType: AuditActionType.LIKE_CREATED,
@@ -591,7 +619,7 @@ export class LikesService extends BaseService {
       ),
     );
 
-    return this.attachPublicValue(like);
+    return this.attachPublicValue(like, matchId, finalStatus);
   }
 
   /**
@@ -935,16 +963,30 @@ export class LikesService extends BaseService {
 
   /**
    * Delegates publicValue decryption to IdentitiesService, returning the enriched
-   * like shape with decrypted publicValue attached for the caller.
+   * like shape with decrypted publicValue and matchId attached for the caller.
    * Like label decryption is handled automatically by DecryptionInterceptor.
    */
-  private async attachPublicValue<T extends RawLike>(like: T) {
+  private async attachPublicValue<T extends RawLike>(
+    like: T,
+    explicitMatchId?: string | null,
+    overrideStatus?: LikeStatus,
+  ) {
     const publicValue = await this.identitiesService.getDecryptedPublicValue(
       like.targetIdentity.id,
     );
 
+    const status = overrideStatus ?? like.status;
+    const matchId =
+      explicitMatchId !== undefined
+        ? explicitMatchId
+        : status === LikeStatus.MATCHED
+          ? (like.matchAsLikeOne?.id ?? like.matchAsLikeTwo?.id ?? null)
+          : null;
+
     return {
       ...like,
+      status,
+      matchId,
       label: like.label,
       targetIdentity: {
         ...like.targetIdentity,

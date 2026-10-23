@@ -52,6 +52,14 @@ export class LikeResponseDto extends BaseAuditExcludeDto {
   @Type(() => LikeTargetIdentityDto)
   targetIdentity: LikeTargetIdentityDto;
 
+  @ApiPropertyOptional({
+    description:
+      'The ID of the match formed by this like, if status is MATCHED; null otherwise.',
+    example: '01M5F3E5DA9G9DMEM93V3K1T5F',
+  })
+  @Expose()
+  matchId: string | null;
+
   @ApiPropertyOptional()
   @Expose()
   expiresAt: Date | null;

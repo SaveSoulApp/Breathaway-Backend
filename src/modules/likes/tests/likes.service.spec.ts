@@ -103,6 +103,7 @@ describe('LikesService', () => {
   /** Expected shape after attachPublicValue adds publicValue. */
   const mockLikeResponse = {
     ...mockLikeData,
+    matchId: null,
     targetIdentity: {
       ...mockTargetIdentity,
       publicValue: decryptedPublicValue,
@@ -145,7 +146,7 @@ describe('LikesService', () => {
     };
 
     matchResolverServiceMock = {
-      resolveFromLike: jest.fn().mockResolvedValue(undefined),
+      resolveFromLike: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<MatchResolverService>;
 
     loggerServiceMock = {
@@ -368,12 +369,31 @@ describe('LikesService', () => {
       );
     });
 
-    it('should create like and trigger match resolver asynchronously', async () => {
+    it('should create like and resolve match synchronously returning matchId when reciprocal like forms a match', async () => {
       // Arrange
       prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
-      // No pending like, no reusable like
       prisma.like.findFirst.mockResolvedValue(null);
       prisma.like.create.mockResolvedValue(mockLikeData);
+      const mockMatch = { id: 'match-id-abc' } as any;
+      matchResolverServiceMock.resolveFromLike.mockResolvedValue(mockMatch);
+
+      // Act
+      const result = await service.create(userId, dtoWithId);
+
+      // Assert
+      expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
+        mockLikeData,
+      );
+      expect(result.status).toBe(LikeStatus.MATCHED);
+      expect(result.matchId).toBe('match-id-abc');
+    });
+
+    it('should create like and return matchId null when no match forms', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+      matchResolverServiceMock.resolveFromLike.mockResolvedValue(null);
 
       // Act
       const result = await service.create(userId, dtoWithId);
@@ -394,6 +414,26 @@ describe('LikesService', () => {
         mockLikeData,
       );
       expect(result).toEqual(mockLikeResponse);
+      expect(result.matchId).toBeNull();
+      expect(result.status).toBe(LikeStatus.PENDING);
+    });
+
+    it('should trigger match resolver asynchronously when isAsync is true', async () => {
+      // Arrange
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+
+      // Act
+      const result = await service.create(userId, dtoWithId, undefined, true);
+
+      // Assert
+      expect(matchResolverServiceMock.resolveFromLike).toHaveBeenCalledWith(
+        mockLikeData,
+      );
+      expect(result).toEqual(mockLikeResponse);
+      expect(result.matchId).toBeNull();
+      expect(result.status).toBe(LikeStatus.PENDING);
     });
 
     it('should encrypt label when creating like with a label', async () => {
@@ -694,6 +734,23 @@ describe('LikesService', () => {
       expect(result).toEqual(mockLikeResponse);
     });
 
+    it('should return like with matchId populated when like is MATCHED', async () => {
+      // Arrange
+      const matchedLikeData = {
+        ...mockLikeData,
+        status: LikeStatus.MATCHED,
+        matchAsLikeOne: { id: 'match-xyz' },
+      };
+      prisma.like.findFirst.mockResolvedValue(matchedLikeData as any);
+
+      // Act
+      const result = await service.findOneForUser(likeId, userId);
+
+      // Assert
+      expect(result.status).toBe(LikeStatus.MATCHED);
+      expect(result.matchId).toBe('match-xyz');
+    });
+
     it('should throw LikeNotFoundException if not found', async () => {
       // Arrange
       prisma.like.findFirst.mockResolvedValue(null);
@@ -873,6 +930,7 @@ describe('LikesService', () => {
       });
       expect(result).toEqual({
         ...updatedLike,
+        matchId: null,
         label: encryptedLabel,
         targetIdentity: {
           ...updatedLike.targetIdentity,
