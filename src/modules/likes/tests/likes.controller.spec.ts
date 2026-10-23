@@ -29,6 +29,7 @@ describe('LikesController', () => {
     intent: IntentType.RELATIONSHIP,
     status: LikeStatus.PENDING,
     label: null,
+    matchId: null,
     createdAt: DateUtil.now(),
     expiresAt: DateUtil.now(),
     targetIdentity: {
@@ -97,7 +98,7 @@ describe('LikesController', () => {
   });
 
   describe('create', () => {
-    it('should create and return a like', async () => {
+    it('should create and return a like with default synchronous resolution', async () => {
       // Arrange
       const dto: CreateLikeRequestDto = {
         targetIdentityId: 'target-identity-id',
@@ -112,7 +113,38 @@ describe('LikesController', () => {
       const result = await controller.create(mockReq, userId, dto);
 
       // Assert
-      expect(service.create).toHaveBeenCalledWith(userId, dto, 'Asia/Kolkata');
+      expect(service.create).toHaveBeenCalledWith(
+        userId,
+        dto,
+        'Asia/Kolkata',
+        undefined,
+      );
+      expect(result).toEqual(mockLikeResponse);
+    });
+
+    it('should pass async query parameter to service when provided', async () => {
+      // Arrange
+      const dto: CreateLikeRequestDto = {
+        targetIdentityId: 'target-identity-id',
+        intent: IntentType.RELATIONSHIP,
+      };
+      service.create.mockResolvedValue(
+        mockLikeResponse as Awaited<ReturnType<LikesService['create']>>,
+      );
+
+      // Act
+      const mockReq = { timezone: 'Asia/Kolkata' } as any;
+      const result = await controller.create(mockReq, userId, dto, {
+        async: true,
+      });
+
+      // Assert
+      expect(service.create).toHaveBeenCalledWith(
+        userId,
+        dto,
+        'Asia/Kolkata',
+        true,
+      );
       expect(result).toEqual(mockLikeResponse);
     });
   });

@@ -179,7 +179,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(MATCH_CREATED_EVENT)
+  @OnEvent(MATCH_CREATED_EVENT, { async: true })
   async handleMatchCreated(event: MatchCreatedEvent): Promise<void> {
     try {
       const profiles = await this.prisma.userProfile.findMany({

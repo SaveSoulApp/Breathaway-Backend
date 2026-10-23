@@ -20,12 +20,12 @@ The `MatchesModule` stores and tracks established, mutual connections between us
 
 The matching subsystem is orchestrated across two primary services:
 
-1. **`MatchResolverService` (`src/modules/match-resolver`)**: The asynchronous engine triggered after a like is persisted, responsible for evaluating reciprocity, compatibility, and forging the `Match` record.
+1. **`MatchResolverService` (`src/modules/match-resolver`)**: The resolution engine triggered when a like is persisted, responsible for evaluating reciprocity, compatibility, and forging the `Match` record synchronously (by default, for instant client handshake) or asynchronously (in background or `?async=true` pipelines).
 2. **`MatchesService` (`src/modules/matches`)**: Manages the lifecycle of active matches, queries, perspective normalisation, and connection dissolution (`unmatch`).
 
 ### 1. Match Resolution Pipeline (`MatchResolverService.resolveFromLike`)
 
-This sequence executes asynchronously after a like is created in `LikesService.create()`. It runs outside the client's HTTP response path to keep swipe latency under 80ms.
+This sequence executes when a like is created in `LikesService.create()`. By default, it runs synchronously to enable the client to receive `matchId` and `status: "MATCHED"` immediately upon like creation, eliminating client-side guessing. If the caller supplies `?async=true`, it runs outside the HTTP response path as an unawaited background task. In both cases, notification dispatch remains completely decoupled and asynchronous via `@OnEvent(MATCH_CREATED_EVENT, { async: true })`.
 
 ```mermaid
 sequenceDiagram
@@ -40,7 +40,7 @@ sequenceDiagram
     participant Notifications as NotificationsService
     participant Audit as AuditModule
 
-    Likes->>Resolver: resolveFromLike(newLike) [Unawaited Async Task]
+    Likes->>Resolver: resolveFromLike(newLike) [Synchronous by default, or ?async=true]
     Note over Resolver: Step 1: Verify target identity is registered
     alt targetIdentity.userId is null (Ghost Identity)
         Resolver-->>Likes: Skip resolution (unresolved target)
@@ -102,6 +102,7 @@ sequenceDiagram
     Listener->>Notifications: dispatch(userOneId, type: NEW_MATCH, channels: [PUSH, EMAIL])
     Listener->>Notifications: dispatch(userTwoId, type: NEW_MATCH, channels: [PUSH, EMAIL])
     end
+    Resolver-->>Likes: Return Match entity (or null if no match)
 ```
 
 ---

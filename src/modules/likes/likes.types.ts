@@ -14,6 +14,9 @@ export type RawLike = {
   label: string | null;
   createdAt: Date;
   expiresAt: Date | null;
+  matchId?: string | null;
+  matchAsLikeOne?: { id: string } | null;
+  matchAsLikeTwo?: { id: string } | null;
   targetIdentity: RawLikeIdentity;
   senderUserId?: string;
 };
@@ -37,6 +40,8 @@ export const LIKE_SELECT = {
   label: true,
   createdAt: true,
   expiresAt: true,
+  matchAsLikeOne: { select: { id: true } },
+  matchAsLikeTwo: { select: { id: true } },
   targetIdentity: {
     select: {
       id: true,

@@ -56,13 +56,15 @@ export class MatchResolverService extends BaseService {
    * Uses deterministic user-ID sorting to assign canonical `userOne`/`userTwo`
    * roles, ensuring the unique constraint on `(userOneId, userTwoId)` is always
    * applied consistently regardless of which user liked first. A Prisma `P2002`
-   * error (unique constraint violation) is silently swallowed as a resolved race
-   * condition — any other error is logged and suppressed so a failed match
-   * resolution does not roll back the like itself.
+   * error (unique constraint violation) is handled as a resolved race condition
+   * by looking up the concurrently formed match — any other error is logged and
+   * suppressed so a failed match resolution does not roll back the like itself.
    *
    * @param newLike - The newly created like summary triggering resolution.
+   * @returns The created/reactivated Match record if a match formed, or null otherwise.
    */
-  async resolveFromLike(newLike: LikeSummary) {
+  async resolveFromLike(newLike: LikeSummary): Promise<Match | null> {
+    const targetUserId = newLike.targetIdentity.userId;
     const ctx = {
       likeId: newLike.id,
       senderUserId: newLike.senderUserId,
@@ -70,22 +72,20 @@ export class MatchResolverService extends BaseService {
     };
     this.logger.debug('Match resolution started', { ...ctx, step: 'init' });
 
+    if (!targetUserId) {
+      this.logger.debug(
+        'Target identity unresolved — skipping match resolution',
+        {
+          ...ctx,
+          step: 'identity_check',
+        },
+      );
+      return null;
+    }
+
+    Object.assign(ctx, { targetUserId });
+
     try {
-      const targetUserId = newLike.targetIdentity.userId;
-
-      if (!targetUserId) {
-        this.logger.debug(
-          'Target identity unresolved — skipping match resolution',
-          {
-            ...ctx,
-            step: 'identity_check',
-          },
-        );
-        return;
-      }
-
-      Object.assign(ctx, { targetUserId });
-
       const reverseLike = await this.findReverseLike(
         newLike.senderUserId,
         targetUserId,
@@ -96,7 +96,7 @@ export class MatchResolverService extends BaseService {
           ...ctx,
           step: 'reverse_like_lookup',
         });
-        return;
+        return null;
       }
       this.logger.debug('Reverse like found', {
         ...ctx,
@@ -122,7 +122,7 @@ export class MatchResolverService extends BaseService {
         userTwoId,
       );
 
-      if (!isEligible.valid) return;
+      if (!isEligible.valid) return null;
 
       const match = await this.executeMatchTransaction(
         canonicalLikeOne,
@@ -166,12 +166,14 @@ export class MatchResolverService extends BaseService {
           decryptedLabelTwo,
         ),
       );
+
+      return match;
     } catch (err) {
       const serialized = serializeError(err);
 
       // P2002 = unique constraint violation — two concurrent likes resolved
       // simultaneously. Harmless race condition: one of them already created the
-      // match. Swallow silently after a warn so it's still queryable.
+      // match. Return the existing match so caller still receives matchId.
       if ((err as { code?: string }).code === 'P2002') {
         this.logger.warn(
           'Race condition: match already created by concurrent resolution',
@@ -181,7 +183,13 @@ export class MatchResolverService extends BaseService {
             err: serialized,
           },
         );
-        return;
+        const [userOneId, userTwoId] = [
+          newLike.senderUserId,
+          targetUserId,
+        ].sort();
+        return this.prisma.match.findUnique({
+          where: { userOneId_userTwoId: { userOneId, userTwoId } },
+        });
       }
 
       this.logger.error('Match resolution failed', {
@@ -189,6 +197,7 @@ export class MatchResolverService extends BaseService {
         step: 'complete',
         err: serialized,
       });
+      return null;
     }
   }
 

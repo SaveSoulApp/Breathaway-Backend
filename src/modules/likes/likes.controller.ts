@@ -1,8 +1,3 @@
-import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
-import { JwtAuthGuard, RequireTimezoneGuard } from '@common/guards';
-import { SerializeExpose } from '@common/interceptors';
-import { BaseController } from '@core/base';
-import { LoggerService } from '@core/logger';
 import {
   Body,
   Controller,
@@ -25,13 +20,20 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 
+import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
+import { JwtAuthGuard, RequireTimezoneGuard } from '@common/guards';
+import { SerializeExpose } from '@common/interceptors';
+import { BaseController } from '@core/base';
+import { LoggerService } from '@core/logger';
+
 import {
+  CanCreateLikeResponseDto,
+  CreateLikeQueryDto,
   CreateLikeRequestDto,
   LikeListQueryDto,
   LikeResponseDto,
   PaginatedLikeResponseDto,
   UpdateLikeLabelRequestDto,
-  CanCreateLikeResponseDto,
 } from './dto';
 import { LikesService } from './likes.service';
 
@@ -116,9 +118,10 @@ export class LikesController extends BaseController {
     @Req() req: Request,
     @CurrentUserId() userId: string,
     @Body() dto: CreateLikeRequestDto,
+    @Query() query: CreateLikeQueryDto = {},
   ) {
     const timezone = req.timezone;
-    return this.likesService.create(userId, dto, timezone);
+    return this.likesService.create(userId, dto, timezone, query?.async);
   }
 
   /**
