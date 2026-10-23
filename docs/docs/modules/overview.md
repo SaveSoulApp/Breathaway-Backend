@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: Modules Overview & Architecture
-description: Architectural map and directory of all 26 domain and infrastructure modules in the BreathAway backend.
+description: Architectural map and directory of all 27 domain and infrastructure modules in the BreathAway backend.
 ---
 
 # Modules Overview & Architecture
 
-The BreathAway backend is built upon a highly modular, decoupled **NestJS architecture**. The system is organized into **26 specialized feature and infrastructure modules**, each encapsulating a specific bounded domain context with strict DTO boundaries and dependency injection.
+The BreathAway backend is built upon a highly modular, decoupled **NestJS architecture**. The system is organized into **27 specialized feature and infrastructure modules**, each encapsulating a specific bounded domain context with strict DTO boundaries and dependency injection.
 
 ---
 
@@ -31,6 +31,7 @@ graph TB
         Instagram[InstagramModule]
         IdentityWorkflows[IdentityWorkflowsModule]
         Devices[DevicesModule]
+        Sessions[SessionsModule]
     end
 
     subgraph "Users & Relationships"
@@ -55,6 +56,7 @@ graph TB
     Auth --> Identities
     Auth --> OTP
     Auth --> Firebase
+    Auth --> Sessions
     Identities --> IdentityWorkflows
     Likes --> Matches
     Matches --> MatchResolver
@@ -86,6 +88,7 @@ Foundational services providing cloud platform integrations, observability, asyn
 Secure onboarding, multi-factor verification, OAuth social graph linking, and encrypted credential storage.
 
 - **[Auth Module](./auth.md)**: Core authentication gateway handling session generation, JWT issuance/refresh, and Firebase ID token exchange.
+- **[Sessions Module](./sessions.md)**: Active user session auditing, cross-device correlation, remote session termination, and push device deactivation.
 - **[One-Time Passwords Module](./one-time-passwords.md)**: Generates, hashes, delivers, and verifies cryptographic SMS and email OTP tokens with rate limiting.
 - **[Identities Module](./identities.md)**: Encrypted user identifiers (AES-256-GCM envelope encryption wrapped with GCP KMS) protecting PII.
 - **[Social Identities Module](./social-identities.md)**: Multi-platform OAuth identity linking (Google, Apple, Twitter, LinkedIn).
