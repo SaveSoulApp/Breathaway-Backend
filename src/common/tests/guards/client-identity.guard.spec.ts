@@ -30,9 +30,22 @@ describe(ClientIdentityGuard.name, () => {
       get: jest
         .fn()
         .mockImplementation((key: string, defaultValue: unknown): unknown => {
-          if (key === 'API_KEYS') return '["valid-api-key"]';
-          if (key === 'CLIENT_IDS') return '["valid-client-id"]';
-          if (key === 'REQUIRED_PLATFORMS') return '["iOS", "Android", "Web"]';
+          if (key === 'API_KEYS')
+            return JSON.stringify({
+              android: ['valid-android-api-key'],
+              ios: ['valid-ios-api-key'],
+              web: ['valid-api-key'],
+              postman: ['valid-postman-api-key'],
+            });
+          if (key === 'CLIENT_IDS')
+            return JSON.stringify({
+              android: ['valid-android-client-id'],
+              ios: ['valid-ios-client-id'],
+              web: ['valid-client-id'],
+              postman: ['valid-postman-client-id'],
+            });
+          if (key === 'REQUIRED_PLATFORMS')
+            return '["ios", "android", "web", "postman"]';
           if (key === 'MIN_APP_VERSION') return '1.0.0';
           if (key === 'APP_NAME') return 'TestApp';
           return defaultValue;
@@ -169,16 +182,16 @@ describe(ClientIdentityGuard.name, () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
-        'x-api-key': 'valid-api-key',
-        'x-client-id': 'valid-client-id',
+        'x-api-key': 'valid-ios-api-key',
+        'x-client-id': 'valid-ios-client-id',
         'x-device-id': 'valid-device-id',
-        'x-user-agent': 'InvalidUserAgent',
+        'x-user-agent': 'TestApp/InvalidUserAgent',
       },
     });
 
     expect(() => guard.canActivate(context)).toThrow(
       new BadRequestException(
-        'User-Agent format is invalid: expected TestApp/Version (Platform OSVersion; DeviceModel) or valid browser User-Agent',
+        'User-Agent format is invalid: expected TestApp/Version (ios OSVersion; DeviceModel)',
       ),
     );
   });
@@ -187,8 +200,8 @@ describe(ClientIdentityGuard.name, () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
-        'x-api-key': 'valid-api-key',
-        'x-client-id': 'valid-client-id',
+        'x-api-key': 'valid-ios-api-key',
+        'x-client-id': 'valid-ios-client-id',
         'x-device-id': 'valid-device-id',
         'x-user-agent': 'TestApp/1.0.0 (Windows 10; PC)',
       },
@@ -196,7 +209,7 @@ describe(ClientIdentityGuard.name, () => {
 
     expect(() => guard.canActivate(context)).toThrow(
       new UnauthorizedException(
-        'Invalid platform. Supported: iOS, Android, Web',
+        'User-Agent platform (Windows) does not match Client ID platform (ios)',
       ),
     );
   });
@@ -205,8 +218,8 @@ describe(ClientIdentityGuard.name, () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const context = createMockExecutionContext({
       headers: {
-        'x-api-key': 'valid-api-key',
-        'x-client-id': 'valid-client-id',
+        'x-api-key': 'valid-ios-api-key',
+        'x-client-id': 'valid-ios-client-id',
         'x-device-id': 'valid-device-id',
         'x-user-agent': 'TestApp/0.9.0 (ios 14.0; iPhone12)',
       },
@@ -221,8 +234,8 @@ describe(ClientIdentityGuard.name, () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     const mockRequest: MockRequest = {
       headers: {
-        'x-api-key': 'valid-api-key',
-        'x-client-id': 'valid-client-id',
+        'x-api-key': 'valid-ios-api-key',
+        'x-client-id': 'valid-ios-client-id',
         'x-device-id': 'valid-device-id',
         'x-user-agent': 'TestApp/1.2.3 (ios 14.0; iPhone12)',
       },
@@ -232,8 +245,8 @@ describe(ClientIdentityGuard.name, () => {
     const result = guard.canActivate(context);
     expect(result).toBe(true);
     expect(mockRequest.clientIdentity).toEqual({
-      apiKey: 'valid-api-key',
-      clientId: 'valid-client-id',
+      apiKey: 'valid-ios-api-key',
+      clientId: 'valid-ios-client-id',
       deviceId: 'valid-device-id',
       userAgent: {
         appName: 'TestApp',
@@ -250,8 +263,8 @@ describe(ClientIdentityGuard.name, () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest: MockRequest = {
         headers: {
-          'x-api-key': 'valid-api-key',
-          'x-client-id': 'valid-client-id',
+          'x-api-key': 'valid-ios-api-key',
+          'x-client-id': 'valid-ios-client-id',
           'x-device-id': 'valid-device-id',
           'x-user-agent': 'TestApp/1.0.0 (ios 14.0; iPhone12)',
         },
@@ -265,8 +278,8 @@ describe(ClientIdentityGuard.name, () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest: MockRequest = {
         headers: {
-          'x-api-key': 'valid-api-key',
-          'x-client-id': 'valid-client-id',
+          'x-api-key': 'valid-ios-api-key',
+          'x-client-id': 'valid-ios-client-id',
           'x-device-id': 'valid-device-id',
           'x-user-agent': 'TestApp/1.1.0 (ios 14.0; iPhone12)',
         },
@@ -280,8 +293,8 @@ describe(ClientIdentityGuard.name, () => {
       reflector.getAllAndOverride.mockReturnValue(false);
       const mockRequest: MockRequest = {
         headers: {
-          'x-api-key': 'valid-api-key',
-          'x-client-id': 'valid-client-id',
+          'x-api-key': 'valid-ios-api-key',
+          'x-client-id': 'valid-ios-client-id',
           'x-device-id': 'valid-device-id',
           'x-user-agent': 'TestApp/2.0.0 (ios 14.0; iPhone12)',
         },
@@ -316,7 +329,7 @@ describe(ClientIdentityGuard.name, () => {
       guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
-        'Failed to parse config as JSON array',
+        'Failed to parse config as platform-keyed JSON object',
         { envKey: 'API_KEYS', step: 'parse_config' },
       );
       expect(logger.warn).toHaveBeenCalledWith('No valid API keys configured', {
@@ -324,13 +337,13 @@ describe(ClientIdentityGuard.name, () => {
       });
     });
 
-    it('should handle non-array JSON and initialize empty sets', async () => {
+    it('should handle flat array JSON and initialize empty sets', async () => {
       const badConfigService = {
         get: jest
           .fn()
           .mockImplementation((key: string, defaultValue: unknown): unknown => {
             if (key === 'API_KEYS' || key === 'CLIENT_IDS')
-              return '{"not": "array"}';
+              return '["flat", "array"]';
             return defaultValue;
           }),
       } as unknown as ConfigService;
@@ -347,7 +360,7 @@ describe(ClientIdentityGuard.name, () => {
       guard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
 
       expect(logger.error).toHaveBeenCalledWith(
-        'Failed to parse config as JSON array',
+        'Failed to parse config as platform-keyed JSON object',
         { envKey: 'API_KEYS', step: 'parse_config' },
       );
     });
@@ -582,6 +595,532 @@ describe(ClientIdentityGuard.name, () => {
           deviceModel: 'Google Pixel 10',
         },
       });
+    });
+
+    it('should parse node runtime user-agent for SSR web clients', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web-ssr',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web-ssr',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Node.js',
+          deviceModel: 'Node.js Server',
+        },
+      });
+    });
+
+    it('should parse HTTP client user-agents (e.g. axios/undici) for web platform', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-api-key',
+          'x-client-id': 'valid-client-id',
+          'x-device-id': 'web-axios',
+          'user-agent': 'axios/1.6.0',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-api-key',
+        clientId: 'valid-client-id',
+        deviceId: 'web-axios',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Browser',
+          deviceModel: 'Desktop',
+        },
+      });
+    });
+  });
+
+  describe('Platform-keyed Client ID and API Key enforcement', () => {
+    let platformGuard: ClientIdentityGuard;
+
+    beforeEach(async () => {
+      const platformConfigService = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS')
+              return JSON.stringify({
+                android: ['android-api-key'],
+                ios: ['ios-api-key'],
+                web: ['web-api-key'],
+              });
+            if (key === 'CLIENT_IDS')
+              return JSON.stringify({
+                android: ['android-client-id'],
+                ios: ['ios-client-id'],
+                web: ['web-client-id'],
+              });
+            if (key === 'REQUIRED_PLATFORMS')
+              return '["iOS", "Android", "Web"]';
+            if (key === 'MIN_APP_VERSION') return '1.2.0';
+            if (key === 'APP_NAME') return 'TestApp';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: logger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: platformConfigService },
+        ],
+      }).compile();
+
+      platformGuard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
+    });
+
+    it('should allow Web client with browser user agent and skip version check', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'web-api-key',
+          'x-client-id': 'web-client-id',
+          'x-device-id': 'web-device',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0 Safari/537.36',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = platformGuard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'web-api-key',
+        clientId: 'web-client-id',
+        deviceId: 'web-device',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'macOS 10.15.7',
+          deviceModel: 'Chrome 120.0.0.0',
+        },
+      });
+    });
+
+    it('should allow Web client with node SSR user agent', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'web-api-key',
+          'x-client-id': 'web-client-id',
+          'x-device-id': 'web-ssr-device',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = platformGuard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'web-api-key',
+        clientId: 'web-client-id',
+        deviceId: 'web-ssr-device',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'web',
+          osVersion: 'Node.js',
+          deviceModel: 'Node.js Server',
+        },
+      });
+    });
+
+    it('should allow iOS client with valid custom format and version >= minAppVersion', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'ios-api-key',
+          'x-client-id': 'ios-client-id',
+          'x-device-id': 'ios-device',
+          'x-user-agent': 'TestApp/1.2.0 (iOS 17.5; iPhone15,2)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = platformGuard.canActivate(context);
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'ios-api-key',
+        clientId: 'ios-client-id',
+        deviceId: 'ios-device',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.2.0',
+          platform: 'ios',
+          osVersion: '17.5',
+          deviceModel: 'iPhone15,2',
+        },
+      });
+    });
+
+    it('should reject iOS client if version is below minAppVersion', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'ios-api-key',
+          'x-client-id': 'ios-client-id',
+          'x-device-id': 'ios-device',
+          'x-user-agent': 'TestApp/1.1.9 (iOS 17.5; iPhone15,2)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => platformGuard.canActivate(context)).toThrow(
+        new UnauthorizedException('App version must be at least 1.2.0'),
+      );
+    });
+
+    it('should reject mobile client if User-Agent does not follow custom app format', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'android-api-key',
+          'x-client-id': 'android-client-id',
+          'x-device-id': 'android-device',
+          'user-agent': 'Mozilla/5.0 (Linux; Android 14)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => platformGuard.canActivate(context)).toThrow(
+        new BadRequestException(
+          'User-Agent format is invalid: expected TestApp/Version (android OSVersion; DeviceModel)',
+        ),
+      );
+    });
+
+    it('should reject request if User-Agent platform mismatches Client ID platform', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'ios-api-key',
+          'x-client-id': 'ios-client-id',
+          'x-device-id': 'ios-device',
+          'x-user-agent': 'TestApp/1.2.0 (Android 14; Pixel8)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => platformGuard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'User-Agent platform (Android) does not match Client ID platform (ios)',
+        ),
+      );
+    });
+
+    it('should reject request if API Key platform mismatches Client ID platform', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'android-api-key',
+          'x-client-id': 'web-client-id',
+          'x-device-id': 'any-device',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => platformGuard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'API Key platform (android) does not match Client ID platform (web)',
+        ),
+      );
+    });
+
+    it('should reject request if Client ID platform is not in REQUIRED_PLATFORMS', async () => {
+      const restrictedConfigService = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS')
+              return JSON.stringify({ web: ['web-api-key'] });
+            if (key === 'CLIENT_IDS')
+              return JSON.stringify({ web: ['web-client-id'] });
+            if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]'; // Web not allowed
+            if (key === 'MIN_APP_VERSION') return '1.0.0';
+            if (key === 'APP_NAME') return 'TestApp';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: logger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: restrictedConfigService },
+        ],
+      }).compile();
+
+      const restrictedGuard =
+        module.get<ClientIdentityGuard>(ClientIdentityGuard);
+
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'web-api-key',
+          'x-client-id': 'web-client-id',
+          'x-device-id': 'web-device',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => restrictedGuard.canActivate(context)).toThrow(
+        new UnauthorizedException('Invalid platform. Supported: ios, android'),
+      );
+    });
+  });
+
+  describe('Postman platform support', () => {
+    it('should allow Postman client with PostmanRuntime user agent', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-postman-api-key',
+          'x-client-id': 'valid-postman-client-id',
+          'x-device-id': 'postman-device-123',
+          'user-agent': 'PostmanRuntime/7.39.0',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-postman-api-key',
+        clientId: 'valid-postman-client-id',
+        deviceId: 'postman-device-123',
+        userAgent: {
+          appName: 'TestApp',
+          version: '7.39.0',
+          platform: 'postman',
+          osVersion: 'Postman',
+          deviceModel: 'Postman Client',
+        },
+      });
+    });
+
+    it('should allow Postman client with custom structured user agent', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-postman-api-key',
+          'x-client-id': 'valid-postman-client-id',
+          'x-device-id': 'postman-device-123',
+          'user-agent': 'TestApp/2.1.0 (Postman 10.0; Desktop)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-postman-api-key',
+        clientId: 'valid-postman-client-id',
+        deviceId: 'postman-device-123',
+        userAgent: {
+          appName: 'TestApp',
+          version: '2.1.0',
+          platform: 'postman',
+          osVersion: '10.0',
+          deviceModel: 'Desktop',
+        },
+      });
+    });
+
+    it('should allow Postman client with generic user agent defaulting version to 1.0.0', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-postman-api-key',
+          'x-client-id': 'valid-postman-client-id',
+          'x-device-id': 'postman-device-123',
+          'user-agent': 'Postman',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockRequest.clientIdentity).toEqual({
+        apiKey: 'valid-postman-api-key',
+        clientId: 'valid-postman-client-id',
+        deviceId: 'postman-device-123',
+        userAgent: {
+          appName: 'TestApp',
+          version: '1.0.0',
+          platform: 'postman',
+          osVersion: 'Postman',
+          deviceModel: 'Postman Client',
+        },
+      });
+    });
+
+    it('should reject request when Postman Client ID is paired with an Android API Key', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-android-api-key',
+          'x-client-id': 'valid-postman-client-id',
+          'x-device-id': 'postman-device-123',
+          'user-agent': 'PostmanRuntime/7.39.0',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'API Key platform (android) does not match Client ID platform (postman)',
+        ),
+      );
+    });
+  });
+
+  describe('Hardening and Edge Cases', () => {
+    it('should warn and preserve first platform assignment if a key is duplicated across platforms in config', async () => {
+      const duplicateConfigService = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS')
+              return JSON.stringify({
+                android: ['shared-key'],
+                web: ['shared-key'],
+              });
+            if (key === 'CLIENT_IDS')
+              return JSON.stringify({
+                android: ['android-client-id'],
+                web: ['web-client-id'],
+              });
+            if (key === 'REQUIRED_PLATFORMS') return '["android", "web"]';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const duplicateLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: duplicateLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: duplicateConfigService },
+        ],
+      }).compile();
+
+      const dupGuard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
+
+      expect(duplicateLogger.warn).toHaveBeenCalledWith(
+        'Duplicate key detected across multiple platforms in configuration',
+        expect.objectContaining({
+          envKey: 'API_KEYS',
+          existingPlatform: 'android',
+          duplicatePlatform: 'web',
+          step: 'parse_config',
+        }),
+      );
+
+      // Verify the key stayed bound to the first platform (android)
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'shared-key',
+          'x-client-id': 'web-client-id', // web client ID paired with shared-key (which is bound to android)
+          'x-device-id': 'dev-1',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => dupGuard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'API Key platform (android) does not match Client ID platform (web)',
+        ),
+      );
+    });
+
+    it('should reject mobile request if User-Agent app name does not match configured APP_NAME', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-ios-api-key',
+          'x-client-id': 'valid-ios-client-id',
+          'x-device-id': 'ios-device-123',
+          'x-user-agent': 'ImposterApp/1.2.0 (iOS 17.5; iPhone15,2)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'User-Agent app name (ImposterApp) does not match expected app name (TestApp)',
+        ),
+      );
+    });
+
+    it('should warn on initialization if REQUIRED_PLATFORMS is empty', async () => {
+      const emptyPlatformsConfig = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS') return JSON.stringify({ web: ['key-1'] });
+            if (key === 'CLIENT_IDS') return JSON.stringify({ web: ['id-1'] });
+            if (key === 'REQUIRED_PLATFORMS') return '[]';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const initLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: initLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: emptyPlatformsConfig },
+        ],
+      }).compile();
+
+      expect(initLogger.warn).toHaveBeenCalledWith(
+        'No required platforms configured',
+        { step: 'init' },
+      );
     });
   });
 });

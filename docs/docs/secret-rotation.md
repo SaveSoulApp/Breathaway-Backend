@@ -444,6 +444,55 @@ When third-party providers (Razorpay, Meta) rotate their webhook HMAC signing ke
 
 ---
 
+### Recipe 4: Client Identity Keys (`API_KEYS` & `CLIENT_IDS`)
+
+Ingress keys for `x-api-key` and `x-client-id` are stored strictly as platform-keyed JSON objects (`android`, `ios`, `web`, `postman`) to enforce cross-platform isolation:
+
+#### 1. Fetch Current Secret JSON
+
+```bash
+gcloud secrets versions access latest --secret=api-keys --project="${PROJECT_ID}" > api_keys.json
+gcloud secrets versions access latest --secret=client-ids --project="${PROJECT_ID}" > client_ids.json
+```
+
+#### 2. Append New Key to Platform Array (Zero-Downtime Rollout)
+
+To rotate a platform's key without breaking in-flight clients or older mobile app installs, **append** the new UUID alongside the old one:
+
+```json
+{
+  "android": ["b9642b9e-f42b-40eb-815c-23a00801f353"],
+  "ios": [
+    "1a88387a-2acb-4bd9-9dee-731b1376de7d",
+    "c5d6e7f8-0123-4567-89ab-cdef01234567"
+  ],
+  "web": ["d12e7628-4668-4d8a-9d03-564df85d1264"],
+  "postman": ["e5f6a7b8-c9d0-4123-d3ef-123456789012"]
+}
+```
+
+> [!WARNING] Cross-Platform Key Uniqueness
+> Never reuse the same UUID across multiple platform arrays. `ClientIdentityGuard` enforces unique platform bindings. If a duplicate is detected, it logs a warning in Cloud Logging and retains binding exclusively to the first platform encountered.
+
+#### 3. Upload New Versions to Secret Manager
+
+```bash
+gcloud secrets versions add api-keys --project="${PROJECT_ID}" --data-file=api_keys.json
+gcloud secrets versions add client-ids --project="${PROJECT_ID}" --data-file=client_ids.json
+```
+
+#### 4. Deploy Cloud Run Revision
+
+```bash
+./scripts/deploy/deploy.sh --env=prod
+```
+
+#### 5. Deprecate Old Key (Post-Adoption)
+
+Once the client app update is adopted by users, remove the deprecated key from the platform array, publish a final secret version, and re-deploy.
+
+---
+
 ## 🚨 Emergency Rollback Runbook
 
 If a newly deployed secret version causes container crashes, database disconnects, or authentication failures:

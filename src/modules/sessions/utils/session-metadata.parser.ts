@@ -81,12 +81,20 @@ export class SessionMetadataParser {
 
     const rawModel = this.resolveDeviceModel(parsed);
 
+    const isNode =
+      trimmed.toLowerCase().startsWith('node') ||
+      trimmed.toLowerCase().includes('node/');
+    const isPostman = trimmed.toLowerCase().includes('postman');
+
     // Standard browser requests represent web application sessions regardless of mobile or desktop OS
     return {
       platform: DevicePlatform.WEB,
-      deviceModel: rawModel,
-      os: rawOs || null,
-      browser: rawBrowser || null,
+      deviceModel:
+        rawModel ||
+        (isNode ? 'Node.js Server' : isPostman ? 'Postman Client' : null),
+      os: rawOs || (isNode ? 'Node.js' : isPostman ? 'Postman' : null),
+      browser:
+        rawBrowser || (isNode ? 'Node.js' : isPostman ? 'Postman' : null),
       appVersion: null,
     };
   }

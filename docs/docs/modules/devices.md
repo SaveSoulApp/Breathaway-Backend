@@ -21,13 +21,14 @@ The `DevicesModule` manages FCM (Firebase Cloud Messaging) device tokens, tying 
 
 ### 1. Multi-Platform Support (`DevicePlatform`)
 
-BreathAway supports three target platforms defined in Prisma `DevicePlatform`:
+BreathAway supports target client platforms defined in the [`Platform`](file:///src/common/interfaces/client-identity.interface.ts) enum (`android`, `ios`, `web`, `postman`), which map cleanly to database-level Prisma `DevicePlatform` values:
 
-- `IOS`: Apple mobile devices (dispatched via APNs).
-- `ANDROID`: Android mobile devices (dispatched via FCM Android payload).
-- `WEB`: Modern desktop and mobile web browsers running Service Workers (dispatched via FCM WebPush).
+- `IOS`: Apple mobile devices (`DevicePlatform.IOS`, dispatched via APNs).
+- `ANDROID`: Android mobile devices (`DevicePlatform.ANDROID`, dispatched via FCM Android payload).
+- `WEB`: Modern desktop and mobile web browsers running Service Workers (`DevicePlatform.WEB`, dispatched via FCM WebPush).
+- `POSTMAN`: Developer / automated API testing clients (`Platform.POSTMAN`), mapped automatically to `DevicePlatform.WEB` for database persistence.
 
-Incoming API requests sending `platform: "web"` (case-insensitive) are automatically mapped to `DevicePlatform.WEB`.
+Incoming API requests sending `platform: "web"` or `platform: "postman"` (case-insensitive) are automatically mapped to `DevicePlatform.WEB`.
 
 ### 2. Multi-Device Delivery & Token Lifecycle
 

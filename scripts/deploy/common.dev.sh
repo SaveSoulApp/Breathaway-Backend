@@ -26,7 +26,7 @@ export DEPLOYMENT_ENV='gcp'
 export SHOULD_LOG_RESPONSE='false'
 export IS_THROTTLING_ENABLED_VIA_REDIS='false'
 export APP_NAME="BreathAway"
-export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'
+export REQUIRED_PLATFORMS='["ios","android","web","postman"]'
 export MIN_APP_VERSION="1.0.0"
 export CORS_ORIGINS='["http://localhost:3000","http://localhost:5173","https://dev.breathaway.app"]'
 
@@ -62,7 +62,7 @@ export SENDGRID_API_KEY='SG.some-api-key'
 
 # WhatsApp provider configuration
 export WHATSAPP_PROVIDER='liteapp'
-export LITEAPP_WHATSAPP_URL='https://dev.liteapp.store'
+export LITEAPP_WHATSAPP_URL='https://www.liteapp.store'
 
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment

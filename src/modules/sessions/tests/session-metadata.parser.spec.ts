@@ -88,6 +88,30 @@ describe('SessionMetadataParser', () => {
       expect(result.os).toBe('Android 16');
       expect(result.browser).toBe('Mobile Chrome 155.0.0.0');
     });
+
+    it('should parse node runtime User-Agent for server-side web requests', () => {
+      const result = SessionMetadataParser.parse('node');
+
+      expect(result).toEqual({
+        platform: DevicePlatform.WEB,
+        deviceModel: 'Node.js Server',
+        os: 'Node.js',
+        browser: 'Node.js',
+        appVersion: null,
+      });
+    });
+
+    it('should parse Postman User-Agent', () => {
+      const result = SessionMetadataParser.parse('PostmanRuntime/7.39.0');
+
+      expect(result).toEqual({
+        platform: DevicePlatform.WEB,
+        deviceModel: 'Postman Client',
+        os: 'Postman',
+        browser: 'Postman',
+        appVersion: null,
+      });
+    });
   });
 
   describe('Edge cases', () => {

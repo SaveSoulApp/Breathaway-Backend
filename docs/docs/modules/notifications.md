@@ -629,8 +629,8 @@ At runtime, `NotificationsModule` uses NestJS factory injection to bind `WHATSAP
 The `LiteAppWhatsAppAdapter` communicates with LiteApp via standard JSON over HTTP:
 
 - **Endpoint**: `POST ${LITEAPP_WHATSAPP_URL}/api/routes/plugins/whatsapp/send`
-  - Development / Staging: `https://dev.liteapp.store`
-  - Production: `https://liteapp.store`
+  - Development / Staging: `https://www.liteapp.store`
+  - Production: `https://www.liteapp.store`
 - **Headers**:
   - `Authorization: Bearer ${LITEAPP_WHATSAPP_KEY}`
   - `Content-Type: application/json`
@@ -1079,7 +1079,7 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo                          | `no-reply@breathaway.app`                             |
 | `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                          |
 | `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                             |
-| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://dev.liteapp.store` / `https://liteapp.store` |
+| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://www.liteapp.store` |
 | `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                              |
 | `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication   | `redis://default:••••@10.0.0.5:6379`                  |
 | `APP_URL`                    | String | Base frontend or universal deep-link URL                             | `https://app.breathaway.app`                          |

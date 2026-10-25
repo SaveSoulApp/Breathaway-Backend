@@ -34,7 +34,7 @@ export class LiteAppWhatsAppAdapter
 
     const rawUrl =
       this.configService.get<string>('LITEAPP_WHATSAPP_URL') ||
-      'https://dev.liteapp.store';
+      'https://www.liteapp.store';
     this.baseUrl = rawUrl.replace(/\/+$/, '');
 
     this.apiKey = this.configService.get<string>('LITEAPP_WHATSAPP_KEY') ?? '';
