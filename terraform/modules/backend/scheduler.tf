@@ -125,27 +125,7 @@ resource "google_cloud_scheduler_job" "expire_credit_bundles_job" {
   }
 }
 
-# 12. Create the Warn Expiring Bundles Job (Runs daily at 10:00 AM)
-resource "google_cloud_scheduler_job" "warn_expiring_credit_bundles_job" {
-  name        = "warn-expiring-credit-bundles-job"
-  description = "Internal job to fan-out warnings for credit bundles expiring in 7 days via Maintenance Service"
-  schedule    = "0 10 * * *"
-  time_zone   = "UTC"
-  region      = var.region
-  project     = var.project_id
-
-  http_target {
-    http_method = "POST"
-    uri         = "${data.google_cloud_run_v2_service.maintenance_service.uri}/api/v1/internal/jobs/warn-expiring-bundles"
-
-    oidc_token {
-      service_account_email = google_service_account.scheduler_invoker.email
-      audience              = data.google_cloud_run_v2_service.maintenance_service.uri
-    }
-  }
-}
-
-# 13. Create the Reconcile Payments Job (Runs every 30 minutes)
+# 12. Create the Reconcile Payments Job (Runs every 30 minutes)
 resource "google_cloud_scheduler_job" "reconcile_payments_job" {
   name        = "reconcile-payments-job"
   description = "Polls stale PENDING payment orders against the gateway and settles their status via Maintenance Service"
@@ -172,7 +152,7 @@ resource "google_cloud_scheduler_job" "reconcile_payments_job" {
   }
 }
 
-# 14. Create the Purge Expired User Sessions Job (Runs weekly on Sunday at 03:00 AM UTC)
+# 13. Create the Purge Expired User Sessions Job (Runs weekly on Sunday at 03:00 AM UTC)
 resource "google_cloud_scheduler_job" "purge_expired_user_sessions_job" {
   name        = "purge-expired-user-sessions-job"
   description = "Weekly cleanup of expired user sessions older than 7 days retention via Maintenance Service"

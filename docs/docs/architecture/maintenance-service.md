@@ -168,13 +168,12 @@ export class MaintenanceController {
 
 All cron jobs are managed declaratively in [`terraform/scheduler.tf`](file:///terraform/scheduler.tf) and invoke `maintenance-service` over HTTPS:
 
-| Job Name                               |    Schedule    | Timezone | Endpoint                                       | Purpose                                                                                                                                              |
-| :------------------------------------- | :------------: | :------: | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`rotate-instagram-token-job`**       |  `0 0 1 * *`   |   UTC    | `/api/v1/internal/jobs/rotate-instagram-token` | Rotates Instagram Long-Lived User Access Token monthly (valid 60 days) and uploads the new version to GCP Secret Manager (`access-token-instagram`). |
-| **`expire-credit-bundles-job`**        |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
-| **`warn-expiring-credit-bundles-job`** |  `0 10 * * *`  |   UTC    | `/api/v1/internal/jobs/warn-expiring-bundles`  | Scans credit bundles expiring in exactly 6 to 7 days daily at 10 AM, dispatching advance warning domain events to users.                             |
-| **`reconcile-payments-job`**           | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
-| **`purge-expired-user-sessions-job`**  |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.            |
+| Job Name                              |    Schedule    | Timezone | Endpoint                                       | Purpose                                                                                                                                              |
+| :------------------------------------ | :------------: | :------: | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`rotate-instagram-token-job`**      |  `0 0 1 * *`   |   UTC    | `/api/v1/internal/jobs/rotate-instagram-token` | Rotates Instagram Long-Lived User Access Token monthly (valid 60 days) and uploads the new version to GCP Secret Manager (`access-token-instagram`). |
+| **`expire-credit-bundles-job`**       |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
+| **`reconcile-payments-job`**          | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
+| **`purge-expired-user-sessions-job`** |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.            |
 
 ---
 

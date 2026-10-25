@@ -54,11 +54,6 @@ moved {
 }
 
 moved {
-  from = google_cloud_scheduler_job.warn_expiring_credit_bundles_job
-  to   = module.backend.google_cloud_scheduler_job.warn_expiring_credit_bundles_job
-}
-
-moved {
   from = google_logging_linked_dataset.app_logs_bq_link
   to   = module.backend.google_logging_linked_dataset.app_logs_bq_link
 }
