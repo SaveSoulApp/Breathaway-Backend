@@ -192,6 +192,14 @@ resolve_secret_versions() {
 build_env_vars_string() {
     local swagger_enabled="${1:-${SWAGGER_ENABLED}}"
 
+    # Auto-resolve live Cloud Run URLs for OIDC audience validation if available
+    local public_url maint_url
+    public_url=$(gcloud run services describe "${SERVICE_NAME}" --project="${PROJECT_ID}" --region="${REGION}" --format="value(status.url)" 2>/dev/null || true)
+    maint_url=$(gcloud run services describe "${MAINTENANCE_SERVICE_NAME:-maintenance-service}" --project="${PROJECT_ID}" --region="${REGION}" --format="value(status.url)" 2>/dev/null || true)
+    if [[ -n "${public_url}" && -n "${maint_url}" ]]; then
+        GCP_OIDC_AUDIENCE="${public_url},${maint_url}"
+    fi
+
     local env_vars=(
         "NODE_ENV=${NODE_ENV}"
         "LOG_LEVEL=${LOG_LEVEL}"
