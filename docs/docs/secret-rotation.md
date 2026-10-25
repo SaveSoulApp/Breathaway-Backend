@@ -56,7 +56,7 @@ Every secret managed in Google Cloud Secret Manager requires coordinated synchro
 ```mermaid
 flowchart TD
     subgraph SecretManager ["GCP Secret Manager (Cloud Storage of Secrets)"]
-        SM_DEV["breathaway-dev<br/>(e.g. database-url:15)"]
+        SM_DEV["breathaway-development<br/>(e.g. database-url:15)"]
         SM_PROD["breathaway-prod<br/>(e.g. database-url:3)"]
     end
 

@@ -635,7 +635,7 @@ sequenceDiagram
 
 #### 1. Prerequisites
 
-- The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-dev` / `breathaway-prod`) with the **Editor** or **Owner** role.
+- The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-development` / `breathaway-prod`) with the **Editor** or **Owner** role.
 - Google Cloud CLI (`gcloud`) installed locally.
 
 #### 2. Generating the Token
@@ -685,7 +685,7 @@ To enable dynamic IAM evaluation, the GCP project and runtime environment requir
 The GCP Cloud Resource Manager API must be enabled on the project to allow the backend to query project IAM policies:
 
 ```bash
-gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
+gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-development
 ```
 
 #### 2. Service Account Permissions (Cloud Run)

@@ -23,7 +23,7 @@ describe(GcpOidcAuthGuard.name, () => {
   };
 
   const mockAudience = 'https://backend-service-at7g3x4m6q-el.a.run.app';
-  const mockProjectId = 'breathaway-dev';
+  const mockProjectId = 'breathaway-development';
 
   const spyOnVerifyIdToken = (): jest.SpyInstance =>
     jest.spyOn(
@@ -171,7 +171,8 @@ describe(GcpOidcAuthGuard.name, () => {
         getPayload: jest.fn().mockReturnValue({
           iss: 'https://attacker.example.com',
           aud: mockAudience,
-          email: 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com',
+          email:
+            'pubsub-invoker@breathaway-development.iam.gserviceaccount.com',
           email_verified: true,
         }),
       } as unknown as LoginTicket;
@@ -200,7 +201,8 @@ describe(GcpOidcAuthGuard.name, () => {
         getPayload: jest.fn().mockReturnValue({
           iss: 'https://accounts.google.com',
           aud: 'https://different-service.a.run.app',
-          email: 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com',
+          email:
+            'pubsub-invoker@breathaway-development.iam.gserviceaccount.com',
           email_verified: true,
         }),
       } as unknown as LoginTicket;
@@ -229,7 +231,8 @@ describe(GcpOidcAuthGuard.name, () => {
         getPayload: jest.fn().mockReturnValue({
           iss: 'https://accounts.google.com',
           aud: mockAudience,
-          email: 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com',
+          email:
+            'pubsub-invoker@breathaway-development.iam.gserviceaccount.com',
           email_verified: false,
         }),
       } as unknown as LoginTicket;
@@ -290,7 +293,7 @@ describe(GcpOidcAuthGuard.name, () => {
       configService.get.mockImplementation((key: string) => {
         if (key === 'GCP_OIDC_AUDIENCE') return mockAudience;
         if (key === 'GCP_OIDC_ALLOWED_EMAILS') {
-          return 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com,scheduler-invoker@breathaway-dev.iam.gserviceaccount.com';
+          return 'pubsub-invoker@breathaway-development.iam.gserviceaccount.com,scheduler-invoker@breathaway-development.iam.gserviceaccount.com';
         }
         return undefined;
       });
@@ -299,7 +302,8 @@ describe(GcpOidcAuthGuard.name, () => {
         getPayload: jest.fn().mockReturnValue({
           iss: 'https://accounts.google.com',
           aud: mockAudience,
-          email: 'unauthorized-sa@breathaway-dev.iam.gserviceaccount.com',
+          email:
+            'unauthorized-sa@breathaway-development.iam.gserviceaccount.com',
           email_verified: true,
         }),
       } as unknown as LoginTicket;
@@ -359,7 +363,7 @@ describe(GcpOidcAuthGuard.name, () => {
       const mockPayload: Partial<TokenPayload> = {
         iss: 'https://accounts.google.com',
         aud: mockAudience,
-        email: 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com',
+        email: 'pubsub-invoker@breathaway-development.iam.gserviceaccount.com',
         email_verified: true,
       };
 
@@ -391,7 +395,7 @@ describe(GcpOidcAuthGuard.name, () => {
       configService.get.mockImplementation((key: string) => {
         if (key === 'GCP_OIDC_AUDIENCE') return mockAudience;
         if (key === 'GCP_OIDC_ALLOWED_EMAILS') {
-          return 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com';
+          return 'pubsub-invoker@breathaway-development.iam.gserviceaccount.com';
         }
         return undefined;
       });
@@ -399,7 +403,7 @@ describe(GcpOidcAuthGuard.name, () => {
       const mockPayload: Partial<TokenPayload> = {
         iss: 'accounts.google.com',
         aud: mockAudience,
-        email: 'pubsub-invoker@breathaway-dev.iam.gserviceaccount.com',
+        email: 'pubsub-invoker@breathaway-development.iam.gserviceaccount.com',
         email_verified: true,
       };
 
@@ -437,7 +441,8 @@ describe(GcpOidcAuthGuard.name, () => {
       const mockPayload: Partial<TokenPayload> = {
         iss: 'accounts.google.com',
         aud: maintenanceAudience,
-        email: 'scheduler-invoker@breathaway-dev.iam.gserviceaccount.com',
+        email:
+          'scheduler-invoker@breathaway-development.iam.gserviceaccount.com',
         email_verified: true,
       };
 

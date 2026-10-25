@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-PROJECT_ID = "breathaway-dev"
+PROJECT_ID = "breathaway-development"
 REGION = "asia-south1"
 REPOSITORY = "breathaway-backend"
 SERVICE_NAME = "backend-service"
@@ -185,7 +185,7 @@ def cleanup_artifact_registry(surviving_images: set[str], deleted_images: set[st
 
     for img in images:
         # The fully-qualified digest reference, e.g.:
-        #   asia-south1-docker.pkg.dev/breathaway-dev/breathaway-backend/backend-service@sha256:abc123
+        #   asia-south1-docker.pkg.dev/breathaway-development/breathaway-backend/backend-service@sha256:abc123
         digest = img.get("digest", "")
         image_with_digest = f"{IMAGE_BASE_URL}@{digest}" if digest else None
 

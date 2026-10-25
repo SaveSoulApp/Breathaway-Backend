@@ -4,7 +4,7 @@
 # Environment Configuration: Development
 # ==============================================================================
 
-export PROJECT_ID="breathaway-dev"
+export PROJECT_ID="breathaway-development"
 export REGION="asia-south1"
 export REPOSITORY="breathaway-backend"
 export SERVICE_NAME="backend-service"

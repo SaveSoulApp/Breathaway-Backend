@@ -7,7 +7,7 @@
 # Make sure you are logged in to gcloud before running: `gcloud auth login`
 # ==============================================================================
 
-PROJECT_ID="breathaway-dev" # Replace with your actual GCP Project ID
+PROJECT_ID="breathaway-development" # Replace with your actual GCP Project ID
 GITHUB_REPO="SaveSoulApp/Breathaway-Backend" # Replace with your actual GitHub username/repo (e.g., SaveSoulApp/Breathaway-Backend)
 
 SERVICE_ACCOUNT_NAME="github-actions-cloud-run"

@@ -26,7 +26,8 @@ export class BigQueryAuditService extends BaseService {
   ) {
     super(logger);
     this.projectId =
-      this.configService.get<string>('GCP_PROJECT_ID') ?? 'breathaway-dev';
+      this.configService.get<string>('GCP_PROJECT_ID') ??
+      'breathaway-development';
     this.datasetId =
       this.configService.get<string>('AUDIT_BIGQUERY_DATASET') ??
       'audit_logs_dataset';

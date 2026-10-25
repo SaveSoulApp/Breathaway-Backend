@@ -142,12 +142,12 @@ export TOKEN=$(gcloud auth print-identity-token)
 
 1. **Enable Cloud Resource Manager API**:
    ```bash
-   gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
+   gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-development
    ```
 2. **Grant IAM Permissions to Backend Service Account**:
    ```bash
-   gcloud projects add-iam-policy-binding breathaway-dev \
-     --member="serviceAccount:backend-service@breathaway-dev.iam.gserviceaccount.com" \
+   gcloud projects add-iam-policy-binding breathaway-development \
+     --member="serviceAccount:backend-service@breathaway-development.iam.gserviceaccount.com" \
      --role="roles/browser"
    ```
 3. **Localhost Development**:

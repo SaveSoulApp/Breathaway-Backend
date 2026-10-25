@@ -12,7 +12,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "breathaway-dev-terraform-state"
+    bucket = "breathaway-development-terraform-state"
     prefix = "dev"
   }
 }
