@@ -107,7 +107,7 @@ export const envValidationSchema = Joi.object({
 
   // WhatsApp Notifications Provider & Credentials
   WHATSAPP_PROVIDER: Joi.string().valid('liteapp', 'meta').default('liteapp'),
-  LITEAPP_WHATSAPP_URL: Joi.string().uri().default('https://dev.liteapp.store'),
+  LITEAPP_WHATSAPP_URL: Joi.string().uri().default('https://www.liteapp.store'),
   LITEAPP_WHATSAPP_KEY: Joi.string().optional(),
 
   // Swagger Documentation Access Control

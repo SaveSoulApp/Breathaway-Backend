@@ -63,7 +63,7 @@ export SENDGRID_API_KEY='SG.some-api-key'
 
 # WhatsApp provider configuration
 export WHATSAPP_PROVIDER='liteapp'
-export LITEAPP_WHATSAPP_URL='https://liteapp.store'
+export LITEAPP_WHATSAPP_URL='https://www.liteapp.store'
 
 # Swagger UI Access Control
 # Set to 'false' to completely disable Swagger UI on this environment
