@@ -19,7 +19,7 @@ export const WHATSAPP_TEMPLATE_MAP: Partial<
   Record<NotificationType, WhatsAppTemplateConfig>
 > = {
   [NotificationType.NEW_MATCH]: {
-    template: 'breathaway_new_match',
+    template: 'breathaway_new_match_v2',
     language: 'en',
   },
   [NotificationType.WELCOME]: {
