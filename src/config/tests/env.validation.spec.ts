@@ -81,7 +81,7 @@ describe('envValidationSchema', () => {
 
       // WhatsApp defaults
       expect(value.WHATSAPP_PROVIDER).toBe('liteapp');
-      expect(value.LITEAPP_WHATSAPP_URL).toBe('https://dev.liteapp.store');
+      expect(value.LITEAPP_WHATSAPP_URL).toBe('https://www.liteapp.store');
 
       // Swagger defaults
       expect(value.SWAGGER_ENABLED).toBe('true');
