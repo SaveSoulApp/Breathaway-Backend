@@ -20,6 +20,11 @@ import {
 
 export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
 
+interface PlatformKeyConfig {
+  allKeys: Set<string>;
+  keyPlatformMap: Map<string, Platform>;
+}
+
 /**
  * Restricts access based on strict client identity verification, enforcing API keys,
  * client IDs, and required platform/version constraints.
@@ -29,8 +34,8 @@ export const SKIP_CLIENT_IDENTITY_META = 'skipClientIdentity';
  */
 @Injectable()
 export class ClientIdentityGuard implements CanActivate {
-  private readonly validApiKeys: Set<string>;
-  private readonly validClientIds: Set<string>;
+  private readonly apiKeyConfig: PlatformKeyConfig;
+  private readonly clientIdConfig: PlatformKeyConfig;
   private readonly requiredPlatforms: Set<string>;
   private readonly minAppVersion: string;
   private readonly appName: string;
@@ -42,19 +47,19 @@ export class ClientIdentityGuard implements CanActivate {
     private readonly configService: ConfigService,
   ) {
     this.logger = loggerService.forContext(ClientIdentityGuard.name);
-    this.validApiKeys = this.parseJsonConfig('API_KEYS', '[]');
-    this.validClientIds = this.parseJsonConfig('CLIENT_IDS', '[]');
-    this.requiredPlatforms = this.parseJsonConfig('REQUIRED_PLATFORMS', '[]');
+    this.apiKeyConfig = this.parsePlatformKeyedConfig('API_KEYS', '{}');
+    this.clientIdConfig = this.parsePlatformKeyedConfig('CLIENT_IDS', '{}');
+    this.requiredPlatforms = this.parsePlatformSet('REQUIRED_PLATFORMS', '[]');
     this.minAppVersion = this.configService.get<string>(
       'MIN_APP_VERSION',
       '1.0.0',
     );
     this.appName = this.configService.get<string>('APP_NAME', '');
 
-    if (this.validApiKeys.size === 0) {
+    if (this.apiKeyConfig.allKeys.size === 0) {
       this.logger.warn('No valid API keys configured', { step: 'init' });
     }
-    if (this.validClientIds.size === 0) {
+    if (this.clientIdConfig.allKeys.size === 0) {
       this.logger.warn('No valid Client IDs configured', { step: 'init' });
     }
   }
@@ -86,14 +91,17 @@ export class ClientIdentityGuard implements CanActivate {
     const apiKey = headers['x-api-key'];
     if (!apiKey)
       throw new UnauthorizedException('x-api-key header is required');
-    if (typeof apiKey !== 'string' || !this.validApiKeys.has(apiKey)) {
+    if (typeof apiKey !== 'string' || !this.apiKeyConfig.allKeys.has(apiKey)) {
       throw new UnauthorizedException('Invalid API Key');
     }
 
     const clientId = headers['x-client-id'];
     if (!clientId)
       throw new BadRequestException('x-client-id header is required');
-    if (typeof clientId !== 'string' || !this.validClientIds.has(clientId)) {
+    if (
+      typeof clientId !== 'string' ||
+      !this.clientIdConfig.allKeys.has(clientId)
+    ) {
       throw new UnauthorizedException('Invalid Client ID');
     }
 
@@ -104,6 +112,26 @@ export class ClientIdentityGuard implements CanActivate {
       );
     }
 
+    // Authoritatively resolve client platform from dedicated Client ID (and cross-validate with API Key)
+    const clientPlatform = this.clientIdConfig.keyPlatformMap.get(clientId);
+    const apiPlatform = this.apiKeyConfig.keyPlatformMap.get(apiKey);
+
+    if (!clientPlatform) {
+      throw new UnauthorizedException('Invalid Client ID platform assignment');
+    }
+
+    if (apiPlatform && clientPlatform !== apiPlatform) {
+      throw new UnauthorizedException(
+        `API Key platform (${apiPlatform}) does not match Client ID platform (${clientPlatform})`,
+      );
+    }
+
+    if (!this.isPlatformAllowed(clientPlatform)) {
+      throw new UnauthorizedException(
+        `Invalid platform. Supported: ${Array.from(this.requiredPlatforms).join(', ')}`,
+      );
+    }
+
     const userAgent = UserAgentUtils.resolveCanonicalUserAgent(headers);
 
     if (!userAgent)
@@ -111,7 +139,7 @@ export class ClientIdentityGuard implements CanActivate {
         'User-Agent or x-user-agent header is required',
       );
 
-    const uaData = this.validateAndParseUserAgent(userAgent);
+    const uaData = this.validateAndParseUserAgent(userAgent, clientPlatform);
 
     // Attach validated data strictly typed to the interface
     request.clientIdentity = {
@@ -124,67 +152,83 @@ export class ClientIdentityGuard implements CanActivate {
     return true;
   }
 
-  private validateAndParseUserAgent(userAgent: string): UserAgentData {
+  private validateAndParseUserAgent(
+    userAgent: string,
+    clientPlatform: Platform,
+  ): UserAgentData {
     const regex = /^([^/]+)\/([^\s]+)\s+\(([^\s]+)\s+([^;]+);\s*([^)]+)\)$/;
     const match = userAgent.match(regex);
 
-    if (match) {
-      const [, parsedAppName, version, platform, osVersion, deviceModel] =
-        match;
+    // 1. Authoritative Web Platform: Accept browser, SSR (node/axios), or structured web placeholder
+    if (clientPlatform === Platform.WEB) {
+      if (match) {
+        const [, parsedAppName, version, , osVersion, deviceModel] = match;
+        return {
+          appName: parsedAppName,
+          version,
+          platform: Platform.WEB,
+          osVersion,
+          deviceModel,
+        };
+      }
+      return this.parseWebUserAgent(userAgent);
+    }
 
-      const matchingPlatform = Array.from(this.requiredPlatforms).find(
-        (p) => p.toLowerCase() === platform.toLowerCase(),
+    // 2. Authoritative Postman Platform: Accept PostmanRuntime or custom format
+    if (clientPlatform === Platform.POSTMAN) {
+      if (match) {
+        const [, parsedAppName, version, , osVersion, deviceModel] = match;
+        return {
+          appName: parsedAppName,
+          version,
+          platform: Platform.POSTMAN,
+          osVersion,
+          deviceModel,
+        };
+      }
+      return this.parsePostmanUserAgent(userAgent);
+    }
+
+    // 3. Authoritative Mobile Platforms (iOS & Android): Strictly require custom app user-agent
+    if (!match) {
+      throw new BadRequestException(
+        `User-Agent format is invalid: expected ${this.appName || 'BreathAway'}/Version (${clientPlatform} OSVersion; DeviceModel)`,
       );
-
-      if (!matchingPlatform) {
-        throw new UnauthorizedException(
-          `Invalid platform. Supported: ${Array.from(this.requiredPlatforms).join(', ')}`,
-        );
-      }
-
-      const isWeb = (platform.toLowerCase() as Platform) === Platform.WEB;
-      if (!isWeb && !this.isVersionValid(version)) {
-        throw new UnauthorizedException(
-          `App version must be at least ${this.minAppVersion}`,
-        );
-      }
-
-      return {
-        appName: parsedAppName,
-        version,
-        platform: platform.toLowerCase() as Platform,
-        osVersion,
-        deviceModel,
-      };
     }
 
-    // Fallback: Support standard browser User-Agent strings for web clients
-    const parsedUa = new UAParser(userAgent).getResult();
-    if (parsedUa.browser.name || parsedUa.os.name) {
-      return this.parseBrowserUserAgent(parsedUa);
+    const [, parsedAppName, version, rawPlatform, osVersion, deviceModel] =
+      match;
+    const uaPlatform = this.normalizePlatformEnum(rawPlatform);
+
+    if (uaPlatform !== clientPlatform) {
+      throw new UnauthorizedException(
+        `User-Agent platform (${rawPlatform}) does not match Client ID platform (${clientPlatform})`,
+      );
     }
 
-    throw new BadRequestException(
-      `User-Agent format is invalid: expected ${this.appName}/Version (Platform OSVersion; DeviceModel) or valid browser User-Agent`,
-    );
+    if (!this.isVersionValid(version)) {
+      throw new UnauthorizedException(
+        `App version must be at least ${this.minAppVersion}`,
+      );
+    }
+
+    return {
+      appName: parsedAppName,
+      version,
+      platform: clientPlatform,
+      osVersion,
+      deviceModel,
+    };
   }
 
-  private parseBrowserUserAgent(result: UAParser.IResult): UserAgentData {
-    const matchingPlatform = Array.from(this.requiredPlatforms).find(
-      (p) => p.toLowerCase() === (Platform.WEB as string),
-    );
-
-    if (!matchingPlatform) {
-      throw new UnauthorizedException(
-        `Invalid platform. Supported: ${Array.from(this.requiredPlatforms).join(', ')}`,
-      );
-    }
+  private parseWebUserAgent(userAgent: string): UserAgentData {
+    const parsedUa = new UAParser(userAgent).getResult();
 
     const osVersion =
-      [result.os.name, result.os.version].filter(Boolean).join(' ') ||
-      'Browser';
+      [parsedUa.os.name, parsedUa.os.version].filter(Boolean).join(' ') ||
+      this.resolveFallbackOs(parsedUa, userAgent);
 
-    const deviceModel = this.resolveBrowserDeviceModel(result);
+    const deviceModel = this.resolveBrowserDeviceModel(parsedUa, userAgent);
 
     return {
       appName: this.appName || 'BreathAway',
@@ -195,7 +239,41 @@ export class ClientIdentityGuard implements CanActivate {
     };
   }
 
-  private resolveBrowserDeviceModel(result: UAParser.IResult): string {
+  private parsePostmanUserAgent(userAgent: string): UserAgentData {
+    const postmanMatch = userAgent.match(/PostmanRuntime\/([^\s]+)/i);
+    const postmanVersion = postmanMatch ? postmanMatch[1] : '1.0.0';
+
+    return {
+      appName: this.appName || 'BreathAway',
+      version: postmanVersion,
+      platform: Platform.POSTMAN,
+      osVersion: 'Postman',
+      deviceModel: 'Postman Client',
+    };
+  }
+
+  private resolveFallbackOs(
+    result: UAParser.IResult,
+    rawUserAgent: string,
+  ): string {
+    const parsedOs = [result.os.name, result.os.version]
+      .filter(Boolean)
+      .join(' ');
+    if (parsedOs) return parsedOs;
+
+    const lower = rawUserAgent.toLowerCase();
+    if (lower.startsWith('node') || lower.includes('node/')) return 'Node.js';
+    if (lower.includes('macintosh') || lower.includes('mac os')) return 'macOS';
+    if (lower.includes('windows')) return 'Windows';
+    if (lower.includes('linux')) return 'Linux';
+
+    return 'Browser';
+  }
+
+  private resolveBrowserDeviceModel(
+    result: UAParser.IResult,
+    rawUserAgent?: string,
+  ): string {
     const browserIdentifier = [result.browser.name, result.browser.version]
       .filter(Boolean)
       .join(' ');
@@ -211,8 +289,17 @@ export class ClientIdentityGuard implements CanActivate {
         return this.formatDeviceName(result.device, 'Wearable');
       case 'console':
         return this.formatDeviceName(result.device, 'Console');
-      default:
-        return browserIdentifier || result.device.model || 'Desktop';
+      default: {
+        if (browserIdentifier) return browserIdentifier;
+        if (result.device.model) return result.device.model;
+
+        const lower = (rawUserAgent || '').toLowerCase();
+        if (lower.startsWith('node') || lower.includes('node/')) {
+          return 'Node.js Server';
+        }
+
+        return 'Desktop';
+      }
     }
   }
 
@@ -244,7 +331,74 @@ export class ClientIdentityGuard implements CanActivate {
     return false;
   }
 
-  private parseJsonConfig(envKey: string, fallback: string): Set<string> {
+  private isPlatformAllowed(platform: Platform | string): boolean {
+    const platformLower = String(platform).toLowerCase().trim();
+    return Array.from(this.requiredPlatforms).some(
+      (p) => p.toLowerCase().trim() === platformLower,
+    );
+  }
+
+  private normalizePlatformEnum(rawPlatform: string): Platform | undefined {
+    const lower = rawPlatform.toLowerCase().trim();
+    if (lower === (Platform.ANDROID as string)) return Platform.ANDROID;
+    if (lower === (Platform.IOS as string)) return Platform.IOS;
+    if (lower === (Platform.WEB as string)) return Platform.WEB;
+    if (lower === (Platform.POSTMAN as string)) return Platform.POSTMAN;
+    return undefined;
+  }
+
+  private parsePlatformKeyedConfig(
+    envKey: string,
+    fallback: string,
+  ): PlatformKeyConfig {
+    const rawValue = this.configService.get<string>(envKey, fallback);
+    const allKeys = new Set<string>();
+    const keyPlatformMap = new Map<string, Platform>();
+
+    try {
+      const parsed = JSON.parse(rawValue) as unknown;
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(
+          'Config must be a JSON object mapping platform names to arrays of keys',
+        );
+      }
+
+      let foundValidPlatform = false;
+      for (const [platformKey, platformKeys] of Object.entries(parsed)) {
+        const normalizedPlatform = this.normalizePlatformEnum(platformKey);
+        if (normalizedPlatform && Array.isArray(platformKeys)) {
+          foundValidPlatform = true;
+          for (const item of platformKeys) {
+            const key = String(item).trim();
+            if (key) {
+              allKeys.add(key);
+              keyPlatformMap.set(key, normalizedPlatform);
+            }
+          }
+        }
+      }
+
+      if (!foundValidPlatform) {
+        throw new Error(
+          'Config object does not contain any valid platform keys (expected android, ios, web, or postman)',
+        );
+      }
+
+      return { allKeys, keyPlatformMap };
+    } catch {
+      this.logger.error(
+        'Failed to parse config as platform-keyed JSON object',
+        {
+          envKey,
+          step: 'parse_config',
+        },
+      );
+      return { allKeys, keyPlatformMap };
+    }
+  }
+
+  private parsePlatformSet(envKey: string, fallback: string): Set<string> {
     const value = this.configService.get<string>(envKey, fallback);
     try {
       const parsed = JSON.parse(value) as unknown[];

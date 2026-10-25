@@ -27,7 +27,7 @@ export DEPLOYMENT_ENV='gcp'
 export IS_THROTTLING_ENABLED_VIA_REDIS='false'
 
 export APP_NAME="BreathAway"
-export REQUIRED_PLATFORMS='["iOS","Android","Web","Postman"]'
+export REQUIRED_PLATFORMS='["ios","android","web","postman"]'
 export MIN_APP_VERSION="1.0.0"
 export CORS_ORIGINS='["https://breathaway.app","https://www.breathaway.app"]'
 

@@ -38,7 +38,7 @@ describe('envValidationSchema', () => {
       expect(value.EMAIL_LOGO_URL).toBeUndefined();
       expect(value.MIN_APP_VERSION).toBe('1.0.0');
       expect(value.REQUIRED_PLATFORMS).toBe(
-        '["iOS","Android","Postman","Web"]',
+        '["ios","android","web","postman"]',
       );
       expect(value.CORS_ORIGINS).toBe(
         '["http://localhost:3000","http://localhost:5173"]',

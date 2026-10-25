@@ -31,7 +31,7 @@ export const envValidationSchema = Joi.object({
   WEBPUSH_BADGE_URL: Joi.string().uri().empty('').optional(),
   EMAIL_LOGO_URL: Joi.string().uri().empty('').optional(),
   MIN_APP_VERSION: Joi.string().default('1.0.0'),
-  REQUIRED_PLATFORMS: Joi.string().default('["iOS","Android","Postman","Web"]'),
+  REQUIRED_PLATFORMS: Joi.string().default('["ios","android","web","postman"]'),
   CORS_ORIGINS: Joi.string().default(
     '["http://localhost:3000","http://localhost:5173"]',
   ),
