@@ -62,6 +62,9 @@ export class ClientIdentityGuard implements CanActivate {
     if (this.clientIdConfig.allKeys.size === 0) {
       this.logger.warn('No valid Client IDs configured', { step: 'init' });
     }
+    if (this.requiredPlatforms.size === 0) {
+      this.logger.warn('No required platforms configured', { step: 'init' });
+    }
   }
 
   /**
@@ -120,7 +123,11 @@ export class ClientIdentityGuard implements CanActivate {
       throw new UnauthorizedException('Invalid Client ID platform assignment');
     }
 
-    if (apiPlatform && clientPlatform !== apiPlatform) {
+    if (!apiPlatform) {
+      throw new UnauthorizedException('Invalid API Key platform assignment');
+    }
+
+    if (clientPlatform !== apiPlatform) {
       throw new UnauthorizedException(
         `API Key platform (${apiPlatform}) does not match Client ID platform (${clientPlatform})`,
       );
@@ -199,6 +206,15 @@ export class ClientIdentityGuard implements CanActivate {
     const [, parsedAppName, version, rawPlatform, osVersion, deviceModel] =
       match;
     const uaPlatform = this.normalizePlatformEnum(rawPlatform);
+
+    if (
+      this.appName &&
+      parsedAppName.toLowerCase() !== this.appName.toLowerCase()
+    ) {
+      throw new UnauthorizedException(
+        `User-Agent app name (${parsedAppName}) does not match expected app name (${this.appName})`,
+      );
+    }
 
     if (uaPlatform !== clientPlatform) {
       throw new UnauthorizedException(
@@ -333,9 +349,7 @@ export class ClientIdentityGuard implements CanActivate {
 
   private isPlatformAllowed(platform: Platform | string): boolean {
     const platformLower = String(platform).toLowerCase().trim();
-    return Array.from(this.requiredPlatforms).some(
-      (p) => p.toLowerCase().trim() === platformLower,
-    );
+    return this.requiredPlatforms.has(platformLower);
   }
 
   private normalizePlatformEnum(rawPlatform: string): Platform | undefined {
@@ -372,8 +386,21 @@ export class ClientIdentityGuard implements CanActivate {
           for (const item of platformKeys) {
             const key = String(item).trim();
             if (key) {
-              allKeys.add(key);
-              keyPlatformMap.set(key, normalizedPlatform);
+              if (keyPlatformMap.has(key)) {
+                this.logger.warn(
+                  'Duplicate key detected across multiple platforms in configuration',
+                  {
+                    envKey,
+                    keyMasked: `${key.slice(0, 4)}...`,
+                    existingPlatform: keyPlatformMap.get(key),
+                    duplicatePlatform: normalizedPlatform,
+                    step: 'parse_config',
+                  },
+                );
+              } else {
+                allKeys.add(key);
+                keyPlatformMap.set(key, normalizedPlatform);
+              }
             }
           }
         }
@@ -403,7 +430,9 @@ export class ClientIdentityGuard implements CanActivate {
     try {
       const parsed = JSON.parse(value) as unknown[];
       if (!Array.isArray(parsed)) throw new Error();
-      return new Set(parsed.map((item) => String(item).trim()).filter(Boolean));
+      return new Set(
+        parsed.map((item) => String(item).toLowerCase().trim()).filter(Boolean),
+      );
     } catch {
       this.logger.error('Failed to parse config as JSON array', {
         envKey,

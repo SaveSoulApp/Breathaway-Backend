@@ -862,7 +862,7 @@ describe(ClientIdentityGuard.name, () => {
               return JSON.stringify({ web: ['web-api-key'] });
             if (key === 'CLIENT_IDS')
               return JSON.stringify({ web: ['web-client-id'] });
-            if (key === 'REQUIRED_PLATFORMS') return '["iOS", "Android"]'; // Web not allowed
+            if (key === 'REQUIRED_PLATFORMS') return '["ios", "android"]'; // Web not allowed
             if (key === 'MIN_APP_VERSION') return '1.0.0';
             if (key === 'APP_NAME') return 'TestApp';
             return defaultValue;
@@ -892,7 +892,7 @@ describe(ClientIdentityGuard.name, () => {
       const context = createMockExecutionContext(mockRequest);
 
       expect(() => restrictedGuard.canActivate(context)).toThrow(
-        new UnauthorizedException('Invalid platform. Supported: iOS, Android'),
+        new UnauthorizedException('Invalid platform. Supported: ios, android'),
       );
     });
   });
@@ -1001,6 +1001,125 @@ describe(ClientIdentityGuard.name, () => {
         new UnauthorizedException(
           'API Key platform (android) does not match Client ID platform (postman)',
         ),
+      );
+    });
+  });
+
+  describe('Hardening and Edge Cases', () => {
+    it('should warn and preserve first platform assignment if a key is duplicated across platforms in config', async () => {
+      const duplicateConfigService = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS')
+              return JSON.stringify({
+                android: ['shared-key'],
+                web: ['shared-key'],
+              });
+            if (key === 'CLIENT_IDS')
+              return JSON.stringify({
+                android: ['android-client-id'],
+                web: ['web-client-id'],
+              });
+            if (key === 'REQUIRED_PLATFORMS') return '["android", "web"]';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const duplicateLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: duplicateLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: duplicateConfigService },
+        ],
+      }).compile();
+
+      const dupGuard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
+
+      expect(duplicateLogger.warn).toHaveBeenCalledWith(
+        'Duplicate key detected across multiple platforms in configuration',
+        expect.objectContaining({
+          envKey: 'API_KEYS',
+          existingPlatform: 'android',
+          duplicatePlatform: 'web',
+          step: 'parse_config',
+        }),
+      );
+
+      // Verify the key stayed bound to the first platform (android)
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'shared-key',
+          'x-client-id': 'web-client-id', // web client ID paired with shared-key (which is bound to android)
+          'x-device-id': 'dev-1',
+          'user-agent': 'node',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => dupGuard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'API Key platform (android) does not match Client ID platform (web)',
+        ),
+      );
+    });
+
+    it('should reject mobile request if User-Agent app name does not match configured APP_NAME', () => {
+      reflector.getAllAndOverride.mockReturnValue(false);
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-ios-api-key',
+          'x-client-id': 'valid-ios-client-id',
+          'x-device-id': 'ios-device-123',
+          'x-user-agent': 'ImposterApp/1.2.0 (iOS 17.5; iPhone15,2)',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => guard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'User-Agent app name (ImposterApp) does not match expected app name (TestApp)',
+        ),
+      );
+    });
+
+    it('should warn on initialization if REQUIRED_PLATFORMS is empty', async () => {
+      const emptyPlatformsConfig = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS') return JSON.stringify({ web: ['key-1'] });
+            if (key === 'CLIENT_IDS') return JSON.stringify({ web: ['id-1'] });
+            if (key === 'REQUIRED_PLATFORMS') return '[]';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const initLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: initLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: emptyPlatformsConfig },
+        ],
+      }).compile();
+
+      expect(initLogger.warn).toHaveBeenCalledWith(
+        'No required platforms configured',
+        { step: 'init' },
       );
     });
   });
