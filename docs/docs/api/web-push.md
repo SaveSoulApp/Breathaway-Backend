@@ -53,7 +53,7 @@ sequenceDiagram
 
 The web app must initialize Firebase using the same project as the backend:
 
-- **Development**: `breathaway-dev-37fd5`
+- **Development**: `breathaway-development`
 - **Production**: `breathaway-prod` (configured via environment)
 
 > [!WARNING]
@@ -85,9 +85,9 @@ importScripts(
 
 firebase.initializeApp({
   apiKey: 'YOUR_FIREBASE_API_KEY',
-  authDomain: 'breathaway-dev-37fd5.firebaseapp.com',
-  projectId: 'breathaway-dev-37fd5',
-  storageBucket: 'breathaway-dev-37fd5.appspot.com',
+  authDomain: 'breathaway-development.firebaseapp.com',
+  projectId: 'breathaway-development',
+  storageBucket: 'breathaway-development.appspot.com',
   messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
   appId: 'YOUR_APP_ID',
 });

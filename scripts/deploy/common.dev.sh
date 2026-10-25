@@ -37,7 +37,7 @@ export DSAR_EXPORT_BUCKET_NAME="${PROJECT_ID}-dsar-exports"
 export META_VERIFY_TOKEN='my_meta_verification_token'
 
 # Firebase Admin SDK Configuration
-export FIREBASE_PROJECT_ID='breathaway-dev-37fd5'
+export FIREBASE_PROJECT_ID='breathaway-development'
 
 # JWT
 export JWT_EXPIRES_IN='15m'
