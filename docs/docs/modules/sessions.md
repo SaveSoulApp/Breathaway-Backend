@@ -68,14 +68,15 @@ The `SessionsService` performs an $O(1)$ correlated join in memory:
 
 ### 3. User-Agent Parsing & Client Metadata
 
-The `SessionMetadataParser` extracts clean, user-friendly device models and browser names from raw HTTP User-Agent strings:
+The [`SessionMetadataParser`](file:///src/modules/sessions/utils/session-metadata.parser.ts) extracts clean, user-friendly device models and browser names from raw HTTP User-Agent strings across mobile, web, and API client environments:
 
 | User-Agent Format                                              | Detected Platform | Device Model / Browser       |
 | :------------------------------------------------------------- | :---------------- | :--------------------------- |
-| `BreathAway/1.0.0 (iOS 17.4; iPhone15)`                        | `IOS`             | `iPhone 15`, iOS 17.4        |
-| `BreathAway/1.0.0 (Android 14; Pixel 8)`                       | `ANDROID`         | `Google Pixel 8`, Android 14 |
-| `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/128.0` | `WEB`             | `Chrome`, macOS              |
-| `Mozilla/5.0 (iPhone; CPU iPhone OS 17_5) Safari/605.1`        | `IOS`             | `Mobile Safari`, iOS         |
+| `BreathAway/1.0.0 (iOS 17.5; iPhone15,2)`                      | `IOS`             | `iPhone15,2`, iOS 17.5       |
+| `BreathAway/2.0.1 (Android 14; SM-S928B)`                      | `ANDROID`         | `SM-S928B`, Android 14       |
+| `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/128.0` | `WEB`             | `Apple Macintosh` / `Chrome` |
+| `node` (Web SSR / Next.js server runtime)                      | `WEB`             | `Node.js Server` / `Node.js` |
+| `PostmanRuntime/7.39.0` (API Testing)                          | `WEB`             | `Postman Client` / `Postman` |
 
 ---
 

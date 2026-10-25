@@ -15,24 +15,56 @@ BreathAway APIs are secured using four distinct authentication layers depending 
 
 ## 📱 1. Client Identity Verification
 
-Enforced globally by `ClientIdentityGuard` on all endpoints. It can be bypassed on specific routes (such as system webhooks or internal endpoints) by applying the `@SkipClientIdentity()` decorator.
+Enforced globally by [`ClientIdentityGuard`](file:///src/common/guards/client-identity.guard.ts) on all incoming client requests. It can be bypassed on specific routes (such as system webhooks or internal cloud tasks) by applying the `@SkipClientIdentity()` decorator.
 
-### Required Request Headers
+### Required Ingress Request Headers
 
-Every standard client request must supply the following headers:
+Every standard client request must supply the following custom headers:
 
-| Header Name    | Type   | Description                                                                                                                                                    | Example                                 |
-| :------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| `x-api-key`    | String | Valid API key matching `API_KEYS`                                                                                                                              | `ba_live_abcdefg1234`                   |
-| `x-client-id`  | String | Valid Client Identifier matching `CLIENT_IDS`                                                                                                                  | `ba_ios_app`                            |
-| `x-device-id`  | String | Unique device identifier (for push / session audits)                                                                                                           | `A12B34CD-56EF-...`                     |
-| `x-user-agent` | String | Must follow: `AppName/Version (Platform OS; Device)`. For web browsers, the standard `user-agent` header is automatically parsed if `x-user-agent` is omitted. | `BreathAway/1.0.0 (iOS 17.4; iPhone15)` |
+| Header Name    | Type   | Description                                                                                                                                              | Example                                 |
+| :------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| `x-api-key`    | String | Valid API key configured for the requesting platform in `API_KEYS`.                                                                                      | `e5f6a7b8-c9d0-4123-d3ef-123456789012`  |
+| `x-client-id`  | String | Valid Client Identifier configured for the requesting platform in `CLIENT_IDS`.                                                                          | `f6a7b8c9-d0e1-4234-e4fa-234567890123`  |
+| `x-device-id`  | String | Unique device identifier (persisted for push notification bindings and user session security audits).                                                    | `A12B34CD-56EF-4012-9A8B-CDEF12345678`  |
+| `x-user-agent` | String | Custom app metadata string or omitted for standard browser ingress. (See [Platform User-Agent Resolution](#platform-user-agent-resolution-rules) below). | `BreathAway/1.0.0 (iOS 17.5; iPhone15)` |
 
-> [!NOTE]
-> **Web Browser Support**: When calling from web applications where setting custom headers may be restricted or omitted, `ClientIdentityGuard` automatically falls back to parsing the standard browser `user-agent` header (`Mozilla/5.0...`). It extracts the browser engine, operating system, and automatically sets `platform: web` with mobile version thresholds bypassed.
+---
+
+### 🛡️ Platform-Keyed Identity & Guardrails
+
+To prevent client impersonation and cross-platform key leakage, `API_KEYS` and `CLIENT_IDS` in Secret Manager / configuration are structured strictly as platform-keyed JSON objects:
+
+```json
+{
+  "android": ["<android-uuid-1>", "<android-uuid-2>"],
+  "ios": ["<ios-uuid-1>"],
+  "web": ["<web-uuid-1>"],
+  "postman": ["<postman-uuid-1>"]
+}
+```
+
+#### Core Verification Guardrails:
+
+1. **Authoritative Platform Resolution**: The client's operational platform is resolved authoritatively from `x-client-id` (`keyPlatformMap.get(clientId)`).
+2. **Symmetrical Key-Platform Alignment**: The `x-api-key`'s registered platform is compared against the resolved `x-client-id` platform. If a mismatch is detected (e.g. an Android API key passed with a Web Client ID), the request is immediately rejected with HTTP `401 Unauthorized` (`API Key platform (android) does not match Client ID platform (web)`).
+3. **Whitelisted Platform Checking ($O(1)$)**: The resolved platform is validated against `REQUIRED_PLATFORMS` (configured in lowercase: `["ios", "android", "web", "postman"]`). Pre-normalized into an internal `Set<string>` at startup for instant $O(1)$ verification without per-request memory allocation.
+4. **Configuration Collision Guardrail**: During startup parsing, if a key is accidentally duplicated across multiple platforms in Secret Manager, `ClientIdentityGuard` emits a structured warning to Cloud Logging with the masked key (`keyMasked: "d290..."`) and locks the key to its first-declared platform, preventing silent overwrites.
+
+---
+
+### 🧭 Platform User-Agent Resolution Rules
+
+User-Agent headers are resolved via [`UserAgentUtils.resolveCanonicalUserAgent`](file:///src/common/utils/user-agent.utils.ts), prioritizing `x-user-agent` for native mobile apps and standard `user-agent` for web browsers:
+
+| Platform      | Permitted User-Agent Formats                                                                                                                            | Version Gate (`MIN_APP_VERSION`)                      | App Name Gate (`APP_NAME`)            | Resolved Device Model / OS Metadata                                              |
+| :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------- |
+| **`ios`**     | `AppName/Version (iOS OSVersion; DeviceModel)`                                                                                                          | **Enforced** ($\ge$ `MIN_APP_VERSION`)                | **Enforced** (`AppName === APP_NAME`) | Extracted directly from custom format tokens.                                    |
+| **`android`** | `AppName/Version (Android OSVersion; DeviceModel)`                                                                                                      | **Enforced** ($\ge$ `MIN_APP_VERSION`)                | **Enforced** (`AppName === APP_NAME`) | Extracted directly from custom format tokens.                                    |
+| **`web`**     | 1. Standard browser `user-agent` (`Mozilla/5.0...`)<br/>2. Node.js SSR runtime (`node`)<br/>3. Synthetic placeholder (`AppName/Version (Web ...; ...)`) | **Bypassed** (Defaults to `1.0.0`)                    | **Bypassed**                          | Parsed via `ua-parser-js`. Node.js SSR resolves to `Node.js Server` / `Node.js`. |
+| **`postman`** | 1. Native Postman runtime (`PostmanRuntime/7.x.x`)<br/>2. Custom developer header strings<br/>3. Synthetic placeholder format                           | **Bypassed** (Defaults to runtime version or `1.0.0`) | **Bypassed**                          | Resolves to `deviceModel: "Postman Client"`, `osVersion: "Postman"`.             |
 
 > [!CAUTION]
-> For mobile apps, if the `x-user-agent` format or version is invalid (e.g. below the `MIN_APP_VERSION` configuration variable), the guard will reject the request with `401 Unauthorized` or `400 Bad Request`.
+> For mobile apps (`ios`, `android`), if the `User-Agent` app name does not match `APP_NAME`, the platform does not match `x-client-id`, or the app version is below `MIN_APP_VERSION`, `ClientIdentityGuard` rejects the request with HTTP `401 Unauthorized`.
 
 ---
 
