@@ -178,24 +178,45 @@ DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supab
 Since this is a fresh Supabase project, execute the chat Realtime publication and RLS policies in the new project:
 
 1. Open the new Supabase Dashboard → **SQL Editor**.
-2. Run the contents of [`supabase/migrations/20260902000000_chat_realtime_rls.sql`](file:///supabase/migrations/20260902000000_chat_realtime_rls.sql):
+2. Run the contents of [`supabase/migrations/20261026133609_chat_realtime_setup.sql`](file:///supabase/migrations/20261026133609_chat_realtime_setup.sql):
 
    ```sql
-   -- 1. Wire both tables into Supabase Realtime
-   ALTER PUBLICATION supabase_realtime ADD TABLE "ChatRoom";
-   ALTER PUBLICATION supabase_realtime ADD TABLE "Message";
+   -- 1. Ensure room-level encryption columns exist on ChatRoom (defensive check)
+   ALTER TABLE public."ChatRoom"
+   ADD COLUMN IF NOT EXISTS "wrappedRoomKey" TEXT,
+   ADD COLUMN IF NOT EXISTS "roomKeyId" VARCHAR(64);
 
-   -- 2. Enable Row Level Security
+   -- 2. Wire ChatRoom and Message into Supabase Realtime logical replication
+   DO $$
+   BEGIN
+     IF NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'ChatRoom'
+     ) THEN
+       ALTER PUBLICATION supabase_realtime ADD TABLE public."ChatRoom";
+     END IF;
+
+     IF NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'Message'
+     ) THEN
+       ALTER PUBLICATION supabase_realtime ADD TABLE public."Message";
+     END IF;
+   END $$;
+
+   -- 3. Enable Row Level Security (RLS)
    ALTER TABLE public."ChatRoom" ENABLE ROW LEVEL SECURITY;
    ALTER TABLE public."Message" ENABLE ROW LEVEL SECURITY;
 
-   -- 3. Client RLS: Users can only READ chat rooms they participate in
+   -- 4. Client RLS: Users can only READ chat rooms they participate in
+   DROP POLICY IF EXISTS "Users can read their own chat rooms" ON public."ChatRoom";
    CREATE POLICY "Users can read their own chat rooms"
    ON public."ChatRoom"
    FOR SELECT
    USING ((auth.jwt() ->> 'sub') = "userOneId" OR (auth.jwt() ->> 'sub') = "userTwoId");
 
-   -- 4. Client RLS: Users can only READ messages in their chat rooms
+   -- 5. Client RLS: Users can only READ messages in their chat rooms
+   DROP POLICY IF EXISTS "Users can read messages in their chat rooms" ON public."Message";
    CREATE POLICY "Users can read messages in their chat rooms"
    ON public."Message"
    FOR SELECT

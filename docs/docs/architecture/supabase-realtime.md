@@ -56,7 +56,7 @@ This document serves as the **definitive operational guide** for configuring, ma
 
 ### Layer 2 — Supabase Infrastructure (`supabase/migrations/`)
 
-The following are **Supabase-specific** and live exclusively in [`supabase/migrations/20260902000000_chat_realtime_rls.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20260902000000_chat_realtime_rls.sql):
+The following are **Supabase-specific** and live exclusively in [`supabase/migrations/20261026133609_chat_realtime_setup.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20261026133609_chat_realtime_setup.sql):
 
 - `ALTER PUBLICATION supabase_realtime ADD TABLE ...` — registers the tables with the logical replication stream.
 - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` — ensures direct client access is locked down.
@@ -136,7 +136,7 @@ WHERE table_name IN ('ChatRoom', 'Message') AND column_name = 'id';
 
 ### Step 2: Apply Supabase Realtime Publication & RLS
 
-Open the **Supabase Dashboard → SQL Editor** for the target environment and execute [`supabase/migrations/20260902000000_chat_realtime_rls.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20260902000000_chat_realtime_rls.sql):
+Open the **Supabase Dashboard → SQL Editor** for the target environment and execute [`supabase/migrations/20261026133609_chat_realtime_setup.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20261026133609_chat_realtime_setup.sql):
 
 ```sql
 -- 1. Wire both tables into Supabase Realtime
@@ -390,8 +390,7 @@ Before opening chat features to real users in production, ensure this checklist 
 
 - [ ] **DDL Applied**: `prisma migrate deploy` executed on Cloud SQL production database.
 - [ ] **UUID Defaults Verified**: `ChatRoom.id` and `Message.id` have `DEFAULT gen_random_uuid()`.
-- [ ] **Room Encryption DDL**: `wrappedRoomKey` (`TEXT NOT NULL`) and `roomKeyId` (`VARCHAR(64) NOT NULL`) applied in PostgreSQL and resolved in Prisma (`prisma migrate resolve --applied 20261016000000_chat_room_encryption_keys`).
-- [ ] **RLS Applied**: `supabase/migrations/20260902000000_chat_realtime_rls.sql` executed in production Supabase SQL Editor.
+- [ ] **RLS & Publication Applied**: `supabase/migrations/20261026133609_chat_realtime_setup.sql` executed in production Supabase SQL Editor.
 - [ ] **Publication Enabled**: `ChatRoom` and `Message` tables confirmed in `supabase_realtime` publication.
 - [ ] **Production Key Imported**: Production ES256 key imported into production Supabase JWT Signing Keys.
 - [ ] **Key Rotated**: Production key promoted to "Current" in Supabase Dashboard.
