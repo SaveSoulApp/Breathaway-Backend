@@ -50,7 +50,7 @@ describe('GcpStorageService', () => {
     };
 
     const mockConfigService = {
-      get: jest.fn().mockReturnValue('breathaway-dev'),
+      get: jest.fn().mockReturnValue('breathaway-development'),
     };
 
     const module: TestingModule = await Test.createTestingModule({

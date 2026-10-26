@@ -81,6 +81,11 @@ if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
 fi
 
 # Locate and source environment configuration
+BASE_CONFIG_FILE="${SCRIPT_DIR}/common.base.sh"
+if [[ ! -f "${BASE_CONFIG_FILE}" ]]; then
+    print_error "Base configuration not found at ${BASE_CONFIG_FILE}"
+fi
+
 ENV_CONFIG_FILE="${SCRIPT_DIR}/common.${ENV}.sh"
 if [[ ! -f "${ENV_CONFIG_FILE}" ]]; then
     print_error "Environment configuration not found at ${ENV_CONFIG_FILE}"
@@ -191,6 +196,14 @@ resolve_secret_versions() {
 # Helper function to generate serialized environment variable string (^~^VAR1=VAL1~VAR2=VAL2)
 build_env_vars_string() {
     local swagger_enabled="${1:-${SWAGGER_ENABLED}}"
+
+    # Auto-resolve live Cloud Run URLs for OIDC audience validation if available
+    local public_url maint_url
+    public_url=$(gcloud run services describe "${SERVICE_NAME}" --project="${PROJECT_ID}" --region="${REGION}" --format="value(status.url)" 2>/dev/null || true)
+    maint_url=$(gcloud run services describe "${MAINTENANCE_SERVICE_NAME:-maintenance-service}" --project="${PROJECT_ID}" --region="${REGION}" --format="value(status.url)" 2>/dev/null || true)
+    if [[ -n "${public_url}" && -n "${maint_url}" ]]; then
+        GCP_OIDC_AUDIENCE="${public_url},${maint_url}"
+    fi
 
     local env_vars=(
         "NODE_ENV=${NODE_ENV}"

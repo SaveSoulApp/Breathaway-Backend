@@ -488,7 +488,7 @@ flowchart TD
     Step3 -- "No" --> Reject
     Step3 -- "Yes" --> Step4{"4. email_verified == true?"}
     Step4 -- "No" --> Reject
-    Step4 -- "Yes" --> Step5{"5. Confused Deputy Defense:<br/>email ends with @GCP_PROJECT_ID<br/>or in ALLOWED_EMAILS whitelist?"}
+    Step4 -- "Yes" --> Step5{"5. Confused Deputy Defense:<br/>email ends with @GCP_PROJECT_ID.iam.gserviceaccount.com?"}
     Step5 -- "No" --> Reject
     Step5 -- "Yes" --> Allow["Approve Request<br/>Attach oidcPayload"]
 ```
@@ -497,7 +497,7 @@ flowchart TD
 2. **Issuer Claim (`iss`)**: Must strictly match `https://accounts.google.com` or `accounts.google.com`.
 3. **Audience Claim (`aud`)**: Must strictly match `GCP_OIDC_AUDIENCE` to prevent cross-service token reuse.
 4. **Verified Email**: Ensures `email_verified: true` and `email` is present.
-5. **Caller Origin & Whitelist**: Ensures `email` ends with `@${GCP_PROJECT_ID}.iam.gserviceaccount.com` (or matches explicit whitelist `GCP_OIDC_ALLOWED_EMAILS`), immediately blocking tokens created in foreign GCP projects.
+5. **Caller Origin**: Ensures `email` ends with `@${GCP_PROJECT_ID}.iam.gserviceaccount.com`, immediately blocking tokens created in foreign GCP projects.
 
 ---
 
@@ -573,9 +573,8 @@ When a request reaches a route protected by `AdminOidcAuthGuard`:
    - Verifies `aud` matches either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
    - Verifies `email_verified: true` and extracts `payload.email`.
 3. **Dynamic GCP IAM Authorization**:
-   - **Step 3A (Config Whitelist)**: Checks `ADMIN_ALLOWED_EMAILS` (comma-separated list). If matched, authorizes immediately (ideal for local dev without cloud access).
-   - **Step 3B (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
-   - **Step 3C (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) or the Cloud Run service account.
+   - **Step 3A (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
+   - **Step 3B (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or the Cloud Run service account in cloud environments.
    - Extracts all members bound to `roles/owner`, `roles/editor`, `roles/resourcemanager.organizationAdmin`, or roles specified in `GCP_ADMIN_IAM_ROLES`.
    - If `user:<email>` is found in the IAM policy bindings, updates the in-memory cache and grants access.
    - If not found, logs a warning and throws `403 Forbidden: Caller does not have administrative permissions in GCP`.
@@ -610,7 +609,7 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Email in ADMIN_ALLOWED_EMAILS or Cache Valid (<5m TTL)
+    alt Cache Valid (<5m TTL)
         Guard->>Guard: Authorize from Cache
     else Cache Expired / Miss
         Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
@@ -635,7 +634,7 @@ sequenceDiagram
 
 #### 1. Prerequisites
 
-- The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-dev` / `breathaway-prod`) with the **Editor** or **Owner** role.
+- The engineer's Google account (`user@gmail.com` or `user@mycompany.com`) must be added to the GCP project (`breathaway-development` / `breathaway-prod`) with the **Editor** or **Owner** role.
 - Google Cloud CLI (`gcloud`) installed locally.
 
 #### 2. Generating the Token
@@ -685,7 +684,7 @@ To enable dynamic IAM evaluation, the GCP project and runtime environment requir
 The GCP Cloud Resource Manager API must be enabled on the project to allow the backend to query project IAM policies:
 
 ```bash
-gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-dev
+gcloud services enable cloudresourcemanager.googleapis.com --project=breathaway-development
 ```
 
 #### 2. Service Account Permissions (Cloud Run)
@@ -705,4 +704,3 @@ _(Alternatively, grant `roles/viewer`)._
 When running the NestJS backend locally on localhost:
 
 - Run `gcloud auth application-default login` so your local Node.js process inherits credentials to query Cloud Resource Manager.
-- Or configure `ADMIN_ALLOWED_EMAILS="your-email@gmail.com"` in your environment variables to bypass cloud IAM API queries locally.

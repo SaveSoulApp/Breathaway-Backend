@@ -26,7 +26,7 @@ export interface AdminUserIdentity {
  *
  * Verifies that incoming Bearer tokens are valid, signed by Google Accounts,
  * and issued to an authorized GCP project administrator (verified dynamically
- * via GCP Cloud Resource Manager IAM policy or configured admin whitelist).
+ * via GCP Cloud Resource Manager IAM policy).
  */
 @Injectable()
 export class AdminOidcAuthGuard implements CanActivate {
@@ -178,30 +178,15 @@ export class AdminOidcAuthGuard implements CanActivate {
   }
 
   /**
-   * Checks whether the given email has administrative authorization.
+   * Checks whether the given email has administrative authorization via GCP IAM.
    */
   private async isAuthorizedAdmin(email: string): Promise<boolean> {
-    // 1. Check explicit environment/config whitelist (useful for testing or explicit overrides)
-    const allowedEmailsConfig = this.configService.get<string>(
-      'ADMIN_ALLOWED_EMAILS',
-    );
-    if (allowedEmailsConfig) {
-      const allowedEmails = allowedEmailsConfig
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-
-      if (allowedEmails.includes(email)) {
-        return true;
-      }
-    }
-
-    // 2. Check cached GCP IAM policy
+    // 1. Check cached GCP IAM policy
     if (this.cachedIamAdminEmails && Date.now() < this.cacheExpiresAt) {
       return this.cachedIamAdminEmails.has(email);
     }
 
-    // 3. Query GCP Cloud Resource Manager IAM policy (deduplicating concurrent in-flight requests)
+    // 2. Query GCP Cloud Resource Manager IAM policy (deduplicating concurrent in-flight requests)
     if (!this.inFlightIamFetch) {
       this.inFlightIamFetch = this.fetchGcpIamAdminEmails()
         .then((emails) => {

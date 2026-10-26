@@ -56,7 +56,7 @@ This document serves as the **definitive operational guide** for configuring, ma
 
 ### Layer 2 — Supabase Infrastructure (`supabase/migrations/`)
 
-The following are **Supabase-specific** and live exclusively in [`supabase/migrations/20260902000000_chat_realtime_rls.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20260902000000_chat_realtime_rls.sql):
+The following are **Supabase-specific** and live exclusively in [`supabase/migrations/20261026133609_chat_realtime_setup.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20261026133609_chat_realtime_setup.sql):
 
 - `ALTER PUBLICATION supabase_realtime ADD TABLE ...` — registers the tables with the logical replication stream.
 - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` — ensures direct client access is locked down.
@@ -73,9 +73,39 @@ Because `userOneId`, `userTwoId`, and `senderId` are plain `text` columns storin
 
 ---
 
-## 🚀 Step-by-Step Runbook: Setting Up Chat Infra for a New Environment
+## 🚀 Step-by-Step Runbook: Setting Up Chat Infra for a New Environment / Fresh Project
 
-Follow these 5 steps when setting up a new environment (e.g., migrating to **Production** or creating a new **Staging** project).
+Follow this guide when configuring a fresh Supabase project, migrating to a new organization/account, or setting up a new environment (**Development, Staging, or Production**).
+
+---
+
+### 🔑 Critical Concept: Understanding the Credentials & The Asymmetric JWT Model
+
+When setting up or migrating to a fresh Supabase project, you must extract and configure **6 core variables**.
+
+A common point of confusion is: **Where do `SUPABASE_JWT_PRIVATE_KEY` and `SUPABASE_JWT_KEY_ID` come from?**
+
+> [!IMPORTANT]
+> **The Supabase Dashboard DOES NOT generate or provide the `SUPABASE_JWT_PRIVATE_KEY`.**
+>
+> BreathAway uses **asymmetric ES256 (ECDSA P-256)** signing for chat tokens:
+>
+> - **The Private Key (`SUPABASE_JWT_PRIVATE_KEY`)** belongs to **you**. You generate it locally or retrieve it from GCP Secret Manager. It lives strictly inside your backend service and GCP Secret Manager. It is **never** shared with clients.
+> - **The Public Key (JWK)** is exported from your private key and **imported into the Supabase Dashboard**.
+> - **The Key ID (`SUPABASE_JWT_KEY_ID`)** is generated and assigned by the **Supabase Dashboard** once you import your JWK key and promote/rotate it to active. Supabase uses this `kid` to match incoming client WebSocket tokens against the public key in its JWKS keystore.
+
+#### Complete Credentials Inventory Checklist
+
+| Variable Name               | Port / Location in Supabase Dashboard                                                 | Description & Role                                                                                      | Where Stored / Configured                                       |
+| :-------------------------- | :------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------- |
+| `DIRECT_URL`                | **Project Settings → Database** (Connection string: **Session mode / Port 5432**)     | Direct connection for Prisma migrations and schema DDL (`prisma migrate`).                              | Local `.env` & CI/CD migration runners                          |
+| `DATABASE_URL`              | **Project Settings → Database** (Connection string: **Transaction mode / Port 6543**) | Pooled connection for high-throughput runtime queries via Supabase Supavisor pooler.                    | GCP Secret Manager (`database-url`) & local `.env`              |
+| `SUPABASE_URL`              | **Project Settings → API** (`https://<project-ref>.supabase.co`)                      | Base REST / WebSocket endpoint for the Supabase project.                                                | GCP Secret Manager (`supabase-url`) & local `.env`              |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Project Settings → API** (Project API Keys: `service_role` secret)                  | High-privilege administrative key that bypasses Row Level Security (RLS) for backend operations.        | GCP Secret Manager (`supabase-service-role-key`) & local `.env` |
+| `SUPABASE_JWT_PRIVATE_KEY`  | **Locally generated OR GCP Secret Manager** (`supabase-jwt-private-key`)              | EC P-256 private key used by NestJS backend to sign short-lived client JWTs. **Not found in Supabase!** | GCP Secret Manager (`supabase-jwt-private-key`) & local `.env`  |
+| `SUPABASE_JWT_KEY_ID`       | **Project Settings → API → JWT Signing Keys** (Key ID column)                         | Key ID UUID (`kid`) assigned by Supabase _after_ you import your JWK and rotate to active.              | `scripts/deploy/common.<env>.sh` & local `.env`                 |
+
+---
 
 ### Step 1: Run the Prisma Database Migration
 
@@ -106,7 +136,7 @@ WHERE table_name IN ('ChatRoom', 'Message') AND column_name = 'id';
 
 ### Step 2: Apply Supabase Realtime Publication & RLS
 
-Open the **Supabase Dashboard → SQL Editor** for the target environment and execute [`supabase/migrations/20260902000000_chat_realtime_rls.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20260902000000_chat_realtime_rls.sql):
+Open the **Supabase Dashboard → SQL Editor** for the target environment and execute [`supabase/migrations/20261026133609_chat_realtime_setup.sql`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/supabase/migrations/20261026133609_chat_realtime_setup.sql):
 
 ```sql
 -- 1. Wire both tables into Supabase Realtime
@@ -148,9 +178,17 @@ USING (
 
 Supabase Realtime verifies incoming tokens using its **JWT Signing Keys** system (JWKS). Custom JWTs signed by our backend using `ES256` require a matching public key and Key ID (`kid`) in Supabase.
 
-#### A. Generate or Locate the ES256 Private Key
+#### A. Generate or Locate the ES256 Private Key (`SUPABASE_JWT_PRIVATE_KEY`)
 
-If a key does not already exist for the environment, generate an EC P-256 private key:
+You can either reuse the existing key from GCP Secret Manager or generate a brand-new one:
+
+**Option 1: Reuse existing key from GCP Secret Manager (Recommended when migrating existing environment)**:
+
+```bash
+gcloud secrets versions access latest --secret="supabase-jwt-private-key" --project="<PROJECT_ID>"
+```
+
+**Option 2: Generate a brand-new EC P-256 key pair (When starting fresh)**:
 
 ```bash
 openssl ecparam -name prime256v1 -genkey -noout -out supabase-jwt-private-key.pem
@@ -160,16 +198,17 @@ Store this private key securely in **GCP Secret Manager** as `supabase-jwt-priva
 
 #### B. Export the Key in Supabase JWK Format
 
-Run the helper script provided in the repository:
+Supabase requires the key to be imported in **JWK (JSON Web Key)** format. Run the repository helper script [`scripts/utils/export-supabase-public-key.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/scripts/utils/export-supabase-public-key.ts):
 
 ```bash
+# If using local PEM file:
+SUPABASE_JWT_PRIVATE_KEY="$(cat supabase-jwt-private-key.pem)" npx ts-node scripts/utils/export-supabase-public-key.ts
+
+# Or if using GCP Secret Manager:
+SUPABASE_JWT_PRIVATE_KEY="$(gcloud secrets versions access latest --secret=supabase-jwt-private-key --project=<PROJECT_ID>)" npx ts-node scripts/utils/export-supabase-public-key.ts
+
+# Or if SUPABASE_JWT_PRIVATE_KEY is already loaded in your .env:
 node --env-file=.env -r ts-node/register scripts/utils/export-supabase-public-key.ts
-```
-
-_(Or via GCP Secret Manager):_
-
-```bash
-SUPABASE_JWT_PRIVATE_KEY="$(gcloud secrets versions access latest --secret=supabase-jwt-private-key --project=<PROJECT_ID>)" node -r ts-node/register scripts/utils/export-supabase-public-key.ts
 ```
 
 The script will output the full JWK:
@@ -184,16 +223,21 @@ The script will output the full JWK:
 }
 ```
 
-#### C. Import into Supabase Dashboard
+Copy the entire JSON output (including the outer `{ }` curly braces).
 
-1. Open the **Supabase Dashboard** for your environment.
-2. Navigate to **Project Settings** → **API** → **JWT Signing Keys**.
-3. Click **Create standby key**.
-4. Check **Import an existing private key**.
-5. Paste the complete JWK JSON (including curly braces `{}`).
-6. Click **Create standby key**.
-7. Once created, click **Rotate keys** to promote it to the active ("Current") key.
-8. Copy the **Key ID (`kid`)** displayed in the table row.
+#### C. Import into Supabase Dashboard & Retrieve Key ID (`SUPABASE_JWT_KEY_ID`)
+
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) for your new project.
+2. In the left-hand navigation bar, click **Project Settings** (gear icon at bottom left).
+3. Under Settings, navigate to **API** (or **Authentication** → **JWT Settings** depending on dashboard version).
+4. Scroll to the **JWT Signing Keys** section.
+5. Click **Create standby key**.
+6. Select the checkbox **"Import an existing private key"**.
+7. Paste the complete JWK JSON string from Step B into the text input.
+8. Click **Create standby key** to save.
+9. Locate the newly created standby key in the table, and click **Rotate keys** (or select **Make active / Rotate** from the `...` menu) to promote it to the active ("Current") key.
+10. In the **Key ID** column for that active key row, copy the UUID string (e.g. `709ac6ba-a048-4f39-a6ce-c1f9c993b98b`).
+11. **This UUID is your `SUPABASE_JWT_KEY_ID`.**
 
 ---
 
@@ -346,8 +390,7 @@ Before opening chat features to real users in production, ensure this checklist 
 
 - [ ] **DDL Applied**: `prisma migrate deploy` executed on Cloud SQL production database.
 - [ ] **UUID Defaults Verified**: `ChatRoom.id` and `Message.id` have `DEFAULT gen_random_uuid()`.
-- [ ] **Room Encryption DDL**: `wrappedRoomKey` (`TEXT NOT NULL`) and `roomKeyId` (`VARCHAR(64) NOT NULL`) applied in PostgreSQL and resolved in Prisma (`prisma migrate resolve --applied 20261016000000_chat_room_encryption_keys`).
-- [ ] **RLS Applied**: `supabase/migrations/20260902000000_chat_realtime_rls.sql` executed in production Supabase SQL Editor.
+- [ ] **RLS & Publication Applied**: `supabase/migrations/20261026133609_chat_realtime_setup.sql` executed in production Supabase SQL Editor.
 - [ ] **Publication Enabled**: `ChatRoom` and `Message` tables confirmed in `supabase_realtime` publication.
 - [ ] **Production Key Imported**: Production ES256 key imported into production Supabase JWT Signing Keys.
 - [ ] **Key Rotated**: Production key promoted to "Current" in Supabase Dashboard.

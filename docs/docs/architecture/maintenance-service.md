@@ -100,7 +100,7 @@ A core design goal is **zero code duplication and zero multi-repo overhead**. We
 
 1. **One Build Artifact**: `scripts/deploy/deploy.sh` executes Google Cloud Build to produce a single, production-hardened Docker image tagged with the Git commit hash:
    ```bash
-   asia-south1-docker.pkg.dev/breathaway-dev/breathaway-backend/backend-service:8f98b36
+   asia-south1-docker.pkg.dev/breathaway-development/breathaway-backend/backend-service:8f98b36
    ```
 2. **Two Cloud Run Deployments**: The deployment script deploys this exact same image twice with distinct runtime environments, service accounts, scaling parameters, and security policies.
 
@@ -160,7 +160,7 @@ export class MaintenanceController {
 1. **Google Public JWKS**: Verifies the JWT cryptographic signature against Google's public key certificate set.
 2. **Issuer Check (`iss`)**: Strictly verifies `payload.iss === 'https://accounts.google.com'`.
 3. **Audience Check (`aud`)**: Verifies `payload.aud` matches the target Cloud Run URL (`https://maintenance-service-...a.run.app`). Supports multi-audience configuration via comma-separated `GCP_OIDC_AUDIENCE`.
-4. **Confused Deputy Prevention**: Ensures the caller's email matches the project IAM domain (`@breathaway-dev.iam.gserviceaccount.com`) or an explicit whitelist (`GCP_OIDC_ALLOWED_EMAILS`), preventing tokens issued to other GCP tenants from executing internal jobs.
+4. **Confused Deputy Prevention**: Ensures the caller's email matches the project IAM domain (`@${GCP_PROJECT_ID}.iam.gserviceaccount.com`), preventing tokens issued to other GCP tenants from executing internal jobs.
 
 ---
 
@@ -168,13 +168,12 @@ export class MaintenanceController {
 
 All cron jobs are managed declaratively in [`terraform/scheduler.tf`](file:///terraform/scheduler.tf) and invoke `maintenance-service` over HTTPS:
 
-| Job Name                               |    Schedule    | Timezone | Endpoint                                       | Purpose                                                                                                                                              |
-| :------------------------------------- | :------------: | :------: | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`rotate-instagram-token-job`**       |  `0 0 1 * *`   |   UTC    | `/api/v1/internal/jobs/rotate-instagram-token` | Rotates Instagram Long-Lived User Access Token monthly (valid 60 days) and uploads the new version to GCP Secret Manager (`access-token-instagram`). |
-| **`expire-credit-bundles-job`**        |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
-| **`warn-expiring-credit-bundles-job`** |  `0 10 * * *`  |   UTC    | `/api/v1/internal/jobs/warn-expiring-bundles`  | Scans credit bundles expiring in exactly 6 to 7 days daily at 10 AM, dispatching advance warning domain events to users.                             |
-| **`reconcile-payments-job`**           | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
-| **`purge-expired-user-sessions-job`**  |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.            |
+| Job Name                              |    Schedule    | Timezone | Endpoint                                       | Purpose                                                                                                                                              |
+| :------------------------------------ | :------------: | :------: | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`rotate-instagram-token-job`**      |  `0 0 1 * *`   |   UTC    | `/api/v1/internal/jobs/rotate-instagram-token` | Rotates Instagram Long-Lived User Access Token monthly (valid 60 days) and uploads the new version to GCP Secret Manager (`access-token-instagram`). |
+| **`expire-credit-bundles-job`**       |  `0 0 * * *`   |   UTC    | `/api/v1/internal/jobs/expire-bundles`         | Scans expired credit bundles daily, identifies affected users, and fans out batch events to Pub/Sub (`CREDIT_EXPIRY_BATCH`).                         |
+| **`reconcile-payments-job`**          | `*/30 * * * *` |   UTC    | `/api/v1/internal/jobs/reconcile-payments`     | Polls payment gateways (e.g. Razorpay) every 30 minutes for stale `PENDING` orders, reconciling missed webhook deliveries.                           |
+| **`purge-expired-user-sessions-job`** |  `0 3 * * 0`   |   UTC    | `/api/v1/internal/jobs/purge-expired-sessions` | Purges expired and revoked `UserSession` records older than 7 days weekly on Sunday at 03:00 UTC using chunked 5,000-row batch deletions.            |
 
 ---
 

@@ -37,7 +37,7 @@ Every secret managed in Google Cloud Secret Manager requires coordinated synchro
      "<CONTAINER_ENV_VAR_NAME>=${SECRET_<NAME>}:latest"
      ```
    - [`scripts/deploy/deploy.sh`](scripts/deploy/deploy.sh) sources this array and automatically mounts secrets via `gcloud run deploy --update-secrets`.
-   - Never declare duplicate secret strings or arrays in `common.dev.sh`, `common.prod.sh`, or `deploy.sh`.
+   - Never declare duplicate secret strings or arrays in `common.base.sh`, `common.dev.sh`, `common.prod.sh`, or `deploy.sh`.
 
 4. **Deprecation / Deletion Protocol**:
    - When removing or deprecating a secret:

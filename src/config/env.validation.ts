@@ -52,10 +52,11 @@ export const envValidationSchema = Joi.object({
     .default('info'),
 
   // GCP & Infrastructure
-  GCP_PROJECT_ID: Joi.string().default('breathaway-dev'),
+  GCP_PROJECT_ID: Joi.string().default('breathaway-development'),
   GCP_BUCKET_NAME: Joi.string().default('breathaway-documents'),
   GCP_OIDC_AUDIENCE: Joi.string().uri().optional(),
-  FIREBASE_PROJECT_ID: Joi.string().default('breathaway-dev-37fd5'),
+  GCP_ADMIN_OIDC_AUDIENCE: Joi.string().optional(),
+  FIREBASE_PROJECT_ID: Joi.string().default('breathaway-development'),
   AUDIT_PUBSUB_TOPIC: Joi.string().default('audit-logs-topic'),
   META_VERIFY_TOKEN: Joi.string().optional(),
   META_APP_SECRET: Joi.string().optional(),

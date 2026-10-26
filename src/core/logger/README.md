@@ -76,7 +76,7 @@ Every log line emitted in GCP mode is a JSON object:
 `logging.googleapis.com/trace` **must** be:
 
 ```
-projects/breathaway-dev/traces/abc123def456...
+projects/breathaway-development/traces/abc123def456...
 ```
 
 **Never** the raw header value (`abc123/456;o=1`). The `parseCloudTraceContext()` utility in `gcp-logger.config.ts` handles this correctly.
@@ -155,7 +155,7 @@ cls.set('traceContext', req.headers['x-cloud-trace-context']); // "abc123/456;o=
 ```json
 {
   "requestId": "req-abc-123",
-  "logging.googleapis.com/trace": "projects/breathaway-dev/traces/abc123",
+  "logging.googleapis.com/trace": "projects/breathaway-development/traces/abc123",
   "logging.googleapis.com/spanId": "456",
   "logging.googleapis.com/trace_sampled": true
 }
@@ -302,7 +302,7 @@ SELECT
   jsonPayload.context,
   jsonPayload.step,
   jsonPayload.durationMs
-FROM `breathaway-dev.app_logs_dataset._AllLogs`
+FROM `breathaway-development.app_logs_dataset._AllLogs`
 WHERE jsonPayload.requestId = 'req-abc-123'
 ORDER BY timestamp ASC
 ```
@@ -316,7 +316,7 @@ SELECT
   jsonPayload.userId,
   jsonPayload.likeId,
   jsonPayload.targetIdentityId
-FROM `breathaway-dev.app_logs_dataset._AllLogs`
+FROM `breathaway-development.app_logs_dataset._AllLogs`
 WHERE
   jsonPayload.event = 'LIKE_CREATED'
   AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
@@ -333,7 +333,7 @@ SELECT
   jsonPayload.message,
   jsonPayload.context,
   jsonPayload.err.message AS error_message
-FROM `breathaway-dev.app_logs_dataset._AllLogs`
+FROM `breathaway-development.app_logs_dataset._AllLogs`
 WHERE
   jsonPayload.severity = 'ERROR'
   AND timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)
@@ -345,7 +345,7 @@ ORDER BY timestamp DESC
 ```sql
 -- Pub/Sub messageId becomes the requestId in all handler logs
 SELECT timestamp, jsonPayload.severity, jsonPayload.event, jsonPayload.message, jsonPayload.step
-FROM `breathaway-dev.app_logs_dataset._AllLogs`
+FROM `breathaway-development.app_logs_dataset._AllLogs`
 WHERE jsonPayload.requestId = 'pubsub-message-id-here'
 ORDER BY timestamp ASC
 ```
@@ -370,18 +370,18 @@ gcloud logging buckets create breathaway-app-logs \
   --location=asia-south1 \
   --retention-days=90 \
   --enable-analytics \
-  --project=breathaway-dev
+  --project=breathaway-development
 
 # 2. Create Log Sink
 gcloud logging sinks create breathaway-app-log-sink \
-  "logging.googleapis.com/projects/breathaway-dev/locations/asia-south1/buckets/breathaway-app-logs" \
+  "logging.googleapis.com/projects/breathaway-development/locations/asia-south1/buckets/breathaway-app-logs" \
   --log-filter='resource.type="cloud_run_revision" AND jsonPayload.serviceContext.service="breathaway-api"' \
-  --project=breathaway-dev
+  --project=breathaway-development
 
 # 3. Grant sink SA bucket write permission
 SINK_SA=$(gcloud logging sinks describe breathaway-app-log-sink \
-  --project=breathaway-dev --format='value(writerIdentity)')
-gcloud projects add-iam-policy-binding breathaway-dev \
+  --project=breathaway-development --format='value(writerIdentity)')
+gcloud projects add-iam-policy-binding breathaway-development \
   --member="${SINK_SA}" \
   --role="roles/logging.bucketWriter"
 
@@ -389,14 +389,14 @@ gcloud projects add-iam-policy-binding breathaway-dev \
 gcloud logging links create app-logs-bq-link \
   --bucket=breathaway-app-logs \
   --location=asia-south1 \
-  --project=breathaway-dev
+  --project=breathaway-development
 ```
 
 ### Required Cloud Run env vars
 
 | Variable         | Example          | Purpose                                        |
 | ---------------- | ---------------- | ---------------------------------------------- |
-| `GCP_PROJECT_ID` | `breathaway-dev` | Constructs `projects/.../traces/...` format    |
+| `GCP_PROJECT_ID` | `breathaway-development` | Constructs `projects/.../traces/...` format    |
 | `DEPLOYMENT_ENV` | `gcp`            | Enables GCP JSON log format                    |
 | `LOG_LEVEL`      | `info`           | Minimum severity (use `debug` in staging)      |
 | `APP_NAME`       | `breathaway-api` | Identifies service in `serviceContext.service` |

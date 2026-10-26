@@ -110,8 +110,9 @@ Utility scripts and operational automations are organized into domain-specific s
 scripts/
 ├── deploy/                     # Cloud Run deployment orchestrator and environment configurations
 │   ├── deploy.sh               # Main build and deployment script
-│   ├── common.dev.sh           # Development environment settings
-│   ├── common.prod.sh          # Production environment settings
+│   ├── common.base.sh          # Shared configurations and defaults across environments
+│   ├── common.dev.sh           # Development environment overrides
+│   ├── common.prod.sh          # Production environment overrides
 │   └── common.secrets.sh       # Secret Manager container bindings (Layer 3)
 ├── maintenance/                # Routine maintenance and operational cleanup
 │   └── cleanup-cloud-run.py    # Prunes stale Cloud Run revisions and unreferenced images

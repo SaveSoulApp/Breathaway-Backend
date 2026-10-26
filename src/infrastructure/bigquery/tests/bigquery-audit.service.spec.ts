@@ -35,7 +35,7 @@ describe('BigQueryAuditService', () => {
 
     const mockConfigService = {
       get: jest.fn((key: string) => {
-        if (key === 'GCP_PROJECT_ID') return 'breathaway-dev';
+        if (key === 'GCP_PROJECT_ID') return 'breathaway-development';
         if (key === 'AUDIT_BIGQUERY_DATASET') return 'audit_logs_dataset';
         if (key === 'AUDIT_BIGQUERY_TABLE') return 'events';
         return null;

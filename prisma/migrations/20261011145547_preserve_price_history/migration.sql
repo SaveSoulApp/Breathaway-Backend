@@ -1,2 +1,0 @@
--- RenameIndex
-ALTER INDEX "SubscriptionPlanPriceHistory_planId_effectiveFrom_effectiveTo_i" RENAME TO "SubscriptionPlanPriceHistory_planId_effectiveFrom_effective_idx";

@@ -332,7 +332,7 @@ SELECT
   JSON_VALUE(json_payload, '$.event') AS auth_event,
   COUNT(*) AS total_count,
   ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) AS percentage
-FROM `breathaway-dev.app_logs_bq_link._AllLogs`
+FROM `breathaway-development.app_logs_bq_link._AllLogs`
 WHERE JSON_VALUE(json_payload, '$.event') IN ('AUTH_CACHE_HIT', 'AUTH_CACHE_MISS', 'AUTH_CACHE_FALLBACK')
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
 GROUP BY auth_event;
