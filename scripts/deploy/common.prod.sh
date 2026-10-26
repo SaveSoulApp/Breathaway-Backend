@@ -23,6 +23,9 @@ export MAX_INSTANCES='20'
 # Supabase Realtime JWT Key ID for production
 export SUPABASE_JWT_KEY_ID='07a5a024-3d60-4f91-a3e3-39645975dac1'
 
+# Supported client platforms (Production strictly excludes Postman)
+export REQUIRED_PLATFORMS='["ios","android","web"]'
+
 # Source shared base configurations and derived variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "${SCRIPT_DIR}/common.base.sh"

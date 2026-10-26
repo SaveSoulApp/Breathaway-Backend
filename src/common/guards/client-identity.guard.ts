@@ -50,6 +50,18 @@ export class ClientIdentityGuard implements CanActivate {
     this.apiKeyConfig = this.parsePlatformKeyedConfig('API_KEYS', '{}');
     this.clientIdConfig = this.parsePlatformKeyedConfig('CLIENT_IDS', '{}');
     this.requiredPlatforms = this.parsePlatformSet('REQUIRED_PLATFORMS', '[]');
+
+    if (
+      this.isProductionEnvironment() &&
+      this.requiredPlatforms.has(Platform.POSTMAN)
+    ) {
+      this.requiredPlatforms.delete(Platform.POSTMAN);
+      this.logger.warn(
+        'Postman platform is disabled in production environment',
+        { step: 'init' },
+      );
+    }
+
     this.minAppVersion = this.configService.get<string>(
       'MIN_APP_VERSION',
       '1.0.0',
@@ -349,7 +361,23 @@ export class ClientIdentityGuard implements CanActivate {
 
   private isPlatformAllowed(platform: Platform | string): boolean {
     const platformLower = String(platform).toLowerCase().trim();
+    if (platformLower === Platform.POSTMAN && this.isProductionEnvironment()) {
+      return false;
+    }
     return this.requiredPlatforms.has(platformLower);
+  }
+
+  private isProductionEnvironment(): boolean {
+    const nodeEnv = this.configService
+      .get<string>('NODE_ENV', '')
+      .toLowerCase()
+      .trim();
+    const deploymentEnv = this.configService
+      .get<string>('DEPLOYMENT_ENV', '')
+      .toLowerCase()
+      .trim();
+
+    return nodeEnv === 'production' || deploymentEnv === 'production';
   }
 
   private normalizePlatformEnum(rawPlatform: string): Platform | undefined {
@@ -370,7 +398,9 @@ export class ClientIdentityGuard implements CanActivate {
     const keyPlatformMap = new Map<string, Platform>();
 
     try {
-      const parsed = JSON.parse(rawValue) as unknown;
+      const trimmed = (rawValue || '').trim();
+      const unquoted = trimmed.replace(/^['"]|['"]$/g, '').trim();
+      const parsed = JSON.parse(unquoted || fallback) as unknown;
 
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error(
@@ -426,19 +456,47 @@ export class ClientIdentityGuard implements CanActivate {
   }
 
   private parsePlatformSet(envKey: string, fallback: string): Set<string> {
-    const value = this.configService.get<string>(envKey, fallback);
+    const rawValue = this.configService.get<string>(envKey, fallback);
+    if (!rawValue || typeof rawValue !== 'string') {
+      return new Set();
+    }
+
+    const trimmed = rawValue.trim();
+    const unquoted = trimmed.replace(/^['"]|['"]$/g, '').trim();
+
     try {
-      const parsed = JSON.parse(value) as unknown[];
-      if (!Array.isArray(parsed)) throw new Error();
-      return new Set(
-        parsed.map((item) => String(item).toLowerCase().trim()).filter(Boolean),
-      );
+      const parsed = JSON.parse(unquoted) as unknown[];
+      if (Array.isArray(parsed)) {
+        return new Set(
+          parsed
+            .map((item) => String(item).toLowerCase().trim())
+            .filter(Boolean),
+        );
+      }
     } catch {
+      // Fallback for non-JSON formatted lists like [ios,android,web,postman] or ios,android,web,postman
+      const unbracketed = unquoted.replace(/^\[|\]$/g, '').trim();
+      if (unbracketed) {
+        const items = unbracketed
+          .split(',')
+          .map((item) =>
+            item
+              .replace(/^['"]|['"]$/g, '')
+              .toLowerCase()
+              .trim(),
+          )
+          .filter(Boolean);
+        if (items.length > 0) {
+          return new Set(items);
+        }
+      }
+
       this.logger.error('Failed to parse config as JSON array', {
         envKey,
         step: 'parse_config',
       });
-      return new Set();
     }
+
+    return new Set();
   }
 }
