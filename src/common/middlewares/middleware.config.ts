@@ -49,6 +49,16 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
     { path: 'api/v1/webhooks/*path', method: RequestMethod.ALL },
   ];
 
+  // Health and readiness probes (Cloud Run, load balancers, uptime monitors, browser diagnostics)
+  const healthExclusions = [
+    { path: 'health', method: RequestMethod.GET },
+    { path: 'ready', method: RequestMethod.GET },
+    { path: 'api/health', method: RequestMethod.GET },
+    { path: 'api/ready', method: RequestMethod.GET },
+    { path: 'api/v1/health', method: RequestMethod.GET },
+    { path: 'api/v1/ready', method: RequestMethod.GET },
+  ];
+
   consumer
     .apply(RequestIdMiddleware, TimezoneMiddleware)
     .exclude(
@@ -57,6 +67,7 @@ export function configureMiddleware(consumer: MiddlewareConsumer): void {
       ...browserExclusions,
       ...internalJobExclusions,
       ...webhookExclusions,
+      ...healthExclusions,
     )
     .forRoutes('*');
 }

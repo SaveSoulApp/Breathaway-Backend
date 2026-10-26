@@ -1,0 +1,75 @@
+name: CD — Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ── Job 1: Quality Gates (Lint, Type-check, Build & Unit Tests) ─────────────
+  # Runs automatically on push/merge to main without requiring manual approval.
+  test:
+    name: Quality Gates
+    uses: ./.github/workflows/tests.yaml
+
+  # ── Job 2: Deploy to Cloud Run (Production) ─────────────────────────────────
+  # Requires successful completion of Job 1.
+  # The 'Production' environment enforces the manual approval gate if "Required reviewers"
+  # is configured in GitHub Repository Settings -> Environments -> Production.
+  deploy:
+    name: Deploy to Cloud Run (Production)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: Production
+      url: https://backend-service-54c574542a-el.a.run.app
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
+          service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: bash scripts/deploy/deploy.sh --env=prod
+
+      - name: Verify Service Health
+        run: |
+          echo "Probing deployment health..."
+          curl --fail --retry 5 --retry-delay 6 --retry-all-errors -H "x-request-id: ci-health-check" -s https://backend-service-54c574542a-el.a.run.app/health
+
+      - name: Write Deployment Summary
+        if: success()
+        run: |
+          echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: \`Production\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Services**: \`backend-service\`, \`maintenance-service\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target URL**: [https://backend-service-54c574542a-el.a.run.app](https://backend-service-54c574542a-el.a.run.app)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered By**: \`${{ github.actor }}\` via \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Write Failure Summary
+        if: failure()
+        run: |
+          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment to **Production** failed at commit \`${{ github.sha }}\`." >> $GITHUB_STEP_SUMMARY

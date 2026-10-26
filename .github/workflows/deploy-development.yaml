@@ -30,7 +30,7 @@ jobs:
       cancel-in-progress: false
     environment:
       name: Development
-      url: https://dev.breathaway.app
+      url: https://backend-service-54c574542a-el.a.run.app
     permissions:
       contents: read
       id-token: write
@@ -54,7 +54,7 @@ jobs:
       - name: Verify Service Health
         run: |
           echo "Probing deployment health..."
-          curl --fail --retry 5 --retry-delay 6 --retry-all-errors -s https://dev.breathaway.app/health
+          curl --fail --retry 5 --retry-delay 6 --retry-all-errors -H "x-request-id: ci-health-check" -s https://backend-service-54c574542a-el.a.run.app/health
 
       - name: Write Deployment Summary
         if: success()
@@ -63,7 +63,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment**: \`Development\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Services**: \`backend-service\`, \`maintenance-service\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target URL**: [https://dev.breathaway.app](https://dev.breathaway.app)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target URL**: [https://backend-service-54c574542a-el.a.run.app](https://backend-service-54c574542a-el.a.run.app)" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Triggered By**: \`${{ github.actor }}\` via \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
 
