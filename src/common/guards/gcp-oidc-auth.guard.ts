@@ -21,7 +21,7 @@ import { ContextualLogger, LoggerService } from '@core/logger';
  * 1. Cryptographic signature verified against Google's public JWKS.
  * 2. Issuer claim (`iss`) strictly verified against `accounts.google.com`.
  * 3. Audience claim (`aud`) verified against configured `GCP_OIDC_AUDIENCE`.
- * 4. Caller identity (`email`) verified to belong to the authorized GCP project or explicit whitelist.
+ * 4. Caller identity (`email`) verified to belong to the authorized GCP project (`@${GCP_PROJECT_ID}.iam.gserviceaccount.com`).
  */
 @Injectable()
 export class GcpOidcAuthGuard implements CanActivate {
@@ -115,35 +115,21 @@ export class GcpOidcAuthGuard implements CanActivate {
         throw new Error('Missing email claim in OIDC token payload');
       }
 
-      // 5. Prevent Confused Deputy attacks: ensure caller service account belongs to our project/whitelist
-      const allowedEmailsConfig = this.configService.get<string>(
-        'GCP_OIDC_ALLOWED_EMAILS',
-      );
+      // 5. Prevent Confused Deputy attacks: ensure caller service account belongs to our GCP project
       const expectedProjectId =
         this.configService.get<string>('GCP_PROJECT_ID');
 
-      if (allowedEmailsConfig) {
-        const allowedEmails = allowedEmailsConfig
-          .split(',')
-          .map((email) => email.trim().toLowerCase())
-          .filter(Boolean);
-
-        if (!allowedEmails.includes(payload.email.toLowerCase())) {
-          throw new Error(
-            `Unauthorized service account: ${payload.email}. Not in configured whitelist.`,
-          );
-        }
-      } else if (expectedProjectId) {
-        const expectedDomain =
-          `@${expectedProjectId}.iam.gserviceaccount.com`.toLowerCase();
-        if (!payload.email.toLowerCase().endsWith(expectedDomain)) {
-          throw new Error(
-            `Confused deputy rejected: service account ${payload.email} does not belong to project ${expectedProjectId}`,
-          );
-        }
-      } else {
+      if (!expectedProjectId) {
         throw new Error(
-          'OIDC caller verification failed: neither GCP_OIDC_ALLOWED_EMAILS nor GCP_PROJECT_ID is configured.',
+          'OIDC caller verification failed: GCP_PROJECT_ID is not configured.',
+        );
+      }
+
+      const expectedDomain =
+        `@${expectedProjectId}.iam.gserviceaccount.com`.toLowerCase();
+      if (!payload.email.toLowerCase().endsWith(expectedDomain)) {
+        throw new Error(
+          `Confused deputy rejected: service account ${payload.email} does not belong to project ${expectedProjectId}`,
         );
       }
 

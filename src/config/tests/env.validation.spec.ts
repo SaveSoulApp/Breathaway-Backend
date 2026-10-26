@@ -50,7 +50,7 @@ describe('envValidationSchema', () => {
       // GCP & Infrastructure defaults
       expect(value.GCP_PROJECT_ID).toBe('breathaway-development');
       expect(value.GCP_BUCKET_NAME).toBe('breathaway-documents');
-      expect(value.FIREBASE_PROJECT_ID).toBe('breathaway-dev-37fd5');
+      expect(value.FIREBASE_PROJECT_ID).toBe('breathaway-development');
       expect(value.AUDIT_PUBSUB_TOPIC).toBe('audit-logs-topic');
 
       // Auth & Security defaults

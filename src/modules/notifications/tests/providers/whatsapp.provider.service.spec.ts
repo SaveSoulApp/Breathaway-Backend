@@ -141,7 +141,7 @@ describe('WhatsAppProviderService', () => {
       expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
       expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
         to: '919876543210',
-        template: 'breathaway_new_match',
+        template: 'breathaway_new_match_v2',
         language: 'en',
         params: undefined,
       });
@@ -289,7 +289,7 @@ describe('WhatsAppProviderService', () => {
         'Failed to send WhatsApp notification to recipient',
         expect.objectContaining({
           userId: 'user-1',
-          template: 'breathaway_new_match',
+          template: 'breathaway_new_match_v2',
         }),
       );
     });

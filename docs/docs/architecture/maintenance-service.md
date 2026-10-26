@@ -160,7 +160,7 @@ export class MaintenanceController {
 1. **Google Public JWKS**: Verifies the JWT cryptographic signature against Google's public key certificate set.
 2. **Issuer Check (`iss`)**: Strictly verifies `payload.iss === 'https://accounts.google.com'`.
 3. **Audience Check (`aud`)**: Verifies `payload.aud` matches the target Cloud Run URL (`https://maintenance-service-...a.run.app`). Supports multi-audience configuration via comma-separated `GCP_OIDC_AUDIENCE`.
-4. **Confused Deputy Prevention**: Ensures the caller's email matches the project IAM domain (`@breathaway-development.iam.gserviceaccount.com`) or an explicit whitelist (`GCP_OIDC_ALLOWED_EMAILS`), preventing tokens issued to other GCP tenants from executing internal jobs.
+4. **Confused Deputy Prevention**: Ensures the caller's email matches the project IAM domain (`@${GCP_PROJECT_ID}.iam.gserviceaccount.com`), preventing tokens issued to other GCP tenants from executing internal jobs.
 
 ---
 

@@ -118,7 +118,7 @@ flowchart TD
     Step3 -- "No" --> Reject
     Step3 -- "Yes" --> Step4{"4. email_verified == true?"}
     Step4 -- "No" --> Reject
-    Step4 -- "Yes" --> Step5{"5. Confused Deputy Defense:<br/>email ends with @GCP_PROJECT_ID<br/>or in ALLOWED_EMAILS whitelist?"}
+    Step4 -- "Yes" --> Step5{"5. Confused Deputy Defense:<br/>email ends with @GCP_PROJECT_ID.iam.gserviceaccount.com?"}
     Step5 -- "No" --> Reject
     Step5 -- "Yes" --> Allow["Approve Request<br/>Attach oidcPayload"]
 ```
@@ -127,7 +127,7 @@ flowchart TD
 2. **Strict Issuer Check**: Verifies `iss` is `https://accounts.google.com` or `accounts.google.com`.
 3. **Audience Matching**: Verifies `payload.aud === GCP_OIDC_AUDIENCE` to prevent cross-service token replay.
 4. **Email Verification**: Verifies `payload.email_verified === true` and `payload.email` is present.
-5. **Caller Origin & Whitelist**: Verifies `payload.email` ends with `@${GCP_PROJECT_ID}.iam.gserviceaccount.com` (or matches an explicit whitelist `GCP_OIDC_ALLOWED_EMAILS`).
+5. **Caller Origin**: Verifies `payload.email` ends with `@${GCP_PROJECT_ID}.iam.gserviceaccount.com`.
 
 ---
 
