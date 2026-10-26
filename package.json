@@ -31,6 +31,7 @@
     "migrate:local": "cross-env OPERATION_MODE=migration pnpm run prisma:dev -- migrate dev",
     "migrate:dev": "cross-env OPERATION_MODE=migration pnpm run prisma:dev -- migrate deploy",
     "migrate:prod": "cross-env OPERATION_MODE=migration pnpm run prisma:prod -- migrate deploy",
+    "seed:dev": "node --env-file=.env -r ts-node/register prisma/seed.ts",
     "docs:start": "pnpm --filter docs run start",
     "docs:build": "pnpm --filter docs run build",
     "docs:serve": "pnpm --filter docs run serve"
@@ -119,6 +120,9 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "prisma": {
+    "seed": "node --env-file=.env -r ts-node/register prisma/seed.ts"
   },
   "jest": {
     "moduleFileExtensions": [
