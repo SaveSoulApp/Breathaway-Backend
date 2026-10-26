@@ -6,7 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { seconds, ThrottlerModule } from '@nestjs/throttler';
-import { OAuth2Client } from 'google-auth-library';
+import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { ClsModule, ClsService } from 'nestjs-cls';
 
 import { ClientIdentityGuard } from '@common/guards/client-identity.guard';
@@ -107,8 +107,6 @@ export async function createAuthTestApp(
   extraModules: any[] = [],
 ): Promise<AppTestContext> {
   // Ensure required test environment variables are populated
-  process.env.ADMIN_ALLOWED_EMAILS =
-    process.env.ADMIN_ALLOWED_EMAILS || TEST_ADMIN_EMAIL;
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';
@@ -158,6 +156,25 @@ export async function createAuthTestApp(
     }
     return Promise.reject(new Error('Invalid Google ID token'));
   }) as any);
+
+  // Mock Google IAM policy discovery for AdminOidcAuthGuard
+  jest
+    .spyOn(GoogleAuth.prototype as any, 'getProjectId')
+    .mockResolvedValue('test-gcp-project');
+  jest.spyOn(GoogleAuth.prototype as any, 'getClient').mockResolvedValue({
+    request: jest.fn().mockImplementation((opts: any) => {
+      return Promise.resolve({
+        data: {
+          bindings: [
+            {
+              role: 'roles/owner',
+              members: [`user:${TEST_ADMIN_EMAIL}`],
+            },
+          ],
+        },
+      });
+    }),
+  } as any);
 
   const mockFirebaseValidation = jest.fn<
     Promise<FirebaseValidationResult>,

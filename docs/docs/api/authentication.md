@@ -573,9 +573,8 @@ When a request reaches a route protected by `AdminOidcAuthGuard`:
    - Verifies `aud` matches either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
    - Verifies `email_verified: true` and extracts `payload.email`.
 3. **Dynamic GCP IAM Authorization**:
-   - **Step 3A (Config Whitelist)**: Checks `ADMIN_ALLOWED_EMAILS` (comma-separated list). If matched, authorizes immediately (ideal for local dev without cloud access).
-   - **Step 3B (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
-   - **Step 3C (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) or the Cloud Run service account.
+   - **Step 3A (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
+   - **Step 3B (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or the Cloud Run service account in cloud environments.
    - Extracts all members bound to `roles/owner`, `roles/editor`, `roles/resourcemanager.organizationAdmin`, or roles specified in `GCP_ADMIN_IAM_ROLES`.
    - If `user:<email>` is found in the IAM policy bindings, updates the in-memory cache and grants access.
    - If not found, logs a warning and throws `403 Forbidden: Caller does not have administrative permissions in GCP`.
@@ -610,7 +609,7 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Email in ADMIN_ALLOWED_EMAILS or Cache Valid (<5m TTL)
+    alt Cache Valid (<5m TTL)
         Guard->>Guard: Authorize from Cache
     else Cache Expired / Miss
         Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
@@ -705,4 +704,3 @@ _(Alternatively, grant `roles/viewer`)._
 When running the NestJS backend locally on localhost:
 
 - Run `gcloud auth application-default login` so your local Node.js process inherits credentials to query Cloud Resource Manager.
-- Or configure `ADMIN_ALLOWED_EMAILS="your-email@gmail.com"` in your environment variables to bypass cloud IAM API queries locally.

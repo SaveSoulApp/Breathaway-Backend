@@ -163,38 +163,6 @@ describe('AdminOidcAuthGuard', () => {
         } as any);
     });
 
-    it('should authorize successfully when email matches ADMIN_ALLOWED_EMAILS', async () => {
-      configService.get.mockImplementation((key: string) => {
-        if (key === 'ADMIN_ALLOWED_EMAILS')
-          return 'other@company.com, developer@company.com';
-        if (key === 'GCP_ADMIN_OIDC_AUDIENCE')
-          return 'https://api.breathaway.com';
-        return undefined;
-      });
-
-      const req: any = {
-        headers: { authorization: 'Bearer valid.google.token' },
-        originalUrl: '/v1/admin/users/123',
-        method: 'DELETE',
-      };
-      const context = createMockExecutionContext(req);
-
-      const result = await guard.canActivate(context);
-
-      expect(result).toBe(true);
-      expect(clsService.set).toHaveBeenCalledWith(
-        'adminEmail',
-        defaultUserEmail,
-      );
-      expect(clsService.set).toHaveBeenCalledWith('adminSub', defaultUserSub);
-      expect(req.adminUser).toEqual(
-        expect.objectContaining({
-          email: defaultUserEmail,
-          sub: defaultUserSub,
-        }),
-      );
-    });
-
     it('should authorize successfully via GCP Cloud Resource Manager IAM policy', async () => {
       const mockRequest = jest.fn().mockResolvedValue({
         data: {

@@ -31,9 +31,7 @@ export default async function globalSetup(): Promise<void> {
   // We do NOT overwrite vars that are already set (e.g. by CI).
   loadEnvFile(path.resolve(process.cwd(), '.env.test'));
 
-  // Ensure default admin and GCP OIDC test credentials are set
-  process.env.ADMIN_ALLOWED_EMAILS =
-    process.env.ADMIN_ALLOWED_EMAILS || 'admin@breathaway.com';
+  // Ensure default GCP OIDC test credentials are set
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||
     'https://backend-service-at7g3x4m6q-el.a.run.app';

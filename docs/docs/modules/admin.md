@@ -45,7 +45,7 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Email in ADMIN_ALLOWED_EMAILS or Cache Valid (<5m TTL)
+    alt Cache Valid (<5m TTL)
         Guard->>Guard: Authorize from Cache
     else Cache Expired / Miss
         Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
@@ -71,7 +71,6 @@ sequenceDiagram
    - Ensures `iss` is `accounts.google.com` and `email_verified` is `true`.
    - Accepts tokens targeted to either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
 2. **Tier 2 (Authorization via GCP IAM)**:
-   - Checks `ADMIN_ALLOWED_EMAILS` config whitelist (immediate match for local dev).
    - Checks in-memory cache (5-minute TTL) to avoid hitting external Google APIs on every request.
    - On cache miss, queries the GCP Cloud Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`).
    - Verifies the user email has `roles/owner`, `roles/editor`, or roles defined in `GCP_ADMIN_IAM_ROLES`.
@@ -151,7 +150,7 @@ export TOKEN=$(gcloud auth print-identity-token)
      --role="roles/browser"
    ```
 3. **Localhost Development**:
-   Run `gcloud auth application-default login` on your workstation, or set `ADMIN_ALLOWED_EMAILS="your-email@gmail.com"` in your environment variables.
+   Run `gcloud auth application-default login` on your workstation so your local backend process inherits credentials to query Cloud Resource Manager.
 
 ---
 
