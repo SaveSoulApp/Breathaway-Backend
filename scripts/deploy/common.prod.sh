@@ -98,4 +98,4 @@ export DEFAULT_COUNTRY_CODE='IN'
 export IPINFO_TIMEOUT_MS='1500'
 
 # Supabase Realtime JWT Key ID (matching the public key registered in Supabase JWT Signing Keys)
-export SUPABASE_JWT_KEY_ID='709ac6ba-a048-4f39-a6ce-c1f9c993b98b'
+export SUPABASE_JWT_KEY_ID='07a5a024-3d60-4f91-a3e3-39645975dac1'

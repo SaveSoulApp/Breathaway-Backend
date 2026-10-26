@@ -493,6 +493,60 @@ Once the client app update is adopted by users, remove the deprecated key from t
 
 ---
 
+### Recipe 5: Supabase JWT Signing Key & Project Credentials (`SUPABASE_JWT_PRIVATE_KEY`, `SUPABASE_JWT_KEY_ID`)
+
+When migrating to a new Supabase project or rotating the asymmetric `ES256` JWT signing keys:
+
+> [!IMPORTANT]
+> **Supabase does not generate or provide the private key.**  
+> The backend holds the **Private Key** (PEM in Secret Manager), while the Supabase Dashboard holds the **Public Key** (JWK). The **Key ID (`SUPABASE_JWT_KEY_ID`)** is assigned by Supabase _after_ you import the JWK into the Dashboard.
+
+#### Step 1: Generate or Fetch the Private Key
+
+```bash
+# Option A: Generate a fresh EC P-256 key
+openssl ecparam -name prime256v1 -genkey -noout -out supabase-jwt-private-key.pem
+
+# Option B: Or fetch the existing key from Secret Manager
+gcloud secrets versions access latest --secret=supabase-jwt-private-key --project="${PROJECT_ID}" > supabase-jwt-private-key.pem
+```
+
+#### Step 2: Convert to JWK Format
+
+```bash
+SUPABASE_JWT_PRIVATE_KEY="$(cat supabase-jwt-private-key.pem)" npx ts-node scripts/utils/export-supabase-public-key.ts
+```
+
+Copy the exported JWK JSON object.
+
+#### Step 3: Import into Supabase Dashboard
+
+1. Go to **Supabase Dashboard → Project Settings → API → JWT Signing Keys**.
+2. Click **Create standby key** → check **Import an existing private key**.
+3. Paste the JWK JSON and click **Create standby key**.
+4. In the keys table, click **Rotate keys** to promote this key to the active ("Current") key.
+5. Copy the assigned **Key ID** (`kid` UUID).
+
+#### Step 4: Update Secret Manager & Deployment Scripts
+
+1. Upload the PEM private key to Secret Manager:
+   ```bash
+   gcloud secrets versions add supabase-jwt-private-key --project="${PROJECT_ID}" --data-file=supabase-jwt-private-key.pem
+   ```
+2. Update the Key ID in deployment configuration:
+   In `scripts/deploy/common.<env>.sh`:
+   ```bash
+   export SUPABASE_JWT_KEY_ID='<copied-key-id-uuid>'
+   ```
+3. Deploy the backend:
+   ```bash
+   ./scripts/deploy/deploy.sh --env=prod
+   ```
+
+_For complete end-to-end details, consult [Supabase Realtime Architecture & Runbook](file:///docs/docs/architecture/supabase-realtime.md)._
+
+---
+
 ## 🚨 Emergency Rollback Runbook
 
 If a newly deployed secret version causes container crashes, database disconnects, or authentication failures:

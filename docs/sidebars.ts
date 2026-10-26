@@ -103,7 +103,13 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Operations & Reliability',
       collapsed: false,
-      items: ['deployment', 'secret-rotation', 'testing', 'troubleshooting'],
+      items: [
+        'deployment',
+        'secret-rotation',
+        'supabase-jwt-setup',
+        'testing',
+        'troubleshooting',
+      ],
     },
     {
       type: 'category',
