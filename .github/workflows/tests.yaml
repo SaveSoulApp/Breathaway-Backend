@@ -6,19 +6,16 @@ on:
       - main
       - master
       - develop
-  push:
-    branches:
-      - main
-      - master
-      - develop
+  workflow_call:
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# Cancel any in-flight run for the same branch/PR when a new commit is pushed.
+# Cancel in-flight runs when a new commit is pushed on a PR branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ci:
@@ -61,6 +58,9 @@ jobs:
 
       - name: Type-check
         run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm build
 
       # ── Tests & Coverage ──────────────────────────────────────────────────────
       - name: Run unit tests with coverage

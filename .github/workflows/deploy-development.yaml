@@ -9,17 +9,25 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# Ensure only one deployment runs at a time for Development.
-# Consecutive PR merges will queue up and will not be cancelled midway.
-concurrency:
-  group: deploy-development
-  cancel-in-progress: false
-
 jobs:
+  # ── Job 1: Quality Gates (Lint, Type-check & Unit Tests) ────────────────────
+  # Runs automatically on push/merge to develop without requiring manual approval.
+  test:
+    name: Quality Gates
+    uses: ./.github/workflows/tests.yaml
+
+  # ── Job 2: Deploy to Cloud Run (Development) ────────────────────────────────
+  # Requires successful completion of Job 1.
+  # The 'Development' environment enforces the manual approval gate if "Required reviewers"
+  # is configured in GitHub Repository Settings -> Environments -> Development.
   deploy:
     name: Deploy to Cloud Run (Development)
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: deploy-development
+      cancel-in-progress: false
     environment:
       name: Development
       url: https://dev.breathaway.app
@@ -43,6 +51,11 @@ jobs:
       - name: Deploy to Cloud Run
         run: bash scripts/deploy/deploy.sh --env=dev
 
+      - name: Verify Service Health
+        run: |
+          echo "Probing deployment health..."
+          curl --fail --retry 5 --retry-delay 6 --retry-all-errors -s https://dev.breathaway.app/health
+
       - name: Write Deployment Summary
         if: success()
         run: |
@@ -53,3 +66,10 @@ jobs:
           echo "- **Target URL**: [https://dev.breathaway.app](https://dev.breathaway.app)" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Triggered By**: \`${{ github.actor }}\` via \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Write Failure Summary
+        if: failure()
+        run: |
+          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment to **Development** failed at commit \`${{ github.sha }}\`." >> $GITHUB_STEP_SUMMARY
