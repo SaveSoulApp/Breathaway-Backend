@@ -103,24 +103,23 @@ For comprehensive rotation protocols, dual-key migration recipes, and deprecatio
 
 ### Configuration & Sizing Parameterization
 
-Environment variables and resource sizing are declared in [`scripts/deploy/common.dev.sh`](file:///scripts/deploy/common.dev.sh) and [`scripts/deploy/common.prod.sh`](file:///scripts/deploy/common.prod.sh):
+Deployment configurations follow a modular single-source-of-truth pattern:
+
+- **Shared Defaults & Invariants**: Defined in [`scripts/deploy/common.base.sh`](file:///scripts/deploy/common.base.sh) (e.g. CPU, memory, database pool timeouts, pub/sub topics, default country code).
+- **Environment Overrides**: Specified in [`scripts/deploy/common.dev.sh`](file:///scripts/deploy/common.dev.sh) and [`scripts/deploy/common.prod.sh`](file:///scripts/deploy/common.prod.sh) (e.g. `PROJECT_ID`, `NODE_ENV`, `CORS_ORIGINS`, `JWT_ISSUER`, `MAX_INSTANCES`, `SWAGGER_ENABLED`), which source `common.base.sh`.
 
 ```bash
-# Public API Resource Sizing
+# Shared Base (scripts/deploy/common.base.sh)
 export CPU='2'
 export MEMORY='2Gi'
-export MAX_INSTANCES='20'
 export CONCURRENCY='160'
-
-# Maintenance Worker Resource Sizing (Can be adjusted independently)
 export MAINTENANCE_CPU='2'
 export MAINTENANCE_MEMORY='2Gi'
 export MAINTENANCE_MAX_INSTANCES='5'
 export MAINTENANCE_CONCURRENCY='80'
 
-# Service Accounts
-export BACKEND_SERVICE_ACCOUNT="backend-service@${PROJECT_ID}.iam.gserviceaccount.com"
-export MAINTENANCE_SERVICE_ACCOUNT="maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com"
+# Environment-Specific Scaling (common.dev.sh vs common.prod.sh)
+export MAX_INSTANCES='10'  # 10 for dev, 20 for prod
 ```
 
 ---

@@ -5,96 +5,24 @@
 # ==============================================================================
 
 export PROJECT_ID="breathaway-development"
-export REGION="asia-south1"
-export REPOSITORY="breathaway-backend"
-export SERVICE_NAME="backend-service"
-export BACKEND_SERVICE_ACCOUNT="backend-service@${PROJECT_ID}.iam.gserviceaccount.com"
-
-export MAINTENANCE_SERVICE_NAME="maintenance-service"
-export MAINTENANCE_SERVICE_ACCOUNT="maintenance-runner@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Define the base URL for Artifact Registry (Without the tag)
-# The deploy.sh script will dynamically append :${GIT_COMMIT_HASH} to this.
-export IMAGE_BASE_URL="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE_NAME}"
-
-# ==============================================================================
-# Non-Sensitive Application Configuration
-# ==============================================================================
 export NODE_ENV='development'
-export LOG_LEVEL='info'
-export DEPLOYMENT_ENV='gcp'
-export SHOULD_LOG_RESPONSE='false'
-export IS_THROTTLING_ENABLED_VIA_REDIS='false'
-export APP_NAME="BreathAway"
-export REQUIRED_PLATFORMS='["ios","android","web","postman"]'
-export MIN_APP_VERSION="1.0.0"
+
+# Allowed Origins & Auth Issuers
 export CORS_ORIGINS='["http://localhost:3000","http://localhost:5173","https://dev.breathaway.app"]'
-
-export GCP_PROJECT_ID="${PROJECT_ID}"
-export GCP_BUCKET_NAME='breathaway-documents'
-export DSAR_EXPORT_BUCKET_NAME="${PROJECT_ID}-dsar-exports"
-
-export META_VERIFY_TOKEN='my_meta_verification_token'
-
-# Firebase Admin SDK Configuration
-export FIREBASE_PROJECT_ID='breathaway-development'
-
-# JWT
-export JWT_EXPIRES_IN='15m'
-export JWT_REFRESH_EXPIRES_IN='14d'
-export JWT_AUDIENCE='breathaway-mobile-app'
 export JWT_ISSUER='https://dev.breathaway.app'
 
-export OTP_TTL='300'
-export OTP_RATE_LIMIT_TTL='120'
-
-export EMAIL_FROM_ADDRESS='no-reply@breathaway.app'
-export EMAIL_FROM_NAME='BreathAway'
-
+# Google Cloud OIDC Audience (Internal Services)
 export GCP_OIDC_AUDIENCE='https://backend-service-54c574542a-el.a.run.app,https://maintenance-service-54c574542a-el.a.run.app'
 
-# Mail provider
-export EMAIL_PROVIDER='brevo'
-
-export MAILGUN_API_KEY='some-api-key'
-export MAILGUN_DOMAIN='domain@domaincom'
-export SENDGRID_API_KEY='SG.some-api-key'
-
-# WhatsApp provider configuration
-export WHATSAPP_PROVIDER='liteapp'
-export LITEAPP_WHATSAPP_URL='https://www.liteapp.store'
-
-# Swagger UI Access Control
-# Set to 'false' to completely disable Swagger UI on this environment
+# Swagger UI Access Control (Enabled for dev)
 export SWAGGER_ENABLED='true'
 
-export AUDIT_PUBSUB_TOPIC='audit-logs-topic'
-
-export CREDIT_EXPIRY_DAYS='90'
-export LIKE_EXPIRY_DAYS='90'
-
-# Cloud Run Resources & Concurrency Limits (Public API)
-export CPU='2'
-export MEMORY='2Gi'
+# Cloud Run Scaling Limits
 export MAX_INSTANCES='10'
-export CONCURRENCY='160'
 
-# Cloud Run Resources & Concurrency Limits (Internal Maintenance Service)
-export MAINTENANCE_CPU='2'
-export MAINTENANCE_MEMORY='2Gi'
-export MAINTENANCE_MAX_INSTANCES='5'
-export MAINTENANCE_CONCURRENCY='80'
-
-# Database Connection Pool Sizing & Timeouts
-export DB_POOL_MAX='4'
-export DB_POOL_MIN='0'
-export DB_POOL_ACQUISITION_TIMEOUT_MS='5000'
-export DB_POOL_IDLE_TIMEOUT_MS='10000'
-export DB_POOL_STATEMENT_TIMEOUT_MS='15000'
-
-export DEFAULT_COUNTRY_CODE='IN'
-
-export IPINFO_TIMEOUT_MS='1500'
-
-# Supabase Realtime JWT Key ID (matching the public key registered in Supabase JWT Signing Keys)
+# Supabase Realtime JWT Key ID for development
 export SUPABASE_JWT_KEY_ID='07a5a024-3d60-4f91-a3e3-39645975dac1'
+
+# Source shared base configurations and derived variables
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+source "${SCRIPT_DIR}/common.base.sh"

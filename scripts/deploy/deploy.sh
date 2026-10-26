@@ -81,6 +81,11 @@ if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
 fi
 
 # Locate and source environment configuration
+BASE_CONFIG_FILE="${SCRIPT_DIR}/common.base.sh"
+if [[ ! -f "${BASE_CONFIG_FILE}" ]]; then
+    print_error "Base configuration not found at ${BASE_CONFIG_FILE}"
+fi
+
 ENV_CONFIG_FILE="${SCRIPT_DIR}/common.${ENV}.sh"
 if [[ ! -f "${ENV_CONFIG_FILE}" ]]; then
     print_error "Environment configuration not found at ${ENV_CONFIG_FILE}"
