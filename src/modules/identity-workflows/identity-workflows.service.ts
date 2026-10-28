@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IdentityType, LikeStatus } from '@prisma/client';
 
-import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
@@ -10,6 +9,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 import { IdentitiesService } from '@modules/identities/identities.service';
 import { InstagramService } from '@modules/instagram/instagram.service';
+import { ACTIVE_LIKE_FILTER } from '@modules/likes/likes.types';
 import {
   LikeSummary,
   MatchResolverService,
@@ -299,7 +299,7 @@ export class IdentityWorkflowsService extends BaseService {
         targetIdentityId: { in: identityIds },
         status: LikeStatus.PENDING,
         deletedAt: null,
-        expiresAt: { gt: DateUtil.now() },
+        ...ACTIVE_LIKE_FILTER,
       },
       select: {
         id: true,
