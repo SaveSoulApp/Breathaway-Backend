@@ -616,6 +616,8 @@ export class LikesService extends BaseService {
         normalizedLabel,
         dto.intent,
         like.expiresAt,
+        targetIdentity.id,
+        like.id,
       ),
     );
 

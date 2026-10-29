@@ -35,4 +35,15 @@ export const WHATSAPP_TEMPLATE_MAP: Partial<
         : { buttonUrlVariable: 'alerts' }),
     }),
   },
+  [NotificationType.LIKE_RECEIVED]: {
+    template: 'breathaway_like_received',
+    language: 'en',
+    buildPayload: (data) => {
+      const payload: Record<string, unknown> = {};
+      if (typeof data.name === 'string' && data.name.trim().length > 0) {
+        payload.name = data.name.trim();
+      }
+      return payload;
+    },
+  },
 };

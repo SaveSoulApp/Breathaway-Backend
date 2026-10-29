@@ -317,6 +317,8 @@ describe('LikesService', () => {
           userId,
           targetMaskedValue: mockTargetIdentity.publicValueMasked,
           intent: IntentType.RELATIONSHIP,
+          targetIdentityId: mockTargetIdentity.id,
+          likeId: mockLikeData.id,
         }),
       );
     });

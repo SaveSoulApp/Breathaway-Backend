@@ -1,6 +1,7 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DevicePlatform } from '@prisma/client';
+import { DevicePlatform, IdentityType } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
@@ -25,6 +26,7 @@ import {
 import { LikeSentEvent, LikeWithdrawnEvent } from '@modules/likes/events';
 import { LikesExpiredEvent } from '@modules/maintenance/events';
 import { MatchCreatedEvent } from '@modules/match-resolver/events';
+import { PreferencesService } from '@modules/preferences/preferences.service';
 import { DsarExportCompletedEvent } from '@modules/users/events';
 
 import { NotificationCategory } from '../enums/notification-category.enum';
@@ -33,11 +35,19 @@ import { NotificationPriority } from '../enums/notification-priority.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationEventsListener } from '../listeners/notification-events.listener';
 import { NotificationsService } from '../notifications.service';
+import { WhatsAppProviderService } from '../providers/whatsapp.provider.service';
 
 describe('NotificationEventsListener', () => {
   let listener: NotificationEventsListener;
   let prisma: MockPrismaService;
   let notificationsService: jest.Mocked<NotificationsService>;
+  let configService: { get: jest.Mock };
+  let preferencesService: { getPreferences: jest.Mock };
+  let whatsAppProvider: { sendDirectPhone: jest.Mock };
+  let identityCryptoService: {
+    decryptText: jest.Mock;
+    decryptPublicValue: jest.Mock;
+  };
   let contextualLogger: {
     log: jest.Mock;
     warn: jest.Mock;
@@ -67,7 +77,31 @@ describe('NotificationEventsListener', () => {
       dispatch: jest.fn().mockResolvedValue(undefined),
     };
 
-    const mockIdentityCryptoService = {
+    configService = {
+      get: jest.fn((key: string, defaultValue?: unknown) => {
+        const values: Record<string, unknown> = {
+          WHATSAPP_LIKE_NOTIFICATION_ENABLED: true,
+          WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS: 7,
+          WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES: '["+91"]',
+        };
+        return values[key] ?? defaultValue;
+      }),
+    };
+
+    preferencesService = {
+      getPreferences: jest.fn().mockResolvedValue({
+        pushEnabled: true,
+        whatsappEnabled: true,
+        smsEnabled: true,
+        emailEnabled: true,
+      }),
+    };
+
+    whatsAppProvider = {
+      sendDirectPhone: jest.fn().mockResolvedValue(true),
+    };
+
+    identityCryptoService = {
       decryptText: jest.fn().mockImplementation((val?: string | null) => {
         if (!val) return Promise.resolve(null);
         if (val.startsWith('enc:v1:')) {
@@ -76,6 +110,7 @@ describe('NotificationEventsListener', () => {
         }
         return Promise.resolve(val);
       }),
+      decryptPublicValue: jest.fn().mockResolvedValue('+919876543210'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -88,8 +123,11 @@ describe('NotificationEventsListener', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: IdentityCryptoService,
-          useValue: mockIdentityCryptoService,
+          useValue: identityCryptoService,
         },
+        { provide: ConfigService, useValue: configService },
+        { provide: PreferencesService, useValue: preferencesService },
+        { provide: WhatsAppProviderService, useValue: whatsAppProvider },
       ],
     }).compile();
 
@@ -159,7 +197,7 @@ describe('NotificationEventsListener', () => {
   });
 
   describe('handleLikeSent', () => {
-    it('should dispatch LIKE_SENT notification with resolved sender firstName', async () => {
+    it('should dispatch LIKE_SENT notification to sender with resolved firstName', async () => {
       prisma.userProfile.findUnique.mockResolvedValue({
         firstName: 'Bob',
       } as never);
@@ -187,6 +225,312 @@ describe('NotificationEventsListener', () => {
             intent: 'ROMANTIC',
           }),
         }),
+      );
+    });
+
+    it('should not dispatch WhatsApp notification to recipient when WHATSAPP_LIKE_NOTIFICATION_ENABLED is false', async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'WHATSAPP_LIKE_NOTIFICATION_ENABLED') return false;
+          return defaultValue;
+        },
+      );
+
+      const event = new LikeSentEvent(
+        'user-1',
+        '+91***10',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'WhatsApp like notification is disabled via configuration',
+        expect.anything(),
+      );
+    });
+
+    it('should not dispatch WhatsApp notification when target identity is not of type PHONE', async () => {
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-1',
+        type: IdentityType.EMAIL,
+        userId: null,
+        publicValueHash: 'hash-1',
+      } as never);
+
+      const event = new LikeSentEvent(
+        'user-1',
+        't***@gmail.com',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Target identity is not of type PHONE, skipping WhatsApp notification',
+        expect.anything(),
+      );
+    });
+
+    it('should not dispatch WhatsApp notification when recipient phone country code is not in allowlist', async () => {
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-1',
+        type: IdentityType.PHONE,
+        userId: null,
+        publicValueHash: 'hash-1',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+14155552671', // US number
+      );
+
+      const event = new LikeSentEvent(
+        'user-1',
+        '+1***71',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Recipient phone is not in allow-listed country codes, skipping WhatsApp notification',
+        expect.anything(),
+      );
+    });
+
+    it('should dispatch WhatsApp notification to Singapore (+65) recipient when Singapore is allow-listed', async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES') {
+            return '["+91", "+65"]';
+          }
+          if (key === 'WHATSAPP_LIKE_NOTIFICATION_ENABLED') return true;
+          return defaultValue;
+        },
+      );
+
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-sg-1',
+        type: IdentityType.PHONE,
+        userId: null,
+        publicValueHash: 'hash-sg-recipient',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+        user: null,
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+6581234567',
+      );
+
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+65***67',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-sg-1',
+        'like-sg-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledTimes(1);
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '6581234567',
+          dedupKey: 'whatsapp:like_buffer:hash-sg-recipient',
+        }),
+      );
+    });
+
+    it('should support ISO-2 country codes in allowlist (e.g. "SG, IN")', async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES') {
+            return 'SG, IN';
+          }
+          if (key === 'WHATSAPP_LIKE_NOTIFICATION_ENABLED') return true;
+          return defaultValue;
+        },
+      );
+
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-sg-2',
+        type: IdentityType.PHONE,
+        userId: null,
+        publicValueHash: 'hash-sg-2',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+        user: null,
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+6581234567',
+      );
+
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+65***67',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-sg-2',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '6581234567',
+        }),
+      );
+    });
+
+    it('should dispatch WhatsApp notification to recipient (+91) when unregistered (without name placeholder)', async () => {
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-1',
+        type: IdentityType.PHONE,
+        userId: null, // Unregistered user
+        publicValueHash: 'hash-indian-recipient',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+        user: null,
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+919876543210',
+      );
+
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+91***10',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+        'like-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledTimes(1);
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledWith({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: undefined,
+        dedupKey: 'whatsapp:like_buffer:hash-indian-recipient',
+        dedupTtlSeconds: 7 * 86400,
+      });
+    });
+
+    it('should dispatch WhatsApp notification to recipient (+91) with firstName when registered', async () => {
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-1',
+        type: IdentityType.PHONE,
+        userId: 'recipient-user-2',
+        publicValueHash: 'hash-indian-registered',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+        user: {
+          profile: {
+            firstName: 'enc:v1:Anamika',
+          },
+        },
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+919876543210',
+      );
+
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+91***10',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+        'like-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledTimes(1);
+      expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledWith({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+        dedupKey: 'whatsapp:like_buffer:hash-indian-registered',
+        dedupTtlSeconds: 7 * 86400,
+      });
+    });
+
+    it('should not dispatch WhatsApp notification when registered recipient disabled whatsapp in preferences', async () => {
+      prisma.identity.findUnique.mockResolvedValue({
+        id: 'identity-1',
+        type: IdentityType.PHONE,
+        userId: 'recipient-user-2',
+        publicValueHash: 'hash-indian-optout',
+        publicValueCiphertext: 'cipher',
+        publicValueIv: 'iv',
+        publicValueTag: 'tag',
+        publicValueWrappedKey: 'key',
+        publicValueKeyId: 'k1',
+        user: { profile: { firstName: 'Anamika' } },
+      } as never);
+
+      identityCryptoService.decryptPublicValue.mockResolvedValueOnce(
+        '+919876543210',
+      );
+
+      preferencesService.getPreferences.mockResolvedValueOnce({
+        whatsappEnabled: false,
+      });
+
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+91***10',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Recipient user has WhatsApp notifications disabled in preferences',
+        expect.anything(),
       );
     });
   });

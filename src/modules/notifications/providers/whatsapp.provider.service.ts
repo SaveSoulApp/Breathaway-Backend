@@ -9,6 +9,7 @@ import { LoggerService } from '@core/logger';
 import { RedisService } from '@infrastructure/redis';
 
 import { SendNotificationRequestDto } from '../dto/request/send-notification.request.dto';
+import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
 import {
   type IWhatsAppAdapter,
@@ -159,20 +160,130 @@ export class WhatsAppProviderService
   }
 
   /**
+   * Dispatches a WhatsApp notification directly to a phone number.
+   *
+   * Resolves template configurations from WHATSAPP_TEMPLATE_MAP, interpolates parameters,
+   * enforces deduplication / rate-limiting buffers, and safely handles errors.
+   *
+   * @param options - Direct phone dispatch parameters
+   * @returns boolean - True if the message was dispatched; false if skipped, suppressed, or failed.
+   */
+  async sendDirectPhone(options: {
+    to: string;
+    type: NotificationType;
+    params?: Record<string, unknown>;
+    language?: string;
+    dedupKey?: string;
+    dedupTtlSeconds?: number;
+  }): Promise<boolean> {
+    const {
+      to,
+      type,
+      params,
+      language = 'en',
+      dedupKey,
+      dedupTtlSeconds,
+    } = options;
+
+    if (!to || to.trim() === '') {
+      this.logger.warn(
+        'Cannot send direct WhatsApp message: phone number is empty',
+        {
+          type,
+          step: 'validate_phone',
+        },
+      );
+      return false;
+    }
+
+    const templateConfig = WHATSAPP_TEMPLATE_MAP[type];
+    if (!templateConfig) {
+      this.logger.debug(
+        'No WhatsApp template mapped for notification type in direct phone send',
+        {
+          type,
+          step: 'template_lookup',
+        },
+      );
+      return false;
+    }
+
+    // Cooldown / deduplication check
+    if (dedupKey) {
+      const isDuplicate = await this.isDuplicateAndMark(
+        dedupKey,
+        dedupTtlSeconds,
+      );
+      if (isDuplicate) {
+        this.logger.log(
+          'Direct WhatsApp notification suppressed due to active deduplication / cooldown buffer',
+          {
+            recipient: maskPhoneNumber(to),
+            type,
+            template: templateConfig.template,
+            dedupKey,
+            step: 'dedup_check',
+          },
+        );
+        return false;
+      }
+    }
+
+    const payloadParams = templateConfig.buildPayload
+      ? templateConfig.buildPayload(params ?? {})
+      : params;
+
+    try {
+      await this.whatsAppAdapter.send({
+        to,
+        template: templateConfig.template,
+        language: templateConfig.language ?? language,
+        params: payloadParams,
+      });
+
+      this.logger.log('Direct WhatsApp notification dispatched successfully', {
+        recipient: maskPhoneNumber(to),
+        type,
+        template: templateConfig.template,
+        step: 'dispatch_success',
+      });
+      return true;
+    } catch (err) {
+      // If send failed and a dedupKey was used, release the key so subsequent attempts aren't falsely blocked
+      if (dedupKey) {
+        await this.releaseDuplicateKey(dedupKey);
+      }
+
+      this.logger.error('Failed to send direct WhatsApp notification', {
+        recipient: maskPhoneNumber(to),
+        type,
+        template: templateConfig.template,
+        step: 'dispatch_failed',
+        err: serializeError(err),
+      });
+      return false;
+    }
+  }
+
+  /**
    * Checks if an idempotency key was already marked sent.
    * If not, marks it as sent with TTL and returns false.
    *
-   * @param key - Idempotency key (e.g. whatsapp:match:{matchId}:{userId}).
-   * @returns true if already sent (duplicate), false if new.
+   * @param key - Idempotency or cooldown key.
+   * @param ttlSeconds - Optional TTL in seconds (defaults to DEDUP_TTL_SECONDS).
+   * @returns true if already sent (duplicate/suppressed), false if new.
    */
-  private async isDuplicateAndMark(key: string): Promise<boolean> {
+  async isDuplicateAndMark(
+    key: string,
+    ttlSeconds: number = this.DEDUP_TTL_SECONDS,
+  ): Promise<boolean> {
     if (this.redisService?.isConfigured) {
       try {
         const result = await this.redisService.set(
           key,
           '1',
           'EX',
-          this.DEDUP_TTL_SECONDS,
+          ttlSeconds,
           'NX',
         );
         // If NX was set, result is 'OK' (meaning it was not duplicate)
@@ -190,15 +301,37 @@ export class WhatsAppProviderService
     }
 
     // In-memory fallback
+    const ttlMs = ttlSeconds * 1000;
     const now = DateUtil.now().getTime();
     const existing = this.inMemorySentKeys.get(key);
-    if (existing && now - existing < this.DEDUP_TTL_MS) {
+    if (existing && now - existing < ttlMs) {
       return true;
     }
 
     this.pruneInMemoryCache(now);
     this.inMemorySentKeys.set(key, now);
     return false;
+  }
+
+  /**
+   * Releases an idempotency / cooldown key in case of dispatch failure.
+   */
+  async releaseDuplicateKey(key: string): Promise<void> {
+    if (this.redisService?.isConfigured) {
+      try {
+        await this.redisService.rawClient?.del(key);
+      } catch (err) {
+        this.logger.warn(
+          'Failed to release Redis deduplication key on failure',
+          {
+            key,
+            step: 'redis_release_error',
+            err: serializeError(err),
+          },
+        );
+      }
+    }
+    this.inMemorySentKeys.delete(key);
   }
 
   /**

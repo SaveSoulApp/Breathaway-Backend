@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
+import { IdentityType } from '@prisma/client';
+import {
+  CountryCode,
+  getCountryCallingCode,
+  parsePhoneNumberWithError,
+} from 'libphonenumber-js';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
@@ -41,6 +48,7 @@ import {
   MATCH_CREATED_EVENT,
   MatchCreatedEvent,
 } from '@modules/match-resolver/events';
+import { PreferencesService } from '@modules/preferences/preferences.service';
 import {
   DSAR_EXPORT_COMPLETED_EVENT,
   DsarExportCompletedEvent,
@@ -51,6 +59,7 @@ import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationPriority } from '../enums/notification-priority.enum';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationsService } from '../notifications.service';
+import { WhatsAppProviderService } from '../providers/whatsapp.provider.service';
 
 /**
  * Central event listener that subscribes to domain events and dispatches notifications.
@@ -65,6 +74,9 @@ export class NotificationEventsListener extends BaseService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly identityCryptoService: IdentityCryptoService,
+    private readonly configService: ConfigService,
+    private readonly preferencesService: PreferencesService,
+    private readonly whatsAppProvider: WhatsAppProviderService,
   ) {
     super(loggerService);
   }
@@ -122,6 +134,7 @@ export class NotificationEventsListener extends BaseService {
 
   @OnEvent(LIKE_SENT_EVENT)
   async handleLikeSent(event: LikeSentEvent): Promise<void> {
+    // 1. Dispatch sender confirmation (EMAIL, PUSH)
     try {
       const name = await this.resolveUserFirstName(event.userId);
 
@@ -143,12 +156,305 @@ export class NotificationEventsListener extends BaseService {
         },
       });
     } catch (err) {
-      this.logger.error('Failed to dispatch LIKE_SENT notification', {
+      this.logger.error('Failed to dispatch LIKE_SENT notification to sender', {
         userId: event.userId,
-        step: 'handle_like_sent_event',
+        step: 'handle_like_sent_sender_event',
         err: serializeError(err),
       });
     }
+
+    // 2. Dispatch recipient WhatsApp notification (if enabled, phone is +91, cooldown buffer passed)
+    try {
+      await this.dispatchRecipientWhatsAppLikeNotification(event);
+    } catch (err) {
+      this.logger.error(
+        'Failed to dispatch recipient WhatsApp like notification',
+        {
+          senderUserId: event.userId,
+          targetIdentityId: event.targetIdentityId,
+          step: 'handle_like_sent_recipient_whatsapp',
+          err: serializeError(err),
+        },
+      );
+    }
+  }
+
+  /**
+   * Dispatches a WhatsApp notification to the recipient of a like when eligible:
+   * 1. Enabled via WHATSAPP_LIKE_NOTIFICATION_ENABLED configuration boolean.
+   * 2. Target identity is of type PHONE.
+   * 3. Recipient phone number is an Indian number starting with +91.
+   * 4. Recipient has not opted out of WhatsApp (if registered).
+   * 5. Cooldown buffer ("celebrity problem" rate limit) is not active for the recipient.
+   */
+  private async dispatchRecipientWhatsAppLikeNotification(
+    event: LikeSentEvent,
+  ): Promise<void> {
+    const isEnabled = this.configService.get<boolean>(
+      'WHATSAPP_LIKE_NOTIFICATION_ENABLED',
+      false,
+    );
+
+    if (!isEnabled) {
+      this.logger.debug(
+        'WhatsApp like notification is disabled via configuration',
+        {
+          senderUserId: event.userId,
+          targetIdentityId: event.targetIdentityId,
+          step: 'whatsapp_like_disabled',
+        },
+      );
+      return;
+    }
+
+    if (!event.targetIdentityId) {
+      this.logger.debug(
+        'Cannot dispatch recipient WhatsApp notification: missing targetIdentityId in event',
+        {
+          senderUserId: event.userId,
+          step: 'missing_target_identity_id',
+        },
+      );
+      return;
+    }
+
+    const targetIdentity = await this.prisma.identity.findUnique({
+      where: { id: event.targetIdentityId },
+      select: {
+        id: true,
+        type: true,
+        userId: true,
+        publicValueHash: true,
+        publicValueCiphertext: true,
+        publicValueIv: true,
+        publicValueTag: true,
+        publicValueWrappedKey: true,
+        publicValueKeyId: true,
+        user: {
+          select: {
+            profile: {
+              select: {
+                firstName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!targetIdentity) {
+      this.logger.warn(
+        'Target identity for like notification not found in database',
+        {
+          targetIdentityId: event.targetIdentityId,
+          step: 'target_identity_not_found',
+        },
+      );
+      return;
+    }
+
+    if (targetIdentity.type !== IdentityType.PHONE) {
+      this.logger.debug(
+        'Target identity is not of type PHONE, skipping WhatsApp notification',
+        {
+          targetIdentityId: targetIdentity.id,
+          identityType: targetIdentity.type,
+          step: 'skip_non_phone',
+        },
+      );
+      return;
+    }
+
+    // Decrypt phone number
+    let rawPhone: string | null = null;
+    try {
+      rawPhone = await this.identityCryptoService.decryptPublicValue({
+        publicValueCiphertext: targetIdentity.publicValueCiphertext,
+        publicValueIv: targetIdentity.publicValueIv,
+        publicValueTag: targetIdentity.publicValueTag,
+        publicValueWrappedKey: targetIdentity.publicValueWrappedKey,
+        publicValueKeyId: targetIdentity.publicValueKeyId,
+      });
+    } catch (err) {
+      this.logger.error(
+        'Failed to decrypt recipient phone number for WhatsApp like notification',
+        {
+          targetIdentityId: targetIdentity.id,
+          step: 'decrypt_phone_failed',
+          err: serializeError(err),
+        },
+      );
+      return;
+    }
+
+    const allowedCallingCodes = this.getAllowListedCountryCallingCodes();
+    const recipientPhone = this.extractAllowListedPhone(
+      rawPhone,
+      allowedCallingCodes,
+    );
+    if (!recipientPhone) {
+      this.logger.debug(
+        'Recipient phone is not in allow-listed country codes, skipping WhatsApp notification',
+        {
+          targetIdentityId: targetIdentity.id,
+          allowedCallingCodes,
+          step: 'skip_disallowed_country_code',
+        },
+      );
+      return;
+    }
+
+    // Check notification preferences if recipient is a registered user
+    if (targetIdentity.userId) {
+      const preferences = await this.preferencesService.getPreferences(
+        targetIdentity.userId,
+      );
+      if (!preferences.whatsappEnabled) {
+        this.logger.debug(
+          'Recipient user has WhatsApp notifications disabled in preferences',
+          {
+            targetUserId: targetIdentity.userId,
+            step: 'skip_preference_disabled',
+          },
+        );
+        return;
+      }
+    }
+
+    // Resolve recipient name if available
+    let recipientFirstName: string | undefined;
+    if (targetIdentity.user?.profile?.firstName) {
+      try {
+        const decryptedName = await this.identityCryptoService.decryptText(
+          targetIdentity.user.profile.firstName,
+        );
+        if (decryptedName && decryptedName.trim().length > 0) {
+          recipientFirstName = decryptedName.trim();
+        }
+      } catch {
+        // Fallback to undefined if decryption fails
+      }
+    }
+
+    const bufferDays =
+      this.configService.get<number>(
+        'WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS',
+      ) || 7;
+    const bufferTtlSeconds = bufferDays * 24 * 60 * 60;
+    const dedupKey = `whatsapp:like_buffer:${targetIdentity.publicValueHash}`;
+
+    await this.whatsAppProvider.sendDirectPhone({
+      to: recipientPhone.phoneDigits,
+      type: NotificationType.LIKE_RECEIVED,
+      params: recipientFirstName ? { name: recipientFirstName } : undefined,
+      dedupKey,
+      dedupTtlSeconds: bufferTtlSeconds,
+    });
+  }
+
+  /**
+   * Retrieves the allow-listed country calling codes for WhatsApp like notifications.
+   * Supports JSON arrays (e.g. '["+91", "+65"]'), comma-separated strings (e.g. '+91, +65' or 'IN, SG'),
+   * or direct array input. Converts ISO-2 country codes or +calling codes into digits-only calling codes.
+   */
+  private getAllowListedCountryCallingCodes(): string[] {
+    const raw = this.configService.get<string | string[]>(
+      'WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES',
+      '["+91"]',
+    );
+
+    let rawList: string[] = [];
+    if (Array.isArray(raw)) {
+      rawList = raw.map(String);
+    } else if (typeof raw === 'string' && raw.trim().length > 0) {
+      const trimmed = raw.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsed: unknown = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            rawList = parsed.map(String);
+          }
+        } catch {
+          rawList = [trimmed];
+        }
+      } else {
+        rawList = trimmed.split(',').map((item) => item.trim());
+      }
+    }
+
+    if (rawList.length === 0) {
+      rawList = ['+91'];
+    }
+
+    const callingCodes: string[] = [];
+    for (const entry of rawList) {
+      const cleaned = entry.trim();
+      if (!cleaned) continue;
+
+      // Handle ISO 3166-1 alpha-2 code (e.g. 'IN', 'SG')
+      if (/^[A-Za-z]{2}$/.test(cleaned)) {
+        try {
+          const code = getCountryCallingCode(
+            cleaned.toUpperCase() as CountryCode,
+          );
+          if (code && !callingCodes.includes(code)) {
+            callingCodes.push(code);
+          }
+          continue;
+        } catch {
+          // not a recognized ISO code, fall through
+        }
+      }
+
+      // Strip leading '+' and non-digit characters (e.g. '+91' -> '91')
+      const digitsOnly = cleaned.replace(/\D/g, '');
+      if (digitsOnly && !callingCodes.includes(digitsOnly)) {
+        callingCodes.push(digitsOnly);
+      }
+    }
+
+    return callingCodes.length > 0 ? callingCodes : ['91'];
+  }
+
+  /**
+   * Validates whether a decrypted phone string matches one of the allow-listed country calling codes
+   * and extracts normalized digits.
+   */
+  private extractAllowListedPhone(
+    rawPhone: string | null,
+    allowedCallingCodes: string[],
+  ): { phoneDigits: string; e164Formatted: string } | null {
+    if (!rawPhone || rawPhone.trim() === '') return null;
+
+    const trimmed = rawPhone.trim();
+    try {
+      const candidate = trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+      const parsed = parsePhoneNumberWithError(candidate);
+      if (
+        parsed.isValid() &&
+        allowedCallingCodes.includes(parsed.countryCallingCode)
+      ) {
+        const phoneDigits = `${parsed.countryCallingCode}${parsed.nationalNumber}`;
+        return {
+          phoneDigits,
+          e164Formatted: `+${phoneDigits}`,
+        };
+      }
+    } catch {
+      // libphonenumber parsing failed, fall back to prefix digits inspection
+    }
+
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    for (const code of allowedCallingCodes) {
+      if (digitsOnly.startsWith(code) && digitsOnly.length >= code.length + 7) {
+        return {
+          phoneDigits: digitsOnly,
+          e164Formatted: `+${digitsOnly}`,
+        };
+      }
+    }
+
+    return null;
   }
 
   @OnEvent(LIKE_WITHDRAWN_EVENT)

@@ -7,5 +7,7 @@ export class LikeSentEvent {
     public readonly targetLabel: string | null = null,
     public readonly intent: string = 'ROMANTIC',
     public readonly expiresAt: Date | null = null,
+    public readonly targetIdentityId?: string,
+    public readonly likeId?: string,
   ) {}
 }

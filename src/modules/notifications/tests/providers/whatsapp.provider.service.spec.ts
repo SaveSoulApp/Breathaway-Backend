@@ -316,4 +316,110 @@ describe('WhatsAppProviderService', () => {
       expect(inMemoryMap.has('new-key')).toBe(true);
     });
   });
+
+  describe('sendDirectPhone', () => {
+    it('should return false if phone number is empty', async () => {
+      const result = await service.sendDirectPhone({
+        to: '',
+        type: NotificationType.LIKE_SENT,
+      });
+
+      expect(result).toBe(false);
+      expect(mockWhatsAppAdapter.send).not.toHaveBeenCalled();
+      expect(mockContextualLogger.warn).toHaveBeenCalledWith(
+        'Cannot send direct WhatsApp message: phone number is empty',
+        expect.anything(),
+      );
+    });
+
+    it('should return false if template is not mapped or configured', async () => {
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.IDENTITY_REMOVED,
+      });
+
+      expect(result).toBe(false);
+      expect(mockWhatsAppAdapter.send).not.toHaveBeenCalled();
+    });
+
+    it('should dispatch WhatsApp notification directly to phone number with parameters', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+      });
+
+      expect(result).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
+        to: '919876543210',
+        template: 'breathaway_like_received',
+        language: 'en',
+        params: { name: 'Anamika' },
+      });
+    });
+
+    it('should suppress direct message when dedupKey is active in cooldown buffer', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValue(undefined);
+
+      const firstSend = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+        dedupKey: 'whatsapp:like_buffer:hash123',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(firstSend).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+
+      // Second like within buffer window
+      const secondSend = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+        dedupKey: 'whatsapp:like_buffer:hash123',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(secondSend).toBe(false);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1); // not called again
+      expect(mockContextualLogger.log).toHaveBeenCalledWith(
+        'Direct WhatsApp notification suppressed due to active deduplication / cooldown buffer',
+        expect.anything(),
+      );
+    });
+
+    it('should release dedupKey and return false when adapter throws an error', async () => {
+      mockWhatsAppAdapter.send.mockRejectedValueOnce(
+        new Error('Network error on LiteApp'),
+      );
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        dedupKey: 'whatsapp:like_buffer:hash_fail',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(result).toBe(false);
+      expect(mockContextualLogger.error).toHaveBeenCalledWith(
+        'Failed to send direct WhatsApp notification',
+        expect.anything(),
+      );
+
+      // Since dedupKey was released, the subsequent attempt can try again
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+      const retryResult = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        dedupKey: 'whatsapp:like_buffer:hash_fail',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(retryResult).toBe(true);
+    });
+  });
 });

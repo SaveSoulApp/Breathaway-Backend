@@ -82,6 +82,9 @@ describe('envValidationSchema', () => {
       // WhatsApp defaults
       expect(value.WHATSAPP_PROVIDER).toBe('liteapp');
       expect(value.LITEAPP_WHATSAPP_URL).toBe('https://www.liteapp.store');
+      expect(value.WHATSAPP_LIKE_NOTIFICATION_ENABLED).toBe(false);
+      expect(value.WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS).toBe(7);
+      expect(value.WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES).toBe('["+91"]');
 
       // Swagger defaults
       expect(value.SWAGGER_ENABLED).toBe('true');
@@ -212,6 +215,35 @@ describe('envValidationSchema', () => {
       expect(error?.message).toContain(
         '"LITEAPP_WHATSAPP_URL" must be a valid uri',
       );
+    });
+
+    it('should fail when WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS is less than 1', () => {
+      const { error } = envValidationSchema.validate(
+        { ...baseValidEnv, WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS: 0 },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.message).toContain(
+        '"WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS" must be greater than or equal to 1',
+      );
+    });
+
+    it('should coerce and accept custom WhatsApp like notification settings', () => {
+      const { error, value } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          WHATSAPP_LIKE_NOTIFICATION_ENABLED: 'true',
+          WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS: '14',
+          WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES: '["+91","+65"]',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.WHATSAPP_LIKE_NOTIFICATION_ENABLED).toBe(true);
+      expect(value.WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS).toBe(14);
+      expect(value.WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES).toBe('["+91","+65"]');
     });
 
     it('should fail when EMAIL_FROM_ADDRESS is not a valid email', () => {
