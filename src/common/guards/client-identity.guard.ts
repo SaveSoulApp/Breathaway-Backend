@@ -39,6 +39,7 @@ export class ClientIdentityGuard implements CanActivate {
   private readonly requiredPlatforms: Set<string>;
   private readonly minAppVersion: string;
   private readonly appName: string;
+  private readonly isProduction: boolean;
   private readonly logger;
 
   constructor(
@@ -47,14 +48,12 @@ export class ClientIdentityGuard implements CanActivate {
     private readonly configService: ConfigService,
   ) {
     this.logger = loggerService.forContext(ClientIdentityGuard.name);
+    this.isProduction = this.isProductionEnvironment();
     this.apiKeyConfig = this.parsePlatformKeyedConfig('API_KEYS', '{}');
     this.clientIdConfig = this.parsePlatformKeyedConfig('CLIENT_IDS', '{}');
     this.requiredPlatforms = this.parsePlatformSet('REQUIRED_PLATFORMS', '[]');
 
-    if (
-      this.isProductionEnvironment() &&
-      this.requiredPlatforms.has(Platform.POSTMAN)
-    ) {
+    if (this.isProduction && this.requiredPlatforms.has(Platform.POSTMAN)) {
       this.requiredPlatforms.delete(Platform.POSTMAN);
       this.logger.warn(
         'Postman platform is disabled in production environment',
@@ -361,7 +360,7 @@ export class ClientIdentityGuard implements CanActivate {
 
   private isPlatformAllowed(platform: Platform | string): boolean {
     const platformLower = String(platform).toLowerCase().trim();
-    if (platformLower === Platform.POSTMAN && this.isProductionEnvironment()) {
+    if (platformLower === (Platform.POSTMAN as string) && this.isProduction) {
       return false;
     }
     return this.requiredPlatforms.has(platformLower);

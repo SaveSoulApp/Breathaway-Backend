@@ -9,5 +9,6 @@ export class LikeSentEvent {
     public readonly expiresAt: Date | null = null,
     public readonly targetIdentityId?: string,
     public readonly likeId?: string,
+    public readonly isMatched: boolean = false,
   ) {}
 }

@@ -319,6 +319,28 @@ describe('LikesService', () => {
           intent: IntentType.RELATIONSHIP,
           targetIdentityId: mockTargetIdentity.id,
           likeId: mockLikeData.id,
+          isMatched: false,
+        }),
+      );
+    });
+
+    it('should emit LIKE_SENT event with isMatched: true when reciprocal match forms', async () => {
+      const mockMatch = { id: 'match-id-abc' } as any;
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.match.findUnique.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+      matchResolverServiceMock.resolveFromLike.mockResolvedValue(mockMatch);
+
+      await service.create(userId, dtoWithId);
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        LIKE_SENT_EVENT,
+        expect.objectContaining({
+          userId,
+          targetIdentityId: mockTargetIdentity.id,
+          likeId: mockLikeData.id,
+          isMatched: true,
         }),
       );
     });

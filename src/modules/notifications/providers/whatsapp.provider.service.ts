@@ -33,7 +33,6 @@ export class WhatsAppProviderService
   static readonly MAX_IN_MEMORY_KEYS = 5000;
   private readonly inMemorySentKeys = new Map<string, number>();
   private readonly DEDUP_TTL_SECONDS = 24 * 60 * 60; // 24 hours (1 day)
-  private readonly DEDUP_TTL_MS = this.DEDUP_TTL_SECONDS * 1000;
 
   constructor(
     loggerService: LoggerService,
@@ -303,13 +302,13 @@ export class WhatsAppProviderService
     // In-memory fallback
     const ttlMs = ttlSeconds * 1000;
     const now = DateUtil.now().getTime();
-    const existing = this.inMemorySentKeys.get(key);
-    if (existing && now - existing < ttlMs) {
+    const expiresAt = this.inMemorySentKeys.get(key);
+    if (expiresAt && now < expiresAt) {
       return true;
     }
 
     this.pruneInMemoryCache(now);
-    this.inMemorySentKeys.set(key, now);
+    this.inMemorySentKeys.set(key, now + ttlMs);
     return false;
   }
 
@@ -319,7 +318,7 @@ export class WhatsAppProviderService
   async releaseDuplicateKey(key: string): Promise<void> {
     if (this.redisService?.isConfigured) {
       try {
-        await this.redisService.rawClient?.del(key);
+        await this.redisService.del(key);
       } catch (err) {
         this.logger.warn(
           'Failed to release Redis deduplication key on failure',
@@ -346,9 +345,8 @@ export class WhatsAppProviderService
     }
 
     // 1. Evict all expired entries
-    const cutoff = now - this.DEDUP_TTL_MS;
-    for (const [k, timestamp] of this.inMemorySentKeys.entries()) {
-      if (timestamp <= cutoff) {
+    for (const [k, expiresAt] of this.inMemorySentKeys.entries()) {
+      if (expiresAt <= now) {
         this.inMemorySentKeys.delete(k);
       }
     }

@@ -618,6 +618,7 @@ export class LikesService extends BaseService {
         like.expiresAt,
         targetIdentity.id,
         like.id,
+        matchId !== null,
       ),
     );
 

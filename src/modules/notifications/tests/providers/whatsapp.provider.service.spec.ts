@@ -4,6 +4,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis/redis.service';
 
 import { SendNotificationRequestDto } from '../../dto/request/send-notification.request.dto';
 import { NotificationCategory } from '../../enums/notification-category.enum';
@@ -314,6 +315,78 @@ describe('WhatsAppProviderService', () => {
       expect(isDup).toBe(false);
       expect(inMemoryMap.size).toBe(1);
       expect(inMemoryMap.has('new-key')).toBe(true);
+    });
+
+    it('should preserve multi-day TTL entries during in-memory cache pruning if not expired', async () => {
+      const inMemoryMap = (
+        service as unknown as { inMemorySentKeys: Map<string, number> }
+      ).inMemorySentKeys;
+      const now = DateUtil.now().getTime();
+      const expiredTimestamp = now - 1000; // expired
+      const multiDayFutureTimestamp = now + 6 * 24 * 60 * 60 * 1000; // 6 days left (7-day buffer)
+
+      // 1 multi-day entry that is NOT expired
+      inMemoryMap.set('multi-day-key', multiDayFutureTimestamp);
+
+      // 4999 expired entries to reach MAX_IN_MEMORY_KEYS (5000)
+      for (let i = 0; i < 4999; i++) {
+        inMemoryMap.set(`key-expired-${i}`, expiredTimestamp);
+      }
+
+      expect(inMemoryMap.size).toBe(5000);
+
+      // Adding a new key triggers pruneInMemoryCache
+      const isDup = await (
+        service as unknown as {
+          isDuplicateAndMark: (k: string) => Promise<boolean>;
+        }
+      ).isDuplicateAndMark('another-key');
+
+      expect(isDup).toBe(false);
+      // The 4999 expired entries were pruned, multi-day entry and new entry are preserved
+      expect(inMemoryMap.size).toBe(2);
+      expect(inMemoryMap.has('multi-day-key')).toBe(true);
+      expect(inMemoryMap.has('another-key')).toBe(true);
+    });
+  });
+
+  describe('releaseDuplicateKey', () => {
+    it('should delete key from in-memory map and call redisService.del when Redis is configured', async () => {
+      const mockRedis = {
+        isConfigured: true,
+        del: jest.fn().mockResolvedValue(1),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WhatsAppProviderService,
+          { provide: LoggerService, useValue: mockLogger },
+          {
+            provide: NotificationRecipientResolverService,
+            useValue: mockRecipientResolver,
+          },
+          { provide: WHATSAPP_ADAPTER_TOKEN, useValue: mockWhatsAppAdapter },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: RedisService, useValue: mockRedis },
+        ],
+      }).compile();
+
+      const serviceWithRedis = module.get<WhatsAppProviderService>(
+        WhatsAppProviderService,
+      );
+
+      const inMemoryMap = (
+        serviceWithRedis as unknown as {
+          inMemorySentKeys: Map<string, number>;
+        }
+      ).inMemorySentKeys;
+      inMemoryMap.set('cooldown-key', DateUtil.now().getTime() + 100000);
+
+      await serviceWithRedis.releaseDuplicateKey('cooldown-key');
+
+      expect(mockRedis.del).toHaveBeenCalledWith('cooldown-key');
+      expect(inMemoryMap.has('cooldown-key')).toBe(false);
     });
   });
 

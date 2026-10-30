@@ -69,6 +69,9 @@ import { WhatsAppProviderService } from '../providers/whatsapp.provider.service'
  */
 @Injectable()
 export class NotificationEventsListener extends BaseService {
+  private cachedCountryCodesKey?: string;
+  private cachedCallingCodes?: string[];
+
   constructor(
     loggerService: LoggerService,
     private readonly prisma: PrismaService,
@@ -190,6 +193,18 @@ export class NotificationEventsListener extends BaseService {
   private async dispatchRecipientWhatsAppLikeNotification(
     event: LikeSentEvent,
   ): Promise<void> {
+    if (event.isMatched) {
+      this.logger.debug(
+        'Like resulted in an immediate reciprocal match; skipping LIKE_RECEIVED WhatsApp notification to avoid duplicate alert and buffer consumption',
+        {
+          senderUserId: event.userId,
+          targetIdentityId: event.targetIdentityId,
+          step: 'skip_matched_like',
+        },
+      );
+      return;
+    }
+
     const isEnabled = this.configService.get<boolean>(
       'WHATSAPP_LIKE_NOTIFICATION_ENABLED',
       false,
@@ -218,8 +233,8 @@ export class NotificationEventsListener extends BaseService {
       return;
     }
 
-    const targetIdentity = await this.prisma.identity.findUnique({
-      where: { id: event.targetIdentityId },
+    const targetIdentity = await this.prisma.identity.findFirst({
+      where: { id: event.targetIdentityId, deletedAt: null },
       select: {
         id: true,
         type: true,
@@ -363,6 +378,11 @@ export class NotificationEventsListener extends BaseService {
       '["+91"]',
     );
 
+    const cacheKey = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    if (this.cachedCountryCodesKey === cacheKey && this.cachedCallingCodes) {
+      return this.cachedCallingCodes;
+    }
+
     let rawList: string[] = [];
     if (Array.isArray(raw)) {
       rawList = raw.map(String);
@@ -413,7 +433,10 @@ export class NotificationEventsListener extends BaseService {
       }
     }
 
-    return callingCodes.length > 0 ? callingCodes : ['91'];
+    const resolved = callingCodes.length > 0 ? callingCodes : ['91'];
+    this.cachedCountryCodesKey = cacheKey;
+    this.cachedCallingCodes = resolved;
+    return resolved;
   }
 
   /**
