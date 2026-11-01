@@ -21,6 +21,14 @@ export const WHATSAPP_TEMPLATE_MAP: Partial<
   [NotificationType.NEW_MATCH]: {
     template: 'breathaway_new_match_v2',
     language: 'en',
+    buildPayload: (data) => ({
+      ...data,
+      buttonUrlVariable:
+        typeof data.buttonUrlVariable === 'string' &&
+        data.buttonUrlVariable.trim().length > 0
+          ? data.buttonUrlVariable.trim()
+          : 'matches',
+    }),
   },
   [NotificationType.WELCOME]: {
     template: 'breathaway_new_user_login',

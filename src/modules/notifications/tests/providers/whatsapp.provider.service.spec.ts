@@ -144,7 +144,10 @@ describe('WhatsAppProviderService', () => {
         to: '919876543210',
         template: 'breathaway_new_match_v2',
         language: 'en',
-        params: undefined,
+        params: {
+          matchId: 'match-123',
+          buttonUrlVariable: 'matches',
+        },
       });
     });
 
