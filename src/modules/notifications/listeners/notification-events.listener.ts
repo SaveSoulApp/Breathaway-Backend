@@ -184,15 +184,29 @@ export class NotificationEventsListener extends BaseService {
 
   /**
    * Dispatches a WhatsApp notification to the recipient of a like when eligible:
-   * 1. Enabled via WHATSAPP_LIKE_NOTIFICATION_ENABLED configuration boolean.
-   * 2. Target identity is of type PHONE.
-   * 3. Recipient phone number is an Indian number starting with +91.
-   * 4. Recipient has not opted out of WhatsApp (if registered).
-   * 5. Cooldown buffer ("celebrity problem" rate limit) is not active for the recipient.
+   * 1. Sender opted in (or defaulted) to notifying recipient anonymously (notifyRecipientAnonymously is true).
+   * 2. Like did not result in an immediate reciprocal match.
+   * 3. Enabled via WHATSAPP_LIKE_NOTIFICATION_ENABLED configuration boolean.
+   * 4. Target identity is of type PHONE.
+   * 5. Recipient phone number is in allow-listed country codes (e.g. +91).
+   * 6. Recipient has not opted out of WhatsApp (if registered).
+   * 7. Cooldown buffer ("celebrity problem" rate limit) is not active for the recipient.
    */
   private async dispatchRecipientWhatsAppLikeNotification(
     event: LikeSentEvent,
   ): Promise<void> {
+    if (!event.notifyRecipientAnonymously) {
+      this.logger.debug(
+        'Sender opted out of notifying recipient anonymously; skipping WhatsApp like notification',
+        {
+          senderUserId: event.userId,
+          targetIdentityId: event.targetIdentityId,
+          step: 'skip_sender_opt_out',
+        },
+      );
+      return;
+    }
+
     if (event.isMatched) {
       this.logger.debug(
         'Like resulted in an immediate reciprocal match; skipping LIKE_RECEIVED WhatsApp notification to avoid duplicate alert and buffer consumption',

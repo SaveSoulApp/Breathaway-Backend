@@ -10,5 +10,6 @@ export class LikeSentEvent {
     public readonly targetIdentityId?: string,
     public readonly likeId?: string,
     public readonly isMatched: boolean = false,
+    public readonly notifyRecipientAnonymously: boolean = true,
   ) {}
 }

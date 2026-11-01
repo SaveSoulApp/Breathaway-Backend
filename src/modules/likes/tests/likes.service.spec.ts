@@ -320,6 +320,29 @@ describe('LikesService', () => {
           targetIdentityId: mockTargetIdentity.id,
           likeId: mockLikeData.id,
           isMatched: false,
+          notifyRecipientAnonymously: true,
+        }),
+      );
+    });
+
+    it('should emit LIKE_SENT event with notifyRecipientAnonymously: false when sender opts out', async () => {
+      prisma.identity.findUnique.mockResolvedValue(mockTargetIdentity);
+      prisma.like.findFirst.mockResolvedValue(null);
+      prisma.match.findUnique.mockResolvedValue(null);
+      prisma.like.create.mockResolvedValue(mockLikeData);
+
+      await service.create(userId, {
+        ...dtoWithId,
+        notifyRecipientAnonymously: false,
+      });
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        LIKE_SENT_EVENT,
+        expect.objectContaining({
+          userId,
+          targetIdentityId: mockTargetIdentity.id,
+          likeId: mockLikeData.id,
+          notifyRecipientAnonymously: false,
         }),
       );
     });

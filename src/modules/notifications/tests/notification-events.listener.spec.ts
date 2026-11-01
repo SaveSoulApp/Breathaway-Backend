@@ -228,6 +228,32 @@ describe('NotificationEventsListener', () => {
       );
     });
 
+    it('should suppress LIKE_RECEIVED WhatsApp notification when sender opts out (notifyRecipientAnonymously=false)', async () => {
+      const event = new LikeSentEvent(
+        'sender-user-1',
+        '+91***10',
+        null,
+        'ROMANTIC',
+        null,
+        'identity-1',
+        'like-1',
+        false,
+        false, // notifyRecipientAnonymously = false
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(whatsAppProvider.sendDirectPhone).not.toHaveBeenCalled();
+      expect(contextualLogger.debug).toHaveBeenCalledWith(
+        'Sender opted out of notifying recipient anonymously; skipping WhatsApp like notification',
+        expect.objectContaining({
+          senderUserId: 'sender-user-1',
+          targetIdentityId: 'identity-1',
+          step: 'skip_sender_opt_out',
+        }),
+      );
+    });
+
     it('should suppress LIKE_RECEIVED WhatsApp notification when like results in an immediate match (isMatched=true)', async () => {
       const event = new LikeSentEvent(
         'sender-user-1',

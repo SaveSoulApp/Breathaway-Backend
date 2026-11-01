@@ -619,6 +619,7 @@ export class LikesService extends BaseService {
         targetIdentity.id,
         like.id,
         matchId !== null,
+        dto.notifyRecipientAnonymously ?? true,
       ),
     );
 

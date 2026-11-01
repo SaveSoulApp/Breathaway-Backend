@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IdentityType, IntentType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -119,4 +120,18 @@ export class CreateLikeRequestDto {
   @IsInt()
   @Min(1)
   expiryDays?: number | null;
+
+  /**
+   * Whether to anonymously notify the recipient that someone liked them on BreathAway (via WhatsApp).
+   * Defaults to true. If explicitly set to false, recipient WhatsApp notifications are suppressed.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Whether to anonymously notify the recipient that someone liked them on BreathAway (via WhatsApp). Defaults to true.',
+    default: true,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  notifyRecipientAnonymously?: boolean = true;
 }
