@@ -36,14 +36,17 @@ export const WHATSAPP_TEMPLATE_MAP: Partial<
     }),
   },
   [NotificationType.LIKE_RECEIVED]: {
-    template: 'breathaway_like_received',
+    template: 'breathaway_someone_liked_you_v2',
     language: 'en',
     buildPayload: (data) => {
-      const payload: Record<string, unknown> = {};
-      if (typeof data.name === 'string' && data.name.trim().length > 0) {
-        payload.name = data.name.trim();
-      }
-      return payload;
+      const name =
+        typeof data.name === 'string' && data.name.trim().length > 0
+          ? data.name.trim()
+          : 'there';
+      return {
+        ...data,
+        name,
+      };
     },
   },
 };

@@ -428,9 +428,27 @@ describe('WhatsAppProviderService', () => {
       expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
       expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
         to: '919876543210',
-        template: 'breathaway_like_received',
+        template: 'breathaway_someone_liked_you_v2',
         language: 'en',
         params: { name: 'Anamika' },
+      });
+    });
+
+    it('should default recipient placeholder to "there" when name is omitted in LIKE_RECEIVED', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+      });
+
+      expect(result).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
+        to: '919876543210',
+        template: 'breathaway_someone_liked_you_v2',
+        language: 'en',
+        params: { name: 'there' },
       });
     });
 
