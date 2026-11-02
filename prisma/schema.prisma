@@ -301,8 +301,8 @@ model UserSession {
   /// Unique JWT ID of the active refresh token
   jti String @unique
 
-  /// SHA-256 hash of the issued refresh token string
-  tokenHash String @unique @db.Char(64)
+  /// 32-byte raw SHA-256 hash of the issued refresh token string
+  tokenHash Bytes @unique @db.ByteA
 
   /// Shared family identifier for rotation lineages (triggers reuse detection upon breach)
   familyId String

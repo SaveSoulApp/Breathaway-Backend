@@ -152,7 +152,7 @@ describe('AuthTokenService', () => {
         data: expect.objectContaining({
           userId: 'user-auth-123',
           jti: 'mocked-id',
-          tokenHash: expect.any(String),
+          tokenHash: expect.any(Buffer),
           familyId: 'mocked-id',
         }),
       });
