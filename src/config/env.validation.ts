@@ -110,6 +110,12 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_PROVIDER: Joi.string().valid('liteapp', 'meta').default('liteapp'),
   LITEAPP_WHATSAPP_URL: Joi.string().uri().default('https://www.liteapp.store'),
   LITEAPP_WHATSAPP_KEY: Joi.string().optional(),
+  WHATSAPP_LIKE_NOTIFICATION_ENABLED: Joi.boolean().default(false),
+  WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .default(7),
+  WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES: Joi.string().default('["+91"]'),
 
   // Swagger Documentation Access Control
   SWAGGER_ENABLED: Joi.string().valid('true', 'false').default('true'),

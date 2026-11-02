@@ -1003,6 +1003,69 @@ describe(ClientIdentityGuard.name, () => {
         ),
       );
     });
+
+    it('should disallow Postman client and warn on init when in production environment', async () => {
+      const prodConfigService = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'NODE_ENV') return 'production';
+            if (key === 'API_KEYS')
+              return JSON.stringify({
+                postman: ['valid-postman-api-key'],
+                web: ['valid-web-key'],
+              });
+            if (key === 'CLIENT_IDS')
+              return JSON.stringify({
+                postman: ['valid-postman-client-id'],
+                web: ['valid-web-id'],
+              });
+            if (key === 'REQUIRED_PLATFORMS')
+              return '["ios", "android", "web", "postman"]';
+            if (key === 'MIN_APP_VERSION') return '1.0.0';
+            if (key === 'APP_NAME') return 'TestApp';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const prodLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: prodLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: prodConfigService },
+        ],
+      }).compile();
+
+      const prodGuard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
+
+      expect(prodLogger.warn).toHaveBeenCalledWith(
+        'Postman platform is disabled in production environment',
+        { step: 'init' },
+      );
+
+      const mockRequest: MockRequest = {
+        headers: {
+          'x-api-key': 'valid-postman-api-key',
+          'x-client-id': 'valid-postman-client-id',
+          'x-device-id': 'postman-device-123',
+          'user-agent': 'PostmanRuntime/7.39.0',
+        },
+      };
+      const context = createMockExecutionContext(mockRequest);
+
+      expect(() => prodGuard.canActivate(context)).toThrow(
+        new UnauthorizedException(
+          'Invalid platform. Supported: ios, android, web',
+        ),
+      );
+    });
   });
 
   describe('Hardening and Edge Cases', () => {
@@ -1118,6 +1181,57 @@ describe(ClientIdentityGuard.name, () => {
       }).compile();
 
       expect(initLogger.warn).toHaveBeenCalledWith(
+        'No required platforms configured',
+        { step: 'init' },
+      );
+    });
+
+    it('should successfully parse shell-wrapped or comma-separated REQUIRED_PLATFORMS config', async () => {
+      const shellConfig = {
+        get: jest
+          .fn()
+          .mockImplementation((key: string, defaultValue: unknown): unknown => {
+            if (key === 'API_KEYS')
+              return '\'{"web":["valid-key"],"ios":["ios-key"]}\'';
+            if (key === 'CLIENT_IDS')
+              return '\'{"web":["valid-id"],"ios":["ios-id"]}\'';
+            // Simulates bash parameter expansion artifact: '[ios,android,web,postman]'
+            if (key === 'REQUIRED_PLATFORMS')
+              return "'[ios,android,web,postman]'";
+            if (key === 'MIN_APP_VERSION') return '1.0.0';
+            if (key === 'APP_NAME') return 'TestApp';
+            return defaultValue;
+          }),
+      } as unknown as ConfigService;
+
+      const testLogger = {
+        warn: jest.fn(),
+        error: jest.fn(),
+        forContext: jest.fn().mockReturnThis(),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          ClientIdentityGuard,
+          { provide: LoggerService, useValue: testLogger },
+          { provide: Reflector, useValue: reflector },
+          { provide: ConfigService, useValue: shellConfig },
+        ],
+      }).compile();
+
+      const shellGuard = module.get<ClientIdentityGuard>(ClientIdentityGuard);
+
+      const context = createMockExecutionContext({
+        headers: {
+          'x-api-key': 'valid-key',
+          'x-client-id': 'valid-id',
+          'x-device-id': 'dev-1',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        },
+      });
+
+      expect(shellGuard.canActivate(context)).toBe(true);
+      expect(testLogger.warn).not.toHaveBeenCalledWith(
         'No required platforms configured',
         { step: 'init' },
       );

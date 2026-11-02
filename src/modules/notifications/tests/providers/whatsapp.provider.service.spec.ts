@@ -4,6 +4,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { DateUtil } from '@common/utils/date.utils';
 import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis/redis.service';
 
 import { SendNotificationRequestDto } from '../../dto/request/send-notification.request.dto';
 import { NotificationCategory } from '../../enums/notification-category.enum';
@@ -143,7 +144,10 @@ describe('WhatsAppProviderService', () => {
         to: '919876543210',
         template: 'breathaway_new_match_v2',
         language: 'en',
-        params: undefined,
+        params: {
+          matchId: 'match-123',
+          buttonUrlVariable: 'matches',
+        },
       });
     });
 
@@ -314,6 +318,202 @@ describe('WhatsAppProviderService', () => {
       expect(isDup).toBe(false);
       expect(inMemoryMap.size).toBe(1);
       expect(inMemoryMap.has('new-key')).toBe(true);
+    });
+
+    it('should preserve multi-day TTL entries during in-memory cache pruning if not expired', async () => {
+      const inMemoryMap = (
+        service as unknown as { inMemorySentKeys: Map<string, number> }
+      ).inMemorySentKeys;
+      const now = DateUtil.now().getTime();
+      const expiredTimestamp = now - 1000; // expired
+      const multiDayFutureTimestamp = now + 6 * 24 * 60 * 60 * 1000; // 6 days left (7-day buffer)
+
+      // 1 multi-day entry that is NOT expired
+      inMemoryMap.set('multi-day-key', multiDayFutureTimestamp);
+
+      // 4999 expired entries to reach MAX_IN_MEMORY_KEYS (5000)
+      for (let i = 0; i < 4999; i++) {
+        inMemoryMap.set(`key-expired-${i}`, expiredTimestamp);
+      }
+
+      expect(inMemoryMap.size).toBe(5000);
+
+      // Adding a new key triggers pruneInMemoryCache
+      const isDup = await (
+        service as unknown as {
+          isDuplicateAndMark: (k: string) => Promise<boolean>;
+        }
+      ).isDuplicateAndMark('another-key');
+
+      expect(isDup).toBe(false);
+      // The 4999 expired entries were pruned, multi-day entry and new entry are preserved
+      expect(inMemoryMap.size).toBe(2);
+      expect(inMemoryMap.has('multi-day-key')).toBe(true);
+      expect(inMemoryMap.has('another-key')).toBe(true);
+    });
+  });
+
+  describe('releaseDuplicateKey', () => {
+    it('should delete key from in-memory map and call redisService.del when Redis is configured', async () => {
+      const mockRedis = {
+        isConfigured: true,
+        del: jest.fn().mockResolvedValue(1),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WhatsAppProviderService,
+          { provide: LoggerService, useValue: mockLogger },
+          {
+            provide: NotificationRecipientResolverService,
+            useValue: mockRecipientResolver,
+          },
+          { provide: WHATSAPP_ADAPTER_TOKEN, useValue: mockWhatsAppAdapter },
+          { provide: ClsService, useValue: { get: jest.fn() } },
+          { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+          { provide: RedisService, useValue: mockRedis },
+        ],
+      }).compile();
+
+      const serviceWithRedis = module.get<WhatsAppProviderService>(
+        WhatsAppProviderService,
+      );
+
+      const inMemoryMap = (
+        serviceWithRedis as unknown as {
+          inMemorySentKeys: Map<string, number>;
+        }
+      ).inMemorySentKeys;
+      inMemoryMap.set('cooldown-key', DateUtil.now().getTime() + 100000);
+
+      await serviceWithRedis.releaseDuplicateKey('cooldown-key');
+
+      expect(mockRedis.del).toHaveBeenCalledWith('cooldown-key');
+      expect(inMemoryMap.has('cooldown-key')).toBe(false);
+    });
+  });
+
+  describe('sendDirectPhone', () => {
+    it('should return false if phone number is empty', async () => {
+      const result = await service.sendDirectPhone({
+        to: '',
+        type: NotificationType.LIKE_SENT,
+      });
+
+      expect(result).toBe(false);
+      expect(mockWhatsAppAdapter.send).not.toHaveBeenCalled();
+      expect(mockContextualLogger.warn).toHaveBeenCalledWith(
+        'Cannot send direct WhatsApp message: phone number is empty',
+        expect.anything(),
+      );
+    });
+
+    it('should return false if template is not mapped or configured', async () => {
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.IDENTITY_REMOVED,
+      });
+
+      expect(result).toBe(false);
+      expect(mockWhatsAppAdapter.send).not.toHaveBeenCalled();
+    });
+
+    it('should dispatch WhatsApp notification directly to phone number with parameters', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+      });
+
+      expect(result).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
+        to: '919876543210',
+        template: 'breathaway_someone_liked_you_v2',
+        language: 'en',
+        params: { variables: ['Anamika'] },
+      });
+    });
+
+    it('should default recipient placeholder to "there" when name is omitted in LIKE_RECEIVED', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+      });
+
+      expect(result).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledWith({
+        to: '919876543210',
+        template: 'breathaway_someone_liked_you_v2',
+        language: 'en',
+        params: { variables: ['there'] },
+      });
+    });
+
+    it('should suppress direct message when dedupKey is active in cooldown buffer', async () => {
+      mockWhatsAppAdapter.send.mockResolvedValue(undefined);
+
+      const firstSend = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+        dedupKey: 'whatsapp:like_buffer:hash123',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(firstSend).toBe(true);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1);
+
+      // Second like within buffer window
+      const secondSend = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        params: { name: 'Anamika' },
+        dedupKey: 'whatsapp:like_buffer:hash123',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(secondSend).toBe(false);
+      expect(mockWhatsAppAdapter.send).toHaveBeenCalledTimes(1); // not called again
+      expect(mockContextualLogger.log).toHaveBeenCalledWith(
+        'Direct WhatsApp notification suppressed due to active deduplication / cooldown buffer',
+        expect.anything(),
+      );
+    });
+
+    it('should release dedupKey and return false when adapter throws an error', async () => {
+      mockWhatsAppAdapter.send.mockRejectedValueOnce(
+        new Error('Network error on LiteApp'),
+      );
+
+      const result = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        dedupKey: 'whatsapp:like_buffer:hash_fail',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(result).toBe(false);
+      expect(mockContextualLogger.error).toHaveBeenCalledWith(
+        'Failed to send direct WhatsApp notification',
+        expect.anything(),
+      );
+
+      // Since dedupKey was released, the subsequent attempt can try again
+      mockWhatsAppAdapter.send.mockResolvedValueOnce(undefined);
+      const retryResult = await service.sendDirectPhone({
+        to: '919876543210',
+        type: NotificationType.LIKE_RECEIVED,
+        dedupKey: 'whatsapp:like_buffer:hash_fail',
+        dedupTtlSeconds: 7 * 86400,
+      });
+
+      expect(retryResult).toBe(true);
     });
   });
 });

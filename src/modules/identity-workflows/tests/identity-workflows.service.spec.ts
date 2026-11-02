@@ -499,13 +499,13 @@ describe('IdentityWorkflowsService', () => {
       // Ownership is resolved via live join; no updateMany call is expected
       expect(prisma.like.updateMany).not.toHaveBeenCalled();
 
-      // Resolution query filters only on targetIdentityId (no targetUserId)
+      // Resolution query filters only on targetIdentityId (no targetUserId) and uses ACTIVE_LIKE_FILTER
       expect(prisma.like.findMany).toHaveBeenCalledWith({
         where: {
           targetIdentityId: { in: [identityId] },
           status: LikeStatus.PENDING,
           deletedAt: null,
-          expiresAt: { gt: expect.any(Date) },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
         select: {
           id: true,
@@ -540,6 +540,40 @@ describe('IdentityWorkflowsService', () => {
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(1);
       expect(matchResolverService.resolveFromLike).toHaveBeenCalledWith(
         pendingLike,
+      );
+      expect(contextualLogger.event).toHaveBeenCalledWith(
+        LOG_EVENT.MATCH_RESOLUTION_COMPLETED,
+        expect.objectContaining({
+          messageId: 'msg_claim_1',
+          userId: 'user_abc',
+        }),
+      );
+    });
+
+    it('should resolve permanent likes with null expiresAt (Scenario 3 deferred verification)', async () => {
+      const permanentLike = {
+        id: 'like_perm_1',
+        senderUserId: 'user_a',
+        targetIdentityId: identityId,
+        intent: IntentType.OPEN,
+        status: LikeStatus.PENDING,
+        expiresAt: null,
+        targetIdentity: { userId },
+      };
+
+      prisma.identity.findMany.mockResolvedValue([
+        { id: identityId },
+      ] as unknown as Identity[]);
+      prisma.like.findMany.mockResolvedValue([
+        permanentLike,
+      ] as unknown as Like[]);
+      matchResolverService.resolveFromLike.mockResolvedValue(null);
+
+      await service.handleIdentityClaimed({ userId }, messageId);
+
+      expect(matchResolverService.resolveFromLike).toHaveBeenCalledTimes(1);
+      expect(matchResolverService.resolveFromLike).toHaveBeenCalledWith(
+        permanentLike,
       );
       expect(contextualLogger.event).toHaveBeenCalledWith(
         LOG_EVENT.MATCH_RESOLUTION_COMPLETED,

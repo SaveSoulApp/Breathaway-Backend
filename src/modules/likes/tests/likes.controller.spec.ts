@@ -147,6 +147,31 @@ describe('LikesController', () => {
       );
       expect(result).toEqual(mockLikeResponse);
     });
+
+    it('should forward notifyRecipientAnonymously flag in DTO to service', async () => {
+      // Arrange
+      const dto: CreateLikeRequestDto = {
+        targetIdentityId: 'target-identity-id',
+        intent: IntentType.RELATIONSHIP,
+        notifyRecipientAnonymously: false,
+      };
+      service.create.mockResolvedValue(
+        mockLikeResponse as Awaited<ReturnType<LikesService['create']>>,
+      );
+
+      // Act
+      const mockReq = { timezone: 'Asia/Kolkata' } as any;
+      const result = await controller.create(mockReq, userId, dto);
+
+      // Assert
+      expect(service.create).toHaveBeenCalledWith(
+        userId,
+        dto,
+        'Asia/Kolkata',
+        undefined,
+      );
+      expect(result).toEqual(mockLikeResponse);
+    });
   });
 
   describe('findAll', () => {

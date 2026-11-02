@@ -33,7 +33,7 @@ export DEPLOYMENT_ENV="${DEPLOYMENT_ENV:-gcp}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 export SHOULD_LOG_RESPONSE="${SHOULD_LOG_RESPONSE:-false}"
 export IS_THROTTLING_ENABLED_VIA_REDIS="${IS_THROTTLING_ENABLED_VIA_REDIS:-false}"
-export REQUIRED_PLATFORMS="${REQUIRED_PLATFORMS:-'["ios","android","web","postman"]'}"
+export REQUIRED_PLATFORMS="${REQUIRED_PLATFORMS:-[\"ios\",\"android\",\"web\"]}"
 export MIN_APP_VERSION="${MIN_APP_VERSION:-1.0.0}"
 export GCP_BUCKET_NAME="${GCP_BUCKET_NAME:-breathaway-documents}"
 export META_VERIFY_TOKEN="${META_VERIFY_TOKEN:-my_meta_verification_token}"
@@ -59,6 +59,9 @@ export SENDGRID_API_KEY="${SENDGRID_API_KEY:-SG.some-api-key}"
 # WhatsApp Provider Configuration
 export WHATSAPP_PROVIDER="${WHATSAPP_PROVIDER:-liteapp}"
 export LITEAPP_WHATSAPP_URL="${LITEAPP_WHATSAPP_URL:-https://www.liteapp.store}"
+export WHATSAPP_LIKE_NOTIFICATION_ENABLED="${WHATSAPP_LIKE_NOTIFICATION_ENABLED:-false}"
+export WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS="${WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS:-7}"
+export WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES="${WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES:-[\"+91\"]}"
 
 # Cloud Pub/Sub & Business Policy Limits
 export AUDIT_PUBSUB_TOPIC="${AUDIT_PUBSUB_TOPIC:-audit-logs-topic}"

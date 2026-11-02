@@ -616,6 +616,10 @@ export class LikesService extends BaseService {
         normalizedLabel,
         dto.intent,
         like.expiresAt,
+        targetIdentity.id,
+        like.id,
+        matchId !== null,
+        dto.notifyRecipientAnonymously ?? true,
       ),
     );
 
