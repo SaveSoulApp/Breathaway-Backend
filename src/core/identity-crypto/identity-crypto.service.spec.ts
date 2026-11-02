@@ -112,10 +112,10 @@ describe('IdentityCryptoService', () => {
       const result = await service.encryptPublicValue('test-value');
 
       expect(result).toEqual({
-        ciphertextBase64: fakeCiphertext.toString('base64'),
-        ivBase64: fakeIv.toString('base64'),
-        tagBase64: fakeTag.toString('base64'),
-        wrappedKeyBase64: fakeWrappedKey.toString('base64'),
+        ciphertext: fakeCiphertext,
+        iv: fakeIv,
+        tag: fakeTag,
+        wrappedKey: fakeWrappedKey,
         keyId: 'test-key-id',
       });
 
@@ -138,26 +138,24 @@ describe('IdentityCryptoService', () => {
       );
 
       const data = {
-        publicValueCiphertext: Buffer.from('ciphertext').toString('base64'),
-        publicValueIv: Buffer.from('iv').toString('base64'),
-        publicValueTag: Buffer.from('tag').toString('base64'),
-        publicValueWrappedKey: Buffer.from('wrapped-key').toString('base64'),
+        publicValueCiphertext: Buffer.from('ciphertext'),
+        publicValueIv: Buffer.from('iv'),
+        publicValueTag: Buffer.from('tag'),
+        publicValueWrappedKey: Buffer.from('wrapped-key'),
         publicValueKeyId: 'test-key-id',
       };
 
-      const result = await service.decryptPublicValue(
-        data as unknown as Parameters<typeof service.decryptPublicValue>[0],
-      );
+      const result = await service.decryptPublicValue(data);
 
       expect(result).toBe('decrypted-value');
       expect(keyManager.unwrapDataKey).toHaveBeenCalledWith(
-        Buffer.from(data.publicValueWrappedKey, 'base64'),
+        data.publicValueWrappedKey,
         data.publicValueKeyId,
       );
       expect(cryptoUtils.decryptAesGcm).toHaveBeenCalledWith(
-        Buffer.from(data.publicValueCiphertext, 'base64'),
-        Buffer.from(data.publicValueIv, 'base64'),
-        Buffer.from(data.publicValueTag, 'base64'),
+        data.publicValueCiphertext,
+        data.publicValueIv,
+        data.publicValueTag,
         fakeDataKey,
       );
     });
@@ -165,13 +163,14 @@ describe('IdentityCryptoService', () => {
 
   describe('processPublicValue', () => {
     it('should process public value returning hash, ciphertext, and masked value', async () => {
-      keyManager.computeHash.mockResolvedValue('fake-hash');
+      const fakeHash = Buffer.from('fake-hash-32-bytes-mock-hash-123');
+      keyManager.computeHash.mockResolvedValue(fakeHash);
 
       jest.spyOn(service, 'encryptPublicValue').mockResolvedValue({
-        ciphertextBase64: 'cipher',
-        ivBase64: 'iv',
-        tagBase64: 'tag',
-        wrappedKeyBase64: 'wrapped',
+        ciphertext: Buffer.from('cipher'),
+        iv: Buffer.from('iv'),
+        tag: Buffer.from('tag'),
+        wrappedKey: Buffer.from('wrapped'),
         keyId: 'key-id',
       });
 
@@ -181,11 +180,11 @@ describe('IdentityCryptoService', () => {
       );
 
       expect(result).toEqual({
-        publicValueHash: 'fake-hash',
-        publicValueCiphertext: 'cipher',
-        publicValueIv: 'iv',
-        publicValueTag: 'tag',
-        publicValueWrappedKey: 'wrapped',
+        publicValueHash: fakeHash,
+        publicValueCiphertext: Buffer.from('cipher'),
+        publicValueIv: Buffer.from('iv'),
+        publicValueTag: Buffer.from('tag'),
+        publicValueWrappedKey: Buffer.from('wrapped'),
         publicValueKeyId: 'key-id',
         publicValueMasked: 't••••t@example.com',
       });
@@ -198,24 +197,25 @@ describe('IdentityCryptoService', () => {
 
   describe('processPlatformId', () => {
     it('should process platform id returning hash and ciphertext structure', async () => {
-      keyManager.computeHash.mockResolvedValue('fake-hash');
+      const fakeHash = Buffer.from('fake-hash-32-bytes-mock-hash-123');
+      keyManager.computeHash.mockResolvedValue(fakeHash);
 
       jest.spyOn(service, 'encryptPlatformId').mockResolvedValue({
-        ciphertextBase64: 'cipher',
-        ivBase64: 'iv',
-        tagBase64: 'tag',
-        wrappedKeyBase64: 'wrapped',
+        ciphertext: Buffer.from('cipher'),
+        iv: Buffer.from('iv'),
+        tag: Buffer.from('tag'),
+        wrappedKey: Buffer.from('wrapped'),
         keyId: 'key-id',
       });
 
       const result = await service.processPlatformId(' PLATFORM-ID-123 ');
 
       expect(result).toEqual({
-        platformIdHash: 'fake-hash',
-        platformIdCiphertext: 'cipher',
-        platformIdIv: 'iv',
-        platformIdTag: 'tag',
-        platformIdWrappedKey: 'wrapped',
+        platformIdHash: fakeHash,
+        platformIdCiphertext: Buffer.from('cipher'),
+        platformIdIv: Buffer.from('iv'),
+        platformIdTag: Buffer.from('tag'),
+        platformIdWrappedKey: Buffer.from('wrapped'),
         platformIdKeyId: 'key-id',
       });
       expect(keyManager.computeHash).toHaveBeenCalledWith('platform-id-123');
@@ -245,10 +245,10 @@ describe('IdentityCryptoService', () => {
       const result = await service.encryptPlatformId('platform-id');
 
       expect(result).toEqual({
-        ciphertextBase64: fakeCiphertext.toString('base64'),
-        ivBase64: fakeIv.toString('base64'),
-        tagBase64: fakeTag.toString('base64'),
-        wrappedKeyBase64: fakeWrappedKey.toString('base64'),
+        ciphertext: fakeCiphertext,
+        iv: fakeIv,
+        tag: fakeTag,
+        wrappedKey: fakeWrappedKey,
         keyId: 'test-key-id',
       });
     });
@@ -264,26 +264,35 @@ describe('IdentityCryptoService', () => {
       );
 
       const data = {
-        platformIdCiphertext: Buffer.from('ciphertext').toString('base64'),
-        platformIdIv: Buffer.from('iv').toString('base64'),
-        platformIdTag: Buffer.from('tag').toString('base64'),
-        platformIdWrappedKey: Buffer.from('wrapped-key').toString('base64'),
+        platformIdCiphertext: Buffer.from('ciphertext'),
+        platformIdIv: Buffer.from('iv'),
+        platformIdTag: Buffer.from('tag'),
+        platformIdWrappedKey: Buffer.from('wrapped-key'),
         platformIdKeyId: 'test-key-id',
       };
 
-      const result = await service.decryptPlatformId(
-        data as unknown as Parameters<typeof service.decryptPlatformId>[0],
-      );
+      const result = await service.decryptPlatformId(data);
 
       expect(result).toBe('decrypted-platform-id');
+      expect(keyManager.unwrapDataKey).toHaveBeenCalledWith(
+        data.platformIdWrappedKey,
+        data.platformIdKeyId,
+      );
+      expect(cryptoUtils.decryptAesGcm).toHaveBeenCalledWith(
+        data.platformIdCiphertext,
+        data.platformIdIv,
+        data.platformIdTag,
+        fakeDataKey,
+      );
     });
   });
 
   describe('computeHash', () => {
     it('should compute hash using key manager', async () => {
-      keyManager.computeHash.mockResolvedValue('computed-hash');
+      const fakeHash = Buffer.from('computed-hash');
+      keyManager.computeHash.mockResolvedValue(fakeHash);
       const result = await service.computeHash('input-string');
-      expect(result).toBe('computed-hash');
+      expect(result).toBe(fakeHash);
       expect(keyManager.computeHash).toHaveBeenCalledWith('input-string');
     });
   });

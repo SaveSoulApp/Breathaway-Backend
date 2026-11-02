@@ -66,11 +66,11 @@ describe('LikesService', () => {
     id: targetIdentityId,
     userId: targetUserId,
     type: IdentityType.PHONE,
-    publicValueHash: 'hash',
-    publicValueCiphertext: 'enc',
-    publicValueIv: 'iv-value-char-length-24--',
-    publicValueTag: 'tag-value-char-length-24',
-    publicValueWrappedKey: 'wrapped-key',
+    publicValueHash: Buffer.from('hash-32-bytes-mock-hash-12345678'),
+    publicValueCiphertext: Buffer.from('enc'),
+    publicValueIv: Buffer.from('iv-12-bytes--'),
+    publicValueTag: Buffer.from('tag-16-bytes---'),
+    publicValueWrappedKey: Buffer.from('wrapped-key'),
     publicValueKeyId: 'key-id',
     publicValueMasked: '***',
     platformIdHash: null,
@@ -637,11 +637,11 @@ describe('LikesService', () => {
       };
 
       const processValueData = {
-        publicValueHash: 'enriched-hash',
-        publicValueCiphertext: 'enc',
-        publicValueIv: 'iv',
-        publicValueTag: 'tag',
-        publicValueWrappedKey: 'wk',
+        publicValueHash: Buffer.from('enriched-hash-32-bytes-mock-hash'),
+        publicValueCiphertext: Buffer.from('enc'),
+        publicValueIv: Buffer.from('iv'),
+        publicValueTag: Buffer.from('tag'),
+        publicValueWrappedKey: Buffer.from('wk'),
         publicValueKeyId: 'key',
         publicValueMasked: '+91••••1491',
       };

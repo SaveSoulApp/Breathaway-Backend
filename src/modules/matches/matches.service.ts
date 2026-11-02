@@ -26,10 +26,10 @@ import { MatchListQueryRequestDto } from './dto';
 interface MatchTargetIdentity {
   id: string;
   type: IdentityType;
-  publicValueCiphertext: string;
-  publicValueIv: string;
-  publicValueTag: string;
-  publicValueWrappedKey: string;
+  publicValueCiphertext: Uint8Array;
+  publicValueIv: Uint8Array;
+  publicValueTag: Uint8Array;
+  publicValueWrappedKey: Uint8Array;
   publicValueKeyId: string;
 }
 

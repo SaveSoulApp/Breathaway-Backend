@@ -325,7 +325,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
-      publicValueHash: valueHash,
+      publicValueHash: Buffer.from(valueHash).toString('hex'),
       ...(metadata && metadata),
     });
   }
@@ -417,7 +417,7 @@ export class AuthService extends BaseService {
 
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
-        publicValueHash: normalizedHash,
+        publicValueHash: Buffer.from(normalizedHash).toString('hex'),
         isNewUser: true,
         ...(metadata && metadata),
       });
@@ -492,7 +492,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
-      publicValueHash: valueHash,
+      publicValueHash: Buffer.from(valueHash).toString('hex'),
       isNewUser: false,
       ...(metadata && metadata),
     });
@@ -822,7 +822,9 @@ export class AuthService extends BaseService {
         },
       );
       throw new CredentialAlreadyLinkedException(
-        existingUserCred.valueHash === publicValueData.publicValueHash
+        Buffer.from(existingUserCred.valueHash).equals(
+          Buffer.from(publicValueData.publicValueHash),
+        )
           ? 'This credential is already linked to your account'
           : 'A credential of this type is already linked to this account',
       );
@@ -1066,7 +1068,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(credential.user, {
       authMethod: 'DEV_LOGIN',
-      publicValueHash: valueHash,
+      publicValueHash: Buffer.from(valueHash).toString('hex'),
       ...(metadata && metadata),
     });
   }

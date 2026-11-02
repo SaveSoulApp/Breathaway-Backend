@@ -106,11 +106,11 @@ describe('ChatsController (e2e)', () => {
       data: {
         userId: user1.id,
         type: IdentityType.PHONE,
-        publicValueHash: `chat-id1-${suffix}`,
-        publicValueCiphertext: 'c1',
-        publicValueIv: 'iv1',
-        publicValueTag: 't1',
-        publicValueWrappedKey: 'k1',
+        publicValueHash: Buffer.from(`chat-id1-${suffix}`),
+        publicValueCiphertext: Buffer.from('c1'),
+        publicValueIv: Buffer.from('iv1'),
+        publicValueTag: Buffer.from('t1'),
+        publicValueWrappedKey: Buffer.from('k1'),
         publicValueKeyId: 'kid1',
       },
     });
@@ -119,11 +119,11 @@ describe('ChatsController (e2e)', () => {
       data: {
         userId: user2.id,
         type: IdentityType.PHONE,
-        publicValueHash: `chat-id2-${suffix}`,
-        publicValueCiphertext: 'c2',
-        publicValueIv: 'iv2',
-        publicValueTag: 't2',
-        publicValueWrappedKey: 'k2',
+        publicValueHash: Buffer.from(`chat-id2-${suffix}`),
+        publicValueCiphertext: Buffer.from('c2'),
+        publicValueIv: Buffer.from('iv2'),
+        publicValueTag: Buffer.from('t2'),
+        publicValueWrappedKey: Buffer.from('k2'),
         publicValueKeyId: 'kid2',
       },
     });

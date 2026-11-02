@@ -13,10 +13,10 @@ export interface IKeyManager {
   unwrapDataKey(wrappedKey: Buffer, keyId?: string): Promise<Buffer>;
 
   /**
-   * Deterministic fingerprint used for searching/uniqueness (HMAC-SHA256 hex).
+   * Deterministic fingerprint used for searching/uniqueness (32-byte HMAC-SHA256 digest).
    * Must be deterministic: same string -> same fingerprint.
    */
-  computeHash(input: string): Promise<string>;
+  computeHash(input: string): Promise<Uint8Array>;
 
   /**
    * Current key identifier / short name (useful to store with wrappedKey).

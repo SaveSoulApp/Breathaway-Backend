@@ -175,9 +175,11 @@ describe('TransactionsService', () => {
 
       expect(prisma.authCredential.findFirst).not.toHaveBeenCalled();
       const created = prisma.transaction.create.mock.calls[0][0] as {
-        data: { userPhoneHash: string };
+        data: { userPhoneHash: Uint8Array };
       };
-      expect(created.data.userPhoneHash).toBe('provided-phone-hash-64chars');
+      expect(created.data.userPhoneHash).toEqual(
+        Buffer.from('provided-phone-hash-64chars', 'hex'),
+      );
     });
 
     it('emits a purchase audit event for an attributed transaction', async () => {

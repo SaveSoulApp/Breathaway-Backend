@@ -185,10 +185,11 @@ export class CloudKmsKeyManager implements IKeyManager, OnModuleDestroy {
   /**
    * Deterministic HMAC hash for stable lookups (e.g., account number, IFSC).
    * Uses dedicated stable key, independent of KMS master keys.
+   * Returns a 32-byte raw binary Buffer for database @db.ByteA storage.
    */
-  computeHash(input: string): Promise<string> {
+  computeHash(input: string): Promise<Buffer> {
     return Promise.resolve(
-      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest('hex'),
+      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest(),
     );
   }
 

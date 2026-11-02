@@ -195,11 +195,11 @@ export class GcpSecretsKeyManager implements IKeyManager {
    * - Collision-resistant: Different inputs produce different hashes
    *
    * @param input - String data to hash (e.g., account numbers, IFSC codes)
-   * @returns Hexadecimal string representation of the HMAC hash
+   * @returns 32-byte raw binary Buffer of the HMAC hash
    */
-  computeHash(input: string): Promise<string> {
+  computeHash(input: string): Promise<Buffer> {
     return Promise.resolve(
-      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest('hex'),
+      createHmac('sha256', this.hmacKey).update(input, 'utf8').digest(),
     );
   }
 

@@ -15,10 +15,10 @@ import type { IKeyManager } from '@core/kms/key-manager.interface';
 import { LoggerService } from '@core/logger';
 
 export interface EncryptedValue {
-  ciphertextBase64: string;
-  ivBase64: string;
-  tagBase64: string;
-  wrappedKeyBase64: string;
+  ciphertext: Uint8Array;
+  iv: Uint8Array;
+  tag: Uint8Array;
+  wrappedKey: Uint8Array;
   keyId: string;
 }
 
@@ -73,10 +73,10 @@ export class IdentityCryptoService extends BaseService {
 
     return {
       publicValueHash: hash,
-      publicValueCiphertext: encryptedPublicValue.ciphertextBase64,
-      publicValueIv: encryptedPublicValue.ivBase64,
-      publicValueTag: encryptedPublicValue.tagBase64,
-      publicValueWrappedKey: encryptedPublicValue.wrappedKeyBase64,
+      publicValueCiphertext: encryptedPublicValue.ciphertext,
+      publicValueIv: encryptedPublicValue.iv,
+      publicValueTag: encryptedPublicValue.tag,
+      publicValueWrappedKey: encryptedPublicValue.wrappedKey,
       publicValueKeyId: encryptedPublicValue.keyId,
       publicValueMasked: masked,
     };
@@ -98,10 +98,10 @@ export class IdentityCryptoService extends BaseService {
 
     return {
       platformIdHash: hash,
-      platformIdCiphertext: encryptedPlatformId.ciphertextBase64,
-      platformIdIv: encryptedPlatformId.ivBase64,
-      platformIdTag: encryptedPlatformId.tagBase64,
-      platformIdWrappedKey: encryptedPlatformId.wrappedKeyBase64,
+      platformIdCiphertext: encryptedPlatformId.ciphertext,
+      platformIdIv: encryptedPlatformId.iv,
+      platformIdTag: encryptedPlatformId.tag,
+      platformIdWrappedKey: encryptedPlatformId.wrappedKey,
       platformIdKeyId: encryptedPlatformId.keyId,
     };
   }
@@ -113,7 +113,7 @@ export class IdentityCryptoService extends BaseService {
    * using the injected KMS provider.
    *
    * @param value - The plaintext string to encrypt.
-   * @returns The ciphertext and GCM parameters alongside the KMS-wrapped data key.
+   * @returns The ciphertext and GCM parameters alongside the KMS-wrapped data key as Buffers.
    */
   async encryptPublicValue(value: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
@@ -121,10 +121,10 @@ export class IdentityCryptoService extends BaseService {
     const { ciphertext, iv, tag } = encryptAesGcm(value, dataKey);
 
     return {
-      ciphertextBase64: ciphertext.toString('base64'),
-      ivBase64: iv.toString('base64'),
-      tagBase64: tag.toString('base64'),
-      wrappedKeyBase64: wrappedKey.toString('base64'),
+      ciphertext,
+      iv,
+      tag,
+      wrappedKey,
       keyId,
     };
   }
@@ -136,7 +136,7 @@ export class IdentityCryptoService extends BaseService {
    * and wrapping it via KMS.
    *
    * @param platformId - The plaintext platform ID to encrypt.
-   * @returns The ciphertext and GCM parameters alongside the KMS-wrapped data key.
+   * @returns The ciphertext and GCM parameters alongside the KMS-wrapped data key as Buffers.
    */
   async encryptPlatformId(platformId: string): Promise<EncryptedValue> {
     const dataKey = generateDataKey();
@@ -144,27 +144,27 @@ export class IdentityCryptoService extends BaseService {
     const { ciphertext, iv, tag } = encryptAesGcm(platformId, dataKey);
 
     return {
-      ciphertextBase64: ciphertext.toString('base64'),
-      ivBase64: iv.toString('base64'),
-      tagBase64: tag.toString('base64'),
-      wrappedKeyBase64: wrappedKey.toString('base64'),
+      ciphertext,
+      iv,
+      tag,
+      wrappedKey,
       keyId,
     };
   }
 
   private async decryptValue(
-    ciphertextBase64: string,
-    ivBase64: string,
-    tagBase64: string,
-    wrappedKeyBase64: string,
+    ciphertext: Uint8Array,
+    iv: Uint8Array,
+    tag: Uint8Array,
+    wrappedKey: Uint8Array,
     keyId: string,
   ): Promise<string> {
-    const wrapped = Buffer.from(wrappedKeyBase64, 'base64');
+    const wrapped = Buffer.from(wrappedKey);
     const dataKey = await this.keyManager.unwrapDataKey(wrapped, keyId);
     return decryptAesGcm(
-      Buffer.from(ciphertextBase64, 'base64'),
-      Buffer.from(ivBase64, 'base64'),
-      Buffer.from(tagBase64, 'base64'),
+      Buffer.from(ciphertext),
+      Buffer.from(iv),
+      Buffer.from(tag),
       dataKey,
     );
   }
@@ -218,9 +218,9 @@ export class IdentityCryptoService extends BaseService {
    * to prevent offline rainbow table attacks on the hashes.
    *
    * @param input - The normalized plaintext string to hash.
-   * @returns The resulting hash string (typically Base64 or Hex encoded).
+   * @returns The resulting 32-byte HMAC Uint8Array.
    */
-  async computeHash(input: string): Promise<string> {
+  async computeHash(input: string): Promise<Uint8Array> {
     return this.keyManager.computeHash(input);
   }
 
@@ -285,7 +285,7 @@ export class IdentityCryptoService extends BaseService {
    */
   async encryptText(text: string): Promise<string> {
     const encrypted = await this.encryptPublicValue(text);
-    return `enc:v1:${encrypted.keyId}:${encrypted.ivBase64}:${encrypted.tagBase64}:${encrypted.wrappedKeyBase64}:${encrypted.ciphertextBase64}`;
+    return `enc:v1:${encrypted.keyId}:${Buffer.from(encrypted.iv).toString('base64')}:${Buffer.from(encrypted.tag).toString('base64')}:${Buffer.from(encrypted.wrappedKey).toString('base64')}:${Buffer.from(encrypted.ciphertext).toString('base64')}`;
   }
 
   /**
@@ -351,10 +351,10 @@ export class IdentityCryptoService extends BaseService {
 
     try {
       return await this.decryptValue(
-        parsed.ciphertextBase64,
-        parsed.ivBase64,
-        parsed.tagBase64,
-        parsed.wrappedKeyBase64,
+        Buffer.from(parsed.ciphertextBase64, 'base64'),
+        Buffer.from(parsed.ivBase64, 'base64'),
+        Buffer.from(parsed.tagBase64, 'base64'),
+        Buffer.from(parsed.wrappedKeyBase64, 'base64'),
         parsed.keyId,
       );
     } catch (err) {

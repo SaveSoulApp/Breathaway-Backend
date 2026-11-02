@@ -1460,7 +1460,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          publicValueHash: Buffer.from(
+            'hash-dev@breathaway.test-EMAIL',
+          ).toString('hex'),
         },
       );
       expect(result).toEqual({
@@ -1488,7 +1490,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-+1234567890-PHONE',
+          publicValueHash: Buffer.from('hash-+1234567890-PHONE').toString(
+            'hex',
+          ),
         },
       );
       expect(result).toEqual({
@@ -1525,7 +1529,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          publicValueHash: Buffer.from(
+            'hash-dev@breathaway.test-EMAIL',
+          ).toString('hex'),
           ipAddress: '192.168.1.1',
           userAgent: 'DevAgent/1.0',
           deviceId: 'dev-device-1',

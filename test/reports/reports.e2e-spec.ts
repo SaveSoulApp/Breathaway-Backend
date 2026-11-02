@@ -70,11 +70,11 @@ describe('ReportsModule (e2e)', () => {
         data: {
           userId: user.id,
           type: IdentityType.EMAIL,
-          publicValueHash: crypto.randomBytes(32).toString('hex'),
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
+          publicValueHash: crypto.randomBytes(32),
+          publicValueCiphertext: Buffer.from('x'),
+          publicValueIv: Buffer.from('x'),
+          publicValueTag: Buffer.from('x'),
+          publicValueWrappedKey: Buffer.from('x'),
           publicValueKeyId: 'k',
         },
       });

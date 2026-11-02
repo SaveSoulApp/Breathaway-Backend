@@ -598,7 +598,9 @@ export class LikesService extends BaseService {
         targetIdentityId: targetIdentity.id,
         targetIdentityType: targetIdentity.type,
         maskedValue: targetIdentity.publicValueMasked,
-        publicValueHash: targetIdentity.publicValueHash,
+        publicValueHash: Buffer.from(targetIdentity.publicValueHash).toString(
+          'hex',
+        ),
       },
     });
 

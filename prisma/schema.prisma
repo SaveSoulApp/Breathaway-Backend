@@ -131,8 +131,8 @@ model AuthCredential {
 
   type AuthCredentialType
 
-  // @unique removed: replaced by composite below for soft-delete safety
-  valueHash   String  @db.Char(64)
+  // 32-byte raw HMAC-SHA256 digest
+  valueHash   Bytes   @db.ByteA
   valueMasked String?
 
   isPrimary Boolean @default(false)
@@ -157,19 +157,21 @@ model Identity {
 
   type IdentityType
 
-  publicValueHash       String  @db.Char(64)
-  publicValueCiphertext String
-  publicValueIv         String  @db.Char(24)
-  publicValueTag        String  @db.Char(24)
-  publicValueWrappedKey String
+  // 32-byte deterministic HMAC-SHA256 digest
+  publicValueHash       Bytes   @db.ByteA
+  publicValueCiphertext Bytes   @db.ByteA
+  publicValueIv         Bytes   @db.ByteA
+  publicValueTag        Bytes   @db.ByteA
+  publicValueWrappedKey Bytes   @db.ByteA
   publicValueKeyId      String
   publicValueMasked     String?
 
-  platformIdHash       String? @db.Char(64)
-  platformIdCiphertext String?
-  platformIdIv         String? @db.Char(24)
-  platformIdTag        String? @db.Char(24)
-  platformIdWrappedKey String?
+  // Social platform ID envelope
+  platformIdHash       Bytes?  @db.ByteA
+  platformIdCiphertext Bytes?  @db.ByteA
+  platformIdIv         Bytes?  @db.ByteA
+  platformIdTag        Bytes?  @db.ByteA
+  platformIdWrappedKey Bytes?  @db.ByteA
   platformIdKeyId      String?
 
   userId String?
@@ -259,7 +261,7 @@ model Block {
   blockedUserId String?
   blocked       User?   @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: SetNull)
 
-  blockedPhoneHash String? @db.Char(64)
+  blockedPhoneHash Bytes? @db.ByteA
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   deletedAt DateTime? @db.Timestamptz
@@ -446,7 +448,7 @@ model Transaction {
 
   /// Deterministic HMAC-SHA-256 hash of the purchasing user's phone number.
   /// Populated at purchase time and preserved when userId becomes null on account deletion.
-  userPhoneHash String? @db.Char(64)
+  userPhoneHash Bytes? @db.ByteA
 
   gateway              PaymentGateway
   /// The gateway's own transaction identifier (RevenueCat `transaction_id`).

@@ -370,7 +370,7 @@ export class NotificationEventsListener extends BaseService {
         'WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS',
       ) || 7;
     const bufferTtlSeconds = bufferDays * 24 * 60 * 60;
-    const dedupKey = `whatsapp:like_buffer:${targetIdentity.publicValueHash}`;
+    const dedupKey = `whatsapp:like_buffer:${Buffer.from(targetIdentity.publicValueHash).toString('hex')}`;
 
     await this.whatsAppProvider.sendDirectPhone({
       to: recipientPhone.phoneDigits,

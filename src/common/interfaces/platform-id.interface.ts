@@ -5,10 +5,10 @@
  * in plaintext in the database.
  */
 export interface PlatformId {
-  platformIdHash: string;
-  platformIdCiphertext: string;
-  platformIdIv: string;
-  platformIdTag: string;
-  platformIdWrappedKey: string;
+  platformIdHash: Uint8Array;
+  platformIdCiphertext: Uint8Array;
+  platformIdIv: Uint8Array;
+  platformIdTag: Uint8Array;
+  platformIdWrappedKey: Uint8Array;
   platformIdKeyId: string;
 }
