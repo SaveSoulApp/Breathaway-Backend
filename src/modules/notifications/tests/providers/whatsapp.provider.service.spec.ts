@@ -433,7 +433,7 @@ describe('WhatsAppProviderService', () => {
         to: '919876543210',
         template: 'breathaway_someone_liked_you_v2',
         language: 'en',
-        params: { name: 'Anamika' },
+        params: { variables: ['Anamika'] },
       });
     });
 
@@ -451,7 +451,7 @@ describe('WhatsAppProviderService', () => {
         to: '919876543210',
         template: 'breathaway_someone_liked_you_v2',
         language: 'en',
-        params: { name: 'there' },
+        params: { variables: ['there'] },
       });
     });
 

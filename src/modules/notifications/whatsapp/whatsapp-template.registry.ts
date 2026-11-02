@@ -51,10 +51,20 @@ export const WHATSAPP_TEMPLATE_MAP: Partial<
         typeof data.name === 'string' && data.name.trim().length > 0
           ? data.name.trim()
           : 'there';
-      return {
-        ...data,
-        name,
+      const variables =
+        Array.isArray(data.variables) && data.variables.length > 0
+          ? data.variables
+          : [name];
+      const payload: Record<string, unknown> = {
+        variables,
       };
+      if (
+        typeof data.buttonUrlVariable === 'string' &&
+        data.buttonUrlVariable.trim().length > 0
+      ) {
+        payload.buttonUrlVariable = data.buttonUrlVariable.trim();
+      }
+      return payload;
     },
   },
 };

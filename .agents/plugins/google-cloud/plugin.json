@@ -1,0 +1,4 @@
+{
+  "name": "google-cloud",
+  "description": "Google Cloud Platform MCP integration for gcloud CLI, Cloud Storage, and Observability."
+}
