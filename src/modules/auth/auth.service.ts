@@ -526,7 +526,10 @@ export class AuthService extends BaseService {
     const platformIdData =
       await this.encryptionService.processPlatformId(platformUserId);
 
-    Object.assign(ctx, { platformIdHash: platformIdData.platformIdHash });
+    const platformIdHex = Buffer.from(platformIdData.platformIdHash).toString(
+      'hex',
+    );
+    Object.assign(ctx, { platformIdHash: platformIdHex });
     this.logger.debug('Platform ID hashed', {
       ...ctx,
       step: 'platform_id_hash',
@@ -566,7 +569,7 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: type,
-        platformIdHash: platformIdData.platformIdHash,
+        platformIdHash: platformIdHex,
         isNewUser: false,
       });
     }
@@ -714,7 +717,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
-      platformIdHash: platformIdData.platformIdHash,
+      platformIdHash: platformIdHex,
       isNewUser: true,
     });
   }
@@ -1018,7 +1021,9 @@ export class AuthService extends BaseService {
 
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
-      publicValueHash: publicValueData.publicValueHash,
+      publicValueHash: Buffer.from(publicValueData.publicValueHash).toString(
+        'hex',
+      ),
       isSecondaryAuth: true,
       ...(metadata && metadata),
     });

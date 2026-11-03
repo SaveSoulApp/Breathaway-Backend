@@ -163,13 +163,15 @@ describe('TransactionsService', () => {
       expect(created.data.rawPayload).toBe(Prisma.DbNull);
     });
 
-    it('uses provided userPhoneHash without querying authCredential', async () => {
+    it('uses provided userPhoneHash without querying authCredential when valid 32-byte hex', async () => {
       prisma.transaction.create.mockResolvedValue(mockTransaction as never);
       prisma.authCredential.findFirst.mockClear();
 
+      const validHashHex = 'a'.repeat(64);
+
       await service.record(
         buildDto({
-          userPhoneHash: 'provided-phone-hash-64chars',
+          userPhoneHash: validHashHex,
         }),
       );
 
@@ -178,7 +180,29 @@ describe('TransactionsService', () => {
         data: { userPhoneHash: Uint8Array };
       };
       expect(created.data.userPhoneHash).toEqual(
-        Buffer.from('provided-phone-hash-64chars', 'hex'),
+        Buffer.from(validHashHex, 'hex'),
+      );
+    });
+
+    it('falls back to authCredential lookup when provided userPhoneHash is not 32 bytes', async () => {
+      prisma.transaction.create.mockResolvedValue(mockTransaction as never);
+      prisma.authCredential.findFirst.mockResolvedValue({
+        valueHash: Buffer.from('resolved-phone-hash-32-byte-buf'),
+      } as any);
+
+      await service.record(
+        buildDto({
+          userId: 'user-1',
+          userPhoneHash: 'tooshort',
+        }),
+      );
+
+      expect(prisma.authCredential.findFirst).toHaveBeenCalled();
+      const created = prisma.transaction.create.mock.calls[0][0] as {
+        data: { userPhoneHash: Uint8Array };
+      };
+      expect(created.data.userPhoneHash).toEqual(
+        Buffer.from('resolved-phone-hash-32-byte-buf'),
       );
     });
 

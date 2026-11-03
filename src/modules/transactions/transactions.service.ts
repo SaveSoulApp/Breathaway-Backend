@@ -90,9 +90,13 @@ export class TransactionsService extends BaseService {
 
     let transaction: Transaction;
     try {
-      let userPhoneHash: Uint8Array | null = dto.userPhoneHash
-        ? Buffer.from(dto.userPhoneHash, 'hex')
-        : null;
+      let userPhoneHash: Uint8Array | null = null;
+      if (dto.userPhoneHash) {
+        const parsed = Buffer.from(dto.userPhoneHash, 'hex');
+        if (parsed.length === 32) {
+          userPhoneHash = parsed;
+        }
+      }
       if (!userPhoneHash && dto.userId) {
         const authClient = client.authCredential ?? this.prisma.authCredential;
         const phoneCred = await authClient?.findFirst?.({

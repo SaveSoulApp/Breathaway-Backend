@@ -9,6 +9,7 @@ import {
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsHexadecimal,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -43,12 +44,13 @@ export class RecordTransactionRequestDto {
    */
   @ApiPropertyOptional({
     description:
-      'HMAC-SHA-256 hash of the customer phone number; auto-resolved if omitted',
+      '64-character hexadecimal HMAC-SHA-256 hash of customer phone number; auto-resolved if omitted',
     maxLength: 64,
     minLength: 64,
   })
   @IsString()
   @Length(64, 64)
+  @IsHexadecimal()
   @IsOptional()
   userPhoneHash?: string;
 
