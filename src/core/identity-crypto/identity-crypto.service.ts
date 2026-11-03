@@ -7,6 +7,7 @@ import { serializeError } from '@common/utils/error.utils';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
 import {
+  CryptoUtils,
   decryptAesGcm,
   encryptAesGcm,
   generateDataKey,
@@ -285,7 +286,7 @@ export class IdentityCryptoService extends BaseService {
    */
   async encryptText(text: string): Promise<string> {
     const encrypted = await this.encryptPublicValue(text);
-    return `enc:v1:${encrypted.keyId}:${Buffer.from(encrypted.iv).toString('base64')}:${Buffer.from(encrypted.tag).toString('base64')}:${Buffer.from(encrypted.wrappedKey).toString('base64')}:${Buffer.from(encrypted.ciphertext).toString('base64')}`;
+    return `enc:v1:${encrypted.keyId}:${CryptoUtils.toBase64(encrypted.iv)}:${CryptoUtils.toBase64(encrypted.tag)}:${CryptoUtils.toBase64(encrypted.wrappedKey)}:${CryptoUtils.toBase64(encrypted.ciphertext)}`;
   }
 
   /**
@@ -351,10 +352,10 @@ export class IdentityCryptoService extends BaseService {
 
     try {
       return await this.decryptValue(
-        Buffer.from(parsed.ciphertextBase64, 'base64'),
-        Buffer.from(parsed.ivBase64, 'base64'),
-        Buffer.from(parsed.tagBase64, 'base64'),
-        Buffer.from(parsed.wrappedKeyBase64, 'base64'),
+        CryptoUtils.fromBase64(parsed.ciphertextBase64),
+        CryptoUtils.fromBase64(parsed.ivBase64),
+        CryptoUtils.fromBase64(parsed.tagBase64),
+        CryptoUtils.fromBase64(parsed.wrappedKeyBase64),
         parsed.keyId,
       );
     } catch (err) {

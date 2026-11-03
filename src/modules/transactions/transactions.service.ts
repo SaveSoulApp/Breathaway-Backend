@@ -10,6 +10,7 @@ import { SortOrder } from '@common/enums';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { CryptoUtils } from '@core/crypto/crypto.utils';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
@@ -90,13 +91,9 @@ export class TransactionsService extends BaseService {
 
     let transaction: Transaction;
     try {
-      let userPhoneHash: Uint8Array | null = null;
-      if (dto.userPhoneHash) {
-        const parsed = Buffer.from(dto.userPhoneHash, 'hex');
-        if (parsed.length === 32) {
-          userPhoneHash = parsed;
-        }
-      }
+      let userPhoneHash: Uint8Array | null = CryptoUtils.fromHex32(
+        dto.userPhoneHash,
+      );
       if (!userPhoneHash && dto.userId) {
         const authClient = client.authCredential ?? this.prisma.authCredential;
         const phoneCred = await authClient?.findFirst?.({

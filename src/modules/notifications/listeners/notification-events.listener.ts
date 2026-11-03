@@ -11,6 +11,7 @@ import {
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { CryptoUtils } from '@core/crypto/crypto.utils';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -370,7 +371,7 @@ export class NotificationEventsListener extends BaseService {
         'WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS',
       ) || 7;
     const bufferTtlSeconds = bufferDays * 24 * 60 * 60;
-    const dedupKey = `whatsapp:like_buffer:${Buffer.from(targetIdentity.publicValueHash).toString('hex')}`;
+    const dedupKey = `whatsapp:like_buffer:${CryptoUtils.toHex(targetIdentity.publicValueHash)}`;
 
     await this.whatsAppProvider.sendDirectPhone({
       to: recipientPhone.phoneDigits,

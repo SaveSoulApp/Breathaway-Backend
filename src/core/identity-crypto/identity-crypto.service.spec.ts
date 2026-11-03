@@ -9,11 +9,15 @@ import { LoggerService } from '@core/logger';
 
 import { IdentityCryptoService } from './identity-crypto.service';
 
-jest.mock('@core/crypto/crypto.utils', () => ({
-  generateDataKey: jest.fn(),
-  encryptAesGcm: jest.fn(),
-  decryptAesGcm: jest.fn(),
-}));
+jest.mock('@core/crypto/crypto.utils', () => {
+  const actual = jest.requireActual('@core/crypto/crypto.utils');
+  return {
+    ...actual,
+    generateDataKey: jest.fn(),
+    encryptAesGcm: jest.fn(),
+    decryptAesGcm: jest.fn(),
+  };
+});
 
 describe('IdentityCryptoService', () => {
   let service: IdentityCryptoService;

@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import {
+  CryptoUtils,
   decryptAesGcm,
   encryptAesGcm,
   generateDataKey,
@@ -7,6 +8,126 @@ import {
 } from '../crypto.utils';
 
 describe('CryptoUtils', () => {
+  // ─── toHex & fromHex ────────────────────────────────────────────────────────
+
+  describe('toHex and fromHex', () => {
+    it('should convert Buffer to lowercase hex string', () => {
+      const buf = Buffer.from('hello', 'utf8');
+      expect(CryptoUtils.toHex(buf)).toBe('68656c6c6f');
+    });
+
+    it('should return empty string for null, undefined, or empty buffer', () => {
+      expect(CryptoUtils.toHex(null)).toBe('');
+      expect(CryptoUtils.toHex(undefined)).toBe('');
+      expect(CryptoUtils.toHex(Buffer.alloc(0))).toBe('');
+    });
+
+    it('should parse hex string to Buffer correctly', () => {
+      const hex = '68656c6c6f';
+      const buf = CryptoUtils.fromHex(hex);
+      expect(buf.toString('utf8')).toBe('hello');
+    });
+  });
+
+  // ─── fromHex32 ──────────────────────────────────────────────────────────────
+
+  describe('fromHex32', () => {
+    it('should parse valid 64-char hex string to 32-byte Buffer', () => {
+      const validHex = 'a'.repeat(64);
+      const buf = CryptoUtils.fromHex32(validHex);
+      expect(buf).not.toBeNull();
+      expect(buf?.length).toBe(32);
+    });
+
+    it('should return null for invalid lengths', () => {
+      expect(CryptoUtils.fromHex32('abcd')).toBeNull();
+      expect(CryptoUtils.fromHex32('a'.repeat(63))).toBeNull();
+      expect(CryptoUtils.fromHex32('a'.repeat(65))).toBeNull();
+    });
+
+    it('should return null for non-hex characters', () => {
+      const invalidHex = 'g'.repeat(64);
+      expect(CryptoUtils.fromHex32(invalidHex)).toBeNull();
+    });
+
+    it('should return null for null or non-string inputs', () => {
+      expect(CryptoUtils.fromHex32(null)).toBeNull();
+      expect(CryptoUtils.fromHex32(undefined)).toBeNull();
+      expect(CryptoUtils.fromHex32('' as any)).toBeNull();
+    });
+
+    it('should trim surrounding whitespace', () => {
+      const validHex = `  ${'b'.repeat(64)}  `;
+      const buf = CryptoUtils.fromHex32(validHex);
+      expect(buf).not.toBeNull();
+      expect(buf?.length).toBe(32);
+    });
+  });
+
+  // ─── toBase64 & fromBase64 ──────────────────────────────────────────────────
+
+  describe('toBase64 and fromBase64', () => {
+    it('should convert Buffer to Base64 and back', () => {
+      const original = Buffer.from('Test Base64 Data');
+      const b64 = CryptoUtils.toBase64(original);
+      const restored = CryptoUtils.fromBase64(b64);
+      expect(restored.equals(original)).toBe(true);
+    });
+
+    it('should return empty string for nullish or empty buffer', () => {
+      expect(CryptoUtils.toBase64(null)).toBe('');
+      expect(CryptoUtils.toBase64(undefined)).toBe('');
+      expect(CryptoUtils.toBase64(Buffer.alloc(0))).toBe('');
+    });
+  });
+
+  // ─── equals & constantTimeEquals ────────────────────────────────────────────
+
+  describe('equals and constantTimeEquals', () => {
+    it('should correctly compare identical and differing buffers', () => {
+      const a = Buffer.from('same');
+      const b = Buffer.from('same');
+      const c = Buffer.from('diff');
+
+      expect(CryptoUtils.equals(a, b)).toBe(true);
+      expect(CryptoUtils.equals(a, c)).toBe(false);
+      expect(CryptoUtils.equals(null, null)).toBe(true);
+      expect(CryptoUtils.equals(a, null)).toBe(false);
+      expect(CryptoUtils.equals(null, b)).toBe(false);
+    });
+
+    it('should perform constant-time comparison', () => {
+      const a = Buffer.from('1234567812345678');
+      const b = Buffer.from('1234567812345678');
+      const c = Buffer.from('8765432187654321');
+      const short = Buffer.from('short');
+
+      expect(CryptoUtils.constantTimeEquals(a, b)).toBe(true);
+      expect(CryptoUtils.constantTimeEquals(a, c)).toBe(false);
+      expect(CryptoUtils.constantTimeEquals(a, short)).toBe(false);
+    });
+  });
+
+  // ─── isHex64 ────────────────────────────────────────────────────────────────
+
+  describe('isHex64', () => {
+    it('should return true for 64-char hex strings', () => {
+      expect(CryptoUtils.isHex64('0'.repeat(64))).toBe(true);
+      expect(
+        CryptoUtils.isHex64(
+          '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
+        ),
+      ).toBe(true);
+    });
+
+    it('should return false for invalid strings', () => {
+      expect(CryptoUtils.isHex64('short')).toBe(false);
+      expect(CryptoUtils.isHex64('z'.repeat(64))).toBe(false);
+      expect(CryptoUtils.isHex64(null)).toBe(false);
+      expect(CryptoUtils.isHex64(undefined)).toBe(false);
+    });
+  });
+
   // ─── hashString ──────────────────────────────────────────────────────────────
 
   describe('hashString', () => {

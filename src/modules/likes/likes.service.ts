@@ -6,6 +6,7 @@ import { DateUtil, dayjs } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { isE164Phone } from '@common/utils/identity.utils';
 import { BaseService } from '@core/base';
+import { CryptoUtils } from '@core/crypto/crypto.utils';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -598,9 +599,7 @@ export class LikesService extends BaseService {
         targetIdentityId: targetIdentity.id,
         targetIdentityType: targetIdentity.type,
         maskedValue: targetIdentity.publicValueMasked,
-        publicValueHash: Buffer.from(targetIdentity.publicValueHash).toString(
-          'hex',
-        ),
+        publicValueHash: CryptoUtils.toHex(targetIdentity.publicValueHash),
       },
     });
 
