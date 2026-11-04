@@ -228,12 +228,12 @@ describe('BlocksService', () => {
       // Arrange
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.authCredential.findFirst.mockResolvedValue({
-        valueHash: 'mock-phone-hash-64',
+        valueHash: Buffer.from('mock-phone-hash-64'),
       } as any);
       prisma.block.findUnique.mockResolvedValue(null);
       prisma.block.create.mockResolvedValue({
         ...mockBlockData,
-        blockedPhoneHash: 'mock-phone-hash-64',
+        blockedPhoneHash: Buffer.from('mock-phone-hash-64'),
       });
 
       // Act
@@ -244,7 +244,7 @@ describe('BlocksService', () => {
         data: {
           blockerUserId: userId,
           blockedUserId,
-          blockedPhoneHash: 'mock-phone-hash-64',
+          blockedPhoneHash: Buffer.from('mock-phone-hash-64'),
         },
         select: expect.any(Object),
       });

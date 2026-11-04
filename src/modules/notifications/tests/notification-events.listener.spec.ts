@@ -434,7 +434,9 @@ describe('NotificationEventsListener', () => {
       expect(whatsAppProvider.sendDirectPhone).toHaveBeenCalledWith(
         expect.objectContaining({
           to: '6581234567',
-          dedupKey: 'whatsapp:like_buffer:hash-sg-recipient',
+          dedupKey: `whatsapp:like_buffer:${Buffer.from(
+            'hash-sg-recipient',
+          ).toString('hex')}`,
         }),
       );
 
@@ -524,7 +526,9 @@ describe('NotificationEventsListener', () => {
         to: '919876543210',
         type: NotificationType.LIKE_RECEIVED,
         params: undefined,
-        dedupKey: 'whatsapp:like_buffer:hash-indian-recipient',
+        dedupKey: `whatsapp:like_buffer:${Buffer.from(
+          'hash-indian-recipient',
+        ).toString('hex')}`,
         dedupTtlSeconds: 7 * 86400,
       });
     });
@@ -568,7 +572,9 @@ describe('NotificationEventsListener', () => {
         to: '919876543210',
         type: NotificationType.LIKE_RECEIVED,
         params: { name: 'Anamika' },
-        dedupKey: 'whatsapp:like_buffer:hash-indian-registered',
+        dedupKey: `whatsapp:like_buffer:${Buffer.from(
+          'hash-indian-registered',
+        ).toString('hex')}`,
         dedupTtlSeconds: 7 * 86400,
       });
     });

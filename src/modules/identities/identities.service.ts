@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { Injectable } from '@nestjs/common';
 import { Identity, IdentityType, Prisma } from '@prisma/client';
 import { parsePhoneNumberWithError } from 'libphonenumber-js';
@@ -5,6 +7,7 @@ import { parsePhoneNumberWithError } from 'libphonenumber-js';
 import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
+import { CryptoUtils } from '@core/crypto/crypto.utils';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -293,7 +296,7 @@ export class IdentitiesService extends BaseService {
       metadata: {
         identityType: identity.type,
         maskedValue: identity.publicValueMasked,
-        publicValueHash: identity.publicValueHash,
+        publicValueHash: CryptoUtils.toHex(identity.publicValueHash),
       },
     });
 
@@ -556,14 +559,34 @@ export class IdentitiesService extends BaseService {
                 step: 'duplicate_check',
               },
             );
+            const mangledPublicHash = createHash('sha256')
+              .update(
+                Buffer.concat([
+                  duplicate.publicValueHash,
+                  Buffer.from(duplicate.id),
+                ]),
+              )
+              .digest();
+
+            const mangledPlatformHash = duplicate.platformIdHash
+              ? createHash('sha256')
+                  .update(
+                    Buffer.concat([
+                      duplicate.platformIdHash,
+                      Buffer.from(duplicate.id),
+                    ]),
+                  )
+                  .digest()
+              : undefined;
+
             await tx.identity.update({
               where: { id: duplicate.id },
               data: {
                 deletedAt: DateUtil.now(),
                 userId: null, // Unbind the user
-                publicValueHash: `${duplicate.publicValueHash}-del-${duplicate.id}`,
-                ...(duplicate.platformIdHash && {
-                  platformIdHash: `${duplicate.platformIdHash}-del-${duplicate.id}`,
+                publicValueHash: mangledPublicHash,
+                ...(mangledPlatformHash && {
+                  platformIdHash: mangledPlatformHash,
                 }),
               },
             });
@@ -725,7 +748,7 @@ export class IdentitiesService extends BaseService {
       metadata: {
         identityType: identity.type,
         maskedValue: identity.publicValueMasked,
-        publicValueHash: identity.publicValueHash,
+        publicValueHash: CryptoUtils.toHex(identity.publicValueHash),
       },
     });
 

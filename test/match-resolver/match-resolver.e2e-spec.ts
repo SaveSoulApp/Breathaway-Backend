@@ -40,11 +40,11 @@ describe('MatchResolverService (e2e)', () => {
     const identity = await prisma.identity.create({
       data: {
         type: IdentityType.PHONE,
-        publicValueHash: randomBytes(32).toString('hex'),
-        publicValueCiphertext: 'x',
-        publicValueIv: 'x',
-        publicValueTag: 'x',
-        publicValueWrappedKey: 'x',
+        publicValueHash: randomBytes(32),
+        publicValueCiphertext: Buffer.from('x'),
+        publicValueIv: Buffer.from('x'),
+        publicValueTag: Buffer.from('x'),
+        publicValueWrappedKey: Buffer.from('x'),
         publicValueKeyId: 'key-v1',
         userId: user.id,
       },
@@ -59,11 +59,11 @@ describe('MatchResolverService (e2e)', () => {
       const ghostIdentity = await prisma.identity.create({
         data: {
           type: IdentityType.PHONE,
-          publicValueHash: randomBytes(32).toString('hex'),
-          publicValueCiphertext: 'x',
-          publicValueIv: 'x',
-          publicValueTag: 'x',
-          publicValueWrappedKey: 'x',
+          publicValueHash: randomBytes(32),
+          publicValueCiphertext: Buffer.from('x'),
+          publicValueIv: Buffer.from('x'),
+          publicValueTag: Buffer.from('x'),
+          publicValueWrappedKey: Buffer.from('x'),
           publicValueKeyId: 'key-v1',
           userId: null,
         },

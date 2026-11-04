@@ -5,11 +5,11 @@
  * as well as a masked representation for safe display.
  */
 export interface PublicValue {
-  publicValueHash: string;
-  publicValueCiphertext: string;
-  publicValueIv: string;
-  publicValueTag: string;
-  publicValueWrappedKey: string;
+  publicValueHash: Uint8Array;
+  publicValueCiphertext: Uint8Array;
+  publicValueIv: Uint8Array;
+  publicValueTag: Uint8Array;
+  publicValueWrappedKey: Uint8Array;
   publicValueKeyId: string;
   publicValueMasked: string;
 }

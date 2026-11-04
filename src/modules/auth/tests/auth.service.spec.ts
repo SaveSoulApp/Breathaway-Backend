@@ -1187,15 +1187,15 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       });
       encryptionService = {
         processPlatformId: jest.fn().mockResolvedValue({
-          platformIdHash: 'hashed-platform-id',
+          platformIdHash: Buffer.from('hashed-platform-id'),
         }),
         processPublicValue: jest.fn().mockResolvedValue({
-          publicValueHash: 'hashed-public-value',
+          publicValueHash: Buffer.from('hashed-public-value'),
           publicValueMasked: 'instahandle',
-          publicValueCiphertext: 'cipher',
-          publicValueIv: 'iv',
-          publicValueTag: 'tag',
-          publicValueWrappedKey: 'wrappedKey',
+          publicValueCiphertext: Buffer.from('cipher'),
+          publicValueIv: Buffer.from('iv'),
+          publicValueTag: Buffer.from('tag'),
+          publicValueWrappedKey: Buffer.from('wrappedKey'),
           publicValueKeyId: 'keyId',
         }),
       } as unknown as jest.Mocked<IdentityCryptoService>;
@@ -1260,7 +1260,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       expect(prisma.identity.findFirst).toHaveBeenCalledWith({
         where: {
           type: IdentityType.INSTAGRAM,
-          platformIdHash: 'hashed-platform-id',
+          platformIdHash: Buffer.from('hashed-platform-id'),
         },
         select: { id: true, userId: true, isVerified: true },
       });
@@ -1271,7 +1271,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: IdentityType.INSTAGRAM,
-          platformIdHash: 'hashed-platform-id',
+          platformIdHash: Buffer.from('hashed-platform-id').toString('hex'),
           isNewUser: false,
         },
       );
@@ -1318,7 +1318,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: IdentityType.INSTAGRAM,
-          platformIdHash: 'hashed-platform-id',
+          platformIdHash: Buffer.from('hashed-platform-id').toString('hex'),
           isNewUser: true,
         },
       );
@@ -1460,7 +1460,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          publicValueHash: Buffer.from(
+            'hash-dev@breathaway.test-EMAIL',
+          ).toString('hex'),
         },
       );
       expect(result).toEqual({
@@ -1488,7 +1490,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-+1234567890-PHONE',
+          publicValueHash: Buffer.from('hash-+1234567890-PHONE').toString(
+            'hex',
+          ),
         },
       );
       expect(result).toEqual({
@@ -1525,7 +1529,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         mockUser,
         {
           authMethod: 'DEV_LOGIN',
-          publicValueHash: 'hash-dev@breathaway.test-EMAIL',
+          publicValueHash: Buffer.from(
+            'hash-dev@breathaway.test-EMAIL',
+          ).toString('hex'),
           ipAddress: '192.168.1.1',
           userAgent: 'DevAgent/1.0',
           deviceId: 'dev-device-1',
@@ -1712,11 +1718,11 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         {
           id: 'identity-phone-1',
           type: IdentityType.PHONE,
-          publicValueHash: 'phone-hash-64chars',
-          publicValueCiphertext: 'cipher',
-          publicValueIv: 'iv',
-          publicValueTag: 'tag',
-          publicValueWrappedKey: 'wrappedKey',
+          publicValueHash: Buffer.from('phone-hash-64chars-32-byte-hash-'),
+          publicValueCiphertext: Buffer.from('cipher'),
+          publicValueIv: Buffer.from('iv'),
+          publicValueTag: Buffer.from('tag'),
+          publicValueWrappedKey: Buffer.from('wrappedKey'),
           publicValueKeyId: 'keyId',
           deletedAt: null,
         },
@@ -1725,7 +1731,7 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
         {
           id: 'cred-phone-1',
           type: AuthCredentialType.PHONE,
-          valueHash: 'phone-hash-64chars',
+          valueHash: Buffer.from('phone-hash-64chars-32-byte-hash-'),
           deletedAt: null,
         },
       ],
@@ -1841,14 +1847,14 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
       expect(txMock.transaction.updateMany).toHaveBeenCalledWith({
         where: { userId },
         data: {
-          userPhoneHash: 'phone-hash-64chars',
+          userPhoneHash: expect.any(Buffer),
           userId: null,
         },
       });
       expect(txMock.block.updateMany).toHaveBeenCalledWith({
         where: { blockedUserId: userId },
         data: {
-          blockedPhoneHash: 'phone-hash-64chars',
+          blockedPhoneHash: expect.any(Buffer),
           blockedUserId: null,
         },
       });

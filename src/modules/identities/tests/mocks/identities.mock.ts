@@ -14,21 +14,21 @@ export const mockUpdateIdentityRequestDto = {
 };
 
 export const mockEncryptedData = {
-  publicValueHash: 'hash-abc',
-  publicValueCiphertext: 'cipher-abc',
-  publicValueIv: 'iv-abc',
-  publicValueTag: 'tag-abc',
-  publicValueWrappedKey: 'wrap-abc',
+  publicValueHash: Buffer.from('hash-abc-32-bytes-mock-hash-1234'),
+  publicValueCiphertext: Buffer.from('cipher-abc'),
+  publicValueIv: Buffer.from('iv-abc-12-byte'),
+  publicValueTag: Buffer.from('tag-abc-16-byte'),
+  publicValueWrappedKey: Buffer.from('wrap-abc'),
   publicValueKeyId: 'key-abc',
   publicValueMasked: 't•••t@example.com',
 };
 
 export const mockPlatformIdData = {
-  platformIdHash: 'plat-hash-abc',
-  platformIdCiphertext: 'plat-cipher-abc',
-  platformIdIv: 'plat-iv-abc',
-  platformIdTag: 'plat-tag-abc',
-  platformIdWrappedKey: 'plat-wrap-abc',
+  platformIdHash: Buffer.from('plat-hash-abc-32-bytes-mock-hash'),
+  platformIdCiphertext: Buffer.from('plat-cipher-abc'),
+  platformIdIv: Buffer.from('plat-iv-abc-12-byte'),
+  platformIdTag: Buffer.from('plat-tag-abc-16-byte'),
+  platformIdWrappedKey: Buffer.from('plat-wrap-abc'),
   platformIdKeyId: 'plat-key-abc',
 };
 
@@ -40,12 +40,12 @@ export const mockIdentityData = {
   createdAt: DateUtil.now(),
   deletedAt: null,
   userId: mockUserId,
-  publicValueCiphertext: 'cipher-abc',
-  publicValueIv: 'iv-abc',
-  publicValueTag: 'tag-abc',
-  publicValueWrappedKey: 'wrap-abc',
+  publicValueCiphertext: Buffer.from('cipher-abc'),
+  publicValueIv: Buffer.from('iv-abc-12-byte'),
+  publicValueTag: Buffer.from('tag-abc-16-byte'),
+  publicValueWrappedKey: Buffer.from('wrap-abc'),
   publicValueKeyId: 'key-abc',
-  publicValueHash: 'hash-abc',
+  publicValueHash: Buffer.from('hash-abc-32-bytes-mock-hash-1234'),
   publicValueMasked: 't•••t@example.com',
   platformIdCiphertext: null,
   platformIdIv: null,

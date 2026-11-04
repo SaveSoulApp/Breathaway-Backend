@@ -165,8 +165,9 @@ describe('GcpSecretsKeyManager', () => {
       const hash2 = await manager.computeHash(input);
 
       // Assert
-      expect(hash1).toBe(hash2);
-      expect(hash1).toHaveLength(64); // SHA256 hex length
+      expect(hash1).toBeInstanceOf(Buffer);
+      expect(hash1).toHaveLength(32);
+      expect(hash1.equals(hash2)).toBe(true);
     });
 
     it('should produce different hashes for different inputs', async () => {
@@ -179,7 +180,7 @@ describe('GcpSecretsKeyManager', () => {
       const hashB = await manager.computeHash('input-B');
 
       // Assert
-      expect(hashA).not.toBe(hashB);
+      expect(hashA.equals(hashB)).toBe(false);
     });
   });
 

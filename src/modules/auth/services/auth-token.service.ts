@@ -149,7 +149,7 @@ export class AuthTokenService extends BaseService {
       expiresIn: this.refreshExpiresInSeconds,
     });
 
-    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+    const tokenHash = createHash('sha256').update(refreshToken).digest();
 
     const deviceId =
       (metadata?.deviceId as string | undefined) ??

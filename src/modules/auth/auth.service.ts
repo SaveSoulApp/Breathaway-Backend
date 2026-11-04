@@ -11,6 +11,7 @@ import { DateUtil } from '@common/utils/date.utils';
 import { serializeError } from '@common/utils/error.utils';
 import { extractCountryCodeFromPhone } from '@common/utils/phone.utils';
 import { BaseService } from '@core/base';
+import { CryptoUtils } from '@core/crypto/crypto.utils';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -325,7 +326,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
-      publicValueHash: valueHash,
+      publicValueHash: CryptoUtils.toHex(valueHash),
       ...(metadata && metadata),
     });
   }
@@ -417,7 +418,7 @@ export class AuthService extends BaseService {
 
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: authMethod.method,
-        publicValueHash: normalizedHash,
+        publicValueHash: CryptoUtils.toHex(normalizedHash),
         isNewUser: true,
         ...(metadata && metadata),
       });
@@ -492,7 +493,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authMethod.method,
-      publicValueHash: valueHash,
+      publicValueHash: CryptoUtils.toHex(valueHash),
       isNewUser: false,
       ...(metadata && metadata),
     });
@@ -526,7 +527,8 @@ export class AuthService extends BaseService {
     const platformIdData =
       await this.encryptionService.processPlatformId(platformUserId);
 
-    Object.assign(ctx, { platformIdHash: platformIdData.platformIdHash });
+    const platformIdHex = CryptoUtils.toHex(platformIdData.platformIdHash);
+    Object.assign(ctx, { platformIdHash: platformIdHex });
     this.logger.debug('Platform ID hashed', {
       ...ctx,
       step: 'platform_id_hash',
@@ -566,7 +568,7 @@ export class AuthService extends BaseService {
       });
       return this.authTokenService.generateAuthResponse(user, {
         authMethod: type,
-        platformIdHash: platformIdData.platformIdHash,
+        platformIdHash: platformIdHex,
         isNewUser: false,
       });
     }
@@ -714,7 +716,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: type,
-      platformIdHash: platformIdData.platformIdHash,
+      platformIdHash: platformIdHex,
       isNewUser: true,
     });
   }
@@ -822,7 +824,10 @@ export class AuthService extends BaseService {
         },
       );
       throw new CredentialAlreadyLinkedException(
-        existingUserCred.valueHash === publicValueData.publicValueHash
+        CryptoUtils.equals(
+          existingUserCred.valueHash,
+          publicValueData.publicValueHash,
+        )
           ? 'This credential is already linked to your account'
           : 'A credential of this type is already linked to this account',
       );
@@ -1016,7 +1021,7 @@ export class AuthService extends BaseService {
 
     return this.authTokenService.generateAuthResponse(user, {
       authMethod: authType,
-      publicValueHash: publicValueData.publicValueHash,
+      publicValueHash: CryptoUtils.toHex(publicValueData.publicValueHash),
       isSecondaryAuth: true,
       ...(metadata && metadata),
     });
@@ -1066,7 +1071,7 @@ export class AuthService extends BaseService {
     });
     return this.authTokenService.generateAuthResponse(credential.user, {
       authMethod: 'DEV_LOGIN',
-      publicValueHash: valueHash,
+      publicValueHash: CryptoUtils.toHex(valueHash),
       ...(metadata && metadata),
     });
   }

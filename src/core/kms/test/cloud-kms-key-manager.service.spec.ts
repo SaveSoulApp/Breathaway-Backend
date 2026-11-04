@@ -164,10 +164,10 @@ describe('CloudKmsKeyManager', () => {
       const hash2 = await manager.computeHash('test-input');
       const hash3 = await manager.computeHash('different-input');
 
-      expect(typeof hash1).toBe('string');
-      expect(hash1).toHaveLength(64);
-      expect(hash1).toBe(hash2);
-      expect(hash1).not.toBe(hash3);
+      expect(hash1).toBeInstanceOf(Buffer);
+      expect(hash1).toHaveLength(32);
+      expect(hash1.equals(hash2)).toBe(true);
+      expect(hash1.equals(hash3)).toBe(false);
     });
   });
 

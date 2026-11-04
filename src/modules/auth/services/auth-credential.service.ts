@@ -18,7 +18,7 @@ import { AuthMethod, isPhoneAuthMethod } from '../utils/auth-method.utils';
 export interface CreateUserResult {
   user: User;
   /** The normalized, canonical publicValueHash used for AuthCredential lookup */
-  normalizedHash: string;
+  normalizedHash: Uint8Array;
 }
 
 /**

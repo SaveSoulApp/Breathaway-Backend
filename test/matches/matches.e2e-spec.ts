@@ -96,11 +96,11 @@ describe('MatchesController (e2e)', () => {
         data: {
           userId: user1.id,
           type: IdentityType.PHONE,
-          publicValueHash: `hash1-${uniqueSuffix}`,
-          publicValueCiphertext: 'ctx1',
-          publicValueIv: 'iv1',
-          publicValueTag: 'tag1',
-          publicValueWrappedKey: 'wk1',
+          publicValueHash: Buffer.from(`hash1-${uniqueSuffix}`),
+          publicValueCiphertext: Buffer.from('ctx1'),
+          publicValueIv: Buffer.from('iv1'),
+          publicValueTag: Buffer.from('tag1'),
+          publicValueWrappedKey: Buffer.from('wk1'),
           publicValueKeyId: 'kid1',
         },
       });
@@ -109,11 +109,11 @@ describe('MatchesController (e2e)', () => {
         data: {
           userId: user2.id,
           type: IdentityType.PHONE,
-          publicValueHash: `hash2-${uniqueSuffix}`,
-          publicValueCiphertext: 'ctx2',
-          publicValueIv: 'iv2',
-          publicValueTag: 'tag2',
-          publicValueWrappedKey: 'wk2',
+          publicValueHash: Buffer.from(`hash2-${uniqueSuffix}`),
+          publicValueCiphertext: Buffer.from('ctx2'),
+          publicValueIv: Buffer.from('iv2'),
+          publicValueTag: Buffer.from('tag2'),
+          publicValueWrappedKey: Buffer.from('wk2'),
           publicValueKeyId: 'kid2',
         },
       });
