@@ -52,9 +52,20 @@ async function runCleanup(): Promise<void> {
     // 2. Discover any additional test users matching LoadTest_ pattern
     const discoveredUsers = await prisma.user.findMany({
       where: {
-        profile: {
-          firstName: { startsWith: 'LoadTest_' },
-        },
+        OR: [
+          {
+            profile: {
+              firstName: { startsWith: 'LoadTest_' },
+            },
+          },
+          {
+            authCredentials: {
+              some: {
+                valueMasked: { contains: '2222' },
+              },
+            },
+          },
+        ],
       },
       select: {
         id: true,

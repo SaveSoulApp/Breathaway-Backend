@@ -26,7 +26,7 @@ Run from the repository root:
 | :----------------------------- | :-------------------------------------------------------------------------------------------------------------- | :-------------------------- |
 | `pnpm run test:load:pipeline`  | **All-in-One Automated Pipeline:** Setup accounts $\rightarrow$ Run user flows $\rightarrow$ Guaranteed cleanup | Automated 3-Stage Lifecycle |
 | `pnpm run test:load:setup`     | Pre-seeds test accounts (+912222...) and mints 15-min JWT tokens                                                | Writes `.test-session.json` |
-| `pnpm run test:load:user-flow` | Runs stateful user journeys (profile, feed, likes, matches) using pre-seeded pool                               | 5 → 20 VUs                  |
+| `pnpm run test:load:user-flow` | Runs full multi-module user flows (OTP, profiles, credits, subscriptions, preferences, blocks, likes, matches)  | 5 → 20 VUs                  |
 | `pnpm run test:load:cleanup`   | Wipes test users & all child records (likes, matches, chats, sessions) in FK order                              | Restores DB to clean state  |
 | `pnpm run test:load:smoke`     | Fast sanity check before running full suites                                                                    | 2 VUs for 15s               |
 | `pnpm run test:load:health`    | Measures baseline Node.js event-loop throughput (`/health`)                                                     | Ramp up to 100 VUs          |
@@ -82,7 +82,46 @@ k6 run -e BASE_URL=https://<your-cloud-run-service-url>.a.run.app test/load/scen
 
 ---
 
-## 5. Interpreting k6 Benchmark Results
+## 5. Scope of Tested Endpoints & Modules
+
+The `user-flow.js` benchmark exercises 22 distinct endpoints across 9 core modules:
+
+1. **One-Time Passwords (`one-time-passwords`)**:
+   - `POST /api/v1/one-time-passwords/generate`: Redis OTP generation and rate limiting.
+   - `POST /api/v1/one-time-passwords/verify`: Single-use OTP verification and consumption.
+2. **Profiles & Identities (`profiles`, `identities`)**:
+   - `GET /api/v1/profiles`: Profile fetch.
+   - `PATCH /api/v1/profiles`: Live profile modification.
+   - `GET /api/v1/identities`: Masked public identity list.
+   - `GET /api/v1/identities/complete`: Decrypted complete identity verification (tests KMS envelope decryption).
+3. **Preferences & Privacy Consents (`preferences`)**:
+   - `GET /api/v1/preferences`: Notification channel toggles.
+   - `PATCH /api/v1/preferences`: Updating channel configurations.
+   - `GET /api/v1/preferences/consents`: GDPR Article 7 immutable audit ledger.
+4. **Credits & Ledger History (`credits`)**:
+   - `GET /api/v1/credits/balance`: Aggregated spendable balance.
+   - `GET /api/v1/credits/expiring`: Expiring credit batch breakdown.
+   - `GET /api/v1/credits/ledger`: Paginated transaction and usage history.
+5. **Subscriptions & Plans (`subscriptions`)**:
+   - `GET /api/v1/subscriptions/plans`: Active subscription plans with localized pricing.
+   - `GET /api/v1/subscriptions/me`: Active subscription status (200 or 404).
+   - `GET /api/v1/subscriptions/me/history`: Historical subscription ledger.
+6. **Safety & Blocks (`blocks`)**:
+   - `GET /api/v1/blocks`: Active user blocklist.
+7. **Notifications & Devices (`notifications`, `devices`)**:
+   - `GET /api/v1/notifications/unread-count`: Notification badge count.
+   - `GET /api/v1/devices`: Registered push devices.
+8. **Matching, Likes & Realtime Chat (`likes`, `matches`, `chats`)**:
+   - `GET /api/v1/likes`: Sent likes history.
+   - `POST /api/v1/likes/can-create`: Pre-flight like validation.
+   - `POST /api/v1/likes`: Like creation. _Iteration 0 pairs users reciprocally, triggering `MatchResolverService` to generate real active `Match` and `ChatRoom` records._
+   - `GET /api/v1/matches`: Active matches list.
+   - `GET /api/v1/chats/rooms`: Active chat rooms.
+   - `GET /api/v1/chats/supabase-token`: Supabase Realtime messaging JWT.
+
+---
+
+## 6. Interpreting k6 Benchmark Results
 
 ```text
 ✓ profile returns 200
