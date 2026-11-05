@@ -108,6 +108,7 @@ const sidebars: SidebarsConfig = {
         'secret-rotation',
         'supabase-jwt-setup',
         'testing',
+        'load-testing',
         'troubleshooting',
       ],
     },

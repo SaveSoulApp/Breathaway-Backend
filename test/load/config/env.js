@@ -13,7 +13,7 @@
 
 const ENVIRONMENTS = {
   local: 'http://localhost:3000',
-  dev: 'https://breathaway-backend-dev.a.run.app',
+  dev: 'https://backend-service-54c574542a-el.a.run.app',
   prod: 'https://api.breathaway.app',
 };
 

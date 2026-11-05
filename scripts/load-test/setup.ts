@@ -131,11 +131,11 @@ async function runSetup(): Promise<void> {
   );
   const jwtAudience = configService.get<string>(
     'JWT_AUDIENCE',
-    'breathaway-client',
+    'breathaway-mobile-app',
   );
   const jwtIssuer = configService.get<string>(
     'JWT_ISSUER',
-    'breathaway-backend',
+    'https://dev.breathaway.app',
   );
   const jwtService = new JwtService();
 
