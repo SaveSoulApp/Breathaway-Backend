@@ -95,6 +95,34 @@ function resolveClientIdentityHeaders(
   };
 }
 
+/**
+ * Validates that the active execution environment is safe for automated load testing.
+ * Prevents accidental execution against production databases.
+ */
+function assertSafeEnvironment(databaseUrl: string): void {
+  const nodeEnv = (process.env.NODE_ENV || '').toLowerCase();
+  const deploymentEnv = (process.env.DEPLOYMENT_ENV || '').toLowerCase();
+  const allowProd =
+    process.env.ALLOW_DANGEROUS_LOAD_TEST_ON_PRODUCTION === 'true';
+
+  const isProduction =
+    nodeEnv === 'production' ||
+    deploymentEnv === 'prod' ||
+    deploymentEnv === 'production' ||
+    databaseUrl.toLowerCase().includes('prod') ||
+    databaseUrl.toLowerCase().includes('production');
+
+  if (isProduction && !allowProd) {
+    console.error(
+      '🚨 FATAL SAFETY ERROR: Production environment detected! Load test setup is strictly prohibited against production databases.',
+    );
+    console.error(
+      '   If you are 100% certain you intend to run this against production, you must explicitly set ALLOW_DANGEROUS_LOAD_TEST_ON_PRODUCTION=true.',
+    );
+    process.exit(1);
+  }
+}
+
 async function runSetup(): Promise<void> {
   const configService = new ConfigService();
   const databaseUrl =
@@ -108,9 +136,28 @@ async function runSetup(): Promise<void> {
     process.exit(1);
   }
 
+  // Safety guard against running load test against production database
+  assertSafeEnvironment(databaseUrl);
+
   const userCount = process.env.LOAD_TEST_USERS
     ? parseInt(process.env.LOAD_TEST_USERS, 10)
     : 20;
+
+  // Dynamic connection pool sizing check & advisory warning
+  const rawPoolMax = process.env.DB_POOL_MAX;
+  const dbPoolMax = rawPoolMax ? parseInt(rawPoolMax, 10) : 10;
+
+  if (userCount > dbPoolMax * 2) {
+    console.warn(
+      `⚠️ Connection Pool Advisory: LOAD_TEST_USERS (${userCount}) is significantly higher than DB_POOL_MAX (${dbPoolMax}).`,
+    );
+    console.warn(
+      `   Under heavy concurrent execution, this may lead to pool checkout contention or socket exhaustion.`,
+    );
+    console.warn(
+      `   Recommended: Export DB_POOL_MAX=${Math.min(userCount, 50)} when running high-VU benchmarks.`,
+    );
+  }
 
   console.log(
     `🚀 Initializing Load Test Setup: Creating ${userCount} benchmark accounts...`,
