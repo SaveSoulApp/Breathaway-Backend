@@ -100,7 +100,7 @@ async function runCleanup(): Promise<void> {
       where: { userId: { in: userIds } },
     });
     const msgs = await prisma.message.deleteMany({
-      where: { senderUserId: { in: userIds } },
+      where: { senderId: { in: userIds } },
     });
     const chats = await prisma.chatRoom.deleteMany({
       where: {

@@ -1,12 +1,27 @@
 /**
  * Standard HTTP headers builder for k6 load and benchmark tests.
  *
- * Implements the mandatory client identity headers required by NestJS
- * `ClientIdentityGuard` when invoking protected or non-skipped routes.
+ * Implements:
+ * 1. Mandatory `x-request-id` header enforced by NestJS RequestIdMiddleware.
+ * 2. Mobile client identity headers required by ClientIdentityGuard (API key, Client ID, User-Agent, timezone).
  */
 
 /**
- * Returns baseline JSON request headers without client identity.
+ * Generates an RFC4122 v4 compliant UUID string.
+ *
+ * @returns {string} Formatted UUID (e.g. "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx")
+ */
+export function generateUuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Returns baseline JSON request headers.
+ * Includes unique x-request-id required by RequestIdMiddleware.
  * Ideal for public / health probes (/health, /ready).
  *
  * @param {Record<string, string>} [customHeaders={}]
@@ -16,13 +31,14 @@ export function getStandardHeaders(customHeaders = {}) {
   return {
     'Content-Type': 'application/json',
     Accept: 'application/json',
+    'x-request-id': generateUuid(),
     ...customHeaders,
   };
 }
 
 /**
- * Returns headers with full mobile client identity attributes.
- * Conforms to ClientIdentityGuard requirements (API key, Client ID, User-Agent, etc.).
+ * Returns headers with full mobile client identity attributes and unique x-request-id.
+ * Conforms to ClientIdentityGuard requirements.
  *
  * Override defaults via CLI environment variables:
  *   k6 run -e API_KEY=my-key -e CLIENT_ID=my-client ...
@@ -42,6 +58,7 @@ export function getClientIdentityHeaders(customHeaders = {}) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
+    'x-request-id': generateUuid(),
     'x-api-key': apiKey,
     'x-client-id': clientId,
     'x-device-id': deviceId,

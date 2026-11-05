@@ -19,6 +19,7 @@ export interface SessionManifest {
   createdAt: string;
   expiresAt: string;
   count: number;
+  clientHeaders: Record<string, string>;
   users: TestUserSession[];
 }
 
@@ -26,6 +27,65 @@ const SESSION_FILE_PATH = path.resolve(
   __dirname,
   '../../test/load/.test-session.json',
 );
+
+/**
+ * Resolves valid client identity headers directly from runtime environment variables.
+ * Automatically aligns API key, client ID, and user-agent with ClientIdentityGuard expectations.
+ */
+function resolveClientIdentityHeaders(): Record<string, string> {
+  let apiKey = process.env.API_KEY || '';
+  let clientId = process.env.CLIENT_ID || '';
+  let platform = 'ios';
+
+  try {
+    const rawApiKeys = process.env.API_KEYS || '{}';
+    const parsedApiKeys = JSON.parse(rawApiKeys.replace(/^['"]|['"]$/g, ''));
+    for (const [plt, keys] of Object.entries(parsedApiKeys)) {
+      if (Array.isArray(keys) && keys.length > 0) {
+        platform = plt.toLowerCase();
+        apiKey = String(keys[0]);
+        break;
+      }
+    }
+  } catch {
+    // Fallback to defaults
+  }
+
+  try {
+    const rawClientIds = process.env.CLIENT_IDS || '{}';
+    const parsedClientIds = JSON.parse(
+      rawClientIds.replace(/^['"]|['"]$/g, ''),
+    );
+    if (
+      Array.isArray(parsedClientIds[platform]) &&
+      parsedClientIds[platform].length > 0
+    ) {
+      clientId = String(parsedClientIds[platform][0]);
+    } else {
+      for (const keys of Object.values(parsedClientIds)) {
+        if (Array.isArray(keys) && keys.length > 0) {
+          clientId = String(keys[0]);
+          break;
+        }
+      }
+    }
+  } catch {
+    // Fallback to defaults
+  }
+
+  const appName = process.env.APP_NAME || 'BreathAway';
+  const minVersion = process.env.MIN_APP_VERSION || '1.0.0';
+  const formattedPlatform =
+    platform === 'ios' ? 'iOS' : platform === 'android' ? 'Android' : 'Postman';
+
+  return {
+    'x-api-key': apiKey || 'test-api-key',
+    'x-client-id': clientId || 'test-client-id',
+    'x-device-id': 'loadtest-device-runner',
+    'x-user-agent': `${appName}/${minVersion} (${formattedPlatform} 17.0; LoadTestRunner)`,
+    'x-timezone': 'UTC',
+  };
+}
 
 async function runSetup(): Promise<void> {
   const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
@@ -158,10 +218,13 @@ async function runSetup(): Promise<void> {
       });
     }
 
+    const clientHeaders = resolveClientIdentityHeaders();
+
     const manifest: SessionManifest = {
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       count: createdSessions.length,
+      clientHeaders,
       users: createdSessions,
     };
 
