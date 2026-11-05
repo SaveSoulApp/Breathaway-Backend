@@ -1,11 +1,17 @@
-import { createHmac, randomBytes } from 'crypto';
+import { AsyncLocalStorage } from 'async_hooks';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { GenderType, IdentityType, PrismaClient } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 import { Pool } from 'pg';
+
+import { IdentityCryptoService } from '../../src/core/identity-crypto/identity-crypto.service';
+import { GcpSecretsKeyManager } from '../../src/core/kms/gcp-secrets-key-manager.service';
+import { LoggerService } from '../../src/core/logger';
 
 export interface TestUserSession {
   userId: string;
@@ -32,13 +38,15 @@ const SESSION_FILE_PATH = path.resolve(
  * Resolves valid client identity headers directly from runtime environment variables.
  * Automatically aligns API key, client ID, and user-agent with ClientIdentityGuard expectations.
  */
-function resolveClientIdentityHeaders(): Record<string, string> {
-  let apiKey = process.env.API_KEY || '';
-  let clientId = process.env.CLIENT_ID || '';
+function resolveClientIdentityHeaders(
+  configService: ConfigService,
+): Record<string, string> {
+  let apiKey = configService.get<string>('API_KEY', '');
+  let clientId = configService.get<string>('CLIENT_ID', '');
   let platform = 'ios';
 
   try {
-    const rawApiKeys = process.env.API_KEYS || '{}';
+    const rawApiKeys = configService.get<string>('API_KEYS', '{}');
     const parsedApiKeys = JSON.parse(rawApiKeys.replace(/^['"]|['"]$/g, ''));
     for (const [plt, keys] of Object.entries(parsedApiKeys)) {
       if (Array.isArray(keys) && keys.length > 0) {
@@ -52,7 +60,7 @@ function resolveClientIdentityHeaders(): Record<string, string> {
   }
 
   try {
-    const rawClientIds = process.env.CLIENT_IDS || '{}';
+    const rawClientIds = configService.get<string>('CLIENT_IDS', '{}');
     const parsedClientIds = JSON.parse(
       rawClientIds.replace(/^['"]|['"]$/g, ''),
     );
@@ -73,8 +81,8 @@ function resolveClientIdentityHeaders(): Record<string, string> {
     // Fallback to defaults
   }
 
-  const appName = process.env.APP_NAME || 'BreathAway';
-  const minVersion = process.env.MIN_APP_VERSION || '1.0.0';
+  const appName = configService.get<string>('APP_NAME', 'BreathAway');
+  const minVersion = configService.get<string>('MIN_APP_VERSION', '1.0.0');
   const formattedPlatform =
     platform === 'ios' ? 'iOS' : platform === 'android' ? 'Android' : 'Postman';
 
@@ -88,7 +96,10 @@ function resolveClientIdentityHeaders(): Record<string, string> {
 }
 
 async function runSetup(): Promise<void> {
-  const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  const configService = new ConfigService();
+  const databaseUrl =
+    configService.get<string>('DIRECT_URL') ||
+    configService.get<string>('DATABASE_URL');
 
   if (!databaseUrl) {
     console.error(
@@ -109,9 +120,23 @@ async function runSetup(): Promise<void> {
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
 
-  const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
-  const jwtAudience = process.env.JWT_AUDIENCE || 'breathaway-client';
-  const jwtIssuer = process.env.JWT_ISSUER || 'breathaway-backend';
+  const clsService = new ClsService(new AsyncLocalStorage());
+  const loggerService = new LoggerService(configService, clsService);
+  const keyManager = new GcpSecretsKeyManager(configService);
+  const cryptoService = new IdentityCryptoService(loggerService, keyManager);
+
+  const jwtSecret = configService.get<string>(
+    'JWT_SECRET',
+    'dev_jwt_secret_change_me',
+  );
+  const jwtAudience = configService.get<string>(
+    'JWT_AUDIENCE',
+    'breathaway-client',
+  );
+  const jwtIssuer = configService.get<string>(
+    'JWT_ISSUER',
+    'breathaway-backend',
+  );
   const jwtService = new JwtService();
 
   const createdSessions: TestUserSession[] = [];
@@ -123,20 +148,19 @@ async function runSetup(): Promise<void> {
       const phone = `+912222${suffix}`;
       const firstName = `LoadTest_User_${i}`;
 
-      // Deterministic 32-byte HMAC hash for blinded identity lookup
-      const hmacKey =
-        process.env.HMAC_SECRET || 'dev-hmac-secret-key-32-chars!!';
-      const publicValueHash = createHmac('sha256', hmacKey)
-        .update(phone)
-        .digest();
+      // Cryptographically process phone identity through project KMS envelope
+      const publicValueData = await cryptoService.processPublicValue(
+        phone,
+        IdentityType.PHONE,
+      );
 
-      // Check if user already exists from a previous uncleaned run
-      const existingIdentity = await prisma.identity.findUnique({
+      const hashBuffer = Buffer.from(publicValueData.publicValueHash);
+
+      // Check if identity already exists from a prior setup
+      const existingIdentity = await prisma.identity.findFirst({
         where: {
-          type_publicValueHash: {
-            type: IdentityType.PHONE,
-            publicValueHash,
-          },
+          type: IdentityType.PHONE,
+          publicValueHash: hashBuffer,
         },
         include: { user: true },
       });
@@ -148,7 +172,7 @@ async function runSetup(): Promise<void> {
         userId = existingIdentity.user.id;
         identityId = existingIdentity.id;
 
-        // Ensure user has ample credits for load testing
+        // Ensure user has ample credits for sending likes during benchmark
         await prisma.creditLedger.create({
           data: {
             userId,
@@ -180,19 +204,23 @@ async function runSetup(): Promise<void> {
         });
         userId = user.id;
 
-        // 2. Create Phone Identity with envelope encryption placeholders
+        // 2. Create Phone Identity with valid AES-GCM envelope encryption
         const identity = await prisma.identity.create({
           data: {
             userId,
             type: IdentityType.PHONE,
             isVerified: true,
-            publicValueHash,
-            publicValueCiphertext: randomBytes(32),
-            publicValueIv: randomBytes(12),
-            publicValueTag: randomBytes(16),
-            publicValueWrappedKey: randomBytes(32),
-            publicValueKeyId: 'loadtest-key',
-            publicValueMasked: `+91 22220 ${suffix.slice(-4)}`,
+            publicValueHash: hashBuffer,
+            publicValueCiphertext: Buffer.from(
+              publicValueData.publicValueCiphertext,
+            ),
+            publicValueIv: Buffer.from(publicValueData.publicValueIv),
+            publicValueTag: Buffer.from(publicValueData.publicValueTag),
+            publicValueWrappedKey: Buffer.from(
+              publicValueData.publicValueWrappedKey,
+            ),
+            publicValueKeyId: publicValueData.publicValueKeyId,
+            publicValueMasked: publicValueData.publicValueMasked,
           },
         });
         identityId = identity.id;
@@ -218,7 +246,7 @@ async function runSetup(): Promise<void> {
       });
     }
 
-    const clientHeaders = resolveClientIdentityHeaders();
+    const clientHeaders = resolveClientIdentityHeaders(configService);
 
     const manifest: SessionManifest = {
       createdAt: new Date().toISOString(),
