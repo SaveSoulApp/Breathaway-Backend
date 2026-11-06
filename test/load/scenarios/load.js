@@ -14,11 +14,17 @@ import { loadThresholds } from '../config/thresholds.js';
  * Simulates expected daily peak load with a smooth ramp-up, steady state, and ramp-down.
  * Exercises both lightweight health probes and identity-checked endpoints.
  */
+const peakVus = parseInt(
+  __ENV.LOAD_TEST_USERS || __ENV.USERS || __ENV.VUS || '50',
+  10,
+);
+const warmupVus = Math.max(5, Math.floor(peakVus * 0.4));
+
 export const options = {
   stages: [
-    { duration: '30s', target: 20 }, // Ramp-up to 20 concurrent users
-    { duration: '1m', target: 50 }, // Climb to 50 concurrent users
-    { duration: '1m', target: 50 }, // Maintain steady state at 50 users
+    { duration: '30s', target: warmupVus }, // Ramp-up to initial load
+    { duration: '1m', target: peakVus }, // Climb to target concurrent users
+    { duration: '1m', target: peakVus }, // Maintain steady state
     { duration: '30s', target: 0 }, // Graceful ramp-down
   ],
   thresholds: loadThresholds,

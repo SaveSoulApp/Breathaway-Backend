@@ -41,44 +41,52 @@ const SESSION_FILE_PATH = path.resolve(
 function resolveClientIdentityHeaders(
   configService: ConfigService,
 ): Record<string, string> {
-  let apiKey = configService.get<string>('API_KEY', '');
-  let clientId = configService.get<string>('CLIENT_ID', '');
-  let platform = 'ios';
+  let apiKey = configService.get<string>('API_KEY', '').trim();
+  let clientId = configService.get<string>('CLIENT_ID', '').trim();
+  let platform = configService
+    .get<string>('PLATFORM', 'ios')
+    .toLowerCase()
+    .trim();
 
-  try {
-    const rawApiKeys = configService.get<string>('API_KEYS', '{}');
-    const parsedApiKeys = JSON.parse(rawApiKeys.replace(/^['"]|['"]$/g, ''));
-    for (const [plt, keys] of Object.entries(parsedApiKeys)) {
-      if (Array.isArray(keys) && keys.length > 0) {
-        platform = plt.toLowerCase();
-        apiKey = String(keys[0]);
-        break;
-      }
-    }
-  } catch {
-    // Fallback to defaults
-  }
-
-  try {
-    const rawClientIds = configService.get<string>('CLIENT_IDS', '{}');
-    const parsedClientIds = JSON.parse(
-      rawClientIds.replace(/^['"]|['"]$/g, ''),
-    );
-    if (
-      Array.isArray(parsedClientIds[platform]) &&
-      parsedClientIds[platform].length > 0
-    ) {
-      clientId = String(parsedClientIds[platform][0]);
-    } else {
-      for (const keys of Object.values(parsedClientIds)) {
+  // If explicit API_KEY or CLIENT_ID were not provided via environment, resolve from JSON configs
+  if (!apiKey || !clientId) {
+    try {
+      const rawApiKeys = configService.get<string>('API_KEYS', '{}');
+      const parsedApiKeys = JSON.parse(rawApiKeys.replace(/^['"]|['"]$/g, ''));
+      for (const [plt, keys] of Object.entries(parsedApiKeys)) {
         if (Array.isArray(keys) && keys.length > 0) {
-          clientId = String(keys[0]);
+          if (!apiKey) {
+            platform = plt.toLowerCase();
+            apiKey = String(keys[0]);
+          }
           break;
         }
       }
+    } catch {
+      // Fallback to defaults
     }
-  } catch {
-    // Fallback to defaults
+
+    try {
+      const rawClientIds = configService.get<string>('CLIENT_IDS', '{}');
+      const parsedClientIds = JSON.parse(
+        rawClientIds.replace(/^['"]|['"]$/g, ''),
+      );
+      if (
+        Array.isArray(parsedClientIds[platform]) &&
+        parsedClientIds[platform].length > 0
+      ) {
+        clientId = String(parsedClientIds[platform][0]);
+      } else {
+        for (const keys of Object.values(parsedClientIds)) {
+          if (Array.isArray(keys) && keys.length > 0) {
+            clientId = String(keys[0]);
+            break;
+          }
+        }
+      }
+    } catch {
+      // Fallback to defaults
+    }
   }
 
   const appName = configService.get<string>('APP_NAME', 'BreathAway');
@@ -139,9 +147,9 @@ async function runSetup(): Promise<void> {
   // Safety guard against running load test against production database
   assertSafeEnvironment(databaseUrl);
 
-  const userCount = process.env.LOAD_TEST_USERS
-    ? parseInt(process.env.LOAD_TEST_USERS, 10)
-    : 20;
+  const rawUserCount =
+    process.env.LOAD_TEST_USERS || process.env.USERS || process.env.VUS;
+  const userCount = rawUserCount ? parseInt(rawUserCount, 10) : 20;
 
   // Dynamic connection pool sizing check & advisory warning
   const rawPoolMax = process.env.DB_POOL_MAX;

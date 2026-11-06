@@ -157,7 +157,30 @@ BASE_URL=https://backend-service-54c574542a-el.a.run.app pnpm run test:load:pipe
 
 ---
 
-### Scenario C: Running in Google Cloud Shell (Zero WAN Latency)
+### Scenario C: Scaling Concurrency Dynamically (Custom VUs / User Pool)
+
+You can dynamically set the number of benchmark accounts and concurrent k6 Virtual Users (e.g. 50, 100, 200) directly from the command line using `USERS` (or `LOAD_TEST_USERS` or `VUS`):
+
+```bash
+# Run with 50 concurrent benchmark users against Cloud Run
+USERS=50 TARGET_ENV=dev pnpm run test:load:pipeline
+
+# Run with 100 concurrent benchmark users against local server
+USERS=100 DB_POOL_MAX=30 pnpm run test:load:pipeline
+
+# Customize duration along with user load (e.g. sustain 50 VUs for 60 seconds)
+USERS=50 DURATION=60s TARGET_ENV=dev pnpm run test:load:pipeline
+```
+
+**How dynamic scaling works under the hood:**
+
+1. `setup.ts`: Reads `USERS=50`, provisions 50 accounts (`+912222000001` through `+912222000050`), and saves them to `.test-session.json`.
+2. `user-flow.js`: Automatically detects 50 accounts, dynamically calculates proportional warm-up stages (25% initial $\rightarrow$ 50 sustained $\rightarrow$ cooldown), and maps each VU 1:1 to an account.
+3. `cleanup.ts`: Atomically purges all 50 accounts and their created database rows.
+
+---
+
+### Scenario D: Running in Google Cloud Shell (Zero WAN Latency)
 
 Running k6 from your local machine includes home Wi-Fi and ISP WAN latency. To measure **pure server-to-server microsecond performance** inside the GCP datacenter (`asia-south1`):
 

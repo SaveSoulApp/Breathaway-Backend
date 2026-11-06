@@ -65,11 +65,31 @@ try {
  *   - GET   /api/v1/chats/rooms               (Active chat rooms spawned by matches)
  *   - GET   /api/v1/chats/supabase-token      (Supabase Realtime JWT token)
  */
+// Resolve target VUs dynamically: CLI environment variables > session manifest count > default 20
+const manifestUserCount =
+  manifest && Array.isArray(manifest.users) && manifest.users.length > 0
+    ? manifest.users.length
+    : null;
+
+const targetVus = parseInt(
+  __ENV.LOAD_TEST_USERS ||
+    __ENV.USERS ||
+    __ENV.VUS ||
+    manifestUserCount ||
+    '20',
+  10,
+);
+
+const warmupVus = Math.max(1, Math.floor(targetVus * 0.25));
+const duration = __ENV.DURATION || '30s';
+const warmupDuration = __ENV.WARMUP_DURATION || '15s';
+const cooldownDuration = __ENV.COOLDOWN_DURATION || '15s';
+
 export const options = {
   stages: [
-    { duration: '15s', target: 5 }, // Warm up with 5 users
-    { duration: '30s', target: 20 }, // Sustain 20 active concurrent users
-    { duration: '15s', target: 0 }, // Clean ramp down
+    { duration: warmupDuration, target: warmupVus }, // Proportional warm-up (25% of target VUs)
+    { duration: duration, target: targetVus }, // Sustain target concurrent VUs
+    { duration: cooldownDuration, target: 0 }, // Graceful ramp-down
   ],
   thresholds: {
     http_req_duration: ['p(95)<2000', 'p(99)<3500'],
@@ -130,13 +150,26 @@ export default function () {
    */
   function makeHeaders() {
     const virtualIp = `198.51.100.${__VU}`;
-    return getClientIdentityHeaders({
+    const baseHeaders = {
       ...clientIdentityConfig,
       'x-request-id': generateUuid(),
       'x-forwarded-for': virtualIp,
       'x-real-ip': virtualIp,
       Authorization: `Bearer ${currentUser.token}`,
-    });
+    };
+
+    if (__ENV.API_KEY) {
+      baseHeaders['x-api-key'] = __ENV.API_KEY.trim();
+    }
+    if (__ENV.CLIENT_ID) {
+      baseHeaders['x-client-id'] = __ENV.CLIENT_ID.trim();
+    }
+    if (__ENV.PLATFORM) {
+      baseHeaders['x-user-agent'] =
+        `BreathAway/1.0.0 (${__ENV.PLATFORM} 17.0; LoadTestRunner)`;
+    }
+
+    return getClientIdentityHeaders(baseHeaders);
   }
 
   // ==========================================
