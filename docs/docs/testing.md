@@ -10,10 +10,11 @@ This guide details the testing framework, test types, and coding patterns used t
 
 ## 🧪 Test Types
 
-BreathAway backend uses a dual testing strategy:
+BreathAway backend uses a three-tier testing strategy:
 
-1. **Unit Tests**: Test individual classes, services, or helpers in isolation. Database and third-party API calls are fully mocked.
+1. **Unit Tests**: Test individual classes, services, or helpers in isolation. Database and third-party API calls are fully mocked using `jest-mock-extended`.
 2. **End-to-End (E2E) Tests**: Run the full NestJS application instance against a test database instance to verify HTTP controllers, pipes, guards, filters, and complete business flows.
+3. **Load & Benchmark Tests (Grafana k6)**: Simulate high-concurrency production user journeys against local or Cloud Run instances to validate latency (P95 / P99), connection pooling, and autoscaling. See the [Load Testing Guide](./load-testing.md) for full details.
 
 ---
 
@@ -33,6 +34,9 @@ pnpm run test:cov
 
 # Run E2E integration tests
 pnpm run test:e2e
+
+# Run automated Load Testing pipeline (Setup -> 20 VUs -> Teardown)
+pnpm run test:load:pipeline
 ```
 
 ### Coverage Thresholds
