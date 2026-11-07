@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as Handlebars from 'handlebars';
 
 import { serializeError } from '@common/utils/error.utils';
@@ -34,6 +35,17 @@ export interface SendEmailOptions {
   recipientData?: Record<string, Record<string, unknown>>;
 }
 
+export interface SendDirectEmailOptions {
+  /** Recipient email address */
+  to: string;
+  /** The type of email — drives template and subject selection */
+  emailType: EmailType;
+  /**
+   * Handlebars data for both subject and body rendering.
+   */
+  templateData: Record<string, unknown>;
+}
+
 @Injectable()
 export class EmailService extends BaseService implements OnModuleInit {
   /** Compiled layout template — cached at startup */
@@ -52,6 +64,8 @@ export class EmailService extends BaseService implements OnModuleInit {
     private readonly recipientResolver: NotificationRecipientResolverService,
     @Inject(EMAIL_ADAPTER_TOKEN)
     private readonly emailAdapter: IEmailAdapter,
+    @Optional()
+    private readonly configService?: ConfigService,
   ) {
     super(loggerService);
     this.templatesDir = path.resolve(__dirname, '../templates');
@@ -190,9 +204,67 @@ export class EmailService extends BaseService implements OnModuleInit {
     });
   }
 
+  /**
+   * Directly dispatches an email to an explicit email address, bypassing database recipient lookup.
+   *
+   * Used for transactional flows like email verification where the recipient address is not yet
+   * linked or persisted in the database.
+   *
+   * @param options - Direct email dispatch parameters (to, emailType, templateData).
+   */
+  async sendDirect(options: SendDirectEmailOptions): Promise<void> {
+    const { to, emailType, templateData } = options;
+    const ctx = { emailType, recipientEmail: this.maskEmail(to) };
+
+    this.logger.log('Direct email sending started', { ...ctx, step: 'init' });
+
+    if (!to) {
+      this.logger.warn('Direct email aborted: recipient address is empty', {
+        ...ctx,
+        step: 'validate',
+      });
+      return;
+    }
+
+    const templateConfig = EMAIL_TEMPLATE_MAP[emailType];
+    if (!templateConfig) {
+      this.logger.error('No template registered for email type', {
+        ...ctx,
+        step: 'template_lookup',
+      });
+      return;
+    }
+
+    const contentTemplate = this.getOrCompileTemplate(emailType);
+
+    try {
+      await this.renderAndSend(
+        to,
+        templateConfig.subject,
+        contentTemplate,
+        templateData,
+      );
+      this.logger.event(LOG_EVENT.EMAIL_SENT, { ...ctx });
+    } catch (error) {
+      this.logger.error('Direct email dispatch failed', {
+        ...ctx,
+        step: 'send_direct',
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private maskEmail(email: string): string {
+    const [name, domain] = email.split('@');
+    if (!domain) return '••••';
+    const maskedName = name.charAt(0) + '••••' + name.charAt(name.length - 1);
+    return `${maskedName}@${domain}`;
+  }
 
   private async renderAndSend(
     to: string,
@@ -200,9 +272,19 @@ export class EmailService extends BaseService implements OnModuleInit {
     contentTemplate: Handlebars.TemplateDelegate,
     data: Record<string, unknown>,
   ): Promise<void> {
-    const subject = Handlebars.compile(subjectTemplate)(data);
-    const contentHtml = contentTemplate(data);
-    const html = this.layoutTemplate({ ...data, body: contentHtml });
+    const defaultData = {
+      appUrl:
+        this.configService?.get<string>('APP_URL') ||
+        'https://www.breathaway.app',
+      logoUrl:
+        this.configService?.get<string>('EMAIL_LOGO_URL') ||
+        'https://okrhhvapirxwelcqfbhi.supabase.co/storage/v1/object/public/public-assets/logo/breathaway-wordmark.png',
+      currentYear: new Date().getFullYear(),
+    };
+    const mergedData = { ...defaultData, ...data };
+    const subject = Handlebars.compile(subjectTemplate)(mergedData);
+    const contentHtml = contentTemplate(mergedData);
+    const html = this.layoutTemplate({ ...mergedData, body: contentHtml });
 
     const payload: EmailPayload = { to, subject, html };
     await this.emailAdapter.send(payload);

@@ -81,4 +81,8 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
     templateFile: 'dsar-export-ready',
     subject: 'Your BreathAway Personal Data Archive is Ready 📦',
   },
+  [EmailType.EMAIL_VERIFICATION_OTP]: {
+    templateFile: 'email-verification-otp',
+    subject: 'Your BreathAway verification code is here 🔒',
+  },
 };

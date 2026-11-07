@@ -30,6 +30,8 @@ import {
 } from '@modules/credits/events';
 import { DEVICE_ADDED_EVENT, DeviceAddedEvent } from '@modules/devices/events';
 import {
+  EMAIL_VERIFICATION_REQUESTED_EVENT,
+  EmailVerificationRequestedEvent,
   IDENTITY_ADDED_EVENT,
   IDENTITY_REMOVED_EVENT,
   IdentityAddedEvent,
@@ -55,6 +57,8 @@ import {
   DsarExportCompletedEvent,
 } from '@modules/users/events';
 
+import { EmailService } from '../email/email.service';
+import { EmailType } from '../enums/email-type.enum';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationPriority } from '../enums/notification-priority.enum';
@@ -81,6 +85,7 @@ export class NotificationEventsListener extends BaseService {
     private readonly configService: ConfigService,
     private readonly preferencesService: PreferencesService,
     private readonly whatsAppProvider: WhatsAppProviderService,
+    private readonly emailService: EmailService,
   ) {
     super(loggerService);
   }
@@ -604,6 +609,49 @@ export class NotificationEventsListener extends BaseService {
         userOneId: event.userOneId,
         userTwoId: event.userTwoId,
         step: 'handle_match_created_event',
+        err: serializeError(err),
+      });
+    }
+  }
+
+  @OnEvent(EMAIL_VERIFICATION_REQUESTED_EVENT, { async: true })
+  async handleEmailVerificationRequested(
+    event: EmailVerificationRequestedEvent,
+  ): Promise<void> {
+    const ctx = {
+      userId: event.userId,
+      event: EMAIL_VERIFICATION_REQUESTED_EVENT,
+    };
+    this.logger.log('Processing email verification requested event', {
+      ...ctx,
+      step: 'init',
+    });
+
+    try {
+      const name = await this.resolveUserFirstName(event.userId);
+      const expiresInMinutes = Math.max(
+        1,
+        Math.round(event.expiresInSeconds / 60),
+      );
+
+      await this.emailService.sendDirect({
+        to: event.email,
+        emailType: EmailType.EMAIL_VERIFICATION_OTP,
+        templateData: {
+          name,
+          otp: event.otp,
+          expiresInMinutes,
+        },
+      });
+
+      this.logger.debug('Email verification OTP dispatched', {
+        ...ctx,
+        step: 'email_dispatched',
+      });
+    } catch (err) {
+      this.logger.error('Failed to dispatch email verification OTP', {
+        ...ctx,
+        step: 'dispatch_error',
         err: serializeError(err),
       });
     }

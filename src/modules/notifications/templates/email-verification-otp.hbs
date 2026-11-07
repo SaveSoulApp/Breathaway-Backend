@@ -1,0 +1,40 @@
+{{!
+  Template: email-verification-otp
+  Data keys:
+    - name             {string} Recipient's first name (optional)
+    - otp              {string} 6-digit numeric one-time password
+    - expiresInMinutes {number} Validity duration in minutes (e.g. 10)
+    - appUrl           {string} Base URL of the app
+    - unsubscribeToken {string}
+    - currentYear      {number}
+}}
+<p class='email-greeting'>Verify Your Email Address 🔒</p>
+
+<p>
+  Hello{{#if name}} {{name}}{{/if}},
+</p>
+
+<p>
+  We received a request to verify and link this email address to your BreathAway account.
+  Use the verification code below to complete the process:
+</p>
+
+<div
+  style='background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 28px 24px; margin: 28px 0; text-align: center;'
+>
+  <p style='margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; font-weight: 600;'>
+    Your Verification Code
+  </p>
+  <div
+    style='display: inline-block; font-family: monospace, Courier, monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #6C63FF; padding: 12px 24px; background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; margin: 8px 0;'
+  >
+    {{otp}}
+  </div>
+  <p style='margin: 12px 0 0 0; font-size: 14px; color: #6B7280;'>
+    This code is valid for <strong>{{#if expiresInMinutes}}{{expiresInMinutes}}{{else}}10{{/if}} minutes</strong>.
+  </p>
+</div>
+
+<p style='font-size: 14px; color: #6B7280; line-height: 1.6;'>
+  <strong>Security Notice:</strong> BreathAway will never ask you for your verification code. If you did not request this email, no action is needed — you can safely ignore this message.
+</p>

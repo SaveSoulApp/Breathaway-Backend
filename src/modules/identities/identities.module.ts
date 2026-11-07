@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 
+import { EmailIdentitiesModule } from './email/email-identities.module';
 import { IdentitiesController } from './identities.controller';
 import { IdentitiesService } from './identities.service';
 
@@ -15,16 +16,18 @@ import { IdentitiesService } from './identities.service';
  * Imports:
  *   - IdentityCryptoModule: provides symmetric-envelope encryption/decryption and
  *     deterministic hashing for `publicValue` and `platformId` fields.
+ *   - EmailIdentitiesModule: sub-module handling email verification OTP workflows.
  *
  * Exports:
  *   - IdentitiesService: exposes `claimOrCreateIdentity`, `getDecryptedPublicValue`,
  *     and `findByPublicValue` so auth flows (OAuth claim) and likes display can
  *     resolve and decrypt identities without creating a circular dependency.
+ *   - EmailIdentitiesModule: sub-module re-exported for callers.
  */
 @Module({
-  imports: [IdentityCryptoModule],
+  imports: [IdentityCryptoModule, forwardRef(() => EmailIdentitiesModule)],
   controllers: [IdentitiesController],
   providers: [IdentitiesService],
-  exports: [IdentitiesService],
+  exports: [IdentitiesService, EmailIdentitiesModule],
 })
 export class IdentitiesModule {}

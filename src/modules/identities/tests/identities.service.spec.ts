@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Identity, IdentityType } from '@prisma/client';
@@ -46,6 +47,8 @@ describe('IdentitiesService', () => {
     get: jest.Mock;
     set: jest.Mock;
     del: jest.Mock;
+    ttl: jest.Mock;
+    incr: jest.Mock;
   };
   let eventEmitter: { emit: jest.Mock };
   let contextualLogger: {
@@ -89,6 +92,8 @@ describe('IdentitiesService', () => {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue('OK'),
       del: jest.fn().mockResolvedValue(1),
+      ttl: jest.fn().mockResolvedValue(600),
+      incr: jest.fn().mockResolvedValue(1),
     };
 
     const module: TestingModule = await Test.createTestingModule({

@@ -322,4 +322,60 @@ export class RedisService {
       throw error;
     }
   }
+
+  /**
+   * Increments the number stored at key by one.
+   *
+   * @param key - Cache key.
+   * @returns Value of key after increment, or 0 if Redis is unconfigured.
+   */
+  async incr(key: string): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await this.client.incr(key);
+    } catch (error) {
+      this.logger.error('Redis INCR failed', {
+        step: 'redis_incr',
+        key,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Atomically increments a numeric key and attaches a time-to-live expiration
+   * if the key was freshly created (hits === 1) or currently has no TTL (ttl === -1).
+   *
+   * Preserves the fixed/tumbling rate limit window without sliding or extending the
+   * expiration on subsequent increments.
+   *
+   * @param key - Cache key.
+   * @param ttlSeconds - Expiration duration in seconds for the window.
+   * @returns Value of the key after increment, or 0 if Redis is unconfigured.
+   */
+  async incrWithTtl(key: string, ttlSeconds: number): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      const luaScript = `
+        local current = redis.call('INCR', KEYS[1])
+        if current == 1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[1])
+        elseif redis.call('TTL', KEYS[1]) == -1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[1])
+        end
+        return current
+      `;
+      const result = await this.client.eval(luaScript, 1, key, ttlSeconds);
+      return typeof result === 'number' ? result : parseInt(String(result), 10);
+    } catch (error) {
+      this.logger.error('Redis INCR with TTL failed', {
+        step: 'redis_incr_ttl',
+        key,
+        ttlSeconds,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
 }

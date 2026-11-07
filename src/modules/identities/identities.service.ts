@@ -17,8 +17,8 @@ import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
 import {
-  IdentityAlreadyExistsException,
   IdentityAlreadyClaimedException,
+  IdentityAlreadyExistsException,
   IdentityNotFoundException,
 } from './application/exceptions';
 import {
@@ -683,14 +683,20 @@ export class IdentitiesService extends BaseService {
   async claimOrCreateIdentity(
     type: IdentityType,
     publicValue: string,
-    platformId: string,
+    platformId: string | undefined,
     userId: string,
   ) {
     const publicValueData = await this.encryption.processPublicValue(
       publicValue,
       type,
     );
-    const platformIdData = await this.encryption.processPlatformId(platformId);
+    let platformIdData: Partial<
+      Awaited<ReturnType<IdentityCryptoService['processPlatformId']>>
+    > = {};
+
+    if (platformId) {
+      platformIdData = await this.encryption.processPlatformId(platformId);
+    }
 
     let identity: Identity;
     try {
