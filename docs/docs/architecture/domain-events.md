@@ -57,6 +57,7 @@ flowchart TD
         CREDITS["CreditsService"]
         MAINT["MaintenanceService"]
         IDENT["IdentitiesService"]
+        EMAIL["EmailVerificationService"]
         DEV["DevicesService"]
         USERS["DsarExportWorkerService"]
     end
@@ -89,11 +90,14 @@ flowchart TD
     CREDITS -->|CREDITS_PURCHASED / USED / EXPIRING| BUS
     MAINT -->|LIKES_EXPIRED_EVENT| BUS
     IDENT -->|IDENTITY_ADDED / REMOVED| BUS
+    EMAIL -->|EMAIL_VERIFICATION_REQUESTED_EVENT| BUS
     DEV -->|DEVICE_ADDED_EVENT| BUS
     USERS -->|DSAR_EXPORT_COMPLETED_EVENT| BUS
 
     BUS --> LISTENER
     LISTENER --> RESOLVER
+    LISTENER -->|Direct Send| EMAIL_SVC["EmailService.sendDirect()"]
+    EMAIL_SVC --> BREVO
     RESOLVER --> NOTIF_SVC
     NOTIF_SVC --> PUBSUB
     PUBSUB --> WORKER
@@ -109,20 +113,21 @@ flowchart TD
 
 All domain events are strongly typed classes accompanied by exported string constants:
 
-| Module                    | Event Constant                                               | Event Class                 | Emitted When                                                                            |
-| :------------------------ | :----------------------------------------------------------- | :-------------------------- | :-------------------------------------------------------------------------------------- |
-| **Auth**                  | `USER_WELCOME_EVENT` (`'user.welcome'`)                      | `UserWelcomeEvent`          | A new user signs up or links their first verified email                                 |
-| **Auth** / **Identities** | `IDENTITY_ADDED_EVENT` (`'identity.added'`)                  | `IdentityAddedEvent`        | A new contact method (email, phone) is added to an account                              |
-| **Identities**            | `IDENTITY_REMOVED_EVENT` (`'identity.removed'`)              | `IdentityRemovedEvent`      | An identity method is deleted/unlinked                                                  |
-| **Devices**               | `DEVICE_ADDED_EVENT` (`'device.added'`)                      | `DeviceAddedEvent`          | A new device token is registered for an account                                         |
-| **Likes**                 | `LIKE_SENT_EVENT` (`'like.sent'`)                            | `LikeSentEvent`             | A user sends a like to a contact                                                        |
-| **Likes**                 | `LIKE_WITHDRAWN_EVENT` (`'like.withdrawn'`)                  | `LikeWithdrawnEvent`        | A user cancels or deletes a pending like                                                |
-| **Match Resolver**        | `MATCH_CREATED_EVENT` (`'match.created'`)                    | `MatchCreatedEvent`         | A mutual like is resolved into an active `Match` (Push, Email & WhatsApp to both users) |
-| **Credits**               | `CREDITS_PURCHASED_EVENT` (`'credits.purchased'`)            | `CreditsPurchasedEvent`     | A user purchases or receives a credit bundle                                            |
-| **Credits**               | `CREDITS_USED_EVENT` (`'credits.used'`)                      | `CreditsUsedEvent`          | Credits are debited from the user's ledger                                              |
-| **Credits**               | `CREDIT_BUNDLE_EXPIRING_EVENT` (`'credits.bundle-expiring'`) | `CreditBundleExpiringEvent` | Cron identifies credit bundles nearing expiry (7d / 2d)                                 |
-| **Maintenance**           | `LIKES_EXPIRED_EVENT` (`'likes.expired'`)                    | `LikesExpiredEvent`         | Nightly cron voids pending likes older than 90 days                                     |
-| **Users**                 | `DSAR_EXPORT_COMPLETED_EVENT` (`'dsar.export.completed'`)    | `DsarExportCompletedEvent`  | Personal data archive is assembled, encrypted, and uploaded to GCS (Email & Push sent)  |
+| Module                    | Event Constant                                                                   | Event Class                       | Emitted When                                                                            |
+| :------------------------ | :------------------------------------------------------------------------------- | :-------------------------------- | :-------------------------------------------------------------------------------------- |
+| **Auth**                  | `USER_WELCOME_EVENT` (`'user.welcome'`)                                          | `UserWelcomeEvent`                | A new user signs up or links their first verified email                                 |
+| **Auth** / **Identities** | `IDENTITY_ADDED_EVENT` (`'identity.added'`)                                      | `IdentityAddedEvent`              | A new contact method (email, phone) is added to an account                              |
+| **Identities**            | `IDENTITY_REMOVED_EVENT` (`'identity.removed'`)                                  | `IdentityRemovedEvent`            | An identity method is deleted/unlinked                                                  |
+| **Identities (Email)**    | `EMAIL_VERIFICATION_REQUESTED_EVENT` (`'identity.email_verification_requested'`) | `EmailVerificationRequestedEvent` | Customer requests OTP to verify an email address (Direct Brevo dispatch)                |
+| **Devices**               | `DEVICE_ADDED_EVENT` (`'device.added'`)                                          | `DeviceAddedEvent`                | A new device token is registered for an account                                         |
+| **Likes**                 | `LIKE_SENT_EVENT` (`'like.sent'`)                                                | `LikeSentEvent`                   | A user sends a like to a contact                                                        |
+| **Likes**                 | `LIKE_WITHDRAWN_EVENT` (`'like.withdrawn'`)                                      | `LikeWithdrawnEvent`              | A user cancels or deletes a pending like                                                |
+| **Match Resolver**        | `MATCH_CREATED_EVENT` (`'match.created'`)                                        | `MatchCreatedEvent`               | A mutual like is resolved into an active `Match` (Push, Email & WhatsApp to both users) |
+| **Credits**               | `CREDITS_PURCHASED_EVENT` (`'credits.purchased'`)                                | `CreditsPurchasedEvent`           | A user purchases or receives a credit bundle                                            |
+| **Credits**               | `CREDITS_USED_EVENT` (`'credits.used'`)                                          | `CreditsUsedEvent`                | Credits are debited from the user's ledger                                              |
+| **Credits**               | `CREDIT_BUNDLE_EXPIRING_EVENT` (`'credits.bundle-expiring'`)                     | `CreditBundleExpiringEvent`       | Cron identifies credit bundles nearing expiry (7d / 2d)                                 |
+| **Maintenance**           | `LIKES_EXPIRED_EVENT` (`'likes.expired'`)                                        | `LikesExpiredEvent`               | Nightly cron voids pending likes older than 90 days                                     |
+| **Users**                 | `DSAR_EXPORT_COMPLETED_EVENT` (`'dsar.export.completed'`)                        | `DsarExportCompletedEvent`        | Personal data archive is assembled, encrypted, and uploaded to GCS (Email & Push sent)  |
 
 ---
 

@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
         'modules/auth',
         'modules/one-time-passwords',
         'modules/identities',
+        'modules/email-identities',
         'modules/social-identities',
         'modules/instagram',
         'modules/identity-workflows',

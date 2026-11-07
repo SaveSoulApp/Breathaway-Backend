@@ -154,6 +154,7 @@ When a user adds or links an identity that already exists in the unowned ghost s
    During `create()` or `claimOrCreateIdentity()`, the service hashes the incoming handle and platform ID and searches `Identity` for a matching `type` and `publicValueHash` or `platformIdHash`.
 2. **Ownership Check (`isActivelyOwned`)**:
    The service evaluates whether the existing identity is actively held:
+
    ```typescript
    private isActivelyOwned(identity: Identity): boolean {
      return identity.userId !== null && identity.isVerified;
@@ -162,6 +163,7 @@ When a user adds or links an identity that already exists in the unowned ghost s
 
    - If owned by a different user with `isVerified: true`: throws `IdentityAlreadyExistsException` (or `IdentityAlreadyClaimedException`).
    - If detached (`userId: null`) or owned by the same user: permits claiming.
+
 3. **Reclaim Execution**:
    The existing row is claimed and reactivated in-place:
    ```typescript
@@ -180,3 +182,13 @@ When a user adds or links an identity that already exists in the unowned ghost s
 4. **Activation & Match Resolution**:
    - Once reclaimed and verified, any historical or pending inbound likes pointing to this identity automatically link to the newly associated user.
    - The service publishes `IDENTITY_CLAIMED` to Pub/Sub to trigger asynchronous match resolution against pending likes.
+
+---
+
+## 📧 Email Verification Sub-Module (`EmailIdentitiesModule`)
+
+To prevent controller and service bloat on the root `Identities` domain, email-specific verification logic (in-house OTP generation, Redis caching, Brevo dispatch, multi-tier abuse defense, and verification) is encapsulated within a dedicated sub-module: [`src/modules/identities/email/`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/modules/identities/email/).
+
+- **Route Prefix**: `/api/v1/identities/email`
+- **Key Capabilities**: Multi-email management without duplicate Firebase Auth records, multi-tier rate limiting (user + email cooldowns & hourly caps), brute-force burning, constant-time hash comparison, and decoupled notification dispatch via `EMAIL_VERIFICATION_REQUESTED_EVENT`.
+- **Dedicated Documentation**: See [Email Identities Module](./email-identities.md) for the complete architecture overview, threat model, endpoint specifications, and interactive Mermaid sequence diagrams.
