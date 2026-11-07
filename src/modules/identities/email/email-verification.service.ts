@@ -244,7 +244,7 @@ export class EmailVerificationService extends BaseService {
         EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
       );
 
-      // Set cooldown sentinels and advance hourly counter
+      // Set cooldown sentinels and advance hourly counters atomically
       await this.redisService.set(
         userCooldownKey,
         '1',
@@ -258,25 +258,8 @@ export class EmailVerificationService extends BaseService {
         EmailVerificationService.EMAIL_OTP_COOLDOWN_SECONDS,
       );
 
-      if (hourlyCount === 0) {
-        await this.redisService.set(hourlyKey, '1', 'EX', 3600);
-      } else {
-        await this.redisService.incr(hourlyKey);
-        const ttl = await this.redisService.ttl(hourlyKey);
-        if (ttl === -1) {
-          await this.redisService.expire(hourlyKey, 3600);
-        }
-      }
-
-      if (emailHourlyCount === 0) {
-        await this.redisService.set(emailHourlyKey, '1', 'EX', 3600);
-      } else {
-        await this.redisService.incr(emailHourlyKey);
-        const emailTtl = await this.redisService.ttl(emailHourlyKey);
-        if (emailTtl === -1) {
-          await this.redisService.expire(emailHourlyKey, 3600);
-        }
-      }
+      await this.redisService.incrWithTtl(hourlyKey, 3600);
+      await this.redisService.incrWithTtl(emailHourlyKey, 3600);
 
       this.logger.debug('Stored email verification OTP in Redis', {
         ...ctx,

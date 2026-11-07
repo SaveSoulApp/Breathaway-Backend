@@ -37,6 +37,7 @@ describe('EmailVerificationService', () => {
     del: jest.Mock;
     ttl: jest.Mock;
     incr: jest.Mock;
+    incrWithTtl: jest.Mock;
   };
   let identitiesService: {
     claimOrCreateIdentity: jest.Mock;
@@ -80,6 +81,7 @@ describe('EmailVerificationService', () => {
       del: jest.fn(),
       ttl: jest.fn(),
       incr: jest.fn(),
+      incrWithTtl: jest.fn().mockResolvedValue(1),
     };
 
     identitiesService = {
@@ -159,10 +161,12 @@ describe('EmailVerificationService', () => {
         'EX',
         60,
       );
-      expect(redisService.set).toHaveBeenCalledWith(
+      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
         `rate_limit:email_otp:hourly:${mockUserId}`,
-        '1',
-        'EX',
+        3600,
+      );
+      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
+        expect.stringContaining('rate_limit:email_otp:hourly:email:'),
         3600,
       );
 
@@ -176,7 +180,7 @@ describe('EmailVerificationService', () => {
       );
     });
 
-    it('should advance hourly counter via incr when hourly counter already exists', async () => {
+    it('should advance hourly counter via incrWithTtl when hourly counter already exists', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
       redisService.get.mockImplementation(async (key: string) => {
@@ -190,8 +194,9 @@ describe('EmailVerificationService', () => {
       await service.sendEmailOtp(mockUserId, dto);
 
       // Assert
-      expect(redisService.incr).toHaveBeenCalledWith(
+      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
         `rate_limit:email_otp:hourly:${mockUserId}`,
+        3600,
       );
     });
 

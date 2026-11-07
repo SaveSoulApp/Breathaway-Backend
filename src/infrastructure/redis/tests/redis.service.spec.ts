@@ -20,6 +20,7 @@ describe('RedisService', () => {
     ping: jest.Mock;
     ttl: jest.Mock;
     incr: jest.Mock;
+    eval: jest.Mock;
     pipeline: jest.Mock;
   } | null;
   let mockLogger: {
@@ -71,6 +72,7 @@ describe('RedisService', () => {
         ping: jest.fn(),
         ttl: jest.fn(),
         incr: jest.fn(),
+        eval: jest.fn(),
         pipeline: jest.fn().mockReturnValue({
           sadd: jest.fn().mockReturnThis(),
           expire: jest.fn().mockReturnThis(),
@@ -442,6 +444,33 @@ describe('RedisService', () => {
         expect.objectContaining({ key: 'my-counter' }),
       );
     });
+
+    it('incrWithTtl delegates to client.eval and returns incremented value', async () => {
+      mockRedisClient!.eval.mockResolvedValue(1);
+
+      const result = await service.incrWithTtl('my-counter', 3600);
+
+      expect(mockRedisClient!.eval).toHaveBeenCalledWith(
+        expect.stringContaining('INCR'),
+        1,
+        'my-counter',
+        3600,
+      );
+      expect(result).toBe(1);
+    });
+
+    it('incrWithTtl rethrows error and logs when Redis throws', async () => {
+      const err = new Error('EVAL failed');
+      mockRedisClient!.eval.mockRejectedValue(err);
+
+      await expect(service.incrWithTtl('my-counter', 3600)).rejects.toThrow(
+        err,
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis INCR with TTL failed',
+        expect.objectContaining({ key: 'my-counter', ttlSeconds: 3600 }),
+      );
+    });
   });
 
   describe('when Redis client is null (unconfigured)', () => {
@@ -514,6 +543,11 @@ describe('RedisService', () => {
 
     it('incr returns 0 gracefully', async () => {
       const result = await service.incr('any-key');
+      expect(result).toBe(0);
+    });
+
+    it('incrWithTtl returns 0 gracefully', async () => {
+      const result = await service.incrWithTtl('any-key', 3600);
       expect(result).toBe(0);
     });
   });
