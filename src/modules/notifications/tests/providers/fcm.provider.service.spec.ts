@@ -299,7 +299,7 @@ describe('FcmProviderService', () => {
       expect(user2Call![0].data.id).toBe('notif-user-2');
     });
 
-    it('should send webpush notification for single WEB device token with icon, badge, and fcmOptions.link', async () => {
+    it('should send webpush notification for single WEB device token with icon, badge, and origin-relative data.link / data.route without fcmOptions.link', async () => {
       const devices = [
         {
           id: 'dev-web',
@@ -333,9 +333,7 @@ describe('FcmProviderService', () => {
       expect(callArgs.webpush.notification.badge).toBe(
         'https://custom-cdn.breathaway.app/custom-badge.png',
       );
-      expect(callArgs.webpush.fcmOptions.link).toBe(
-        'https://www.breathaway.app/app/matches/match-123',
-      );
+      expect(callArgs.webpush.fcmOptions).toBeUndefined();
       expect(callArgs.apns).toBeUndefined();
       expect(callArgs.android).toBeUndefined();
       expect(callArgs.data.link).toBe('/matches/match-123');
@@ -375,9 +373,7 @@ describe('FcmProviderService', () => {
       expect(callArgs.webpush.notification.badge).toBe(
         'https://staging.breathaway.app/badge.png',
       );
-      expect(callArgs.webpush.fcmOptions.link).toBe(
-        'https://staging.breathaway.app/app/matches/match-123',
-      );
+      expect(callArgs.webpush.fcmOptions).toBeUndefined();
     });
 
     it('should use sendEachForMulticast for multiple WEB devices with webpush config', async () => {

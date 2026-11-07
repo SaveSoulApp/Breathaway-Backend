@@ -336,7 +336,6 @@ export class FcmProviderService
     notificationId?: string,
   ): FcmPayload {
     const base = this.createBasePayload(dto, notificationId);
-    const link = this.resolveWebLink(dto);
     const baseUrl = this.resolveBaseAppUrl();
 
     const icon =
@@ -355,39 +354,8 @@ export class FcmProviderService
           icon,
           badge,
         },
-        fcmOptions: {
-          link,
-        },
       },
     };
-  }
-
-  private resolveWebLink(dto: SendNotificationRequestDto): string {
-    const rawLink =
-      dto.link ||
-      (dto.payload?.link as string | undefined) ||
-      (dto.payload?.chatUrl as string | undefined);
-
-    const baseUrl = this.resolveBaseAppUrl();
-
-    if (!rawLink) {
-      return `${baseUrl}/app`;
-    }
-
-    if (/^https?:\/\//i.test(rawLink)) {
-      return rawLink;
-    }
-
-    if (rawLink.startsWith('/app/')) {
-      return `${baseUrl}${rawLink}`;
-    }
-
-    if (rawLink === '/app' || rawLink === 'app') {
-      return `${baseUrl}/app`;
-    }
-
-    const normalized = rawLink.startsWith('/') ? rawLink : `/${rawLink}`;
-    return `${baseUrl}/app${normalized}`;
   }
 
   private resolveBaseAppUrl(): string {
