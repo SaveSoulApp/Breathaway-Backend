@@ -34,6 +34,17 @@ export interface SendEmailOptions {
   recipientData?: Record<string, Record<string, unknown>>;
 }
 
+export interface SendDirectEmailOptions {
+  /** Recipient email address */
+  to: string;
+  /** The type of email — drives template and subject selection */
+  emailType: EmailType;
+  /**
+   * Handlebars data for both subject and body rendering.
+   */
+  templateData: Record<string, unknown>;
+}
+
 @Injectable()
 export class EmailService extends BaseService implements OnModuleInit {
   /** Compiled layout template — cached at startup */
@@ -188,6 +199,57 @@ export class EmailService extends BaseService implements OnModuleInit {
     this.logger.event(LOG_EVENT.EMAIL_SENT, {
       ...ctx,
     });
+  }
+
+  /**
+   * Directly dispatches an email to an explicit email address, bypassing database recipient lookup.
+   *
+   * Used for transactional flows like email verification where the recipient address is not yet
+   * linked or persisted in the database.
+   *
+   * @param options - Direct email dispatch parameters (to, emailType, templateData).
+   */
+  async sendDirect(options: SendDirectEmailOptions): Promise<void> {
+    const { to, emailType, templateData } = options;
+    const ctx = { emailType, recipientEmail: to };
+
+    this.logger.log('Direct email sending started', { ...ctx, step: 'init' });
+
+    if (!to) {
+      this.logger.warn('Direct email aborted: recipient address is empty', {
+        ...ctx,
+        step: 'validate',
+      });
+      return;
+    }
+
+    const templateConfig = EMAIL_TEMPLATE_MAP[emailType];
+    if (!templateConfig) {
+      this.logger.error('No template registered for email type', {
+        ...ctx,
+        step: 'template_lookup',
+      });
+      return;
+    }
+
+    const contentTemplate = this.getOrCompileTemplate(emailType);
+
+    try {
+      await this.renderAndSend(
+        to,
+        templateConfig.subject,
+        contentTemplate,
+        templateData,
+      );
+      this.logger.event(LOG_EVENT.EMAIL_SENT, { ...ctx });
+    } catch (error) {
+      this.logger.error('Direct email dispatch failed', {
+        ...ctx,
+        step: 'send_direct',
+        err: serializeError(error),
+      });
+      throw error;
+    }
   }
 
   // ---------------------------------------------------------------------------

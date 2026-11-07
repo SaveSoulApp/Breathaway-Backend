@@ -365,6 +365,50 @@ describe('EmailService', () => {
     });
   });
 
+  describe('sendDirect', () => {
+    it('should directly render template and dispatch to email adapter', async () => {
+      mockAdapter.send.mockResolvedValue(undefined);
+
+      await service.sendDirect({
+        to: 'target@example.com',
+        emailType: EmailType.EMAIL_VERIFICATION_OTP,
+        templateData: {
+          name: 'Charlie',
+          otp: '123456',
+          expiresInMinutes: 10,
+        },
+      });
+
+      expect(mockAdapter.send).toHaveBeenCalledTimes(1);
+      const call = mockAdapter.send.mock.calls[0][0];
+      expect(call.to).toBe('target@example.com');
+      expect(call.subject).toContain('123456');
+      expect(call.html).toContain('Charlie');
+    });
+
+    it('should gracefully abort when recipient address is empty', async () => {
+      await service.sendDirect({
+        to: '',
+        emailType: EmailType.EMAIL_VERIFICATION_OTP,
+        templateData: { otp: '123456' },
+      });
+
+      expect(mockAdapter.send).not.toHaveBeenCalled();
+    });
+
+    it('should propagate errors when email adapter fails', async () => {
+      mockAdapter.send.mockRejectedValue(new Error('Brevo connection timeout'));
+
+      await expect(
+        service.sendDirect({
+          to: 'target@example.com',
+          emailType: EmailType.EMAIL_VERIFICATION_OTP,
+          templateData: { otp: '123456' },
+        }),
+      ).rejects.toThrow('Brevo connection timeout');
+    });
+  });
+
   describe('EMAIL_TEMPLATE_MAP', () => {
     it('should have a registry entry for every EmailType value', () => {
       const allEmailTypes = Object.values(EmailType);

@@ -20,6 +20,7 @@ import {
 } from '@modules/credits/events';
 import { DeviceAddedEvent } from '@modules/devices/events';
 import {
+  EmailVerificationRequestedEvent,
   IdentityAddedEvent,
   IdentityRemovedEvent,
 } from '@modules/identities/events';
@@ -29,6 +30,8 @@ import { MatchCreatedEvent } from '@modules/match-resolver/events';
 import { PreferencesService } from '@modules/preferences/preferences.service';
 import { DsarExportCompletedEvent } from '@modules/users/events';
 
+import { EmailService } from '../email/email.service';
+import { EmailType } from '../enums/email-type.enum';
 import { NotificationCategory } from '../enums/notification-category.enum';
 import { NotificationChannel } from '../enums/notification-channel.enum';
 import { NotificationPriority } from '../enums/notification-priority.enum';
@@ -42,6 +45,7 @@ describe('NotificationEventsListener', () => {
   let prisma: MockPrismaService;
   let notificationsService: jest.Mocked<NotificationsService>;
   let configService: { get: jest.Mock };
+  let emailService: { sendDirect: jest.Mock };
   let preferencesService: { getPreferences: jest.Mock };
   let whatsAppProvider: { sendDirectPhone: jest.Mock };
   let identityCryptoService: {
@@ -101,6 +105,10 @@ describe('NotificationEventsListener', () => {
       sendDirectPhone: jest.fn().mockResolvedValue(true),
     };
 
+    emailService = {
+      sendDirect: jest.fn().mockResolvedValue(undefined),
+    };
+
     identityCryptoService = {
       decryptText: jest.fn().mockImplementation((val?: string | null) => {
         if (!val) return Promise.resolve(null);
@@ -128,6 +136,7 @@ describe('NotificationEventsListener', () => {
         { provide: ConfigService, useValue: configService },
         { provide: PreferencesService, useValue: preferencesService },
         { provide: WhatsAppProviderService, useValue: whatsAppProvider },
+        { provide: EmailService, useValue: emailService },
       ],
     }).compile();
 
@@ -1038,6 +1047,53 @@ describe('NotificationEventsListener', () => {
       ).resolves.not.toThrow();
       expect(contextualLogger.error).toHaveBeenCalledWith(
         'Failed to dispatch DSAR export ready notification',
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('handleEmailVerificationRequested', () => {
+    it('should dispatch email verification OTP with resolved user firstName', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Bob',
+      } as never);
+
+      const event = new EmailVerificationRequestedEvent(
+        'user-1',
+        'bob@example.com',
+        '482910',
+        600,
+      );
+
+      await listener.handleEmailVerificationRequested(event);
+
+      expect(emailService.sendDirect).toHaveBeenCalledWith({
+        to: 'bob@example.com',
+        emailType: EmailType.EMAIL_VERIFICATION_OTP,
+        templateData: {
+          name: 'Bob',
+          otp: '482910',
+          expiresInMinutes: 10,
+        },
+      });
+    });
+
+    it('should handle errors gracefully without throwing', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue(null as never);
+      emailService.sendDirect.mockRejectedValue(new Error('Brevo down'));
+
+      const event = new EmailVerificationRequestedEvent(
+        'user-1',
+        'bob@example.com',
+        '482910',
+        600,
+      );
+
+      await expect(
+        listener.handleEmailVerificationRequested(event),
+      ).resolves.not.toThrow();
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'Failed to dispatch email verification OTP',
         expect.anything(),
       );
     });

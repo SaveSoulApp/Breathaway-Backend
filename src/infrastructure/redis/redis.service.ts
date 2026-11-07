@@ -322,4 +322,24 @@ export class RedisService {
       throw error;
     }
   }
+
+  /**
+   * Increments the number stored at key by one.
+   *
+   * @param key - Cache key.
+   * @returns Value of key after increment, or 0 if Redis is unconfigured.
+   */
+  async incr(key: string): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await this.client.incr(key);
+    } catch (error) {
+      this.logger.error('Redis INCR failed', {
+        step: 'redis_incr',
+        key,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
 }

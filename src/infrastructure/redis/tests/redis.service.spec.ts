@@ -19,6 +19,7 @@ describe('RedisService', () => {
     expire: jest.Mock;
     ping: jest.Mock;
     ttl: jest.Mock;
+    incr: jest.Mock;
     pipeline: jest.Mock;
   } | null;
   let mockLogger: {
@@ -69,6 +70,7 @@ describe('RedisService', () => {
         expire: jest.fn(),
         ping: jest.fn(),
         ttl: jest.fn(),
+        incr: jest.fn(),
         pipeline: jest.fn().mockReturnValue({
           sadd: jest.fn().mockReturnThis(),
           expire: jest.fn().mockReturnThis(),
@@ -420,6 +422,26 @@ describe('RedisService', () => {
         expect.objectContaining({ key: 'my-key' }),
       );
     });
+
+    it('incr delegates to client.incr and returns incremented value', async () => {
+      mockRedisClient!.incr.mockResolvedValue(1);
+
+      const result = await service.incr('my-counter');
+
+      expect(mockRedisClient!.incr).toHaveBeenCalledWith('my-counter');
+      expect(result).toBe(1);
+    });
+
+    it('incr rethrows error and logs when Redis throws', async () => {
+      const err = new Error('INCR failed');
+      mockRedisClient!.incr.mockRejectedValue(err);
+
+      await expect(service.incr('my-counter')).rejects.toThrow(err);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis INCR failed',
+        expect.objectContaining({ key: 'my-counter' }),
+      );
+    });
   });
 
   describe('when Redis client is null (unconfigured)', () => {
@@ -488,6 +510,11 @@ describe('RedisService', () => {
     it('ttl returns -2 gracefully', async () => {
       const result = await service.ttl('any-key');
       expect(result).toBe(-2);
+    });
+
+    it('incr returns 0 gracefully', async () => {
+      const result = await service.incr('any-key');
+      expect(result).toBe(0);
     });
   });
 });
