@@ -269,7 +269,7 @@ describe('EmailVerificationService', () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
       redisService.get.mockImplementation(async (key: string) => {
-        if (key.includes('rate_limit:email_otp:email')) return '1';
+        if (key.startsWith('rate_limit:email_otp:email:')) return '1';
         return null;
       });
 
@@ -281,11 +281,27 @@ describe('EmailVerificationService', () => {
       );
     });
 
-    it('should throw OtpRateLimitExceededException when hourly limit is reached', async () => {
+    it('should throw OtpRateLimitExceededException when user hourly limit is reached', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
       redisService.get.mockImplementation(async (key: string) => {
-        if (key.includes('rate_limit:email_otp:hourly')) return '5';
+        if (key === `rate_limit:email_otp:hourly:${mockUserId}`) return '5';
+        return null;
+      });
+
+      const dto: SendEmailOtpRequestDto = { email: mockEmail };
+
+      // Act & Assert
+      await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
+        OtpRateLimitExceededException,
+      );
+    });
+
+    it('should throw OtpRateLimitExceededException when email hourly limit is reached', async () => {
+      // Arrange
+      prisma.identity.findFirst.mockResolvedValue(null);
+      redisService.get.mockImplementation(async (key: string) => {
+        if (key.startsWith('rate_limit:email_otp:hourly:email:')) return '5';
         return null;
       });
 
@@ -442,6 +458,34 @@ describe('EmailVerificationService', () => {
       // Act & Assert
       await expect(service.verifyEmailOtp(mockUserId, dto)).rejects.toThrow(
         'Maximum verification attempts exceeded. Please request a new code.',
+      );
+
+      expect(redisService.del).toHaveBeenCalled();
+    });
+
+    it('should burn OTP and throw InvalidOtpException if remaining TTL is 0 or negative on mismatch', async () => {
+      // Arrange
+      const wrongOtpHash = hashString('999999');
+
+      redisService.get.mockResolvedValue(
+        JSON.stringify({
+          otpHash: wrongOtpHash,
+          userId: mockUserId,
+          email: mockEmail,
+          attempts: 1,
+          maxAttempts: 5,
+        }),
+      );
+      redisService.ttl.mockResolvedValue(0);
+
+      const dto: VerifyEmailOtpRequestDto = {
+        email: mockEmail,
+        otp: '482910',
+      };
+
+      // Act & Assert
+      await expect(service.verifyEmailOtp(mockUserId, dto)).rejects.toThrow(
+        'Verification code has expired or is invalid',
       );
 
       expect(redisService.del).toHaveBeenCalled();

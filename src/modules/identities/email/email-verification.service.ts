@@ -6,7 +6,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { Identity, IdentityType } from '@prisma/client';
+import { IdentityType } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
 import { normalizeIdentityValue } from '@common/utils/identity.utils';
@@ -18,6 +18,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
 import { IdentityAlreadyExistsException } from '@modules/identities/application/exceptions';
+import { IdentityResponseDto } from '@modules/identities/dto';
 import {
   EMAIL_VERIFICATION_REQUESTED_EVENT,
   EmailVerificationRequestedEvent,
@@ -79,7 +80,14 @@ export class EmailVerificationService extends BaseService {
     return `rate_limit:email_otp:hourly:${userId}`;
   }
 
-  private isActivelyOwned(identity: Identity): boolean {
+  private getEmailOtpEmailHourlyKey(emailHex: string): string {
+    return `rate_limit:email_otp:hourly:email:${emailHex}`;
+  }
+
+  private isActivelyOwned(identity: {
+    userId: string | null;
+    isVerified: boolean;
+  }): boolean {
     return identity.userId !== null && identity.isVerified;
   }
 
@@ -124,6 +132,11 @@ export class EmailVerificationService extends BaseService {
         type: IdentityType.EMAIL,
         publicValueHash: publicValueData.publicValueHash,
         deletedAt: null,
+      },
+      select: {
+        id: true,
+        userId: true,
+        isVerified: true,
       },
     });
 
@@ -190,6 +203,25 @@ export class EmailVerificationService extends BaseService {
       );
     }
 
+    const emailHourlyKey = this.getEmailOtpEmailHourlyKey(emailHex);
+    const emailHourlyCountStr = await this.redisService.get(emailHourlyKey);
+    const emailHourlyCount = emailHourlyCountStr
+      ? parseInt(emailHourlyCountStr, 10)
+      : 0;
+    if (emailHourlyCount >= EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT) {
+      this.logger.warn(
+        'Email OTP request throttled: email hourly limit exceeded',
+        {
+          ...ctx,
+          emailHourlyCount,
+          step: 'rate_limit_email_hourly',
+        },
+      );
+      throw new OtpRateLimitExceededException(
+        'This email address has exceeded the maximum verification attempts for this hour. Please try again later.',
+      );
+    }
+
     // 3. Generate Cryptographically Secure 6-digit OTP
     const plainOtp = randomInt(100000, 1000000).toString();
     const hashedOtp = hashString(plainOtp);
@@ -230,6 +262,20 @@ export class EmailVerificationService extends BaseService {
         await this.redisService.set(hourlyKey, '1', 'EX', 3600);
       } else {
         await this.redisService.incr(hourlyKey);
+        const ttl = await this.redisService.ttl(hourlyKey);
+        if (ttl === -1) {
+          await this.redisService.expire(hourlyKey, 3600);
+        }
+      }
+
+      if (emailHourlyCount === 0) {
+        await this.redisService.set(emailHourlyKey, '1', 'EX', 3600);
+      } else {
+        await this.redisService.incr(emailHourlyKey);
+        const emailTtl = await this.redisService.ttl(emailHourlyKey);
+        if (emailTtl === -1) {
+          await this.redisService.expire(emailHourlyKey, 3600);
+        }
       }
 
       this.logger.debug('Stored email verification OTP in Redis', {
@@ -291,7 +337,10 @@ export class EmailVerificationService extends BaseService {
    * @returns Masked representation of the newly verified identity.
    * @throws {InvalidOtpException} When OTP is expired, invalid, or max attempts exceeded.
    */
-  async verifyEmailOtp(userId: string, dto: VerifyEmailOtpRequestDto) {
+  async verifyEmailOtp(
+    userId: string,
+    dto: VerifyEmailOtpRequestDto,
+  ): Promise<IdentityResponseDto> {
     const normalizedEmail = normalizeIdentityValue(
       dto.email,
       IdentityType.EMAIL,
@@ -369,9 +418,14 @@ export class EmailVerificationService extends BaseService {
       );
     }
 
-    // Hash the input OTP and compare
+    // Hash the input OTP and compare in constant-time
     const inputHash = hashString(dto.otp);
-    if (inputHash !== parsedData.otpHash) {
+    const isMatch = CryptoUtils.constantTimeEquals(
+      Buffer.from(inputHash, 'utf-8'),
+      Buffer.from(parsedData.otpHash, 'utf-8'),
+    );
+
+    if (!isMatch) {
       parsedData.attempts += 1;
       const remainingAttempts = parsedData.maxAttempts - parsedData.attempts;
 
@@ -392,15 +446,26 @@ export class EmailVerificationService extends BaseService {
 
       // Update attempts in Redis preserving remaining TTL
       const remainingTtl = await this.redisService.ttl(redisKey);
-      const ttlToUse =
-        remainingTtl > 0
-          ? remainingTtl
-          : EmailVerificationService.EMAIL_OTP_TTL_SECONDS;
+      if (remainingTtl <= 0) {
+        await this.redisService.del(redisKey);
+        this.logger.warn('Email OTP expired during verification attempt', {
+          ...ctx,
+          step: 'verify_expired',
+        });
+        this.logger.event(LOG_EVENT.OTP_VERIFICATION_FAILED, {
+          userId,
+          identityType: IdentityType.EMAIL,
+        });
+        throw new InvalidOtpException(
+          'Verification code has expired or is invalid',
+        );
+      }
+
       await this.redisService.set(
         redisKey,
         JSON.stringify(parsedData),
         'EX',
-        ttlToUse,
+        remainingTtl,
       );
 
       this.logger.warn('Email OTP verification failed: incorrect code', {

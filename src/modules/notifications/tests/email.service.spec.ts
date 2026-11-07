@@ -407,6 +407,26 @@ describe('EmailService', () => {
         }),
       ).rejects.toThrow('Brevo connection timeout');
     });
+
+    it('should mask recipient email in structured log entry', async () => {
+      mockAdapter.send.mockResolvedValue(undefined);
+
+      await service.sendDirect({
+        to: 'target@example.com',
+        emailType: EmailType.EMAIL_VERIFICATION_OTP,
+        templateData: { otp: '123456' },
+      });
+
+      const contextualLogger = mockLogger.forContext.mock.results[0].value as {
+        log: jest.Mock;
+      };
+      expect(contextualLogger.log).toHaveBeenCalledWith(
+        'Direct email sending started',
+        expect.objectContaining({
+          recipientEmail: 't••••t@example.com',
+        }),
+      );
+    });
   });
 
   describe('EMAIL_TEMPLATE_MAP', () => {

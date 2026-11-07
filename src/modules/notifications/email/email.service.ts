@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as Handlebars from 'handlebars';
 
 import { serializeError } from '@common/utils/error.utils';
@@ -63,6 +64,8 @@ export class EmailService extends BaseService implements OnModuleInit {
     private readonly recipientResolver: NotificationRecipientResolverService,
     @Inject(EMAIL_ADAPTER_TOKEN)
     private readonly emailAdapter: IEmailAdapter,
+    @Optional()
+    private readonly configService?: ConfigService,
   ) {
     super(loggerService);
     this.templatesDir = path.resolve(__dirname, '../templates');
@@ -211,7 +214,7 @@ export class EmailService extends BaseService implements OnModuleInit {
    */
   async sendDirect(options: SendDirectEmailOptions): Promise<void> {
     const { to, emailType, templateData } = options;
-    const ctx = { emailType, recipientEmail: to };
+    const ctx = { emailType, recipientEmail: this.maskEmail(to) };
 
     this.logger.log('Direct email sending started', { ...ctx, step: 'init' });
 
@@ -256,15 +259,29 @@ export class EmailService extends BaseService implements OnModuleInit {
   // Private helpers
   // ---------------------------------------------------------------------------
 
+  private maskEmail(email: string): string {
+    const [name, domain] = email.split('@');
+    if (!domain) return '••••';
+    const maskedName = name.charAt(0) + '••••' + name.charAt(name.length - 1);
+    return `${maskedName}@${domain}`;
+  }
+
   private async renderAndSend(
     to: string,
     subjectTemplate: string,
     contentTemplate: Handlebars.TemplateDelegate,
     data: Record<string, unknown>,
   ): Promise<void> {
-    const subject = Handlebars.compile(subjectTemplate)(data);
-    const contentHtml = contentTemplate(data);
-    const html = this.layoutTemplate({ ...data, body: contentHtml });
+    const defaultData = {
+      appUrl:
+        this.configService?.get<string>('APP_URL') ||
+        'https://www.breathaway.app',
+      currentYear: new Date().getFullYear(),
+    };
+    const mergedData = { ...defaultData, ...data };
+    const subject = Handlebars.compile(subjectTemplate)(mergedData);
+    const contentHtml = contentTemplate(mergedData);
+    const html = this.layoutTemplate({ ...mergedData, body: contentHtml });
 
     const payload: EmailPayload = { to, subject, html };
     await this.emailAdapter.send(payload);

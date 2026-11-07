@@ -117,7 +117,7 @@ export class EmailIdentitiesController extends BaseController {
   async verifyEmailOtp(
     @CurrentUserId() userId: string,
     @Body() dto: VerifyEmailOtpRequestDto,
-  ) {
+  ): Promise<IdentityResponseDto> {
     return this.emailVerificationService.verifyEmailOtp(userId, dto);
   }
 }
