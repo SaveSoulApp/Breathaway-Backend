@@ -33,7 +33,8 @@ describe('EmailService', () => {
   let mockLogger: MockProxy<LoggerService>;
 
   const STUB_TEMPLATE = '<p>Hello {{name}}</p>';
-  const STUB_LAYOUT = '<!DOCTYPE html><html><body>{{{body}}}</body></html>';
+  const STUB_LAYOUT =
+    '<!DOCTYPE html><html><body><img src="{{logoUrl}}" />{{{body}}}</body></html>';
 
   beforeEach(async () => {
     mockRecipientResolver = {
@@ -382,8 +383,9 @@ describe('EmailService', () => {
       expect(mockAdapter.send).toHaveBeenCalledTimes(1);
       const call = mockAdapter.send.mock.calls[0][0];
       expect(call.to).toBe('target@example.com');
-      expect(call.subject).toContain('123456');
+      expect(call.subject).toBe('Your BreathAway verification code is here 🔒');
       expect(call.html).toContain('Charlie');
+      expect(call.html).toContain('breathaway-wordmark.png');
     });
 
     it('should gracefully abort when recipient address is empty', async () => {

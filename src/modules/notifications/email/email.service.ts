@@ -276,6 +276,9 @@ export class EmailService extends BaseService implements OnModuleInit {
       appUrl:
         this.configService?.get<string>('APP_URL') ||
         'https://www.breathaway.app',
+      logoUrl:
+        this.configService?.get<string>('EMAIL_LOGO_URL') ||
+        'https://okrhhvapirxwelcqfbhi.supabase.co/storage/v1/object/public/public-assets/logo/breathaway-wordmark.png',
       currentYear: new Date().getFullYear(),
     };
     const mergedData = { ...defaultData, ...data };

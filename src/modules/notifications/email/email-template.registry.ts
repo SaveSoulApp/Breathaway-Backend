@@ -83,6 +83,6 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   },
   [EmailType.EMAIL_VERIFICATION_OTP]: {
     templateFile: 'email-verification-otp',
-    subject: 'Your BreathAway verification code is {{otp}} 🔒',
+    subject: 'Your BreathAway verification code is here 🔒',
   },
 };
