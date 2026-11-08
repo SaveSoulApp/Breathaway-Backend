@@ -3,6 +3,27 @@ import { ConfigService } from '@nestjs/config';
 import request, { Test as SupertestChain } from 'supertest';
 import { App } from 'supertest/types';
 
+function extractFirstKey(
+  parsed: unknown,
+  preferredPlatform = 'ios',
+): string | undefined {
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    return parsed[0];
+  }
+  if (parsed && typeof parsed === 'object') {
+    const record = parsed as Record<string, string[]>;
+    const platformKeys = record[preferredPlatform.toLowerCase()];
+    if (Array.isArray(platformKeys) && platformKeys.length > 0) {
+      return platformKeys[0];
+    }
+    const anyKeys = Object.values(record).flat();
+    if (anyKeys.length > 0) {
+      return anyKeys[0];
+    }
+  }
+  return undefined;
+}
+
 /**
  * Reads the mandatory client-identity header values from env (set by .env.test).
  * These mirror what a real mobile client sends on every request.
@@ -12,20 +33,33 @@ function getClientIdentityHeaders(
 ): Record<string, string> {
   const config = app.get(ConfigService);
 
-  // API_KEYS and CLIENT_IDS are JSON arrays in .env.test  e.g. '["test-api-key"]'
-  const apiKeys = JSON.parse(config.get<string>('API_KEYS', '[]')) as string[];
-  const clientIds = JSON.parse(
-    config.get<string>('CLIENT_IDS', '[]'),
-  ) as string[];
+  let rawApiKeys: unknown = [];
+  try {
+    rawApiKeys = JSON.parse(config.get<string>('API_KEYS', '[]'));
+  } catch {
+    rawApiKeys = [];
+  }
+
+  let rawClientIds: unknown = [];
+  try {
+    rawClientIds = JSON.parse(config.get<string>('CLIENT_IDS', '[]'));
+  } catch {
+    rawClientIds = [];
+  }
+
   const appName = config.get<string>('APP_NAME', 'BreathAway');
   const minVersion = config.get<string>('MIN_APP_VERSION', '1.0.0');
-  const platforms = JSON.parse(
-    config.get<string>('REQUIRED_PLATFORMS', '["iOS"]'),
-  ) as string[];
 
-  const apiKey = apiKeys[0] ?? 'test-api-key';
-  const clientId = clientIds[0] ?? 'test-client-id';
+  let platforms: string[] = ['iOS'];
+  try {
+    platforms = JSON.parse(config.get<string>('REQUIRED_PLATFORMS', '["iOS"]'));
+  } catch {
+    platforms = ['iOS'];
+  }
+
   const platform = platforms[0] ?? 'iOS';
+  const apiKey = extractFirstKey(rawApiKeys, platform) ?? 'test-api-key';
+  const clientId = extractFirstKey(rawClientIds, platform) ?? 'test-client-id';
 
   return {
     'x-api-key': apiKey,

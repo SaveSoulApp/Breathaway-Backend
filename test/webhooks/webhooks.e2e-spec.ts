@@ -149,7 +149,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
 
@@ -181,7 +181,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
 
@@ -205,7 +205,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
   });

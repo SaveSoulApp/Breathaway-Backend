@@ -34,7 +34,7 @@ import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
 class InMemoryRedisClient {
-  private store = new Map<string, { val: string; expiresAt?: number }>();
+  private store = new Map<string, { val: unknown; expiresAt?: number }>();
 
   async set(
     key: string,
@@ -57,7 +57,7 @@ class InMemoryRedisClient {
       this.store.delete(key);
       return null;
     }
-    return item.val;
+    return typeof item.val === 'string' ? item.val : null;
   }
 
   async del(key: string): Promise<number> {
@@ -70,6 +70,82 @@ class InMemoryRedisClient {
     if (!item.expiresAt) return -1;
     const rem = Math.ceil((item.expiresAt - Date.now()) / 1000);
     return rem > 0 ? rem : -2;
+  }
+
+  async sismember(key: string, member: string): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return 0;
+    if (item.expiresAt && Date.now() > item.expiresAt) {
+      this.store.delete(key);
+      return 0;
+    }
+    if (item.val instanceof Set) {
+      return item.val.has(member) ? 1 : 0;
+    }
+    return 0;
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    let item = this.store.get(key);
+    if (!item || !(item.val instanceof Set)) {
+      item = { val: new Set<string>() };
+      this.store.set(key, item);
+    }
+    let added = 0;
+    for (const m of members) {
+      if ((item.val as Set<string>).has(m)) continue;
+      (item.val as Set<string>).add(m);
+      added++;
+    }
+    return added;
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    const item = this.store.get(key);
+    if (!item || !(item.val instanceof Set)) return 0;
+    let removed = 0;
+    for (const m of members) {
+      if ((item.val as Set<string>).delete(m)) removed++;
+    }
+    return removed;
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return 0;
+    item.expiresAt = Date.now() + seconds * 1000;
+    return 1;
+  }
+
+  pipeline(): {
+    sadd: (key: string, ...members: string[]) => unknown;
+    expire: (key: string, seconds: number) => unknown;
+    exec: () => Promise<[Error | null, unknown][]>;
+  } {
+    const commands: (() => Promise<unknown>)[] = [];
+    const chain = {
+      sadd: (key: string, ...members: string[]) => {
+        commands.push(() => this.sadd(key, ...members));
+        return chain;
+      },
+      expire: (key: string, seconds: number) => {
+        commands.push(() => this.expire(key, seconds));
+        return chain;
+      },
+      exec: async () => {
+        const results: [Error | null, unknown][] = [];
+        for (const cmd of commands) {
+          try {
+            const res = await cmd();
+            results.push([null, res]);
+          } catch (err) {
+            results.push([err as Error, null]);
+          }
+        }
+        return results;
+      },
+    };
+    return chain;
   }
 
   async ping(): Promise<'PONG'> {
@@ -122,6 +198,43 @@ export async function createAuthTestApp(
     process.env.CASHFREE_SECRET_KEY || 'cf_test_mock_secret_key';
   process.env.INSTAGRAM_ACCESS_TOKEN =
     process.env.INSTAGRAM_ACCESS_TOKEN || 'test_instagram_token_12345';
+  process.env.META_VERIFY_TOKEN =
+    process.env.META_VERIFY_TOKEN || 'test_meta_verify_token_123';
+  process.env.META_APP_SECRET =
+    process.env.META_APP_SECRET || 'test_meta_app_secret_value_123';
+
+  // Normalize API_KEYS and CLIENT_IDS into platform-keyed JSON format if configured as JSON arrays
+  if (process.env.API_KEYS) {
+    try {
+      const parsed = JSON.parse(process.env.API_KEYS);
+      if (Array.isArray(parsed)) {
+        process.env.API_KEYS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-api-key'],
+          android: [parsed[1] ?? 'test-android-api-key'],
+          web: [parsed[2] ?? 'test-web-api-key'],
+          postman: [parsed[3] ?? 'test-postman-api-key'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
+
+  if (process.env.CLIENT_IDS) {
+    try {
+      const parsed = JSON.parse(process.env.CLIENT_IDS);
+      if (Array.isArray(parsed)) {
+        process.env.CLIENT_IDS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-client-id'],
+          android: [parsed[1] ?? 'test-android-client-id'],
+          web: [parsed[2] ?? 'test-web-client-id'],
+          postman: [parsed[3] ?? 'test-postman-client-id'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
 
   // Prevent actual GCP PubSub calls
   jest

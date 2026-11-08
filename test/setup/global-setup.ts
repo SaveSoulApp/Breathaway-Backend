@@ -31,6 +31,39 @@ export default async function globalSetup(): Promise<void> {
   // We do NOT overwrite vars that are already set (e.g. by CI).
   loadEnvFile(path.resolve(process.cwd(), '.env.test'));
 
+  // Normalize API_KEYS and CLIENT_IDS into platform-keyed JSON format if configured as JSON arrays
+  if (process.env.API_KEYS) {
+    try {
+      const parsed = JSON.parse(process.env.API_KEYS);
+      if (Array.isArray(parsed)) {
+        process.env.API_KEYS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-api-key'],
+          android: [parsed[1] ?? 'test-android-api-key'],
+          web: [parsed[2] ?? 'test-web-api-key'],
+          postman: [parsed[3] ?? 'test-postman-api-key'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
+
+  if (process.env.CLIENT_IDS) {
+    try {
+      const parsed = JSON.parse(process.env.CLIENT_IDS);
+      if (Array.isArray(parsed)) {
+        process.env.CLIENT_IDS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-client-id'],
+          android: [parsed[1] ?? 'test-android-client-id'],
+          web: [parsed[2] ?? 'test-web-client-id'],
+          postman: [parsed[3] ?? 'test-postman-client-id'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
+
   // Ensure default GCP OIDC test credentials are set
   process.env.GCP_OIDC_AUDIENCE =
     process.env.GCP_OIDC_AUDIENCE ||

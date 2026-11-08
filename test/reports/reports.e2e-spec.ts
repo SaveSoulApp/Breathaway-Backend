@@ -29,6 +29,39 @@ describe('ReportsModule (e2e)', () => {
     prisma = context.prisma;
 
     authHeader = buildAdminAuthHeader();
+
+    // Seed a user to ensure non-zero stats across all report test cases
+    const user = await prisma.user.create({ data: {} });
+    allCreatedUserIds.push(user.id);
+
+    await prisma.userProfile.create({
+      data: {
+        userId: user.id,
+        firstName: 'Admin Test',
+        gender: GenderType.MALE,
+      },
+    });
+
+    await prisma.identity.create({
+      data: {
+        userId: user.id,
+        type: IdentityType.EMAIL,
+        publicValueHash: crypto.randomBytes(32),
+        publicValueCiphertext: Buffer.from('x'),
+        publicValueIv: Buffer.from('x'),
+        publicValueTag: Buffer.from('x'),
+        publicValueWrappedKey: Buffer.from('x'),
+        publicValueKeyId: 'k',
+      },
+    });
+
+    await prisma.device.create({
+      data: {
+        userId: user.id,
+        token: crypto.randomBytes(16).toString('hex'),
+        platform: DevicePlatform.IOS,
+      },
+    });
   });
 
   afterAll(async () => {
@@ -53,40 +86,6 @@ describe('ReportsModule (e2e)', () => {
     });
 
     it('should return the total report for authorized admin', async () => {
-      // Seed a user to ensure non-zero stats
-      const user = await prisma.user.create({ data: {} });
-      allCreatedUserIds.push(user.id);
-
-      await prisma.userProfile.create({
-        data: {
-          userId: user.id,
-          firstName: 'Admin Test',
-          gender: GenderType.MALE,
-        },
-      });
-
-      // Crypto imported at the top
-      await prisma.identity.create({
-        data: {
-          userId: user.id,
-          type: IdentityType.EMAIL,
-          publicValueHash: crypto.randomBytes(32),
-          publicValueCiphertext: Buffer.from('x'),
-          publicValueIv: Buffer.from('x'),
-          publicValueTag: Buffer.from('x'),
-          publicValueWrappedKey: Buffer.from('x'),
-          publicValueKeyId: 'k',
-        },
-      });
-
-      await prisma.device.create({
-        data: {
-          userId: user.id,
-          token: crypto.randomBytes(16).toString('hex'),
-          platform: DevicePlatform.IOS,
-        },
-      });
-
       const res = await request(app.getHttpServer())
         .get('/api/v1/reports/total')
         .set('Authorization', authHeader);
@@ -117,7 +116,7 @@ describe('ReportsModule (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('timeframe');
-      expect(res.body.users.acquired).toBeGreaterThanOrEqual(1); // User created in previous test
+      expect(res.body.users.acquired).toBeGreaterThanOrEqual(1); // User created in beforeAll
     });
   });
 });
