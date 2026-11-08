@@ -86,6 +86,7 @@ const sidebars: SidebarsConfig = {
         'architecture/http-client',
         'architecture/bigquery-insights',
         'architecture/maintenance-service',
+        'architecture/cloud-run-optimization',
         'architecture/dsar-portability',
       ],
     },
