@@ -38,6 +38,7 @@ test
 .env.local
 .env.*.local
 !.env.example
+!src/config/env.validation.ts
 
 # Logs
 logs

@@ -34,7 +34,13 @@ test/
 
 # Secrets and environment files
 .env*
-env.*
+/.env*
+/env.*.yaml
+/env.*.yml
+/env.*.json
+
+# Whitelist critical source files
+!src/config/env.validation.ts
 
 # Logs & Diagnostics
 logs/
