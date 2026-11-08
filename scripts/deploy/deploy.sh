@@ -286,18 +286,25 @@ build_image() {
 
 # Generic Cloud Run deployment handler
 deploy_cloud_run_service() {
+    # 1. Identity & Routing
     local target_service="$1"
     local service_account="$2"
     local ingress="$3"
     local allow_unauthenticated="$4"
+
+    # 2. Compute Resources
     local cpu="$5"
     local memory="$6"
-    local max_instances="$7"
-    local concurrency="$8"
-    local swagger_enabled="$9"
-    local min_instances="${10:-${MIN_INSTANCES:-0}}"
 
-    print_status "Deploying to Cloud Run: ${target_service} (${REGION}) [CPU: ${cpu}, Memory: ${memory}, Concurrency: ${concurrency}, Min Instances: ${min_instances}, Max Instances: ${max_instances}, CPU Boost: Enabled, Ingress: ${ingress}]"
+    # 3. Scaling & Concurrency
+    local min_instances="$7"
+    local max_instances="$8"
+    local concurrency="$9"
+
+    # 4. Application Configuration
+    local swagger_enabled="${10:-false}"
+
+    print_status "Deploying to Cloud Run: ${target_service} (${REGION}) [CPU: ${cpu}, Memory: ${memory}, Scaling: ${min_instances}-${max_instances} instances, Concurrency: ${concurrency}, CPU Boost: Enabled, Ingress: ${ingress}]"
 
     local gcloud_run_args=(
         run deploy "${target_service}"
@@ -344,10 +351,10 @@ deploy_public_service() {
         "true" \
         "${BACKEND_CPU:-${CPU:-2}}" \
         "${BACKEND_MEMORY:-${MEMORY:-2Gi}}" \
+        "${BACKEND_MIN_INSTANCES:-${MIN_INSTANCES:-0}}" \
         "${BACKEND_MAX_INSTANCES:-${MAX_INSTANCES:-20}}" \
         "${BACKEND_CONCURRENCY:-${CONCURRENCY:-40}}" \
-        "${SWAGGER_ENABLED:-true}" \
-        "${BACKEND_MIN_INSTANCES:-${MIN_INSTANCES:-0}}"
+        "${SWAGGER_ENABLED:-true}"
 }
 
 deploy_maintenance_service() {
@@ -360,10 +367,10 @@ deploy_maintenance_service() {
         "false" \
         "${MAINTENANCE_CPU:-2}" \
         "${MAINTENANCE_MEMORY:-2Gi}" \
+        "${MAINTENANCE_MIN_INSTANCES:-0}" \
         "${MAINTENANCE_MAX_INSTANCES:-3}" \
         "${MAINTENANCE_CONCURRENCY:-20}" \
-        "false" \
-        "${MAINTENANCE_MIN_INSTANCES:-0}"
+        "false"
 }
 
 main() {
