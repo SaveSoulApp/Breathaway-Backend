@@ -13,6 +13,7 @@ Thumbs.db
 
 # Dependencies & Package Managers
 node_modules
+**/node_modules
 .pnp
 .pnp.js
 .pnpm-store
@@ -21,7 +22,9 @@ node_modules
 
 # Build Outputs
 dist
+**/dist
 build
+**/build
 
 # Tests & Coverage
 coverage
@@ -40,25 +43,26 @@ test
 logs
 *.log
 npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
 
 # Docker Related
 Dockerfile
 .dockerignore
+.gcloudignore
 docker-compose.yml
 
-# Docs & Miscellaneous
-README.md
-deployment
+# Documentation (Docusaurus app)
+docs/
+*.md
 
-# Ignore all terraform files from the docker context
+# Infrastructure (Terraform)
 terraform/
-
-# Local .terraform directories
 **/.terraform/*
-
-# .tfstate files
 *.tfstate
 *.tfstate.*
 
-# AI Configs
-.agents/mcp.json
+# AI & Tooling Configs
+.agents/
+.github/
+supabase/
