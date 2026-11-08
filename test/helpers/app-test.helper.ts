@@ -152,6 +152,78 @@ class InMemoryRedisClient {
     return 'PONG';
   }
 
+  async eval(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<unknown> {
+    const keys = args.slice(0, numKeys).map(String);
+    const argv = args.slice(numKeys);
+
+    if (script.includes("redis.call('INCR', KEYS[1])")) {
+      const key = keys[0];
+      const ttlSeconds = Number(argv[0]);
+      const item = this.store.get(key);
+      let current = 1;
+      if (item && (!item.expiresAt || item.expiresAt > Date.now())) {
+        current = Number(item.val) + 1;
+        item.val = String(current);
+        if (!item.expiresAt && ttlSeconds) {
+          item.expiresAt = Date.now() + ttlSeconds * 1000;
+        }
+      } else {
+        this.store.set(key, {
+          val: String(current),
+          expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
+        });
+      }
+      return current;
+    }
+
+    if (numKeys === 2) {
+      const hitsKey = keys[0];
+      const blockKey = keys[1];
+      const ttl = Number(argv[0]);
+      const limit = Number(argv[1]);
+      const blockDuration = Number(argv[2]);
+
+      const now = Date.now();
+      const blockItem = this.store.get(blockKey);
+      if (blockItem && blockItem.expiresAt && blockItem.expiresAt > now) {
+        return [limit + 1, 0, 1, Math.ceil((blockItem.expiresAt - now) / 1000)];
+      }
+
+      let hits = 1;
+      const hitItem = this.store.get(hitsKey);
+      let timeToExpire = ttl;
+      if (hitItem && hitItem.expiresAt && hitItem.expiresAt > now) {
+        hits = Number(hitItem.val) + 1;
+        hitItem.val = String(hits);
+        timeToExpire = Math.ceil((hitItem.expiresAt - now) / 1000);
+      } else {
+        this.store.set(hitsKey, {
+          val: String(hits),
+          expiresAt: now + ttl * 1000,
+        });
+      }
+
+      let isBlocked = 0;
+      let timeToBlockExpire = 0;
+      if (hits > limit) {
+        isBlocked = 1;
+        timeToBlockExpire = blockDuration;
+        this.store.set(blockKey, {
+          val: '1',
+          expiresAt: now + blockDuration * 1000,
+        });
+      }
+
+      return [hits, timeToExpire, isBlocked, timeToBlockExpire];
+    }
+
+    return 1;
+  }
+
   async quit(): Promise<'OK'> {
     return 'OK';
   }

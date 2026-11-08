@@ -257,6 +257,48 @@ describe('ChatCryptoService', () => {
         InternalServerErrorException,
       );
     });
+
+    it('should evict expired cache entries when accessed after CACHE_TTL_MS', () => {
+      const realNow = Date.now;
+      try {
+        let currentNow = 1000000;
+        jest.spyOn(Date, 'now').mockImplementation(() => currentNow);
+
+        const key = service.generateRoomKey();
+        const { wrappedRoomKey, roomKeyId } = service.wrapRoomKey(key);
+
+        // Advance time beyond 1 hour (3600000 ms)
+        currentNow += 3600000 + 1000;
+
+        // Unwrap after expiration should still succeed by decrypting from master key
+        const unwrapped = service.unwrapRoomKey(wrappedRoomKey, roomKeyId);
+        expect(unwrapped).toEqual(key);
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
+    it('should evict oldest entry when cache size reaches MAX_CACHE_SIZE', () => {
+      const cache = (service as any).unwrappedRoomKeyCache as Map<
+        string,
+        unknown
+      >;
+      const maxCacheSize = (ChatCryptoService as any).MAX_CACHE_SIZE;
+
+      for (let i = 0; i < maxCacheSize; i++) {
+        cache.set(`dummy-key-${i}`, {
+          key: Buffer.alloc(32),
+          expiresAt: Date.now() + 100000,
+        });
+      }
+      expect(cache.size).toBe(maxCacheSize);
+
+      const newKey = service.generateRoomKey();
+      service.wrapRoomKey(newKey);
+
+      expect(cache.has('dummy-key-0')).toBe(false);
+      expect(cache.size).toBe(maxCacheSize);
+    });
   });
 
   describe('encryptMessage and decryptMessage', () => {

@@ -129,6 +129,15 @@ describe('CashfreePaymentHandler', () => {
       });
       expect(paymentsService.fulfil).not.toHaveBeenCalled();
     });
+
+    it('should swallow and log error if marking payment order as FAILED fails', async () => {
+      prisma.paymentOrder.updateMany.mockRejectedValueOnce(
+        new Error('DB failure on updateMany'),
+      );
+      const dto = mockWebhookDto('PAYMENT_FAILED_WEBHOOK');
+
+      await expect(handler.handle(dto)).resolves.not.toThrow();
+    });
   });
 
   describe('handle - capture events', () => {
@@ -136,6 +145,27 @@ describe('CashfreePaymentHandler', () => {
       transactionsService.findByGatewayTransaction.mockResolvedValueOnce({
         id: 'tx_existing_123',
         rawPayload: { event_type: 'PAYMENT_SUCCESS_WEBHOOK' },
+      } as any);
+
+      const dto = mockWebhookDto('PAYMENT_SUCCESS_WEBHOOK');
+      await handler.handle(dto);
+
+      expect(paymentsService.fulfil).not.toHaveBeenCalled();
+    });
+
+    it('should skip fulfillment if PaymentOrder is not found in database', async () => {
+      prisma.paymentOrder.findFirst.mockResolvedValueOnce(null);
+
+      const dto = mockWebhookDto('PAYMENT_SUCCESS_WEBHOOK');
+      await handler.handle(dto);
+
+      expect(paymentsService.fulfil).not.toHaveBeenCalled();
+    });
+
+    it('should skip fulfillment if PaymentOrder is already PAID', async () => {
+      prisma.paymentOrder.findFirst.mockResolvedValueOnce({
+        id: 'order_123',
+        status: PaymentOrderStatus.PAID,
       } as any);
 
       const dto = mockWebhookDto('PAYMENT_SUCCESS_WEBHOOK');
@@ -204,6 +234,31 @@ describe('CashfreePaymentHandler', () => {
       const dto = mockWebhookDto('PAYMENT_SUCCESS_WEBHOOK');
 
       await expect(handler.handle(dto)).resolves.not.toThrow();
+    });
+
+    it('should rethrow unexpected non-duplicate error so gateway can retry', async () => {
+      const mockOrder = {
+        id: 'order_ulid_123',
+        userId: 'user_ulid_456',
+        planId: 'plan_1',
+        plan: { id: 'plan_1', creditsGranted: 10, validityDays: 30 },
+        amount: 39900,
+        currency: 'INR',
+        countryCode: 'IN',
+        gateway: PaymentGateway.CASHFREE,
+        status: PaymentOrderStatus.PENDING,
+      };
+
+      prisma.paymentOrder.findFirst.mockResolvedValueOnce(mockOrder as any);
+
+      const unexpectedError = new Error('Database connection dropped');
+      paymentsService.fulfil.mockRejectedValueOnce(unexpectedError);
+
+      const dto = mockWebhookDto('PAYMENT_SUCCESS_WEBHOOK');
+
+      await expect(handler.handle(dto)).rejects.toThrow(
+        'Database connection dropped',
+      );
     });
   });
 });

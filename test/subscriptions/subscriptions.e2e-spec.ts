@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -181,7 +183,7 @@ describe('SubscriptionsController (e2e)', () => {
   });
 
   describe('POST /api/v1/subscriptions/verify-purchase', () => {
-    const purchaseToken = `token_${Date.now()}`;
+    const purchaseToken = `token_${randomUUID()}`;
     const mockSignedJws = 'valid.storekit2.jws.token';
 
     it('rejects unauthenticated requests (401)', async () => {
