@@ -17,8 +17,9 @@ export GCP_OIDC_AUDIENCE='https://backend-service-at7g3x4m6q-el.a.run.app'
 # Swagger UI Access Control (Disabled for prod)
 export SWAGGER_ENABLED='false'
 
-# Cloud Run Scaling Limits
-export MAX_INSTANCES='20'
+# Cloud Run Scaling Limits (Public Backend Service)
+export BACKEND_MAX_INSTANCES='20'
+export MAX_INSTANCES="${BACKEND_MAX_INSTANCES}"
 
 # Supabase Realtime JWT Key ID for production
 export SUPABASE_JWT_KEY_ID='07a5a024-3d60-4f91-a3e3-39645975dac1'

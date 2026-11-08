@@ -239,7 +239,7 @@ build_env_vars_string() {
         "AUDIT_PUBSUB_TOPIC=${AUDIT_PUBSUB_TOPIC}"
         "CREDIT_EXPIRY_DAYS=${CREDIT_EXPIRY_DAYS}"
         "LIKE_EXPIRY_DAYS=${LIKE_EXPIRY_DAYS}"
-        "DB_POOL_MAX=${DB_POOL_MAX:-4}"
+        "DB_POOL_MAX=${DB_POOL_MAX:-8}"
         "DB_POOL_MIN=${DB_POOL_MIN:-0}"
         "DB_POOL_ACQUISITION_TIMEOUT_MS=${DB_POOL_ACQUISITION_TIMEOUT_MS:-5000}"
         "DB_POOL_IDLE_TIMEOUT_MS=${DB_POOL_IDLE_TIMEOUT_MS:-10000}"
@@ -295,8 +295,9 @@ deploy_cloud_run_service() {
     local max_instances="$7"
     local concurrency="$8"
     local swagger_enabled="$9"
+    local min_instances="${10:-${MIN_INSTANCES:-0}}"
 
-    print_status "Deploying to Cloud Run: ${target_service} (${REGION}) [CPU: ${cpu}, Memory: ${memory}, Concurrency: ${concurrency}, Ingress: ${ingress}]"
+    print_status "Deploying to Cloud Run: ${target_service} (${REGION}) [CPU: ${cpu}, Memory: ${memory}, Concurrency: ${concurrency}, Min Instances: ${min_instances}, Max Instances: ${max_instances}, CPU Boost: Enabled, Ingress: ${ingress}]"
 
     local gcloud_run_args=(
         run deploy "${target_service}"
@@ -304,8 +305,10 @@ deploy_cloud_run_service() {
         --region="${REGION}"
         --cpu="${cpu}"
         --memory="${memory}"
+        --min-instances="${min_instances}"
         --max-instances="${max_instances}"
         --concurrency="${concurrency}"
+        --cpu-boost
         --service-account="${service_account}"
         --ingress="${ingress}"
         --quiet
@@ -339,11 +342,12 @@ deploy_public_service() {
         "${backend_sa}" \
         "all" \
         "true" \
-        "${CPU:-2}" \
-        "${MEMORY:-2Gi}" \
-        "${MAX_INSTANCES:-20}" \
-        "${CONCURRENCY:-160}" \
-        "${SWAGGER_ENABLED:-true}"
+        "${BACKEND_CPU:-${CPU:-2}}" \
+        "${BACKEND_MEMORY:-${MEMORY:-2Gi}}" \
+        "${BACKEND_MAX_INSTANCES:-${MAX_INSTANCES:-20}}" \
+        "${BACKEND_CONCURRENCY:-${CONCURRENCY:-40}}" \
+        "${SWAGGER_ENABLED:-true}" \
+        "${BACKEND_MIN_INSTANCES:-${MIN_INSTANCES:-0}}"
 }
 
 deploy_maintenance_service() {
@@ -356,9 +360,10 @@ deploy_maintenance_service() {
         "false" \
         "${MAINTENANCE_CPU:-2}" \
         "${MAINTENANCE_MEMORY:-2Gi}" \
-        "${MAINTENANCE_MAX_INSTANCES:-5}" \
-        "${MAINTENANCE_CONCURRENCY:-80}" \
-        "false"
+        "${MAINTENANCE_MAX_INSTANCES:-3}" \
+        "${MAINTENANCE_CONCURRENCY:-20}" \
+        "false" \
+        "${MAINTENANCE_MIN_INSTANCES:-0}"
 }
 
 main() {
