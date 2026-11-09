@@ -348,6 +348,21 @@ describe('envValidationSchema', () => {
         'https://cdn.example.com/custom-logo.png',
       );
     });
+
+    it('should validate and accept Cashfree payment gateway credentials when provided', () => {
+      const { error, value } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          CASHFREE_APP_ID: 'cf_app_test_12345',
+          CASHFREE_SECRET_KEY: 'cf_sec_test_67890',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.CASHFREE_APP_ID).toBe('cf_app_test_12345');
+      expect(value.CASHFREE_SECRET_KEY).toBe('cf_sec_test_67890');
+    });
   });
 
   describe('NestJS ConfigModule integration', () => {
@@ -368,6 +383,8 @@ describe('envValidationSchema', () => {
       process.env.OTP_TTL = '450';
       process.env.CREDIT_EXPIRY_DAYS = '120';
       process.env.EMAIL_PROVIDER = 'brevo';
+      process.env.CASHFREE_APP_ID = 'cf_app_integrated_123';
+      process.env.CASHFREE_SECRET_KEY = 'cf_sec_integrated_456';
 
       const moduleRef = await Test.createTestingModule({
         imports: [
@@ -384,6 +401,12 @@ describe('envValidationSchema', () => {
       expect(configService.get<number>('OTP_TTL')).toBe(450);
       expect(configService.get<number>('CREDIT_EXPIRY_DAYS')).toBe(120);
       expect(configService.get<string>('EMAIL_PROVIDER')).toBe('brevo');
+      expect(configService.get<string>('CASHFREE_APP_ID')).toBe(
+        'cf_app_integrated_123',
+      );
+      expect(configService.get<string>('CASHFREE_SECRET_KEY')).toBe(
+        'cf_sec_integrated_456',
+      );
     });
 
     it('should throw during bootstrap if an invalid environment value is passed in process.env', async () => {

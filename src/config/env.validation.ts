@@ -127,4 +127,11 @@ export const envValidationSchema = Joi.object({
   RAZORPAY_KEY_ID: Joi.string().optional(),
   RAZORPAY_KEY_SECRET: Joi.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: Joi.string().optional(),
+
+  // Payment Gateway — Cashfree
+  // Values are optional at startup so the service can boot in environments
+  // where Cashfree is not yet configured. `ConfigService.getOrThrow` inside
+  // CashfreeGateway and CashfreeWebhookGuard will surface a clear error on first use if they are missing.
+  CASHFREE_APP_ID: Joi.string().optional(),
+  CASHFREE_SECRET_KEY: Joi.string().optional(),
 });
