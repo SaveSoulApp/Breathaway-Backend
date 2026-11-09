@@ -56,6 +56,18 @@ CreditLedger
 └── createdAt (DateTime)
 \`\`\`
 
+### Database Indexes
+
+To prevent full sequential table scans and optimize high-throughput balance derivations and background sweepers under Cloud SQL:
+
+| Index Name                                              | Columns                                | Purpose & Query Pattern                                                                                                                                                                  |
+| :------------------------------------------------------ | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`CreditLedger_userId_createdAt_idx`**                 | `(userId, createdAt)`                  | Optimizes user balance calculations (`getBalance()`, `getExpiringCredits()`) and ledger pagination history (`ORDER BY createdAt ASC`).                                                   |
+| **`CreditLedger_userId_transactionType_expiresAt_idx`** | `(userId, transactionType, expiresAt)` | Composite index enabling selective scans for active user credits and FIFO expiry projections (`WHERE userId = $1 AND transactionType = 'CREDIT' AND expiresAt > $2`).                    |
+| **`CreditLedger_transactionType_expiresAt_userId_idx`** | `(transactionType, expiresAt, userId)` | Optimizes background maintenance cron sweepers (`MaintenanceService.expireCreditBundles`, `warnExpiringCreditBundles`) selecting distinct expired/expiring user IDs without table scans. |
+| **`CreditLedger_expiresAt_idx`**                        | `(expiresAt)`                          | Supports direct range scans on bundle expiration boundaries.                                                                                                                             |
+| **`CreditLedger_userId_idx`**                           | `(userId)`                             | Foreign key relational integrity index.                                                                                                                                                  |
+
 ---
 
 ## 💰 Balance Calculation: Real-Time FIFO
