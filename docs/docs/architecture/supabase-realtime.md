@@ -53,6 +53,8 @@ This document serves as the **definitive operational guide** for configuring, ma
 - Table creation, column definitions, constraints, and indexes.
 - **Database-Level UUID Generation**: Both tables use `@default(dbgenerated("gen_random_uuid()")) @db.Uuid`. This is critical because server-side writes originating from `@supabase/supabase-js` (PostgREST) do not generate IDs client-side like Prisma Client does. The PostgreSQL engine itself must supply the default UUID upon `INSERT`.
 - **Field-Level Encryption at Rest (DB-01)**: `ChatRoom` holds `wrappedRoomKey TEXT NOT NULL` (the Base64-encoded AES-256 room data key, wrapped with the active GCP Secret Manager master key) and `roomKeyId VARCHAR(64) NOT NULL` (the key identifier, e.g. `chat-v1`). All records in `Message.content` are strictly encrypted as `enc:v1:<ivBase64>:<tagBase64>:<ciphertextBase64>`. Zero plaintext is ever written to disk.
+- **Foreign Key Indexing & RLS Acceleration**: `Message` maintains dedicated indexes `@@index([roomId])` and `@@index([roomId, createdAt(sort: Desc)])`. These guarantee constant-time foreign key cascades, prevent sequential scans on cursor-based message history fetches, and accelerate Supabase RLS `EXISTS (SELECT 1 FROM "ChatRoom" WHERE "ChatRoom"."id" = "Message"."roomId")` subqueries.
+- **Automated Mutation Tracking**: `ChatRoom.updatedAt` configures `@updatedAt` to ensure conversation recency timestamps update automatically on room mutations.
 
 ### Layer 2 — Supabase Infrastructure (`supabase/migrations/`)
 

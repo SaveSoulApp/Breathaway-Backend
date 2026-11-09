@@ -822,7 +822,7 @@ model ChatRoom {
   messages Message[]
 
   createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
 
   @@unique([userOneId, userTwoId])
   @@index([userOneId])
@@ -842,6 +842,9 @@ model Message {
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   readAt    DateTime? @db.Timestamptz
+
+  @@index([roomId])
+  @@index([roomId, createdAt(sort: Desc)])
 }
 
 // ──────────────────────────────────────────────
