@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { createMockExecutionContext } from '@common/tests/mocks/execution-context.mock';
 import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 
 import { AdminOidcAuthGuard } from '../admin-oidc-auth.guard';
 
@@ -51,9 +52,9 @@ describe('AdminOidcAuthGuard', () => {
     guard = module.get<AdminOidcAuthGuard>(AdminOidcAuthGuard);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.clearAllMocks();
-    guard.clearIamCache();
+    await guard.clearIamCache();
   });
 
   it('should be defined', () => {
@@ -364,6 +365,197 @@ describe('AdminOidcAuthGuard', () => {
       expect(res1).toBe(true);
       expect(res2).toBe(true);
       expect(mockRequest).toHaveBeenCalledTimes(1);
+    });
+
+    describe('Distributed Redis IAM caching', () => {
+      let redisGuard: AdminOidcAuthGuard;
+      let mockRedisService: {
+        isConfigured: boolean;
+        get: jest.Mock;
+        set: jest.Mock;
+        del: jest.Mock;
+      };
+
+      beforeEach(async () => {
+        mockRedisService = {
+          isConfigured: true,
+          get: jest.fn(),
+          set: jest.fn(),
+          del: jest.fn(),
+        };
+
+        const module: TestingModule = await Test.createTestingModule({
+          providers: [
+            AdminOidcAuthGuard,
+            { provide: LoggerService, useValue: mockLoggerService },
+            { provide: ConfigService, useValue: configService },
+            { provide: ClsService, useValue: clsService },
+            { provide: RedisService, useValue: mockRedisService },
+          ],
+        }).compile();
+
+        redisGuard = module.get<AdminOidcAuthGuard>(AdminOidcAuthGuard);
+
+        jest
+          .spyOn(redisGuard['oAuth2Client'] as any, 'verifyIdToken')
+          .mockResolvedValue({
+            getPayload: () => ({
+              iss: 'https://accounts.google.com',
+              email: defaultUserEmail,
+              email_verified: true,
+              sub: defaultUserSub,
+            }),
+          });
+      });
+
+      afterEach(async () => {
+        await redisGuard.clearIamCache();
+      });
+
+      it('should authorize successfully when admin email is present in Redis cache without calling GCP API', async () => {
+        mockRedisService.get.mockResolvedValue(
+          JSON.stringify([defaultUserEmail]),
+        );
+
+        const mockGcpClient = jest.fn();
+        jest
+          .spyOn(redisGuard['googleAuth'], 'getClient')
+          .mockImplementation(mockGcpClient);
+
+        const req: any = {
+          headers: { authorization: 'Bearer valid.google.token' },
+          originalUrl: '/v1/admin/dashboard',
+          method: 'GET',
+        };
+        const context = createMockExecutionContext(req);
+
+        const result = await redisGuard.canActivate(context);
+
+        expect(result).toBe(true);
+        expect(mockRedisService.get).toHaveBeenCalledWith(
+          'admin:iam:authorized_emails:test-gcp-project',
+        );
+        expect(mockGcpClient).not.toHaveBeenCalled();
+      });
+
+      it('should fetch from GCP IAM policy on Redis cache miss and populate Redis with jittered TTL', async () => {
+        mockRedisService.get.mockResolvedValue(null);
+        mockRedisService.set.mockResolvedValue('OK');
+
+        const mockRequest = jest.fn().mockResolvedValue({
+          data: {
+            bindings: [
+              {
+                role: 'roles/owner',
+                members: [`user:${defaultUserEmail}`],
+              },
+            ],
+          },
+        });
+
+        jest.spyOn(redisGuard['googleAuth'], 'getClient').mockResolvedValue({
+          request: mockRequest,
+        } as any);
+
+        const req: any = {
+          headers: { authorization: 'Bearer valid.google.token' },
+          originalUrl: '/v1/admin/users',
+          method: 'GET',
+        };
+        const context = createMockExecutionContext(req);
+
+        const result = await redisGuard.canActivate(context);
+
+        expect(result).toBe(true);
+        expect(mockRequest).toHaveBeenCalledTimes(1);
+        expect(mockRedisService.set).toHaveBeenCalledWith(
+          'admin:iam:authorized_emails:test-gcp-project',
+          JSON.stringify([defaultUserEmail]),
+          expect.objectContaining({
+            ttlSeconds: expect.any(Number),
+          }),
+        );
+
+        // Verify jitter range is between 270 and 330 seconds
+        const ttlOption = mockRedisService.set.mock.calls[0][2];
+        expect(ttlOption.ttlSeconds).toBeGreaterThanOrEqual(270);
+        expect(ttlOption.ttlSeconds).toBeLessThanOrEqual(330);
+      });
+
+      it('should fall back to in-memory cache when Redis GET throws an error', async () => {
+        // Pre-populate in-memory fallback
+        redisGuard['cachedIamAdminEmails'] = new Set([defaultUserEmail]);
+        redisGuard['cacheExpiresAt'] = Date.now() + 60000;
+
+        mockRedisService.get.mockRejectedValue(
+          new Error('Redis connection timed out'),
+        );
+
+        const mockGcpClient = jest.fn();
+        jest
+          .spyOn(redisGuard['googleAuth'], 'getClient')
+          .mockImplementation(mockGcpClient);
+
+        const req: any = {
+          headers: { authorization: 'Bearer valid.google.token' },
+          originalUrl: '/v1/admin/audit',
+          method: 'GET',
+        };
+        const context = createMockExecutionContext(req);
+
+        const result = await redisGuard.canActivate(context);
+
+        expect(result).toBe(true);
+        expect(mockRedisService.get).toHaveBeenCalledWith(
+          'admin:iam:authorized_emails:test-gcp-project',
+        );
+        expect(mockGcpClient).not.toHaveBeenCalled();
+      });
+
+      it('should gracefully handle Redis SET failure after GCP fetch', async () => {
+        mockRedisService.get.mockResolvedValue(null);
+        mockRedisService.set.mockRejectedValue(
+          new Error('Redis readonly replica'),
+        );
+
+        const mockRequest = jest.fn().mockResolvedValue({
+          data: {
+            bindings: [
+              {
+                role: 'roles/editor',
+                members: [`user:${defaultUserEmail}`],
+              },
+            ],
+          },
+        });
+
+        jest.spyOn(redisGuard['googleAuth'], 'getClient').mockResolvedValue({
+          request: mockRequest,
+        } as any);
+
+        const req: any = {
+          headers: { authorization: 'Bearer valid.google.token' },
+          originalUrl: '/v1/admin/settings',
+          method: 'GET',
+        };
+        const context = createMockExecutionContext(req);
+
+        const result = await redisGuard.canActivate(context);
+
+        expect(result).toBe(true);
+        expect(mockRequest).toHaveBeenCalledTimes(1);
+        expect(mockRedisService.set).toHaveBeenCalledTimes(1);
+      });
+
+      it('should invalidate Redis cache key when clearIamCache is invoked', async () => {
+        mockRedisService.del.mockResolvedValue(1);
+
+        await redisGuard.clearIamCache();
+
+        expect(mockRedisService.del).toHaveBeenCalledWith(
+          'admin:iam:authorized_emails:test-gcp-project',
+        );
+      });
     });
   });
 });

@@ -573,10 +573,12 @@ When a request reaches a route protected by `AdminOidcAuthGuard`:
    - Verifies `aud` matches either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
    - Verifies `email_verified: true` and extracts `payload.email`.
 3. **Dynamic GCP IAM Authorization**:
-   - **Step 3A (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
-   - **Step 3B (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or the Cloud Run service account in cloud environments.
+   - **Step 3A (Distributed Redis Cache)**: Checks `admin:iam:authorized_emails:{projectId}` in Redis. If present, authorizes caller immediately without external network roundtrips.
+   - **Step 3B (GCP Cloud Resource Manager Query on Miss)**: When the cache expires, queries the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or Cloud Run service account in cloud environments.
+   - **Step 3C (Singleflight & Jittered Cache Population)**: In-flight requests on the same instance are deduplicated via a singleflight promise. Discovered emails are written to Redis with a jittered TTL ($300 \pm 30$ seconds, 270–330s) to prevent cross-instance cache stampedes upon expiry.
+   - **Step 3D (Degraded Fallback)**: If Redis is unconfigured or unavailable, automatically falls back to process-local in-memory caching.
    - Extracts all members bound to `roles/owner`, `roles/editor`, `roles/resourcemanager.organizationAdmin`, or roles specified in `GCP_ADMIN_IAM_ROLES`.
-   - If `user:<email>` is found in the IAM policy bindings, updates the in-memory cache and grants access.
+   - If `user:<email>` or `serviceAccount:<email>` is found in the IAM policy bindings, updates the cache and grants access.
    - If not found, logs a warning and throws `403 Forbidden: Caller does not have administrative permissions in GCP`.
 4. **Context Propagation & Structured Audit Logging**:
    - Injects `adminEmail`, `adminSub`, and `adminEmailHash` (SHA-256) into Continuation-Local Storage (CLS) via `ClsService`.
@@ -596,6 +598,7 @@ sequenceDiagram
     participant Backend as NestJS Admin Endpoint
     participant Guard as AdminOidcAuthGuard
     participant GoogleJWKS as Google OAuth JWKS
+    participant Redis as Memorystore (Redis)
     participant GCPIAM as GCP Cloud Resource Manager API
     participant Logger as Cloud Logging / BigQuery
 
@@ -609,12 +612,14 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Cache Valid (<5m TTL)
-        Guard->>Guard: Authorize from Cache
-    else Cache Expired / Miss
-        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
+    alt Redis Cache Hit
+        Guard->>Redis: GET admin:iam:authorized_emails:{projectId}
+        Redis-->>Guard: Return authorized emails JSON
+    else Redis Cache Miss / Degradation
+        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy (Singleflight)
         GCPIAM-->>Guard: Return project IAM bindings (roles/owner, roles/editor)
-        Guard->>Guard: Populate in-memory cache (5m TTL)
+        Guard->>Redis: SETEX admin:iam:authorized_emails:{projectId} (300 ± 30s Jittered TTL)
+        Guard->>Guard: Update in-memory fallback cache
     end
 
     alt Caller Not in Project IAM Policy

@@ -32,6 +32,7 @@ sequenceDiagram
     participant App as NestJS Backend (Cloud Run)
     participant Guard as AdminOidcAuthGuard
     participant GoogleJWKS as Google OAuth JWKS
+    participant Redis as Memorystore (Redis)
     participant GCPIAM as GCP Cloud Resource Manager API
     participant Logger as Cloud Logging / BigQuery
 
@@ -45,12 +46,14 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Cache Valid (<5m TTL)
-        Guard->>Guard: Authorize from Cache
-    else Cache Expired / Miss
-        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
+    alt Redis Cache Hit
+        Guard->>Redis: GET admin:iam:authorized_emails:{projectId}
+        Redis-->>Guard: Return authorized emails JSON
+    else Redis Cache Miss / Degradation
+        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy (Singleflight)
         GCPIAM-->>Guard: Return project IAM bindings (roles/owner, roles/editor)
-        Guard->>Guard: Populate in-memory cache (5m TTL)
+        Guard->>Redis: SETEX admin:iam:authorized_emails:{projectId} (300 ± 30s Jittered TTL)
+        Guard->>Guard: Update in-memory fallback cache
     end
 
     alt Caller Not in Project IAM Policy
@@ -70,8 +73,11 @@ sequenceDiagram
    - Validates the token's cryptographic signature against Google's public JWKS certificates (`https://www.googleapis.com/oauth2/v3/certs`).
    - Ensures `iss` is `accounts.google.com` and `email_verified` is `true`.
    - Accepts tokens targeted to either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
-2. **Tier 2 (Authorization via GCP IAM)**:
-   - Checks in-memory cache (5-minute TTL) to avoid hitting external Google APIs on every request.
+2. **Tier 2 (Authorization via GCP IAM & Distributed Caching)**:
+   - **Distributed Redis Cache**: Queries `admin:iam:authorized_emails:{projectId}` in Redis. If found, caller email is checked directly without hitting GCP APIs.
+   - **Jittered Expiry (Stampede Prevention)**: When populating Redis, writes with a randomized jittered TTL ($300 \pm 30$ seconds, between 270s and 330s) to prevent concurrent Cloud Run instances from simultaneously expiring and stampeding the GCP Cloud Resource Manager IAM API quota.
+   - **Singleflight Promise Deduplication**: If multiple concurrent requests hit the same instance on a cache miss, only one request fetches the IAM policy while all others await the same promise.
+   - **Degraded In-Memory Fallback**: If Redis is unconfigured or experiences a transient outage, the guard falls back seamlessly to process-local in-memory caching.
    - On cache miss, queries the GCP Cloud Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`).
    - Verifies the user email has `roles/owner`, `roles/editor`, or roles defined in `GCP_ADMIN_IAM_ROLES`.
 
