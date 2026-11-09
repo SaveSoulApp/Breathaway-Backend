@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClsService } from 'nestjs-cls';
@@ -90,14 +91,14 @@ describe('WebhooksController', () => {
   });
 
   describe('verifyWebhook', () => {
-    it('should pass query params to the service and return the result', async () => {
+    it('should pass query params to the service and return the result', () => {
       const mode = 'subscribe';
       const token = 'my_verify_token';
       const challenge = '1158201444';
 
-      service.verifyMetaWebhook.mockResolvedValue(challenge);
+      service.verifyMetaWebhook.mockReturnValue(challenge);
 
-      const result = await controller.verifyWebhook(mode, token, challenge);
+      const result = controller.verifyWebhook(mode, token, challenge);
 
       expect(service.verifyMetaWebhook).toHaveBeenCalledWith(
         mode,
@@ -105,6 +106,26 @@ describe('WebhooksController', () => {
         challenge,
       );
       expect(result).toBe(challenge);
+    });
+
+    it('should propagate ForbiddenException when service verification fails', () => {
+      const mode = 'subscribe';
+      const token = 'wrong_token';
+      const challenge = '1158201444';
+
+      service.verifyMetaWebhook.mockImplementation(() => {
+        throw new ForbiddenException('Meta webhook verification failed');
+      });
+
+      expect(() => controller.verifyWebhook(mode, token, challenge)).toThrow(
+        ForbiddenException,
+      );
+
+      expect(service.verifyMetaWebhook).toHaveBeenCalledWith(
+        mode,
+        token,
+        challenge,
+      );
     });
   });
 

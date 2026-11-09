@@ -1,3 +1,7 @@
+import {
+  ForbiddenException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -102,9 +106,9 @@ describe('WebhooksService', () => {
   });
 
   describe('verifyMetaWebhook', () => {
-    it('should verify webhook successfully', async () => {
+    it('should verify webhook successfully', () => {
       configService.get.mockReturnValue('my_secret_token');
-      const result = await service.verifyMetaWebhook(
+      const result = service.verifyMetaWebhook(
         'subscribe',
         'my_secret_token',
         'challenge_string',
@@ -120,14 +124,16 @@ describe('WebhooksService', () => {
       );
     });
 
-    it('should fail verification if mode is not subscribe', async () => {
+    it('should fail verification with ForbiddenException if mode is not subscribe', () => {
       configService.get.mockReturnValue('my_secret_token');
-      const result = await service.verifyMetaWebhook(
-        'unsubscribe',
-        'my_secret_token',
-        'challenge_string',
-      );
-      expect(result).toBe('Verification failed');
+      expect(() =>
+        service.verifyMetaWebhook(
+          'unsubscribe',
+          'my_secret_token',
+          'challenge_string',
+        ),
+      ).toThrow(ForbiddenException);
+
       expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Meta webhook verification started',
         { mode: 'unsubscribe', step: 'verify' },
@@ -138,20 +144,90 @@ describe('WebhooksService', () => {
       );
     });
 
-    it('should fail verification if token mismatches', async () => {
+    it('should fail verification with ForbiddenException if token mismatches with same length', () => {
       configService.get.mockReturnValue('my_secret_token');
-      const result = await service.verifyMetaWebhook(
-        'subscribe',
-        'wrong_token',
-        'challenge_string',
-      );
-      expect(result).toBe('Verification failed');
+      expect(() =>
+        service.verifyMetaWebhook(
+          'subscribe',
+          'wrong_secret_tok',
+          'challenge_string',
+        ),
+      ).toThrow(ForbiddenException);
+
       expect(contextualLogger.debug).toHaveBeenCalledWith(
         'Meta webhook verification started',
         { mode: 'subscribe', step: 'verify' },
       );
       expect(contextualLogger.warn).toHaveBeenCalledWith(
         'Meta webhook verification failed',
+        { mode: 'subscribe', step: 'verify' },
+      );
+    });
+
+    it('should fail verification with ForbiddenException if token has different length', () => {
+      configService.get.mockReturnValue('my_secret_token');
+      expect(() =>
+        service.verifyMetaWebhook('subscribe', 'short', 'challenge_string'),
+      ).toThrow(ForbiddenException);
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook verification failed',
+        { mode: 'subscribe', step: 'verify' },
+      );
+    });
+
+    it('should fail verification with ForbiddenException if challenge is missing', () => {
+      configService.get.mockReturnValue('my_secret_token');
+      expect(() =>
+        service.verifyMetaWebhook('subscribe', 'my_secret_token', ''),
+      ).toThrow(ForbiddenException);
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook verification failed',
+        { mode: 'subscribe', step: 'verify' },
+      );
+    });
+
+    it('should fail verification with ForbiddenException if token is missing', () => {
+      configService.get.mockReturnValue('my_secret_token');
+      expect(() =>
+        service.verifyMetaWebhook('subscribe', '', 'challenge_string'),
+      ).toThrow(ForbiddenException);
+
+      expect(contextualLogger.warn).toHaveBeenCalledWith(
+        'Meta webhook verification failed',
+        { mode: 'subscribe', step: 'verify' },
+      );
+    });
+
+    it('should throw InternalServerErrorException if META_VERIFY_TOKEN is not configured', () => {
+      configService.get.mockReturnValue(undefined);
+      expect(() =>
+        service.verifyMetaWebhook(
+          'subscribe',
+          'my_secret_token',
+          'challenge_string',
+        ),
+      ).toThrow(InternalServerErrorException);
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'META_VERIFY_TOKEN is not configured',
+        { mode: 'subscribe', step: 'verify' },
+      );
+    });
+
+    it('should throw InternalServerErrorException if META_VERIFY_TOKEN is whitespace only', () => {
+      configService.get.mockReturnValue('   ');
+      expect(() =>
+        service.verifyMetaWebhook(
+          'subscribe',
+          'my_secret_token',
+          'challenge_string',
+        ),
+      ).toThrow(InternalServerErrorException);
+
+      expect(contextualLogger.error).toHaveBeenCalledWith(
+        'META_VERIFY_TOKEN is not configured',
         { mode: 'subscribe', step: 'verify' },
       );
     });
