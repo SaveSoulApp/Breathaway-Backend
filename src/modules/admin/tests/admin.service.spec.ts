@@ -1,10 +1,13 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuthCredentialType, LikeStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
+import { JwtAuthCacheService } from '@modules/auth/services/jwt-auth-cache.service';
+import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
 import { AdminService, TRUNCATED_DATABASE_TABLES } from '../admin.service';
 import { AdminUserNotFoundException } from '../application/exceptions';
@@ -29,7 +32,16 @@ describe('AdminService', () => {
     user: { update: jest.fn() },
     identity: { updateMany: jest.fn() },
     authCredential: { updateMany: jest.fn() },
+    userSession: { updateMany: jest.fn() },
     device: { updateMany: jest.fn() },
+    match: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
+    like: { updateMany: jest.fn() },
+    transaction: { updateMany: jest.fn() },
+    block: { updateMany: jest.fn() },
+  };
+
+  const mockJwtAuthCacheService = {
+    revokeUser: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockPrismaService = {
@@ -40,15 +52,20 @@ describe('AdminService', () => {
     $executeRawUnsafe: jest.fn(),
   };
 
+  let mockEventEmitter: { emit: jest.Mock; emitAsync: jest.Mock };
+
   beforeEach(async () => {
+    mockEventEmitter = { emit: jest.fn(), emitAsync: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
         { provide: LoggerService, useValue: mockLoggerService },
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: JwtAuthCacheService, useValue: mockJwtAuthCacheService },
         {
           provide: EventEmitter2,
-          useValue: { emit: jest.fn(), emitAsync: jest.fn() },
+          useValue: mockEventEmitter,
         },
         { provide: ClsService, useValue: { get: jest.fn(), set: jest.fn() } },
       ],
@@ -68,6 +85,7 @@ describe('AdminService', () => {
   describe('deleteAccount', () => {
     const userId = 'user-uuid';
     const reason = 'Violation of terms';
+    const phoneHash = Buffer.from('phone-hash-bytes');
 
     it('should throw AdminUserNotFoundException if user does not exist', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
@@ -87,32 +105,95 @@ describe('AdminService', () => {
       );
     });
 
-    it('should soft delete user and related data within a transaction', async () => {
+    it('should soft delete user and execute complete operational state teardown', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: userId,
         deletedAt: null,
+        identities: [{ id: 'identity-1' }, { id: 'identity-2' }],
+        authCredentials: [
+          {
+            type: AuthCredentialType.PHONE,
+            valueHash: phoneHash,
+            deletedAt: null,
+          },
+        ],
       } as any);
 
       await service.deleteAccount(userId, reason);
 
       expect(prisma.$transaction).toHaveBeenCalled();
+
+      // 1. User soft delete
       expect(mockTx.user.update).toHaveBeenCalledWith({
         where: { id: userId },
         data: { deletedAt: expect.any(Date) },
       });
+
+      // 2. Identity detach to ghost state
       expect(mockTx.identity.updateMany).toHaveBeenCalledWith({
-        where: { userId, deletedAt: null },
-        data: { deletedAt: expect.any(Date) },
+        where: { id: { in: ['identity-1', 'identity-2'] } },
+        data: {
+          userId: null,
+          isVerified: false,
+          deletedAt: expect.any(Date),
+        },
       });
+
+      // 3. AuthCredential soft delete
       expect(mockTx.authCredential.updateMany).toHaveBeenCalledWith({
         where: { userId, deletedAt: null },
         data: { deletedAt: expect.any(Date) },
       });
+
+      // 4. UserSession active refresh token revocation
+      expect(mockTx.userSession.updateMany).toHaveBeenCalledWith({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+
+      // 5. Device deactivation
       expect(mockTx.device.updateMany).toHaveBeenCalledWith({
         where: { userId, isActive: true },
         data: { isActive: false },
       });
 
+      // 7. Outbound likes marked DELETED
+      expect(mockTx.like.updateMany).toHaveBeenCalledWith({
+        where: { senderUserId: userId },
+        data: {
+          status: LikeStatus.DELETED,
+          deletedAt: expect.any(Date),
+        },
+      });
+
+      // 8. Inbound pending likes marked VOIDED
+      expect(mockTx.like.updateMany).toHaveBeenCalledWith({
+        where: {
+          targetIdentityId: { in: ['identity-1', 'identity-2'] },
+          status: LikeStatus.PENDING,
+        },
+        data: { status: LikeStatus.VOIDED },
+      });
+
+      // 9. Transactions stamped with phone hash
+      expect(mockTx.transaction.updateMany).toHaveBeenCalledWith({
+        where: { userId, userPhoneHash: null },
+        data: { userPhoneHash: phoneHash },
+      });
+
+      // 10. Blocks stamped with phone hash
+      expect(mockTx.block.updateMany).toHaveBeenCalledWith({
+        where: { blockedUserId: userId },
+        data: {
+          blockedPhoneHash: phoneHash,
+          blockedUserId: null,
+        },
+      });
+
+      // Synchronous Redis JWT revocation
+      expect(mockJwtAuthCacheService.revokeUser).toHaveBeenCalledWith(userId);
+
+      // Audit and event emission
       expect((service as any).emitAuditLog).toHaveBeenCalledWith({
         actionType: AuditActionType.ADMIN_ACCOUNT_DELETED,
         userId,
@@ -120,6 +201,41 @@ describe('AdminService', () => {
           deletedUserId: userId,
           reason,
         },
+      });
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        USER_DELETED_EVENT,
+        new UserDeletedEvent(userId),
+      );
+    });
+
+    it('should dissolve active matches and void counterpart likes when matches exist', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: userId,
+        deletedAt: null,
+        identities: [],
+        authCredentials: [],
+      } as any);
+
+      mockTx.match.findMany.mockResolvedValueOnce([
+        {
+          id: 'match-1',
+          userOneId: userId,
+          userTwoId: 'counterpart-user',
+          likeOneId: 'my-like',
+          likeTwoId: 'counterpart-like',
+        },
+      ]);
+
+      await service.deleteAccount(userId, reason);
+
+      expect(mockTx.like.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['counterpart-like'] } },
+        data: { status: LikeStatus.VOIDED },
+      });
+
+      expect(mockTx.match.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['match-1'] } },
       });
     });
   });
