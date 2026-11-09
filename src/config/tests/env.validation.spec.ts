@@ -363,6 +363,38 @@ describe('envValidationSchema', () => {
       expect(value.CASHFREE_APP_ID).toBe('cf_app_test_12345');
       expect(value.CASHFREE_SECRET_KEY).toBe('cf_sec_test_67890');
     });
+
+    it('should validate and accept Supabase credentials when provided', () => {
+      const { error, value } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          SUPABASE_URL: 'https://test-project.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key-12345',
+          SUPABASE_JWT_PRIVATE_KEY: 'test-private-key-pem',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.SUPABASE_URL).toBe('https://test-project.supabase.co');
+      expect(value.SUPABASE_SERVICE_ROLE_KEY).toBe(
+        'test-service-role-key-12345',
+      );
+      expect(value.SUPABASE_JWT_PRIVATE_KEY).toBe('test-private-key-pem');
+    });
+
+    it('should fail when SUPABASE_URL is not a valid URI', () => {
+      const { error } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          SUPABASE_URL: 'not-a-valid-uri',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.message).toContain('"SUPABASE_URL" must be a valid uri');
+    });
   });
 
   describe('NestJS ConfigModule integration', () => {
@@ -385,6 +417,8 @@ describe('envValidationSchema', () => {
       process.env.EMAIL_PROVIDER = 'brevo';
       process.env.CASHFREE_APP_ID = 'cf_app_integrated_123';
       process.env.CASHFREE_SECRET_KEY = 'cf_sec_integrated_456';
+      process.env.SUPABASE_URL = 'https://supabase-integrated.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'supabase-sec-integrated-789';
 
       const moduleRef = await Test.createTestingModule({
         imports: [
@@ -406,6 +440,12 @@ describe('envValidationSchema', () => {
       );
       expect(configService.get<string>('CASHFREE_SECRET_KEY')).toBe(
         'cf_sec_integrated_456',
+      );
+      expect(configService.get<string>('SUPABASE_URL')).toBe(
+        'https://supabase-integrated.supabase.co',
+      );
+      expect(configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')).toBe(
+        'supabase-sec-integrated-789',
       );
     });
 

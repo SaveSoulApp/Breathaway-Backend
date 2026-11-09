@@ -159,9 +159,12 @@ const [isBlocked, activeMatch] = await Promise.all([
 
 ## 🧠 Core Business Logic & Supabase Integration
 
-### 1. Authoritative Supabase Writes
+### 1. Authoritative Supabase Writes & Fail-Fast Initialization
 
 While Supabase Realtime handles client WebSockets, the NestJS backend handles all message creation using the `SUPABASE_SERVICE_ROLE_KEY`. This bypasses Supabase RLS for server writes, guaranteeing that business rules, blocks, and active matches are authoritatively checked before any row is written.
+
+- **Fail-Fast Startup Guarantee**: `ChatsService` validates non-empty `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` at construction time. If either variable is missing or whitespace, the service throws an explicit `InternalServerErrorException` with structured error logging, preventing silent client instantiation and cryptic downstream `TypeError: Invalid URL` failures.
+- **Joi Environment Validation**: Both variables, along with `SUPABASE_JWT_PRIVATE_KEY` and `SUPABASE_JWT_KEY_ID`, are registered in `envValidationSchema` (`src/config/env.validation.ts`) ensuring URI validation and early deployment verification.
 
 ### 2. Idempotent Room Ordering
 
