@@ -30,6 +30,7 @@ Insecure Direct Object Reference (IDOR) vulnerabilities occur when an API endpoi
 Because `ChatRoom.id` is a UUID that could be logged, intercepted, or leaked, **the backend never assumes a caller is allowed to view or mutate a room based solely on its UUID**.
 
 All `:roomId`-scoped routes are protected at the perimeter by **`ChatRoomParticipantGuard`**:
+
 - `POST /chats/:roomId/messages/read`
 - `GET /chats/:roomId/messages`
 - `GET /chats/:roomId/key`
@@ -37,6 +38,7 @@ All `:roomId`-scoped routes are protected at the perimeter by **`ChatRoomPartici
 - `DELETE /chats/:roomId/messages/:messageId`
 
 #### Guard Execution Pipeline:
+
 1. Intercepts the request before pipes, interceptors, or controller handlers run.
 2. Extracts `userId` from `request.user.userId` (injected by `JwtAuthGuard`) and `roomId` from `request.params.roomId`.
 3. Calls `ChatsService.assertRoomParticipant(userId, roomId)`:
@@ -157,9 +159,12 @@ const [isBlocked, activeMatch] = await Promise.all([
 
 ## 🧠 Core Business Logic & Supabase Integration
 
-### 1. Authoritative Supabase Writes
+### 1. Authoritative Supabase Writes & Fail-Fast Initialization
 
 While Supabase Realtime handles client WebSockets, the NestJS backend handles all message creation using the `SUPABASE_SERVICE_ROLE_KEY`. This bypasses Supabase RLS for server writes, guaranteeing that business rules, blocks, and active matches are authoritatively checked before any row is written.
+
+- **Fail-Fast Startup Guarantee**: `ChatsService` validates non-empty `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` at construction time. If either variable is missing or whitespace, the service throws an explicit `InternalServerErrorException` with structured error logging, preventing silent client instantiation and cryptic downstream `TypeError: Invalid URL` failures.
+- **Joi Environment Validation**: Both variables, along with `SUPABASE_JWT_PRIVATE_KEY` and `SUPABASE_JWT_KEY_ID`, are registered in `envValidationSchema` (`src/config/env.validation.ts`) ensuring URI validation and early deployment verification.
 
 ### 2. Idempotent Room Ordering
 
@@ -270,22 +275,29 @@ Authorized participants call `GET /api/v1/chats/rooms/:roomId/key` when opening 
 
 When a user deletes their account (`USER_DELETED_EVENT`), `ChatsService.handleUserDeletedEvent()` purges `ChatRoom` records. This destroys the wrapped room DEK, mathematically shredding all historical messages associated with that room across database replicas and backups without requiring full table rewrites.
 
+### 7. Database Performance & Indexing Architecture
+
+- **`ChatRoom.updatedAt` Mutation Tracking**: Configured with Prisma's `@updatedAt` directive, ensuring room timestamps auto-update on mutations.
+- **`Message` Foreign Key & History Indexing**: The `Message` table defines:
+  - `@@index([roomId])`: Accelerates foreign key cascade lookups and cross-table joins.
+  - `@@index([roomId, createdAt(sort: Desc)])`: Fully satisfies room-scoped message history retrieval, cursor pagination, and Supabase RLS `EXISTS` subqueries without table scans.
+
 ---
 
 ## 🛠 API Endpoints & Error Matrix
 
 All routes are prefixed with `/api/v1/chats` and require `Bearer <JWT>` authentication (`JwtAuthGuard`).
 
-| Method   | Endpoint                          | Description                                                         | Auth Required |
-| :------- | :-------------------------------- | :------------------------------------------------------------------ | :------------ |
-| `GET`    | `/chats/supabase-token`           | Mints an ES256 JWT for Supabase Realtime WebSocket connection       | Yes           |
-| `GET`    | `/chats/rooms/:roomId/key`        | Retrieves the raw AES-256 room DEK for in-browser decryption        | Yes           |
-| `POST`   | `/chats/messages`                 | Sends a message, creating the room idempotently with DEK if needed  | Yes           |
-| `GET`    | `/chats/rooms`                    | Lists active conversations for the caller, enriched with profiles   | Yes           |
-| `GET`    | `/chats/:roomId/messages`         | Paginated messages for a conversation (server-side decrypted)       | Yes           |
-| `POST`   | `/chats/:roomId/messages/read`    | Marks messages up to watermark as read (IDOR guarded)               | Yes           |
-| `DELETE` | `/chats/:roomId/messages`         | Deletes single or batch messages sent by the user (`{ messageIds }`)| Yes           |
-| `DELETE` | `/chats/:roomId/messages/:messageId` | Convenience route to delete a single message sent by the user     | Yes           |
+| Method   | Endpoint                             | Description                                                          | Auth Required |
+| :------- | :----------------------------------- | :------------------------------------------------------------------- | :------------ |
+| `GET`    | `/chats/supabase-token`              | Mints an ES256 JWT for Supabase Realtime WebSocket connection        | Yes           |
+| `GET`    | `/chats/rooms/:roomId/key`           | Retrieves the raw AES-256 room DEK for in-browser decryption         | Yes           |
+| `POST`   | `/chats/messages`                    | Sends a message, creating the room idempotently with DEK if needed   | Yes           |
+| `GET`    | `/chats/rooms`                       | Lists active conversations for the caller, enriched with profiles    | Yes           |
+| `GET`    | `/chats/:roomId/messages`            | Paginated messages for a conversation (server-side decrypted)        | Yes           |
+| `POST`   | `/chats/:roomId/messages/read`       | Marks messages up to watermark as read (IDOR guarded)                | Yes           |
+| `DELETE` | `/chats/:roomId/messages`            | Deletes single or batch messages sent by the user (`{ messageIds }`) | Yes           |
+| `DELETE` | `/chats/:roomId/messages/:messageId` | Convenience route to delete a single message sent by the user        | Yes           |
 
 ### Message Deletion (Batch & Single)
 
@@ -301,15 +313,15 @@ Users can delete one or more messages (e.g. multi-select batch deletion like Wha
 
 All exceptions return standard RFC 7807 `application/problem+json` error responses:
 
-| Exception Class                     | HTTP Status       | Error Code (`type`)           | Trigger Condition                                                     |
-| :---------------------------------- | :---------------- | :---------------------------- | :-------------------------------------------------------------------- |
-| `SelfMessageException`              | `400 Bad Request` | `SELF_MESSAGE_FORBIDDEN`      | Caller attempts to send a message to their own `userId`.              |
-| `ChatRoomNotFoundException`         | `404 Not Found`   | `CHAT_ROOM_NOT_FOUND`         | Specified `roomId` does not exist in the database.                    |
-| `ChatRoomAccessForbiddenException`  | `403 Forbidden`   | `CHAT_ROOM_ACCESS_FORBIDDEN`  | Caller is not a participant (`userOneId` or `userTwoId`) in the room. |
-| `MessageDeletionForbiddenException` | `403 Forbidden`   | `MESSAGE_DELETION_FORBIDDEN`  | Caller attempts to delete a message sent by another participant.      |
-| `UserBlockedException`              | `403 Forbidden`   | `USER_BLOCKED`                | An active block exists between the sender and target user.            |
-| `ActiveMatchRequiredException`      | `403 Forbidden`   | `ACTIVE_MATCH_REQUIRED`       | No mutual active match exists, or users have unmatched.               |
-| `MessageNotFoundException`          | `404 Not Found`   | `MESSAGE_NOT_FOUND`           | Reference message not found when updating read status or deleting.   |
+| Exception Class                     | HTTP Status       | Error Code (`type`)          | Trigger Condition                                                     |
+| :---------------------------------- | :---------------- | :--------------------------- | :-------------------------------------------------------------------- |
+| `SelfMessageException`              | `400 Bad Request` | `SELF_MESSAGE_FORBIDDEN`     | Caller attempts to send a message to their own `userId`.              |
+| `ChatRoomNotFoundException`         | `404 Not Found`   | `CHAT_ROOM_NOT_FOUND`        | Specified `roomId` does not exist in the database.                    |
+| `ChatRoomAccessForbiddenException`  | `403 Forbidden`   | `CHAT_ROOM_ACCESS_FORBIDDEN` | Caller is not a participant (`userOneId` or `userTwoId`) in the room. |
+| `MessageDeletionForbiddenException` | `403 Forbidden`   | `MESSAGE_DELETION_FORBIDDEN` | Caller attempts to delete a message sent by another participant.      |
+| `UserBlockedException`              | `403 Forbidden`   | `USER_BLOCKED`               | An active block exists between the sender and target user.            |
+| `ActiveMatchRequiredException`      | `403 Forbidden`   | `ACTIVE_MATCH_REQUIRED`      | No mutual active match exists, or users have unmatched.               |
+| `MessageNotFoundException`          | `404 Not Found`   | `MESSAGE_NOT_FOUND`          | Reference message not found when updating read status or deleting.    |
 
 ---
 

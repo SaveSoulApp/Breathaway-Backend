@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { AuthCredentialType, LikeStatus } from '@prisma/client';
 
 import { serializeError } from '@common/utils/error.utils';
 import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
+import { JwtAuthCacheService } from '@modules/auth/services/jwt-auth-cache.service';
 import { USER_DELETED_EVENT, UserDeletedEvent } from '@modules/profiles/events';
 
 import { AdminUserNotFoundException } from './application/exceptions';
@@ -38,6 +40,7 @@ export class AdminService extends BaseService {
   constructor(
     logger: LoggerService,
     private readonly prisma: PrismaService,
+    private readonly jwtAuthCacheService: JwtAuthCacheService,
   ) {
     super(logger);
   }
@@ -47,6 +50,10 @@ export class AdminService extends BaseService {
 
     const existingUser = await this.prisma.user.findUnique({
       where: { id: targetUserId },
+      include: {
+        identities: true,
+        authCredentials: true,
+      },
     });
 
     if (!existingUser || existingUser.deletedAt) {
@@ -59,31 +66,127 @@ export class AdminService extends BaseService {
 
     const now = new Date();
 
+    const phoneCred = existingUser.authCredentials?.find(
+      (c) => c.type === AuthCredentialType.PHONE && c.deletedAt === null,
+    );
+    const primaryPhoneHash = phoneCred?.valueHash ?? null;
+
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Soft delete the user
+        // 1. Soft delete the user
         await tx.user.update({
           where: { id: targetUserId },
           data: { deletedAt: now },
         });
 
-        // Soft delete identities
-        await tx.identity.updateMany({
-          where: { userId: targetUserId, deletedAt: null },
-          data: { deletedAt: now },
-        });
+        // 2. Soft delete and detach identities (revert to reclaimable ghost state)
+        const userIdentityIds = existingUser.identities?.map((i) => i.id) ?? [];
+        if (userIdentityIds.length > 0) {
+          await tx.identity.updateMany({
+            where: { id: { in: userIdentityIds } },
+            data: {
+              userId: null,
+              isVerified: false,
+              deletedAt: now,
+            },
+          });
+        }
 
-        // Soft delete auth credentials
+        // 3. Soft delete auth credentials
         await tx.authCredential.updateMany({
           where: { userId: targetUserId, deletedAt: null },
           data: { deletedAt: now },
         });
 
-        // Deactivate all devices
+        // 4. Revoke all active user sessions
+        await tx.userSession.updateMany({
+          where: { userId: targetUserId, revokedAt: null },
+          data: { revokedAt: now },
+        });
+
+        // 5. Deactivate all devices
         await tx.device.updateMany({
           where: { userId: targetUserId, isActive: true },
           data: { isActive: false },
         });
+
+        // 6. Dissolve active matches and void counterpart likes
+        const matches = await tx.match.findMany({
+          where: {
+            OR: [{ userOneId: targetUserId }, { userTwoId: targetUserId }],
+          },
+          select: {
+            id: true,
+            likeOneId: true,
+            likeTwoId: true,
+            userOneId: true,
+            userTwoId: true,
+          },
+        });
+
+        if (matches.length > 0) {
+          const counterpartLikeIds = matches.map((m) =>
+            m.userOneId === targetUserId ? m.likeTwoId : m.likeOneId,
+          );
+
+          await tx.like.updateMany({
+            where: { id: { in: counterpartLikeIds } },
+            data: { status: LikeStatus.VOIDED },
+          });
+
+          await tx.match.deleteMany({
+            where: {
+              id: { in: matches.map((m) => m.id) },
+            },
+          });
+        }
+
+        // 7. Void all outbound likes sent by this user
+        await tx.like.updateMany({
+          where: { senderUserId: targetUserId },
+          data: {
+            status: LikeStatus.DELETED,
+            deletedAt: now,
+          },
+        });
+
+        // 8. Void all inbound pending likes targeting this user's identities
+        if (userIdentityIds.length > 0) {
+          await tx.like.updateMany({
+            where: {
+              targetIdentityId: { in: userIdentityIds },
+              status: LikeStatus.PENDING,
+            },
+            data: {
+              status: LikeStatus.VOIDED,
+            },
+          });
+        }
+
+        // 9. Update transactions: stamp userPhoneHash if present
+        if (primaryPhoneHash) {
+          await tx.transaction.updateMany({
+            where: { userId: targetUserId, userPhoneHash: null },
+            data: { userPhoneHash: primaryPhoneHash },
+          });
+        }
+
+        // 10. Update blocks: stamp blockedPhoneHash and detach blockedUserId.
+        // If the deleted user lacked a phone credential, permanently remove block records
+        // to avoid unidentifiable orphan blocks (where both blockedUserId and blockedPhoneHash are null).
+        if (primaryPhoneHash) {
+          await tx.block.updateMany({
+            where: { blockedUserId: targetUserId },
+            data: {
+              blockedPhoneHash: primaryPhoneHash,
+              blockedUserId: null,
+            },
+          });
+        } else {
+          await tx.block.deleteMany({
+            where: { blockedUserId: targetUserId },
+          });
+        }
       });
     } catch (error) {
       this.logger.error('Admin delete account transaction failed', {
@@ -92,6 +195,17 @@ export class AdminService extends BaseService {
         err: serializeError(error),
       });
       throw error;
+    }
+
+    // Revoke user in Redis active auth cache synchronously with resilient error handling
+    try {
+      await this.jwtAuthCacheService.revokeUser(targetUserId);
+    } catch (cacheErr) {
+      this.logger.warn('Failed to revoke active user JWT cache in Redis', {
+        ...ctx,
+        step: 'revoke_jwt_cache',
+        err: serializeError(cacheErr),
+      });
     }
 
     this.logger.event(LOG_EVENT.ADMIN_ACCOUNT_DELETED, {
@@ -134,33 +248,31 @@ export class AdminService extends BaseService {
       step: 'initiate_truncate',
     });
 
-    const truncateSql = `
-      TRUNCATE TABLE
-        "AuthCredential",
-        "Block",
-        "ChatRoom",
-        "ConsentLedger",
-        "CreditLedger",
-        "Device",
-        "DsarExport",
-        "Identity",
-        "Like",
-        "Match",
-        "Message",
-        "Notification",
-        "NotificationPreference",
-        "PaymentOrder",
-        "SubscriptionEvent",
-        "Transaction",
-        "User",
-        "UserProfile",
-        "UserSession",
-        "UserSubscription"
-      RESTART IDENTITY CASCADE;
-    `;
-
     try {
-      await this.prisma.$executeRawUnsafe(truncateSql);
+      await this.prisma.$executeRaw`
+        TRUNCATE TABLE
+          "AuthCredential",
+          "Block",
+          "ChatRoom",
+          "ConsentLedger",
+          "CreditLedger",
+          "Device",
+          "DsarExport",
+          "Identity",
+          "Like",
+          "Match",
+          "Message",
+          "Notification",
+          "NotificationPreference",
+          "PaymentOrder",
+          "SubscriptionEvent",
+          "Transaction",
+          "User",
+          "UserProfile",
+          "UserSession",
+          "UserSubscription"
+        RESTART IDENTITY CASCADE;
+      `;
     } catch (error) {
       this.logger.error('Admin database truncate failed', {
         ...ctx,

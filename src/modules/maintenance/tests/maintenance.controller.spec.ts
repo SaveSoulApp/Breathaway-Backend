@@ -1,5 +1,7 @@
+import { Reflector } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 import { ClsService } from 'nestjs-cls';
 
 import { GcpOidcAuthGuard } from '@common/guards';
@@ -172,6 +174,24 @@ describe('MaintenanceController', () => {
 
       // Assert
       expect(service.purgeExpiredUserSessions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Rate Limiting Bypass Verification', () => {
+    it('should bypass all throttler tiers on MaintenanceController', () => {
+      const reflector = new Reflector();
+      expect(
+        reflector.get(THROTTLER_SKIP + 'default', MaintenanceController),
+      ).toBe(true);
+      expect(
+        reflector.get(THROTTLER_SKIP + 'short', MaintenanceController),
+      ).toBe(true);
+      expect(
+        reflector.get(THROTTLER_SKIP + 'medium', MaintenanceController),
+      ).toBe(true);
+      expect(
+        reflector.get(THROTTLER_SKIP + 'long', MaintenanceController),
+      ).toBe(true);
     });
   });
 });

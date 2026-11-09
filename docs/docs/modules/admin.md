@@ -32,6 +32,7 @@ sequenceDiagram
     participant App as NestJS Backend (Cloud Run)
     participant Guard as AdminOidcAuthGuard
     participant GoogleJWKS as Google OAuth JWKS
+    participant Redis as Memorystore (Redis)
     participant GCPIAM as GCP Cloud Resource Manager API
     participant Logger as Cloud Logging / BigQuery
 
@@ -45,12 +46,14 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Cache Valid (<5m TTL)
-        Guard->>Guard: Authorize from Cache
-    else Cache Expired / Miss
-        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
+    alt Redis Cache Hit
+        Guard->>Redis: GET admin:iam:authorized_emails:{projectId}
+        Redis-->>Guard: Return authorized emails JSON
+    else Redis Cache Miss / Degradation
+        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy (Singleflight)
         GCPIAM-->>Guard: Return project IAM bindings (roles/owner, roles/editor)
-        Guard->>Guard: Populate in-memory cache (5m TTL)
+        Guard->>Redis: SETEX admin:iam:authorized_emails:{projectId} (300 ± 30s Jittered TTL)
+        Guard->>Guard: Update in-memory fallback cache
     end
 
     alt Caller Not in Project IAM Policy
@@ -70,8 +73,11 @@ sequenceDiagram
    - Validates the token's cryptographic signature against Google's public JWKS certificates (`https://www.googleapis.com/oauth2/v3/certs`).
    - Ensures `iss` is `accounts.google.com` and `email_verified` is `true`.
    - Accepts tokens targeted to either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
-2. **Tier 2 (Authorization via GCP IAM)**:
-   - Checks in-memory cache (5-minute TTL) to avoid hitting external Google APIs on every request.
+2. **Tier 2 (Authorization via GCP IAM & Distributed Caching)**:
+   - **Distributed Redis Cache**: Queries `admin:iam:authorized_emails:{projectId}` in Redis. If found, caller email is checked directly without hitting GCP APIs.
+   - **Jittered Expiry (Stampede Prevention)**: When populating Redis, writes with a randomized jittered TTL ($300 \pm 30$ seconds, between 270s and 330s) to prevent concurrent Cloud Run instances from simultaneously expiring and stampeding the GCP Cloud Resource Manager IAM API quota.
+   - **Singleflight Promise Deduplication**: If multiple concurrent requests hit the same instance on a cache miss, only one request fetches the IAM policy while all others await the same promise.
+   - **Degraded In-Memory Fallback**: If Redis is unconfigured or experiences a transient outage, the guard falls back seamlessly to process-local in-memory caching.
    - On cache miss, queries the GCP Cloud Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`).
    - Verifies the user email has `roles/owner`, `roles/editor`, or roles defined in `GCP_ADMIN_IAM_ROLES`.
 
@@ -151,6 +157,76 @@ export TOKEN=$(gcloud auth print-identity-token)
    ```
 3. **Localhost Development**:
    Run `gcloud auth application-default login` on your workstation so your local backend process inherits credentials to query Cloud Resource Manager.
+
+---
+
+## 🗑️ Admin Account Deletion & Session Teardown Lifecycle {#admin-account-deletion}
+
+When an administrator deletes an account (e.g. for trust & safety violations, fraud, offensive content, or customer support escalations), the platform invokes:
+
+- **Endpoint**: `DELETE /api/v1/admin/users/:userId`
+- **HTTP Status**: `204 No Content`
+- **Security Guard**: `AdminOidcAuthGuard` (Requires Google OIDC identity token with `roles/owner` or `roles/editor` in GCP project IAM)
+- **Request Body**: `DeleteAccountRequestDto` (`{ reason: string }`)
+
+### User-Initiated Deletion vs. Admin-Initiated Deletion
+
+| Dimension | User-Initiated (`DELETE /api/v1/auth/me`) | Admin-Initiated (`DELETE /api/v1/admin/users/:userId`) |
+| :--- | :--- | :--- |
+| **Legal Basis** | GDPR Article 17 ("Right to be Forgotten") | Platform Safety, Terms of Service Enforcement, Fraud Prevention |
+| **User Record** | Hard-deleted from PostgreSQL (`tx.user.delete`) | Soft-deleted (`deletedAt: now`) for audit logs & analytics |
+| **Audit Requirement** | Minimal (PII erased) | Immutable audit log with acting administrator email (`adminEmail`) |
+| **Session Revocation** | Synchronous Redis + PostgreSQL session wipe | Synchronous Redis + PostgreSQL session wipe |
+| **Social State** | Matches dissolved, likes voided | Matches dissolved, likes voided |
+
+### Atomic 10-Step Operational Teardown
+
+To eliminate auth bypass windows and phantom matches while preserving administrative metrics, `AdminService.deleteAccount` executes an atomic 10-step transaction followed by synchronous Redis session revocation:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Administrator
+    participant Controller as AdminController
+    participant Service as AdminService
+    participant Prisma as PostgreSQL ($transaction)
+    participant Redis as Redis (JwtAuthCacheService)
+    participant Events as EventEmitter2 (USER_DELETED_EVENT)
+    participant Supabase as Supabase (ChatsService)
+
+    Admin->>Controller: DELETE /api/v1/admin/users/:userId { reason }
+    Controller->>Service: deleteAccount(userId, reason)
+    Service->>Prisma: 1. Fetch user, identities, authCredentials
+    
+    rect rgb(240, 248, 255)
+    note right of Service: Atomic PostgreSQL Transaction
+    Service->>Prisma: 2. Soft-delete User (deletedAt = now)
+    Service->>Prisma: 3. Detach Identities to ghost state (userId = null, isVerified = false, deletedAt = now)
+    Service->>Prisma: 4. Soft-delete AuthCredentials (deletedAt = now)
+    Service->>Prisma: 5. Revoke UserSessions (revokedAt = now)
+    Service->>Prisma: 6. Deactivate Devices (isActive = false)
+    Service->>Prisma: 7. Dissolve Matches & Void Counterpart Likes (status = VOIDED)
+    Service->>Prisma: 8. Void Outbound Likes (status = DELETED, deletedAt = now)
+    Service->>Prisma: 9. Void Inbound Pending Likes (status = VOIDED)
+    Service->>Prisma: 10. Detach & Hash Blocks and Transactions
+    end
+
+    Service->>Redis: 11. Synchronous revokeUser(userId) — clears active cache & blacklists tokens
+    Service->>Events: 12. Emit USER_DELETED_EVENT
+    Events->>Supabase: 13. Purge ChatRoom and Message records
+    Service->>Service: 14. Emit AuditActionType.ADMIN_ACCOUNT_DELETED
+    Service-->>Controller: void
+    Controller-->>Admin: 204 No Content
+```
+
+### Key Safety Guarantees
+
+1. **Zero Auth Window**: Synchronously invalidates Redis active token cache via `jwtAuthCacheService.revokeUser(targetUserId)`. In-flight requests presenting active access tokens fail immediately at `jwt.strategy.ts` without waiting for token expiry.
+2. **Refresh Token Termination**: Marks all PostgreSQL `UserSession` records as `revokedAt: now`, preventing token rotation and re-issuance.
+3. **No Phantom Matches**: Existing `Match` rows are deleted and counterpart likes updated to `VOIDED`. Matched counterpart users no longer see an unresponsive or crashing profile.
+4. **Credit Protection for Senders**: Pending inbound likes targeting the deleted user's identities are immediately marked `VOIDED`, releasing held resources.
+5. **Ghost Identity Recycling**: Sets `userId = null` and `isVerified = false` on identities, allowing phone numbers to be reclaimed cleanly by legitimate new users in the future without unique constraint collisions.
+6. **Block Anti-Evasion**: Stamps `blockedPhoneHash = primaryPhoneHash` on blocks so if the abusive phone number ever returns, previous user blocks against them are preserved.
 
 ---
 

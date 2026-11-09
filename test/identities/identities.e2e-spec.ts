@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { IdentityType } from '@prisma/client';
 
+import { CryptoUtils, hashString } from '@core/crypto/crypto.utils';
+import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { RedisService } from '@infrastructure/redis';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
@@ -16,6 +19,8 @@ describe('IdentitiesController (e2e)', () => {
   let prisma: PrismaService;
   let jwtService: JwtService;
   let configService: ConfigService;
+  let redisService: RedisService;
+  let cryptoService: IdentityCryptoService;
 
   const allCreatedUserIds: string[] = [];
 
@@ -25,6 +30,8 @@ describe('IdentitiesController (e2e)', () => {
     prisma = context.prisma;
     jwtService = app.get(JwtService);
     configService = app.get(ConfigService);
+    redisService = app.get(RedisService);
+    cryptoService = app.get(IdentityCryptoService);
   });
 
   afterAll(async () => {
@@ -269,6 +276,128 @@ describe('IdentitiesController (e2e)', () => {
     it('GET /api/v1/identities - rejects unauthenticated request (401)', async () => {
       const res = await authedRequest(app).get('/api/v1/identities');
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Email OTP Verification Endpoints', () => {
+    let emailUserId: string;
+    let emailUserJwt: string;
+
+    beforeAll(async () => {
+      const user = await prisma.user.create({ data: {} });
+      emailUserId = user.id;
+      allCreatedUserIds.push(user.id);
+
+      emailUserJwt = jwtService.sign({
+        sub: user.id,
+        iss: configService.get<string>('JWT_ISSUER'),
+        aud: configService.get<string>('JWT_AUDIENCE'),
+      });
+    });
+
+    const uniqueTimestamp = Date.now();
+    const otpTestEmail = `verify-${uniqueTimestamp}@example.com`;
+
+    it('POST /api/v1/identities/email/send-otp - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/send-otp')
+        .send({ email: otpTestEmail });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/v1/identities/email/send-otp - rejects invalid email payload (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/send-otp')
+        .set('authorization', `Bearer ${emailUserJwt}`)
+        .send({ email: 'not-an-email' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/v1/identities/email/send-otp - successfully sends OTP for valid email', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/send-otp')
+        .set('authorization', `Bearer ${emailUserJwt}`)
+        .send({ email: otpTestEmail });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        message: expect.any(String),
+        expiresIn: 600,
+        resendAfter: 60,
+      });
+    });
+
+    it('POST /api/v1/identities/email/send-otp - rejects duplicate send during cooldown (429)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/send-otp')
+        .set('authorization', `Bearer ${emailUserJwt}`)
+        .send({ email: otpTestEmail });
+
+      expect(res.status).toBe(429);
+    });
+
+    it('POST /api/v1/identities/email/verify-otp - rejects unauthenticated request (401)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/verify-otp')
+        .send({ email: otpTestEmail, otp: '123456' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/v1/identities/email/verify-otp - rejects invalid OTP (400)', async () => {
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/verify-otp')
+        .set('authorization', `Bearer ${emailUserJwt}`)
+        .send({ email: otpTestEmail, otp: '000000' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/v1/identities/email/verify-otp - successfully verifies OTP and links identity', async () => {
+      const publicValueData = await cryptoService.processPublicValue(
+        otpTestEmail.toLowerCase().trim(),
+        IdentityType.EMAIL,
+      );
+      const emailHex = CryptoUtils.toHex(publicValueData.publicValueHash);
+      const redisKey = `email_verification_otp:${emailUserId}:${emailHex}`;
+      const validCode = '849201';
+
+      await redisService.set(
+        redisKey,
+        JSON.stringify({
+          otpHash: hashString(validCode),
+          userId: emailUserId,
+          email: otpTestEmail.toLowerCase().trim(),
+          attempts: 0,
+          maxAttempts: 5,
+        }),
+        'EX',
+        600,
+      );
+
+      const res = await authedRequest(app)
+        .post('/api/v1/identities/email/verify-otp')
+        .set('authorization', `Bearer ${emailUserJwt}`)
+        .send({ email: otpTestEmail, otp: validCode });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        type: IdentityType.EMAIL,
+        isVerified: true,
+        publicValueMasked: expect.any(String),
+      });
+
+      const dbIdentity = await prisma.identity.findFirst({
+        where: {
+          userId: emailUserId,
+          type: IdentityType.EMAIL,
+        },
+      });
+
+      expect(dbIdentity).toBeDefined();
+      expect(dbIdentity?.isVerified).toBe(true);
     });
   });
 });

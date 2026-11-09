@@ -67,19 +67,18 @@ describe('WebhooksController (e2e)', () => {
       expect(res.text).toBe(challenge);
     });
 
-    it('should fail to verify the webhook with incorrect token', async () => {
+    it('should fail to verify the webhook with incorrect token with 403 Forbidden', async () => {
       const challenge = '1234567890';
 
       const res = await request(app.getHttpServer()).get(
         `/api/v1/webhooks/meta?hub.mode=subscribe&hub.verify_token=wrong_token&hub.challenge=${challenge}`,
       );
 
-      // It returns HTTP 200 with text 'Verification failed' according to controller implementation
-      expect(res.status).toBe(200);
-      expect(res.text).toBe('Verification failed');
+      expect(res.status).toBe(403);
+      expect(res.body.type).toBe('FORBIDDEN');
     });
 
-    it('should fail to verify the webhook with incorrect mode', async () => {
+    it('should fail to verify the webhook with incorrect mode with 403 Forbidden', async () => {
       const verifyToken = configService.get<string>('META_VERIFY_TOKEN');
       const challenge = '1234567890';
 
@@ -87,8 +86,8 @@ describe('WebhooksController (e2e)', () => {
         `/api/v1/webhooks/meta?hub.mode=wrong_mode&hub.verify_token=${verifyToken}&hub.challenge=${challenge}`,
       );
 
-      expect(res.status).toBe(200);
-      expect(res.text).toBe('Verification failed');
+      expect(res.status).toBe(403);
+      expect(res.body.type).toBe('FORBIDDEN');
     });
   });
 
@@ -149,7 +148,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
 
@@ -181,7 +180,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
 
@@ -205,7 +204,7 @@ describe('WebhooksController (e2e)', () => {
         .set('x-hub-signature-256', signature)
         .send(payload);
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.text).toBe('EVENT_RECEIVED');
     });
   });

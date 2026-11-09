@@ -5,6 +5,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { serializeError } from '@common/utils/error.utils';
 import { ContextualLogger, LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 
 export interface AdminUserIdentity {
   email: string;
@@ -36,18 +38,27 @@ export class AdminOidcAuthGuard implements CanActivate {
   });
   private readonly logger: ContextualLogger;
 
-  /** In-memory cache for authorized GCP IAM admin emails to prevent repeated API calls. */
+  /** Base TTL for authorized GCP IAM admin emails in Redis (5 minutes). */
+  private readonly BASE_CACHE_TTL_SECONDS = 300;
+
+  /** Jitter range (±30 seconds) to prevent synchronized cross-instance stampedes. */
+  private readonly CACHE_JITTER_SECONDS = 30;
+
+  /** In-memory fallback TTL in milliseconds when Redis is unconfigured or unavailable (5 minutes). */
+  private readonly FALLBACK_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  /** In-memory cache for authorized GCP IAM admin emails used as degraded fallback. */
   private cachedIamAdminEmails: Set<string> | null = null;
   private cacheExpiresAt = 0;
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-  /** Active in-flight promise for GCP IAM policy fetch to prevent concurrent stampedes. */
+  /** Active in-flight promise for GCP IAM policy fetch to prevent concurrent stampedes per instance. */
   private inFlightIamFetch: Promise<Set<string>> | null = null;
 
   constructor(
     loggerService: LoggerService,
     private readonly configService: ConfigService,
     private readonly clsService: ClsService,
+    @Optional() private readonly redisService?: RedisService,
   ) {
     this.logger = loggerService.forContext(AdminOidcAuthGuard.name);
   }
@@ -178,41 +189,97 @@ export class AdminOidcAuthGuard implements CanActivate {
   }
 
   /**
+   * Resolves the GCP project ID from configuration or Google application credentials.
+   */
+  private async getProjectId(): Promise<string> {
+    const projectId =
+      this.configService.get<string>('GCP_PROJECT_ID') ||
+      (await this.googleAuth.getProjectId());
+
+    if (!projectId) {
+      throw new Error('GCP_PROJECT_ID is not configured');
+    }
+
+    return projectId;
+  }
+
+  /**
+   * Constructs the distributed Redis cache key for authorized GCP IAM admin emails.
+   */
+  private buildCacheKey(projectId: string): string {
+    return `admin:iam:authorized_emails:${projectId}`;
+  }
+
+  /**
+   * Computes a jittered TTL (300 ± 30 seconds) to prevent synchronized
+   * cache expiration stampedes across horizontally autoscaled Cloud Run instances.
+   */
+  private calculateJitteredTtl(): number {
+    const min = this.BASE_CACHE_TTL_SECONDS - this.CACHE_JITTER_SECONDS;
+    const max = this.BASE_CACHE_TTL_SECONDS + this.CACHE_JITTER_SECONDS;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /**
    * Checks whether the given email has administrative authorization via GCP IAM.
+   *
+   * Utilizes a multi-tier caching strategy:
+   * 1. Distributed Redis cache (with jittered TTL to prevent cross-instance stampedes).
+   * 2. Process-local in-memory cache as a degraded fallback when Redis is unconfigured or unavailable.
+   * 3. Singleflight promise deduplication for concurrent in-flight requests on the same instance.
    */
   private async isAuthorizedAdmin(email: string): Promise<boolean> {
-    // 1. Check cached GCP IAM policy
-    if (this.cachedIamAdminEmails && Date.now() < this.cacheExpiresAt) {
-      return this.cachedIamAdminEmails.has(email);
-    }
+    try {
+      const projectId = await this.getProjectId();
+      const cacheKey = this.buildCacheKey(projectId);
 
-    // 2. Query GCP Cloud Resource Manager IAM policy (deduplicating concurrent in-flight requests)
-    if (!this.inFlightIamFetch) {
-      this.inFlightIamFetch = this.fetchGcpIamAdminEmails()
-        .then((emails) => {
-          this.cachedIamAdminEmails = emails;
-          this.cacheExpiresAt = Date.now() + this.CACHE_TTL_MS;
-          return emails;
-        })
-        .finally(() => {
+      // 1. Check shared Redis cache (authoritative distributed store)
+      if (this.redisService?.isConfigured) {
+        try {
+          const cached = await this.redisService.get(cacheKey);
+          if (cached) {
+            const parsed: unknown = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              const adminEmails = new Set<string>(
+                parsed.filter(
+                  (item): item is string => typeof item === 'string',
+                ),
+              );
+              return this.evaluateAuthorization(email, adminEmails);
+            }
+          }
+        } catch (error: unknown) {
+          this.logger.warn(
+            'Failed to read GCP IAM admin emails from Redis; falling back to in-memory cache',
+            {
+              step: 'read_redis_iam_cache',
+              err: serializeError(error),
+            },
+          );
+          // Fall back to in-memory cache if available during Redis degradation
+          if (this.cachedIamAdminEmails && Date.now() < this.cacheExpiresAt) {
+            return this.evaluateAuthorization(email, this.cachedIamAdminEmails);
+          }
+        }
+      } else {
+        // 2. Check in-memory cache fallback when Redis is unconfigured
+        if (this.cachedIamAdminEmails && Date.now() < this.cacheExpiresAt) {
+          return this.evaluateAuthorization(email, this.cachedIamAdminEmails);
+        }
+      }
+
+      // 3. Fetch from GCP IAM policy (deduplicating concurrent in-flight requests on this instance)
+      if (!this.inFlightIamFetch) {
+        this.inFlightIamFetch = this.fetchAndCacheIamAdminEmails(
+          projectId,
+          cacheKey,
+        ).finally(() => {
           this.inFlightIamFetch = null;
         });
-    }
-
-    try {
-      const iamAdminEmails = await this.inFlightIamFetch;
-      const isAuthorized = iamAdminEmails.has(email);
-      if (!isAuthorized) {
-        this.logger.warn(
-          'Caller email was not found among GCP IAM project admin members',
-          {
-            step: 'authorize_iam',
-            adminEmail: email,
-            discoveredAdminCount: iamAdminEmails.size,
-          },
-        );
       }
-      return isAuthorized;
+
+      const adminEmails = await this.inFlightIamFetch;
+      return this.evaluateAuthorization(email, adminEmails);
     } catch (error: unknown) {
       this.logger.error('Failed to query GCP IAM policy for project', {
         step: 'fetch_iam_policy',
@@ -224,17 +291,73 @@ export class AdminOidcAuthGuard implements CanActivate {
   }
 
   /**
-   * Queries the GCP Cloud Resource Manager API to discover project administrators.
+   * Evaluates if caller email is present in authorized emails and logs security telemetry.
    */
-  private async fetchGcpIamAdminEmails(): Promise<Set<string>> {
-    const projectId =
-      this.configService.get<string>('GCP_PROJECT_ID') ||
-      (await this.googleAuth.getProjectId());
+  private evaluateAuthorization(
+    email: string,
+    adminEmails: Set<string>,
+  ): boolean {
+    const isAuthorized = adminEmails.has(email);
+    if (!isAuthorized) {
+      this.logger.warn(
+        'Caller email was not found among GCP IAM project admin members',
+        {
+          step: 'authorize_iam',
+          adminEmail: email,
+          discoveredAdminCount: adminEmails.size,
+        },
+      );
+    }
+    return isAuthorized;
+  }
 
-    if (!projectId) {
-      throw new Error('GCP_PROJECT_ID is not configured');
+  /**
+   * Fetches the GCP IAM policy, populates local memory and distributed Redis with jittered TTL.
+   */
+  private async fetchAndCacheIamAdminEmails(
+    projectId: string,
+    cacheKey: string,
+  ): Promise<Set<string>> {
+    const adminEmails = await this.fetchGcpIamAdminEmails(projectId);
+
+    // Update in-memory fallback
+    this.cachedIamAdminEmails = adminEmails;
+    this.cacheExpiresAt = Date.now() + this.FALLBACK_CACHE_TTL_MS;
+
+    // Populate Redis with jittered TTL (300 ± 30s)
+    if (this.redisService?.isConfigured) {
+      const ttlSeconds = this.calculateJitteredTtl();
+      try {
+        await this.redisService.set(
+          cacheKey,
+          JSON.stringify(Array.from(adminEmails)),
+          { ttlSeconds },
+        );
+        this.logger.debug('Populated GCP IAM admin emails in Redis cache', {
+          step: 'cache_iam_redis',
+          adminCount: adminEmails.size,
+          ttlSeconds,
+        });
+      } catch (error: unknown) {
+        this.logger.warn(
+          'Failed to write GCP IAM admin emails to Redis cache',
+          {
+            step: 'write_redis_iam_cache',
+            err: serializeError(error),
+          },
+        );
+      }
     }
 
+    return adminEmails;
+  }
+
+  /**
+   * Queries the GCP Cloud Resource Manager API to discover project administrators.
+   */
+  private async fetchGcpIamAdminEmails(
+    projectId: string,
+  ): Promise<Set<string>> {
     const client = await this.googleAuth.getClient();
     const url = `https://cloudresourcemanager.googleapis.com/v1/projects/${projectId}:getIamPolicy`;
 
@@ -284,11 +407,24 @@ export class AdminOidcAuthGuard implements CanActivate {
   }
 
   /**
-   * Clears the in-memory IAM cache and pending in-flight promise. Useful for unit testing.
+   * Clears the in-memory and Redis IAM cache and pending in-flight promise.
+   * Useful for testing and immediate invalidation.
    */
-  clearIamCache(): void {
+  async clearIamCache(): Promise<void> {
     this.cachedIamAdminEmails = null;
     this.cacheExpiresAt = 0;
     this.inFlightIamFetch = null;
+
+    if (this.redisService?.isConfigured) {
+      try {
+        const projectId = await this.getProjectId();
+        await this.redisService.del(this.buildCacheKey(projectId));
+      } catch (error: unknown) {
+        this.logger.warn('Failed to clear IAM cache in Redis', {
+          step: 'clear_iam_redis',
+          err: serializeError(error),
+        });
+      }
+    }
   }
 }

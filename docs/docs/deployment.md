@@ -41,8 +41,8 @@ To achieve **complete segregation of concerns and least-privilege security**, a 
 flowchart TD
     BUILD["Cloud Build (Single Docker Artifact)<br/>backend-service:<git-commit>"]
 
-    BUILD -->|"Deploy (Public API)"| PUB["backend-service<br/>SA: backend-service<br/>Ingress: all (Unauthenticated)<br/>CPU: 2 | RAM: 2Gi | Conc: 160"]
-    BUILD -->|"Deploy (Internal Worker)"| MAINT["maintenance-service<br/>SA: maintenance-runner<br/>Ingress: all (No-Unauth / IAM)<br/>CPU: 2 | RAM: 2Gi | Conc: 80"]
+    BUILD -->|"Deploy (Public API)"| PUB["backend-service<br/>SA: backend-service<br/>Ingress: all (Unauthenticated)<br/>CPU: 2 | RAM: 2Gi | Conc: 40<br/>Scale: 0-20 | CPU Boost: On"]
+    BUILD -->|"Deploy (Internal Worker)"| MAINT["maintenance-service<br/>SA: maintenance-runner<br/>Ingress: all (No-Unauth / IAM)<br/>CPU: 2 | RAM: 2Gi | Conc: 20<br/>Scale: 0-3 | CPU Boost: On"]
 
     CLIENTS["Mobile & Web Clients"] --> PUB
     SCHEDULER["Cloud Scheduler (scheduler-invoker)"] --> MAINT
@@ -54,8 +54,9 @@ flowchart TD
    - **`backend-service`**: Driven by `backend-service@<project>.iam.gserviceaccount.com`. Retains strictly read-only access to Secret Manager (`roles/secretmanager.secretAccessor`). Even if the public API suffers an exploit, the attacker cannot add or mutate secrets.
    - **`maintenance-service`**: Driven by `maintenance-runner@<project>.iam.gserviceaccount.com`. Possesses elevated permissions to rotate secrets (`roles/secretmanager.secretVersionAdder` scoped to specific secrets like `access-token-instagram`).
 2. **Resource & Scaling Segregation**:
-   - **`backend-service`**: Scaled for high concurrency web traffic (`CONCURRENCY=160`, `MAX_INSTANCES=20`).
-   - **`maintenance-service`**: Configured with dedicated memory and lower concurrency (`CONCURRENCY=80`, `MAX_INSTANCES=5`), ensuring that intensive batch sweeps and memory-heavy cron loops never degrade user-facing API performance or trigger out-of-memory container crashes on public traffic.
+   - **`backend-service`**: Scaled for responsive web traffic (`BACKEND_CONCURRENCY=40`, `BACKEND_MAX_INSTANCES=20`, `BACKEND_MIN_INSTANCES=0`).
+   - **`maintenance-service`**: Configured with dedicated memory and isolated concurrency (`MAINTENANCE_CONCURRENCY=20`, `MAINTENANCE_MAX_INSTANCES=3`, `MAINTENANCE_MIN_INSTANCES=0`), ensuring that intensive batch sweeps and memory-heavy cron loops never degrade user-facing API performance or trigger out-of-memory container crashes on public traffic.
+   - See the dedicated [Cloud Run & Database Performance Optimization Record](architecture/cloud-run-optimization.md) for full benchmark results and connection math.
 3. **Perimeter Authentication**:
    - `backend-service` allows unauthenticated traffic (`--allow-unauthenticated`) for public mobile clients.
    - `maintenance-service` disallows unauthenticated traffic (`--no-allow-unauthenticated`). Only caller identities with `roles/run.invoker` (Cloud Scheduler's `scheduler-invoker` service account) can reach the container.

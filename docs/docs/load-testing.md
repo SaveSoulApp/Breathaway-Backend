@@ -246,3 +246,22 @@ When a benchmark completes, k6 displays summary metrics and threshold evaluation
 1. **`http_req_failed` (< 5%)**: Tracks unhandled 5xx errors or network timeouts. Expected responses (200, 201, 202, 404, 409) are registered via `http.setResponseCallback()` so business logic branches (e.g. 404 for un-subscribed users) are evaluated accurately.
 2. **`http_req_duration (p95)` (< 1500ms)**: Assesses 95th percentile response latency including database queries, KMS envelope unwrapping, and Redis checks.
 3. **`http_req_duration (p99)` (< 2500ms)**: Guards against extreme tail latencies or Cloud SQL pool contention during scaling events.
+
+---
+
+## 🏆 Production Optimization Case Study (100 Concurrent Users)
+
+Following performance tuning of Cloud Run concurrency (`BACKEND_CONCURRENCY=40`), database connection pooling (`DB_POOL_MAX=8`), and startup CPU boost (`--cpu-boost`), the benchmark pipeline was executed with **100 concurrent virtual users** (`USERS=100 TARGET_ENV=dev pnpm run test:load:pipeline`).
+
+### Before vs. After Benchmark Results
+
+| Metric | Before Tuning | After Tuning | Delta |
+| :--- | :--- | :--- | :--- |
+| **p95 Latency** | `618.23 ms` | **`352.89 ms`** | 🟢 **42.9% faster** |
+| **p99 Latency (Tail)** | `1,540.00 ms` | **`787.24 ms`** | 🟢 **48.9% faster** |
+| **Median (p50)** | `160.56 ms` | **`125.07 ms`** | 🟢 **22.1% faster** |
+| **Total Requests** | `7,196` requests | **`7,790` requests** | 🟢 **+594 requests** (+8.3%) |
+| **Completed User Flows** | `318` flows | **`345` flows** | 🟢 **+27 flows** (+8.5%) |
+| **Failure Rate** | `0.00%` | **`0.00%`** | 🛡️ **100% Reliability** |
+
+For the complete architectural investigation, connection pool math, Supabase pooler vs direct connection mechanics, and cost trade-off analysis, see the dedicated [Cloud Run & Database Performance Optimization Record](architecture/cloud-run-optimization.md).

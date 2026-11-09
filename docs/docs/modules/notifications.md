@@ -1065,27 +1065,28 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 1. **Zero Direct Coupling**: Domain services (`Auth`, `Likes`, `Matches`, `Credits`, etc.) must **never** import `NotificationsModule` or inject `NotificationsService`.
 2. **Zero Profile Pre-fetching**: Domain services do not query `userProfile` solely to extract `firstName` for notifications. `NotificationEventsListener` resolves profile data as needed.
 3. **Fallback Name Auto-Resolution**: If a notification request omits `payload.name` for a single recipient, `NotificationsService.processSendRequest` automatically fetches `userProfile.firstName` before dispatching to provider networks.
-4. **Asynchronous Execution**: Handlers in `NotificationEventsListener` configure `@OnEvent(EVENT_NAME, { async: true })`, ensuring notification formatting runs completely outside the client's HTTP request lifecycle.
+4. **Asynchronous Execution**: Handlers in `NotificationEventsListener` strictly configure `@OnEvent(EVENT_NAME, { async: true })`. This guarantees that notification formatting, profile resolution, and channel dispatches run asynchronously out-of-band, completely decoupled from the client's HTTP request lifecycle and database transactions.
 5. **Resilient Provider Failure**: In `NotificationsService.processSendRequest()`, downstream provider dispatches run in `Promise.allSettled()`. A failure in Brevo email delivery never prevents FCM push or WhatsApp delivery.
-6. **Detailed Architecture Guide**: See [Decoupled Domain Events Architecture](../architecture/domain-events.md) for full event catalog and scaffolding blueprints.
+6. **Zero Impact on Domain State**: Because event listeners execute asynchronously with isolated error boundaries, provider outages or dispatch failures can never roll back or abort the triggering domain operation (e.g., likes, credits, or auth actions).
+7. **Detailed Architecture Guide**: See [Decoupled Domain Events Architecture](../architecture/domain-events.md) for full event catalog and scaffolding blueprints.
 
 ---
 
 ## ⚙️ Configuration & Environment Variables
 
-| Variable                     | Type   | Description                                                          | Example                                               |
-| :--------------------------- | :----- | :------------------------------------------------------------------- | :---------------------------------------------------- |
-| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager) | `xkeysib-••••••••••••`                                |
-| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo                          | `no-reply@breathaway.app`                             |
-| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                          |
-| `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                             |
-| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://www.liteapp.store` |
-| `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                              |
-| `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication   | `redis://default:••••@10.0.0.5:6379`                  |
-| `APP_URL`                    | String | Base frontend or universal deep-link URL                             | `https://app.breathaway.app`                          |
-| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                                 | `https://app.breathaway.app/icon-192x192.png`         |
-| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                                  | `https://app.breathaway.app/badge-72x72.png`          |
-| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                                |
+| Variable                     | Type   | Description                                                          | Example                                       |
+| :--------------------------- | :----- | :------------------------------------------------------------------- | :-------------------------------------------- |
+| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager) | `xkeysib-••••••••••••`                        |
+| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo                          | `no-reply@breathaway.app`                     |
+| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                  |
+| `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                     |
+| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://www.liteapp.store`                   |
+| `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                      |
+| `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication   | `redis://default:••••@10.0.0.5:6379`          |
+| `APP_URL`                    | String | Base frontend or universal deep-link URL                             | `https://app.breathaway.app`                  |
+| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                                 | `https://app.breathaway.app/icon-192x192.png` |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                                  | `https://app.breathaway.app/badge-72x72.png`  |
+| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                        |
 
 > [!CAUTION]
 > In production environments (Cloud Run), `BREVO_API_KEY` and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/deploy/common.secrets.sh`.

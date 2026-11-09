@@ -1,9 +1,18 @@
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  THROTTLER_LIMIT,
+  THROTTLER_TTL,
+} from '@nestjs/throttler/dist/throttler.constants';
 import { PaymentGateway, PaymentOrderStatus } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
 
+import {
+  PAYMENTS_ORDER_THROTTLE,
+  PAYMENTS_VERIFY_THROTTLE,
+} from '../constants';
 import {
   CreateOrderRequestDto,
   CreateOrderResponseDto,
@@ -17,6 +26,7 @@ import { PaymentsService } from '../payments.service';
 describe('PaymentsController', () => {
   let controller: PaymentsController;
   let service: jest.Mocked<PaymentsService>;
+  let reflector: Reflector;
 
   const userId = 'user_01J8VXYZ';
   const orderId = 'order_01J8VXYZ';
@@ -40,6 +50,7 @@ describe('PaymentsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
+        Reflector,
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: PaymentsService, useValue: mockService },
         { provide: LoggerService, useValue: loggerServiceMock },
@@ -48,6 +59,81 @@ describe('PaymentsController', () => {
 
     controller = module.get<PaymentsController>(PaymentsController);
     service = module.get(PaymentsService);
+    reflector = module.get<Reflector>(Reflector);
+  });
+
+  describe('Throttle Metadata Verification', () => {
+    it('should attach strict throttling metadata to createOrder', () => {
+      const shortLimit = reflector.get(
+        THROTTLER_LIMIT + 'short',
+        controller.createOrder,
+      );
+      const mediumLimit = reflector.get(
+        THROTTLER_LIMIT + 'medium',
+        controller.createOrder,
+      );
+      const longLimit = reflector.get(
+        THROTTLER_LIMIT + 'long',
+        controller.createOrder,
+      );
+
+      expect(shortLimit).toBe(PAYMENTS_ORDER_THROTTLE.short.limit);
+      expect(mediumLimit).toBe(PAYMENTS_ORDER_THROTTLE.medium.limit);
+      expect(longLimit).toBe(PAYMENTS_ORDER_THROTTLE.long.limit);
+
+      const shortTtl = reflector.get(
+        THROTTLER_TTL + 'short',
+        controller.createOrder,
+      );
+      const mediumTtl = reflector.get(
+        THROTTLER_TTL + 'medium',
+        controller.createOrder,
+      );
+      const longTtl = reflector.get(
+        THROTTLER_TTL + 'long',
+        controller.createOrder,
+      );
+
+      expect(shortTtl).toBe(PAYMENTS_ORDER_THROTTLE.short.ttl);
+      expect(mediumTtl).toBe(PAYMENTS_ORDER_THROTTLE.medium.ttl);
+      expect(longTtl).toBe(PAYMENTS_ORDER_THROTTLE.long.ttl);
+    });
+
+    it('should attach strict throttling metadata to verifyPayment', () => {
+      const shortLimit = reflector.get(
+        THROTTLER_LIMIT + 'short',
+        controller.verifyPayment,
+      );
+      const mediumLimit = reflector.get(
+        THROTTLER_LIMIT + 'medium',
+        controller.verifyPayment,
+      );
+      const longLimit = reflector.get(
+        THROTTLER_LIMIT + 'long',
+        controller.verifyPayment,
+      );
+
+      expect(shortLimit).toBe(PAYMENTS_VERIFY_THROTTLE.short.limit);
+      expect(mediumLimit).toBe(PAYMENTS_VERIFY_THROTTLE.medium.limit);
+      expect(longLimit).toBe(PAYMENTS_VERIFY_THROTTLE.long.limit);
+
+      const shortTtl = reflector.get(
+        THROTTLER_TTL + 'short',
+        controller.verifyPayment,
+      );
+      const mediumTtl = reflector.get(
+        THROTTLER_TTL + 'medium',
+        controller.verifyPayment,
+      );
+      const longTtl = reflector.get(
+        THROTTLER_TTL + 'long',
+        controller.verifyPayment,
+      );
+
+      expect(shortTtl).toBe(PAYMENTS_VERIFY_THROTTLE.short.ttl);
+      expect(mediumTtl).toBe(PAYMENTS_VERIFY_THROTTLE.medium.ttl);
+      expect(longTtl).toBe(PAYMENTS_VERIFY_THROTTLE.long.ttl);
+    });
   });
 
   describe('createOrder', () => {

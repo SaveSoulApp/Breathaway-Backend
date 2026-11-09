@@ -34,7 +34,7 @@ import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service
 import { PubSubModule } from '@modules/pubsub/pubsub.module';
 
 class InMemoryRedisClient {
-  private store = new Map<string, { val: string; expiresAt?: number }>();
+  private store = new Map<string, { val: unknown; expiresAt?: number }>();
 
   async set(
     key: string,
@@ -57,7 +57,7 @@ class InMemoryRedisClient {
       this.store.delete(key);
       return null;
     }
-    return item.val;
+    return typeof item.val === 'string' ? item.val : null;
   }
 
   async del(key: string): Promise<number> {
@@ -72,8 +72,156 @@ class InMemoryRedisClient {
     return rem > 0 ? rem : -2;
   }
 
+  async sismember(key: string, member: string): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return 0;
+    if (item.expiresAt && Date.now() > item.expiresAt) {
+      this.store.delete(key);
+      return 0;
+    }
+    if (item.val instanceof Set) {
+      return item.val.has(member) ? 1 : 0;
+    }
+    return 0;
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    let item = this.store.get(key);
+    if (!item || !(item.val instanceof Set)) {
+      item = { val: new Set<string>() };
+      this.store.set(key, item);
+    }
+    let added = 0;
+    for (const m of members) {
+      if ((item.val as Set<string>).has(m)) continue;
+      (item.val as Set<string>).add(m);
+      added++;
+    }
+    return added;
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    const item = this.store.get(key);
+    if (!item || !(item.val instanceof Set)) return 0;
+    let removed = 0;
+    for (const m of members) {
+      if ((item.val as Set<string>).delete(m)) removed++;
+    }
+    return removed;
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    const item = this.store.get(key);
+    if (!item) return 0;
+    item.expiresAt = Date.now() + seconds * 1000;
+    return 1;
+  }
+
+  pipeline(): {
+    sadd: (key: string, ...members: string[]) => unknown;
+    expire: (key: string, seconds: number) => unknown;
+    exec: () => Promise<[Error | null, unknown][]>;
+  } {
+    const commands: (() => Promise<unknown>)[] = [];
+    const chain = {
+      sadd: (key: string, ...members: string[]) => {
+        commands.push(() => this.sadd(key, ...members));
+        return chain;
+      },
+      expire: (key: string, seconds: number) => {
+        commands.push(() => this.expire(key, seconds));
+        return chain;
+      },
+      exec: async () => {
+        const results: [Error | null, unknown][] = [];
+        for (const cmd of commands) {
+          try {
+            const res = await cmd();
+            results.push([null, res]);
+          } catch (err) {
+            results.push([err as Error, null]);
+          }
+        }
+        return results;
+      },
+    };
+    return chain;
+  }
+
   async ping(): Promise<'PONG'> {
     return 'PONG';
+  }
+
+  async eval(
+    script: string,
+    numKeys: number,
+    ...args: (string | number)[]
+  ): Promise<unknown> {
+    const keys = args.slice(0, numKeys).map(String);
+    const argv = args.slice(numKeys);
+
+    if (script.includes("redis.call('INCR', KEYS[1])")) {
+      const key = keys[0];
+      const ttlSeconds = Number(argv[0]);
+      const item = this.store.get(key);
+      let current = 1;
+      if (item && (!item.expiresAt || item.expiresAt > Date.now())) {
+        current = Number(item.val) + 1;
+        item.val = String(current);
+        if (!item.expiresAt && ttlSeconds) {
+          item.expiresAt = Date.now() + ttlSeconds * 1000;
+        }
+      } else {
+        this.store.set(key, {
+          val: String(current),
+          expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
+        });
+      }
+      return current;
+    }
+
+    if (numKeys === 2) {
+      const hitsKey = keys[0];
+      const blockKey = keys[1];
+      const ttl = Number(argv[0]);
+      const limit = Number(argv[1]);
+      const blockDuration = Number(argv[2]);
+
+      const now = Date.now();
+      const blockItem = this.store.get(blockKey);
+      if (blockItem && blockItem.expiresAt && blockItem.expiresAt > now) {
+        return [limit + 1, 0, 1, Math.ceil((blockItem.expiresAt - now) / 1000)];
+      }
+
+      let hits = 1;
+      const hitItem = this.store.get(hitsKey);
+      let timeToExpire = ttl;
+      if (hitItem && hitItem.expiresAt && hitItem.expiresAt > now) {
+        hits = Number(hitItem.val) + 1;
+        hitItem.val = String(hits);
+        timeToExpire = Math.ceil((hitItem.expiresAt - now) / 1000);
+      } else {
+        this.store.set(hitsKey, {
+          val: String(hits),
+          expiresAt: now + ttl * 1000,
+        });
+      }
+
+      let isBlocked = 0;
+      let timeToBlockExpire = 0;
+      if (hits > limit) {
+        isBlocked = 1;
+        timeToBlockExpire = blockDuration;
+        this.store.set(blockKey, {
+          val: '1',
+          expiresAt: now + blockDuration * 1000,
+        });
+      }
+
+      return [hits, timeToExpire, isBlocked, timeToBlockExpire];
+    }
+
+    return 1;
   }
 
   async quit(): Promise<'OK'> {
@@ -122,6 +270,49 @@ export async function createAuthTestApp(
     process.env.CASHFREE_SECRET_KEY || 'cf_test_mock_secret_key';
   process.env.INSTAGRAM_ACCESS_TOKEN =
     process.env.INSTAGRAM_ACCESS_TOKEN || 'test_instagram_token_12345';
+  process.env.META_VERIFY_TOKEN =
+    process.env.META_VERIFY_TOKEN || 'test_meta_verify_token_123';
+  process.env.META_APP_SECRET =
+    process.env.META_APP_SECRET || 'test_meta_app_secret_value_123';
+  process.env.SUPABASE_URL =
+    process.env.SUPABASE_URL || 'https://mock-chats-project.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'mock-chats-service-role-key';
+  process.env.SUPABASE_JWT_KEY_ID =
+    process.env.SUPABASE_JWT_KEY_ID || 'mock-key-id';
+
+  // Normalize API_KEYS and CLIENT_IDS into platform-keyed JSON format if configured as JSON arrays
+  if (process.env.API_KEYS) {
+    try {
+      const parsed = JSON.parse(process.env.API_KEYS);
+      if (Array.isArray(parsed)) {
+        process.env.API_KEYS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-api-key'],
+          android: [parsed[1] ?? 'test-android-api-key'],
+          web: [parsed[2] ?? 'test-web-api-key'],
+          postman: [parsed[3] ?? 'test-postman-api-key'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
+
+  if (process.env.CLIENT_IDS) {
+    try {
+      const parsed = JSON.parse(process.env.CLIENT_IDS);
+      if (Array.isArray(parsed)) {
+        process.env.CLIENT_IDS = JSON.stringify({
+          ios: [parsed[0] ?? 'test-ios-client-id'],
+          android: [parsed[1] ?? 'test-android-client-id'],
+          web: [parsed[2] ?? 'test-web-client-id'],
+          postman: [parsed[3] ?? 'test-postman-client-id'],
+        });
+      }
+    } catch {
+      // Keep existing value if not JSON
+    }
+  }
 
   // Prevent actual GCP PubSub calls
   jest

@@ -1,0 +1,61 @@
+.gcloudignore
+.git
+.gitignore
+
+# Dependencies & Package Managers
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+.npm/
+.cache/
+
+# Build Outputs
+dist/
+**/dist/
+build/
+**/build/
+
+# Documentation (Docusaurus app)
+docs/
+
+# Infrastructure (Terraform)
+terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+
+# Tests & Coverage
+coverage/
+test/
+*.spec.ts
+*.test.ts
+
+# Secrets and environment files
+.env*
+/.env*
+/env.*.yaml
+/env.*.yml
+/env.*.json
+
+# Whitelist critical source files
+!src/config/env.validation.ts
+
+# Logs & Diagnostics
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Tooling & Configs
+.agents/
+.github/
+supabase/

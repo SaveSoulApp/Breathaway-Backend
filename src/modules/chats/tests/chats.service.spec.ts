@@ -179,6 +179,106 @@ describe('ChatsService', () => {
     jest.clearAllMocks();
   });
 
+  describe('initialization', () => {
+    it('should throw InternalServerErrorException if SUPABASE_URL is missing', () => {
+      const mockConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'SUPABASE_SERVICE_ROLE_KEY') return 'secret';
+          return null;
+        }),
+      } as unknown as ConfigService;
+
+      expect(
+        () =>
+          new ChatsService(
+            mockLoggerService as unknown as LoggerService,
+            mockConfig,
+            prisma as unknown as PrismaService,
+            blocksService as unknown as BlocksService,
+            {} as unknown as IdentityCryptoService,
+            {} as unknown as ChatCryptoService,
+          ),
+      ).toThrow(
+        new InternalServerErrorException(
+          'Chat configuration is missing: SUPABASE_URL',
+        ),
+      );
+    });
+
+    it('should throw InternalServerErrorException if SUPABASE_SERVICE_ROLE_KEY is missing', () => {
+      const mockConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'SUPABASE_URL') return 'http://localhost';
+          return null;
+        }),
+      } as unknown as ConfigService;
+
+      expect(
+        () =>
+          new ChatsService(
+            mockLoggerService as unknown as LoggerService,
+            mockConfig,
+            prisma as unknown as PrismaService,
+            blocksService as unknown as BlocksService,
+            {} as unknown as IdentityCryptoService,
+            {} as unknown as ChatCryptoService,
+          ),
+      ).toThrow(
+        new InternalServerErrorException(
+          'Chat configuration is missing: SUPABASE_SERVICE_ROLE_KEY',
+        ),
+      );
+    });
+
+    it('should throw InternalServerErrorException if both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are missing', () => {
+      const mockConfig = {
+        get: jest.fn(() => null),
+      } as unknown as ConfigService;
+
+      expect(
+        () =>
+          new ChatsService(
+            mockLoggerService as unknown as LoggerService,
+            mockConfig,
+            prisma as unknown as PrismaService,
+            blocksService as unknown as BlocksService,
+            {} as unknown as IdentityCryptoService,
+            {} as unknown as ChatCryptoService,
+          ),
+      ).toThrow(
+        new InternalServerErrorException(
+          'Chat configuration is missing: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY',
+        ),
+      );
+    });
+
+    it('should throw InternalServerErrorException if SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is whitespace only', () => {
+      const mockConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'SUPABASE_URL') return '   ';
+          if (key === 'SUPABASE_SERVICE_ROLE_KEY') return '   ';
+          return null;
+        }),
+      } as unknown as ConfigService;
+
+      expect(
+        () =>
+          new ChatsService(
+            mockLoggerService as unknown as LoggerService,
+            mockConfig,
+            prisma as unknown as PrismaService,
+            blocksService as unknown as BlocksService,
+            {} as unknown as IdentityCryptoService,
+            {} as unknown as ChatCryptoService,
+          ),
+      ).toThrow(
+        new InternalServerErrorException(
+          'Chat configuration is missing: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY',
+        ),
+      );
+    });
+  });
+
   describe('assertRoomParticipant', () => {
     it('should throw ChatRoomNotFoundException if room does not exist', async () => {
       mockChatRoomQuery.single.mockResolvedValueOnce({

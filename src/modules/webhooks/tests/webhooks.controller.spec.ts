@@ -1,5 +1,8 @@
+import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -90,14 +93,14 @@ describe('WebhooksController', () => {
   });
 
   describe('verifyWebhook', () => {
-    it('should pass query params to the service and return the result', async () => {
+    it('should pass query params to the service and return the result', () => {
       const mode = 'subscribe';
       const token = 'my_verify_token';
       const challenge = '1158201444';
 
-      service.verifyMetaWebhook.mockResolvedValue(challenge);
+      service.verifyMetaWebhook.mockReturnValue(challenge);
 
-      const result = await controller.verifyWebhook(mode, token, challenge);
+      const result = controller.verifyWebhook(mode, token, challenge);
 
       expect(service.verifyMetaWebhook).toHaveBeenCalledWith(
         mode,
@@ -105,6 +108,26 @@ describe('WebhooksController', () => {
         challenge,
       );
       expect(result).toBe(challenge);
+    });
+
+    it('should propagate ForbiddenException when service verification fails', () => {
+      const mode = 'subscribe';
+      const token = 'wrong_token';
+      const challenge = '1158201444';
+
+      service.verifyMetaWebhook.mockImplementation(() => {
+        throw new ForbiddenException('Meta webhook verification failed');
+      });
+
+      expect(() => controller.verifyWebhook(mode, token, challenge)).toThrow(
+        ForbiddenException,
+      );
+
+      expect(service.verifyMetaWebhook).toHaveBeenCalledWith(
+        mode,
+        token,
+        challenge,
+      );
     });
   });
 
@@ -308,6 +331,24 @@ describe('WebhooksController', () => {
       expect(handler.canHandle).toHaveBeenCalledWith(dto);
       expect(handler.handle).not.toHaveBeenCalled();
       expect(result).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('Rate Limiting Bypass Verification', () => {
+    it('should bypass all throttler tiers on WebhooksController', () => {
+      const reflector = new Reflector();
+      expect(
+        reflector.get(THROTTLER_SKIP + 'default', WebhooksController),
+      ).toBe(true);
+      expect(reflector.get(THROTTLER_SKIP + 'short', WebhooksController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'medium', WebhooksController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'long', WebhooksController)).toBe(
+        true,
+      );
     });
   });
 });

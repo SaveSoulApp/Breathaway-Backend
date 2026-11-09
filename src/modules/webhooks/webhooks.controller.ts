@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { SkipAllThrottles } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -36,6 +37,7 @@ import { WebhooksService } from './webhooks.service';
   version: ['1'],
 })
 @SkipClientIdentity()
+@SkipAllThrottles()
 export class WebhooksController extends BaseController {
   constructor(
     logger: LoggerService,
@@ -49,14 +51,22 @@ export class WebhooksController extends BaseController {
   @Get('meta')
   @ApiOperation({ summary: 'Verify Meta Webhook' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Webhook successfully verified',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Webhook verification failed: invalid mode or verify token',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Meta verify token is not configured on the server',
   })
   verifyWebhook(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
     @Query('hub.challenge') challenge: string,
-  ) {
+  ): string {
     return this.webhookService.verifyMetaWebhook(mode, token, challenge);
   }
 

@@ -420,12 +420,14 @@ To guarantee maximum checkout conversion and prevent international customer drop
    - Priority 2: Public client IP geolocation via `IpGeolocationService` (IPinfo Lite).
    - Priority 3: System-level fallback to `DEFAULT_COUNTRY_CODE` (`'IN'`).
 
-2. **Plan Price Regional Fallback**:
+2. **Plan Price Regional Fallback (Single Round-Trip)**:
    - If a customer visits from a region (e.g., `DE` or `CA`) that does not yet have an explicit `SubscriptionPlanPrice` row configured in the catalog, `PaymentsService.loadPlanPrice()` automatically falls back to the `defaultCountryCode` (`'IN'`) price row.
+   - To eliminate sequential DB round-trips, `loadPlanPrice()` queries both target country and default country in a single unified `findMany({ where: { planId, countryCode: { in: targetCodes } } })` query, prioritizing the user's specific regional price and falling back to default in-memory.
    - The user is billed in the default currency rather than receiving a `404 SubscriptionPlanPriceNotFoundException`.
 
-3. **Payment Gateway Route Regional Fallback**:
+3. **Payment Gateway Route Regional Fallback (Single Round-Trip)**:
    - If no active, enabled `PaymentGatewayRoute` matches the resolved country and order amount, `PaymentsService.selectGateway()` automatically falls back to the active gateway routes configured for `defaultCountryCode` (`'IN'`).
+   - To eliminate sequential round-trips, `selectGateway()` queries matching enabled routes for both target and default countries in a single unified `findMany({ where: { countryCode: { in: targetCodes }, enabled: true, ... }, orderBy: { priority: 'asc' } })` query, selecting the highest-priority country route or default fallback in O(1).
    - This prevents `GatewayNotAvailableException` and allows global users to complete checkout via international-capable default gateways (such as Razorpay).
 
 4. **Financial Snapshot & Non-Repudiation**:
@@ -434,6 +436,12 @@ To guarantee maximum checkout conversion and prevent international customer drop
      - `originalAmount`: Regular retail anchor price.
      - `discountAmount`: Promotional savings (`originalAmount - amount`).
    - This permanent record guarantees ledger reconciliation and accounting transparency even if marketing changes the plan price later.
+   - `PaymentOrder` is optimized with composite index `@@index([status, createdAt])` alongside `@@unique([gateway, gatewayOrderId])`, ensuring `PaymentReconciliationService` sweeps stale `PENDING` orders with high efficiency without table scans.
+
+5. **Cryptographically Secure Receipt Identifiers (CSPRNG)**:
+   - Gateway order receipts are generated using Node's `crypto.randomBytes(8)` (`rcpt_<timestamp_ms>_<16_hex_chars>`).
+   - With 64 bits of entropy ($2^{64} \approx 1.84 \times 10^{19}$ combinations per millisecond), this eliminates predictable pseudo-random sequences (`Math.random()`) and guarantees collision-free tracking.
+   - Total length is 35 characters, strictly adhering to Razorpay's 40-character maximum and Cashfree's 50-character maximum receipt constraints.
 
 ---
 
@@ -525,20 +533,31 @@ Domain exceptions in `application/exceptions/` are automatically mapped to stand
 
 ---
 
+## 🛡️ Multi-Tier Rate Limiting
+
+To safeguard upstream payment gateway quotas (Razorpay and Cashfree API limits), prevent database bloat with phantom pending orders, and protect against signature brute-force attacks, the `PaymentsController` enforces strict multi-tier rate limiting:
+
+| Profile | Endpoint | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Protection |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **`PAYMENTS_ORDER_THROTTLE`** | `POST /api/v1/payments/orders` | 2 req | 5 req | 10 req | Prevents rapid button clicking, automated order generation, and gateway quota depletion. |
+| **`PAYMENTS_VERIFY_THROTTLE`** | `POST /api/v1/payments/orders/:orderId/verify` | 2 req | 5 req | 15 req | Protects server-side HMAC signature verification against brute-forcing and replay floods. |
+| **Global Default** | `GET /api/v1/payments/orders/:orderId` | 5 req | 20 req | 50 req | Accommodates client polling while checkout UI is active without dropping status requests. |
+
+---
+
 ## 🔑 Environment Configuration
 
-All runtime secrets and parameters are retrieved via NestJS `ConfigService`:
+All runtime secrets and parameters are retrieved via NestJS `ConfigService` and validated against `envValidationSchema` (`src/config/env.validation.ts`). When running in `NODE_ENV === 'production'`, all primary payment gateway credentials are strictly **required at startup**, failing fast during container boot if any secret is missing from Secret Manager:
 
-| Variable Name             | Environment    | Description                                                        | Example Value                             |
-| :------------------------ | :------------- | :----------------------------------------------------------------- | :---------------------------------------- |
-| `RAZORPAY_KEY_ID`         | Sandbox / Prod | Publishable key surfaced to client SDK.                            | `rzp_test_...` / `rzp_live_...`           |
-| `RAZORPAY_KEY_SECRET`     | Sandbox / Prod | Secret key for order creation & signature verification.            | `SecretManager(projects/.../secrets/...)` |
-| `RAZORPAY_WEBHOOK_SECRET` | Sandbox / Prod | Shared secret for validating inbound webhook HMAC.                 | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_APP_ID`         | Sandbox / Prod | Cashfree App ID / Client ID for PG orders API.                     | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_SECRET_KEY`     | Sandbox / Prod | Cashfree Secret Key for PG API and webhook HMAC verification.      | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_ENVIRONMENT`    | Sandbox / Prod | Cashfree SDK environment (`SANDBOX` or `PRODUCTION`).              | `SANDBOX` / `PRODUCTION`                  |
-| `DEFAULT_COUNTRY_CODE`    | All            | Fallback ISO-3166-1 alpha-2 code when geolocation fails.           | `IN`                                      |
-| `CREDIT_EXPIRY_DAYS`      | All            | Default validity duration for granted credits if plan specifies 0. | `90`                                      |
+| Variable Name             | Environment    | Description                                                        | Production Requirement |
+| :------------------------ | :------------- | :----------------------------------------------------------------- | :--------------------- |
+| `RAZORPAY_KEY_ID`         | Sandbox / Prod | Publishable key surfaced to client SDK.                            | **Required**           |
+| `RAZORPAY_KEY_SECRET`     | Sandbox / Prod | Secret key for order creation & signature verification.            | **Required**           |
+| `RAZORPAY_WEBHOOK_SECRET` | Sandbox / Prod | Shared secret for validating inbound webhook HMAC.                 | **Required**           |
+| `CASHFREE_APP_ID`         | Sandbox / Prod | Cashfree App ID / Client ID for PG orders API.                     | **Required**           |
+| `CASHFREE_SECRET_KEY`     | Sandbox / Prod | Cashfree Secret Key for PG API and webhook HMAC verification.      | **Required**           |
+| `DEFAULT_COUNTRY_CODE`    | All            | Fallback ISO-3166-1 alpha-2 code when geolocation fails.           | Optional (default: `IN`)|
+| `CREDIT_EXPIRY_DAYS`      | All            | Default validity duration for granted credits if plan specifies 0. | Optional (default: `90`)|
 
 ---
 

@@ -19,25 +19,65 @@ import { PrismaModule } from '@infrastructure/database/prisma.module';
 import { AppController } from 'src/app.controller';
 import { AppService } from 'src/app.service';
 
+function extractFirstKey(
+  parsed: unknown,
+  preferredPlatform = 'ios',
+): string | undefined {
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    return parsed[0];
+  }
+  if (parsed && typeof parsed === 'object') {
+    const record = parsed as Record<string, string[]>;
+    const platformKeys = record[preferredPlatform.toLowerCase()];
+    if (Array.isArray(platformKeys) && platformKeys.length > 0) {
+      return platformKeys[0];
+    }
+    const anyKeys = Object.values(record).flat();
+    if (anyKeys.length > 0) {
+      return anyKeys[0];
+    }
+  }
+  return undefined;
+}
+
 function getClientIdentityHeaders(
   app: INestApplication,
 ): Record<string, string> {
   const config = app.get(ConfigService);
-  const apiKeys = JSON.parse(config.get<string>('API_KEYS', '[]')) as string[];
-  const clientIds = JSON.parse(
-    config.get<string>('CLIENT_IDS', '[]'),
-  ) as string[];
+
+  let rawApiKeys: unknown = [];
+  try {
+    rawApiKeys = JSON.parse(config.get<string>('API_KEYS', '[]'));
+  } catch {
+    rawApiKeys = [];
+  }
+
+  let rawClientIds: unknown = [];
+  try {
+    rawClientIds = JSON.parse(config.get<string>('CLIENT_IDS', '[]'));
+  } catch {
+    rawClientIds = [];
+  }
+
   const appName = config.get<string>('APP_NAME', 'BreathAway');
   const minVersion = config.get<string>('MIN_APP_VERSION', '1.0.0');
-  const platforms = JSON.parse(
-    config.get<string>('REQUIRED_PLATFORMS', '["iOS"]'),
-  ) as string[];
+
+  let platforms: string[] = ['iOS'];
+  try {
+    platforms = JSON.parse(config.get<string>('REQUIRED_PLATFORMS', '["iOS"]'));
+  } catch {
+    platforms = ['iOS'];
+  }
+
+  const platform = platforms[0] ?? 'iOS';
+  const apiKey = extractFirstKey(rawApiKeys, platform) ?? 'test-api-key';
+  const clientId = extractFirstKey(rawClientIds, platform) ?? 'test-client-id';
 
   return {
-    'x-api-key': apiKeys[0] ?? 'test-api-key',
-    'x-client-id': clientIds[0] ?? 'test-client-id',
+    'x-api-key': apiKey,
+    'x-client-id': clientId,
     'x-device-id': 'e2e-test-device-001',
-    'x-user-agent': `${appName}/${minVersion} (${platforms[0] ?? 'iOS'} 17.0; TestDevice)`,
+    'x-user-agent': `${appName}/${minVersion} (${platform} 17.0; TestDevice)`,
   };
 }
 
@@ -45,6 +85,39 @@ describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
+    // Normalize API_KEYS and CLIENT_IDS if configured as JSON arrays
+    if (process.env.API_KEYS) {
+      try {
+        const parsed = JSON.parse(process.env.API_KEYS);
+        if (Array.isArray(parsed)) {
+          process.env.API_KEYS = JSON.stringify({
+            ios: [parsed[0] ?? 'test-ios-api-key'],
+            android: [parsed[1] ?? 'test-android-api-key'],
+            web: [parsed[2] ?? 'test-web-api-key'],
+            postman: [parsed[3] ?? 'test-postman-api-key'],
+          });
+        }
+      } catch {
+        // Keep existing value if not valid JSON
+      }
+    }
+
+    if (process.env.CLIENT_IDS) {
+      try {
+        const parsed = JSON.parse(process.env.CLIENT_IDS);
+        if (Array.isArray(parsed)) {
+          process.env.CLIENT_IDS = JSON.stringify({
+            ios: [parsed[0] ?? 'test-ios-client-id'],
+            android: [parsed[1] ?? 'test-android-client-id'],
+            web: [parsed[2] ?? 'test-web-client-id'],
+            postman: [parsed[3] ?? 'test-postman-client-id'],
+          });
+        }
+      } catch {
+        // Keep existing value if not valid JSON
+      }
+    }
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({

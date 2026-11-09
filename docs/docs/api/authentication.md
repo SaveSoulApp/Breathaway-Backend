@@ -368,35 +368,38 @@ In serverless Google Cloud Run deployments fronted by Google Cloud Load Balancin
 
 To enforce per-client rate isolation:
 
-1. **Express Trust Proxy**: Configured via `app.set('trust proxy', true)` in [`main.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/main.ts).
-2. **Deterministic IP Resolution (`extractClientIp`)**: Provided in [`request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
-   ```typescript
-   export function extractClientIp(req: Request): string | undefined {
-     const forwarded = req.headers['x-forwarded-for'];
-     if (typeof forwarded === 'string' && forwarded.length > 0) {
-       return forwarded.split(',')[0].trim();
-     }
-     if (Array.isArray(forwarded) && forwarded.length > 0) {
-       return forwarded[0].split(',')[0].trim();
-     }
-     return (
-       (req.headers['x-real-ip'] as string) ||
-       req.ip ||
-       req.socket?.remoteAddress
-     );
-   }
-   ```
-   This guarantees that the client's genuine public IP address (the leftmost entry in `x-forwarded-for`) governs their individual rate limit bucket.
+1. **Express Reverse Proxy Trust**: Configured via `app.set('trust proxy', true)` in [`src/config/security.config.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/config/security.config.ts#L78). This enables Express to accurately detect HTTPS protocol state (`req.secure`) and preserve header forwarding across Cloud Run and intermediate CDN/WAF layers (Cloudflare, Vercel, GCLB).
+2. **Deterministic IP Resolution (`extractClientIp`)**: Defined in [`src/common/utils/request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts#L105-L155) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
+   - Prioritizes authoritative edge headers (`CF-Connecting-IP`, `X-Real-IP`).
+   - Filters out internal Google Front End (GFE) link-local (`169.254.x.x`) and RFC 1918 private proxy hops from `X-Forwarded-For`.
+   - Resolves the genuine originating client IP without succumbing to the single-hop proxy collapse flaw of `trust proxy: 1`.
+   - See [Reverse Proxy Trust & Client IP Architecture](/architecture/reverse-proxy-ip-resolution) for the comprehensive multi-hop topology analysis.
 
 #### Multi-Tier Throttling Profiles
 
-Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
+Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) globally in `ThrottlerModule` and overrides them with specialized profile constants for sensitive operations to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
 
-| Policy Constant               | Target Endpoints                                                                                                                                                       | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection                                                                                                                    |
-| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
-| **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
-| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login`                                                                                                                                         |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+| Policy Profile | Target Endpoints | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Global Application Default** | All un-decorated API endpoints | 5 req | 20 req | 50 req | General DDoS and API abuse baseline across all public and authenticated endpoints. |
+| **`AUTH_REFRESH_THROTTLE`** | `POST /api/v1/auth/refresh` | 2 req | 5 req | 10 req | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
+| **`AUTH_STRICT_THROTTLE`** | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/signout`<br/>`DELETE /api/v1/auth/account`<br/>`POST /api/v1/identities/email/link`<br/>`POST /api/v1/identities/email/unlink` | 1 req | 3 req | 5 req | Stringent throttle preventing credential stuffing, brute-force password guessing, and automated account farming. |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login` | 2 req | 5 req | 10 req | Protects local/staging developer bypass route from automation scripts. |
+| **`SESSIONS_REVOKE_THROTTLE`** | `DELETE /api/v1/sessions/:id`<br/>`DELETE /api/v1/sessions` | 2 req | 5 req | 10 req | Mitigates burst database writes and mass Redis session cache eviction spikes. |
+| **`OTP_GENERATE_THROTTLE`** | `POST /api/v1/one-time-passwords/generate` | 1 req | 2 req | 5 req | Prevents OTP flooding, SMS/DM spam toll fraud, and Redis generation locks. |
+| **`OTP_VERIFY_THROTTLE`** | `POST /api/v1/one-time-passwords/verify` | 2 req | 5 req | 10 req | Mitigates online dictionary attacks and token slug enumeration. |
+| **`PAYMENTS_ORDER_THROTTLE`** | `POST /api/v1/payments/orders` | 2 req | 5 req | 10 req | Prevents upstream payment gateway rate-limit exhaustion (Razorpay/Cashfree) and pending order table bloat. |
+| **`PAYMENTS_VERIFY_THROTTLE`** | `POST /api/v1/payments/orders/:orderId/verify` | 2 req | 5 req | 15 req | Defends against HMAC brute-forcing, replay flooding, and credit fulfilment race conditions. |
+
+#### Rate Limiting Bypass (`@SkipAllThrottles`)
+
+Infrastructure endpoints, health checks, cron triggers, Pub/Sub push workers, and server-to-server webhook ingests must never be throttled by user IP buckets. In `@nestjs/throttler` v5+, `@SkipThrottle()` defaults only to skipping `'default'`; to prevent multi-tier throttlers (`short`, `medium`, `long`) from intercepting server operations, BreathAway provides [`@SkipAllThrottles()`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/decorators/skip-all-throttles.decorator.ts):
+
+- `GET /health`, `GET /ready` (`HealthController`)
+- `POST /api/v1/internal/jobs/*` (`MaintenanceController`)
+- `POST /api/v1/pubsub` (`PubSubIngestionController`)
+- `POST /api/v1/webhooks/*` (`WebhooksController`)
+- `POST /api/v1/subscriptions/webhooks` (`SubscriptionsWebhookController`)
 
 #### Error Response Contract (`429 Too Many Requests`)
 
@@ -573,10 +576,12 @@ When a request reaches a route protected by `AdminOidcAuthGuard`:
    - Verifies `aud` matches either configured audiences (`GCP_ADMIN_OIDC_AUDIENCE` / `GCP_OIDC_AUDIENCE`) or Google Cloud SDK's canonical client ID (`32555940559.apps.googleusercontent.com`).
    - Verifies `email_verified: true` and extracts `payload.email`.
 3. **Dynamic GCP IAM Authorization**:
-   - **Step 3A (Cached IAM Policy)**: Checks in-memory cache of authorized project emails. If cached and TTL (5 minutes) has not expired, authorizes immediately.
-   - **Step 3B (GCP Cloud Resource Manager Query)**: Calls the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or the Cloud Run service account in cloud environments.
+   - **Step 3A (Distributed Redis Cache)**: Checks `admin:iam:authorized_emails:{projectId}` in Redis. If present, authorizes caller immediately without external network roundtrips.
+   - **Step 3B (GCP Cloud Resource Manager Query on Miss)**: When the cache expires, queries the GCP Resource Manager API (`POST https://cloudresourcemanager.googleapis.com/v1/projects/{projectId}:getIamPolicy`) using Application Default Credentials (ADC) locally or Cloud Run service account in cloud environments.
+   - **Step 3C (Singleflight & Jittered Cache Population)**: In-flight requests on the same instance are deduplicated via a singleflight promise. Discovered emails are written to Redis with a jittered TTL ($300 \pm 30$ seconds, 270–330s) to prevent cross-instance cache stampedes upon expiry.
+   - **Step 3D (Degraded Fallback)**: If Redis is unconfigured or unavailable, automatically falls back to process-local in-memory caching.
    - Extracts all members bound to `roles/owner`, `roles/editor`, `roles/resourcemanager.organizationAdmin`, or roles specified in `GCP_ADMIN_IAM_ROLES`.
-   - If `user:<email>` is found in the IAM policy bindings, updates the in-memory cache and grants access.
+   - If `user:<email>` or `serviceAccount:<email>` is found in the IAM policy bindings, updates the cache and grants access.
    - If not found, logs a warning and throws `403 Forbidden: Caller does not have administrative permissions in GCP`.
 4. **Context Propagation & Structured Audit Logging**:
    - Injects `adminEmail`, `adminSub`, and `adminEmailHash` (SHA-256) into Continuation-Local Storage (CLS) via `ClsService`.
@@ -596,6 +601,7 @@ sequenceDiagram
     participant Backend as NestJS Admin Endpoint
     participant Guard as AdminOidcAuthGuard
     participant GoogleJWKS as Google OAuth JWKS
+    participant Redis as Memorystore (Redis)
     participant GCPIAM as GCP Cloud Resource Manager API
     participant Logger as Cloud Logging / BigQuery
 
@@ -609,12 +615,14 @@ sequenceDiagram
         Guard-->>CLI: 401 Unauthorized
     end
 
-    alt Cache Valid (<5m TTL)
-        Guard->>Guard: Authorize from Cache
-    else Cache Expired / Miss
-        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy
+    alt Redis Cache Hit
+        Guard->>Redis: GET admin:iam:authorized_emails:{projectId}
+        Redis-->>Guard: Return authorized emails JSON
+    else Redis Cache Miss / Degradation
+        Guard->>GCPIAM: 2. POST /v1/projects/{projectId}:getIamPolicy (Singleflight)
         GCPIAM-->>Guard: Return project IAM bindings (roles/owner, roles/editor)
-        Guard->>Guard: Populate in-memory cache (5m TTL)
+        Guard->>Redis: SETEX admin:iam:authorized_emails:{projectId} (300 ± 30s Jittered TTL)
+        Guard->>Guard: Update in-memory fallback cache
     end
 
     alt Caller Not in Project IAM Policy

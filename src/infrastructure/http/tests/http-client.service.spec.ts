@@ -127,6 +127,31 @@ describe('HttpClientService', () => {
       );
     });
 
+    it('should inject x-request-id and x-cloud-trace-context when headers is a plain object without set/has', async () => {
+      const requestInterceptor = (
+        service.axiosRef.interceptors.request as unknown as {
+          handlers: Array<{
+            fulfilled: (
+              config: ExtendedAxiosRequestConfig,
+            ) => ExtendedAxiosRequestConfig;
+          }>;
+        }
+      ).handlers[0]?.fulfilled;
+
+      const plainHeaders: Record<string, string> = {};
+      const config: ExtendedAxiosRequestConfig = {
+        headers:
+          plainHeaders as unknown as ExtendedAxiosRequestConfig['headers'],
+      };
+
+      const result = requestInterceptor(config);
+
+      expect(result.headers?.['x-request-id']).toBe('req-cls-123');
+      expect(result.headers?.['x-cloud-trace-context']).toBe(
+        'trace-456/span-789;o=1',
+      );
+    });
+
     it('should not throw or inject headers when CLS is inactive', async () => {
       clsService.isActive.mockReturnValue(false);
 

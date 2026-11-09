@@ -52,7 +52,7 @@ export class AuditService extends BaseService {
    * @param payload - The audit event containing the actor, action type, and
    *                  optional resource and metadata context.
    */
-  @OnEvent(AUDIT_LOG_EVENT)
+  @OnEvent(AUDIT_LOG_EVENT, { async: true })
   async handleAuditLogEvent(payload: AuditEventRequestDto) {
     try {
       const sanitizedPayload = this.sanitizeAuditPayload(payload);

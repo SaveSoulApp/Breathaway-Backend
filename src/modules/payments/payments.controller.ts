@@ -15,12 +15,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { ApiStandardErrors, ClientIp, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
+import { PAYMENTS_ORDER_THROTTLE, PAYMENTS_VERIFY_THROTTLE } from './constants';
 import {
   CreateOrderRequestDto,
   CreateOrderResponseDto,
@@ -72,6 +74,7 @@ export class PaymentsController extends BaseController {
    */
   @Post('orders')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle(PAYMENTS_ORDER_THROTTLE)
   @ApiOperation({
     summary: 'Create a payment order',
     description:
@@ -148,6 +151,7 @@ export class PaymentsController extends BaseController {
    */
   @Post('orders/:orderId/verify')
   @HttpCode(HttpStatus.OK)
+  @Throttle(PAYMENTS_VERIFY_THROTTLE)
   @ApiOperation({
     summary: 'Verify Razorpay payment signature',
     description:

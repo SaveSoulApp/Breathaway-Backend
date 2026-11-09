@@ -112,6 +112,38 @@ describe('SessionMetadataParser', () => {
         appVersion: null,
       });
     });
+
+    it('should parse Chrome on Windows User-Agent', () => {
+      const ua =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const result = SessionMetadataParser.parse(ua);
+
+      expect(result.platform).toBe(DevicePlatform.WEB);
+      expect(result.deviceModel).toBe('Windows');
+      expect(result.os).toContain('Windows');
+      expect(result.browser).toContain('Chrome');
+    });
+
+    it('should parse Chrome on Linux desktop User-Agent', () => {
+      const ua =
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const result = SessionMetadataParser.parse(ua);
+
+      expect(result.platform).toBe(DevicePlatform.WEB);
+      expect(result.deviceModel).toBe('Linux');
+      expect(result.os).toContain('Linux');
+      expect(result.browser).toContain('Chrome');
+    });
+
+    it('should parse browser on FreeBSD User-Agent returning OS name as device model', () => {
+      const ua =
+        'Mozilla/5.0 (X11; FreeBSD amd64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const result = SessionMetadataParser.parse(ua);
+
+      expect(result.platform).toBe(DevicePlatform.WEB);
+      expect(result.deviceModel).toBe('FreeBSD');
+      expect(result.os).toContain('FreeBSD');
+    });
   });
 
   describe('Edge cases', () => {

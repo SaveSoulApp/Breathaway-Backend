@@ -40,11 +40,13 @@ Because the backend runs on GCP Cloud Run with horizontal autoscaling (0 to N in
 
 `PrismaService` configures a bounded `pg.Pool` with the `@prisma/adapter-pg` driver adapter. Limits are tightly bounded for serverless autoscaling via environment variables:
 
-- `DB_POOL_MAX` (default: 4)
+- `DB_POOL_MAX` (default: 8)
 - `DB_POOL_MIN` (default: 0)
 - `DB_POOL_ACQUISITION_TIMEOUT_MS` (default: 5,000ms)
 - `DB_POOL_IDLE_TIMEOUT_MS` (default: 10,000ms)
 - `DB_POOL_STATEMENT_TIMEOUT_MS` (default: 15,000ms)
+
+See the full [Cloud Run & Database Performance Optimization Record](./cloud-run-optimization.md) for the complete connection math and benchmark results.
 
 `PrismaService` implements `OnModuleInit` and `OnModuleDestroy` to cleanly connect on container boot and drain the pool on SIGTERM.
 
@@ -96,7 +98,7 @@ The `/ready` health probe (`DatabaseHealthIndicator`) executes `SELECT 1` and em
 
 In a serverless autoscaling architecture on Google Cloud Run, the primary threat to Cloud SQL connection health is **repetitive, high-frequency read queries** triggered by auth guards. Because every protected route passes through `JwtAuthGuard`, validating user active status directly against PostgreSQL would require a socket checkout (`SELECT * FROM "User" WHERE id = $1`) on every single API request.
 
-To protect the bounded `pg.Pool` (`DB_POOL_MAX = 4`):
+To protect the bounded `pg.Pool` (`DB_POOL_MAX = 8`):
 
 - **In-Memory Set Offload**: Authenticated access token JTIs are cached in an in-memory Redis Set (`user:active:<userId>`).
 - **96.7% Database Query Reduction**: During normal operational traffic, 29 out of 30 authenticated requests resolve in Redis without checking out a database client socket.

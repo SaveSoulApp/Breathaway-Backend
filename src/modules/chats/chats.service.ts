@@ -53,21 +53,29 @@ export class ChatsService extends BaseService {
     private readonly chatCryptoService: ChatCryptoService,
   ) {
     super(logger);
-    const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
-    const supabaseKey = this.configService.get<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    );
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL')?.trim();
+    const supabaseKey = this.configService
+      .get<string>('SUPABASE_SERVICE_ROLE_KEY')
+      ?.trim();
 
     if (!supabaseUrl || !supabaseKey) {
-      this.logger.warn(
-        'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing. ChatsService may fail.',
-        { step: 'init' },
+      const missingKeys: string[] = [];
+      if (!supabaseUrl) missingKeys.push('SUPABASE_URL');
+      if (!supabaseKey) missingKeys.push('SUPABASE_SERVICE_ROLE_KEY');
+
+      this.logger.error(
+        `Failed to initialize ChatsService: missing required configuration [${missingKeys.join(', ')}]`,
+        { step: 'init', missingKeys },
+      );
+
+      throw new InternalServerErrorException(
+        `Chat configuration is missing: ${missingKeys.join(', ')}`,
       );
     }
 
     // Initialize with service role key to bypass RLS for server-side operations
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    this.supabase = createClient(supabaseUrl || '', supabaseKey || '', {
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false },
     });
   }
@@ -963,7 +971,7 @@ export class ChatsService extends BaseService {
    * Cleans up Supabase chat history (rooms and their messages via cascade)
    * where the user was a participant.
    */
-  @OnEvent(USER_DELETED_EVENT)
+  @OnEvent(USER_DELETED_EVENT, { async: true })
   async handleUserDeletedEvent(payload: UserDeletedEvent) {
     const { userId } = payload;
     try {

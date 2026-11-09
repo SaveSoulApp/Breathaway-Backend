@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto';
+
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -585,12 +587,22 @@ export class PaymentsService extends BaseService {
   }
 
   private async loadPlanPrice(planId: string, countryCode: string) {
+    const normalizedCountryCode = countryCode.toUpperCase();
     const defaultCountryCode = (
       this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
     ).toUpperCase();
 
-    let price = await this.prisma.subscriptionPlanPrice.findFirst({
-      where: { planId, countryCode },
+    const targetCodes =
+      normalizedCountryCode === defaultCountryCode
+        ? [normalizedCountryCode]
+        : [normalizedCountryCode, defaultCountryCode];
+
+    const prices = await this.prisma.subscriptionPlanPrice.findMany({
+      where: {
+        planId,
+        countryCode: { in: targetCodes },
+      },
+      orderBy: { createdAt: 'desc' },
       select: {
         originalPrice: true,
         discountedPrice: true,
@@ -601,24 +613,16 @@ export class PaymentsService extends BaseService {
       },
     });
 
-    if (!price && countryCode !== defaultCountryCode) {
-      price = await this.prisma.subscriptionPlanPrice.findFirst({
-        where: { planId, countryCode: defaultCountryCode },
-        select: {
-          originalPrice: true,
-          discountedPrice: true,
-          discountStartsAt: true,
-          discountEndsAt: true,
-          currencyCode: true,
-          countryCode: true,
-        },
-      });
-    }
+    const price =
+      prices.find(
+        (p) => p.countryCode.toUpperCase() === normalizedCountryCode,
+      ) ??
+      prices.find((p) => p.countryCode.toUpperCase() === defaultCountryCode);
 
     if (!price) {
       this.logger.warn('Create order: no price for country', {
         planId,
-        countryCode,
+        countryCode: normalizedCountryCode,
         defaultCountryCode,
         step: 'load_plan_price',
       });
@@ -629,13 +633,19 @@ export class PaymentsService extends BaseService {
   }
 
   private async selectGateway(countryCode: string, amount: number) {
+    const normalizedCountryCode = countryCode.toUpperCase();
     const defaultCountryCode = (
       this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
     ).toUpperCase();
 
-    let route = await this.prisma.paymentGatewayRoute.findFirst({
+    const targetCodes =
+      normalizedCountryCode === defaultCountryCode
+        ? [normalizedCountryCode]
+        : [normalizedCountryCode, defaultCountryCode];
+
+    const routes = await this.prisma.paymentGatewayRoute.findMany({
       where: {
-        countryCode,
+        countryCode: { in: targetCodes },
         enabled: true,
         OR: [{ minAmount: null }, { minAmount: { lte: amount } }],
         AND: [
@@ -645,34 +655,23 @@ export class PaymentsService extends BaseService {
         ],
       },
       orderBy: { priority: 'asc' },
-      select: { gateway: true, priority: true },
+      select: { gateway: true, priority: true, countryCode: true },
     });
 
-    if (!route && countryCode !== defaultCountryCode) {
-      route = await this.prisma.paymentGatewayRoute.findFirst({
-        where: {
-          countryCode: defaultCountryCode,
-          enabled: true,
-          OR: [{ minAmount: null }, { minAmount: { lte: amount } }],
-          AND: [
-            {
-              OR: [{ maxAmount: null }, { maxAmount: { gte: amount } }],
-            },
-          ],
-        },
-        orderBy: { priority: 'asc' },
-        select: { gateway: true, priority: true },
-      });
-    }
+    const route =
+      routes.find(
+        (r) => r.countryCode.toUpperCase() === normalizedCountryCode,
+      ) ??
+      routes.find((r) => r.countryCode.toUpperCase() === defaultCountryCode);
 
     if (!route) {
       this.logger.warn('No gateway route available', {
-        countryCode,
+        countryCode: normalizedCountryCode,
         defaultCountryCode,
         amount,
         step: 'select_gateway',
       });
-      throw new GatewayNotAvailableException(countryCode);
+      throw new GatewayNotAvailableException(normalizedCountryCode);
     }
 
     return route;
@@ -712,8 +711,12 @@ export class PaymentsService extends BaseService {
     }
   }
 
-  /** Generates a short unique receipt string for the gateway. */
+  /**
+   * Generates a cryptographically secure, unique receipt identifier for the payment gateway.
+   * Format: `rcpt_<timestamp_ms>_<16_hex_chars>` (35 characters total).
+   * Complies with Razorpay's 40-character maximum and Cashfree's 50-character maximum limit.
+   */
   private generateReceipt(): string {
-    return `rcpt_${DateUtil.now().getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+    return `rcpt_${DateUtil.now().getTime()}_${randomBytes(8).toString('hex')}`;
   }
 }

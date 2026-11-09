@@ -1,4 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash, timingSafeEqual } from 'crypto';
+
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { DateUtil } from '@common/utils/date.utils';
@@ -35,32 +42,54 @@ export class WebhooksService extends BaseService {
     super(logger);
   }
 
-  verifyMetaWebhook(
-    mode: string,
-    token: string,
-    challenge: string,
-  ): Promise<string> {
+  verifyMetaWebhook(mode: string, token: string, challenge: string): string {
     const ctx = { mode };
     this.logger.debug('Meta webhook verification started', {
       ...ctx,
       step: 'verify',
     });
 
-    const VERIFY_TOKEN = this.configService.get<string>('META_VERIFY_TOKEN');
+    const verifyToken = this.configService.get<string>('META_VERIFY_TOKEN');
 
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    if (!verifyToken || !verifyToken.trim()) {
+      this.logger.error('META_VERIFY_TOKEN is not configured', {
+        ...ctx,
+        step: 'verify',
+      });
+      throw new InternalServerErrorException(
+        'Meta webhook verification token is not configured',
+      );
+    }
+
+    if (
+      mode === 'subscribe' &&
+      token &&
+      challenge &&
+      this.safeCompare(token, verifyToken.trim())
+    ) {
       this.logger.event(LOG_EVENT.META_WEBHOOK_VERIFIED, {
         ...ctx,
         step: 'verify',
       });
-      return Promise.resolve(challenge); // MUST return raw string
+      return challenge; // MUST return raw string
     }
 
     this.logger.warn('Meta webhook verification failed', {
       ...ctx,
       step: 'verify',
     });
-    return Promise.resolve('Verification failed');
+    throw new ForbiddenException('Meta webhook verification failed');
+  }
+
+  /**
+   * Performs constant-time comparison using fixed-length SHA-256 digests
+   * to eliminate both byte-comparison and token-length timing side channels.
+   */
+  private safeCompare(a: string, b: string): boolean {
+    const hashA = createHash('sha256').update(a, 'utf8').digest();
+    const hashB = createHash('sha256').update(b, 'utf8').digest();
+
+    return timingSafeEqual(hashA, hashB);
   }
 
   /**

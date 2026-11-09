@@ -193,17 +193,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'John',
       });
@@ -263,17 +269,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(399),
-        discountedPrice: new Prisma.Decimal(299),
-        discountStartsAt: past,
-        discountEndsAt: future,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(399),
+          discountedPrice: new Prisma.Decimal(299),
+          discountStartsAt: past,
+          discountEndsAt: future,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'Jane',
       });
@@ -318,17 +330,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.CASHFREE,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.CASHFREE,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'John',
       });
@@ -361,17 +379,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'John',
       });
@@ -403,17 +427,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'John',
       });
@@ -444,17 +474,23 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
       (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
         id: orderId,
@@ -492,8 +528,8 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue(
-        null,
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue(
+        [],
       );
 
       // Act & Assert
@@ -502,7 +538,7 @@ describe('PaymentsService', () => {
       );
     });
 
-    it('should fall back to default country price and gateway when user country has no price', async () => {
+    it('should fall back to default country price and gateway in a single unified query when user country has no price', async () => {
       // Arrange
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         countryCode: 'FR',
@@ -512,21 +548,24 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      // First call for 'FR' returns null, second call for default 'IN' returns price
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
+      // Unified single findMany returns the default 'IN' price because no 'FR' row exists
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
           originalPrice: new Prisma.Decimal(499),
           discountedPrice: null,
           discountStartsAt: null,
           discountEndsAt: null,
           currencyCode: 'INR',
           countryCode: 'IN',
-        });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue({
-        gateway: PaymentGateway.RAZORPAY,
-        priority: 1,
-      });
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
       (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
         firstName: 'Pierre',
       });
@@ -539,14 +578,13 @@ describe('PaymentsService', () => {
 
       // Assert
       expect(result.amount).toBe(49900);
-      expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
-        where: { planId, countryCode: 'FR' },
+      expect(prisma.subscriptionPlanPrice.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.subscriptionPlanPrice.findMany).toHaveBeenCalledWith({
+        where: { planId, countryCode: { in: ['FR', 'IN'] } },
+        orderBy: { createdAt: 'desc' },
         select: expect.any(Object),
       });
-      expect(prisma.subscriptionPlanPrice.findFirst).toHaveBeenCalledWith({
-        where: { planId, countryCode: 'IN' },
-        select: expect.any(Object),
-      });
+      expect(prisma.paymentGatewayRoute.findMany).toHaveBeenCalledTimes(1);
       expect(prisma.paymentOrder.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           currency: 'INR',
@@ -555,6 +593,55 @@ describe('PaymentsService', () => {
         }),
         select: { id: true },
       });
+    });
+
+    it('should prioritize country route and fall back to default country route in a single query', async () => {
+      // Arrange
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        countryCode: 'US',
+      });
+      (prisma.subscriptionPlan.findFirst as jest.Mock).mockResolvedValue({
+        id: planId,
+        creditsGranted: 10,
+        validityDays: 30,
+      });
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(999),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'USD',
+          countryCode: 'US',
+        },
+      ]);
+      // findMany returns only IN route (no US route available)
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([
+        {
+          gateway: PaymentGateway.RAZORPAY,
+          priority: 1,
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.userProfile.findUnique as jest.Mock).mockResolvedValue({
+        firstName: 'Alice',
+      });
+      (prisma.paymentOrder.create as jest.Mock).mockResolvedValue({
+        id: orderId,
+      });
+
+      // Act
+      const result = await service.createOrder(userId, { planId });
+
+      // Assert
+      expect(result.provider).toBe(PaymentGateway.RAZORPAY);
+      expect(prisma.paymentGatewayRoute.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            countryCode: { in: ['US', 'IN'] },
+          }),
+        }),
+      );
     });
 
     it('should throw GatewayNotAvailableException when no route is available', async () => {
@@ -567,16 +654,17 @@ describe('PaymentsService', () => {
         creditsGranted: 10,
         validityDays: 30,
       });
-      (prisma.subscriptionPlanPrice.findFirst as jest.Mock).mockResolvedValue({
-        originalPrice: new Prisma.Decimal(499),
-        discountedPrice: null,
-        discountStartsAt: null,
-        discountEndsAt: null,
-        currencyCode: 'INR',
-      });
-      (prisma.paymentGatewayRoute.findFirst as jest.Mock).mockResolvedValue(
-        null,
-      );
+      (prisma.subscriptionPlanPrice.findMany as jest.Mock).mockResolvedValue([
+        {
+          originalPrice: new Prisma.Decimal(499),
+          discountedPrice: null,
+          discountStartsAt: null,
+          discountEndsAt: null,
+          currencyCode: 'INR',
+          countryCode: 'IN',
+        },
+      ]);
+      (prisma.paymentGatewayRoute.findMany as jest.Mock).mockResolvedValue([]);
 
       // Act & Assert
       await expect(service.createOrder(userId, { planId })).rejects.toThrow(
@@ -832,6 +920,30 @@ describe('PaymentsService', () => {
 
       // Assert
       expect(creditsGranted).toBe(10);
+    });
+  });
+
+  describe('generateReceipt', () => {
+    it('should generate a cryptographically secure receipt with timestamp and 16 hex characters', () => {
+      const receipt = (service as any).generateReceipt();
+
+      // Format: rcpt_<timestamp_ms>_<16_hex_chars>
+      expect(receipt).toMatch(/^rcpt_\d{13}_[0-9a-f]{16}$/);
+
+      // Must be <= 40 characters for Razorpay and <= 50 characters for Cashfree
+      expect(receipt.length).toBeLessThanOrEqual(40);
+      expect(receipt.length).toBe(35);
+    });
+
+    it('should generate unique receipts on successive calls without collision', () => {
+      const receipts = new Set<string>();
+      const count = 100;
+
+      for (let i = 0; i < count; i++) {
+        receipts.add((service as any).generateReceipt());
+      }
+
+      expect(receipts.size).toBe(count);
     });
   });
 });

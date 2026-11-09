@@ -74,7 +74,6 @@ import { WhatsAppProviderService } from '../providers/whatsapp.provider.service'
  */
 @Injectable()
 export class NotificationEventsListener extends BaseService {
-  private cachedCountryCodesKey?: string;
   private cachedCallingCodes?: string[];
 
   constructor(
@@ -111,7 +110,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(DEVICE_ADDED_EVENT)
+  @OnEvent(DEVICE_ADDED_EVENT, { async: true })
   async handleDeviceAdded(event: DeviceAddedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -141,7 +140,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(LIKE_SENT_EVENT)
+  @OnEvent(LIKE_SENT_EVENT, { async: true })
   async handleLikeSent(event: LikeSentEvent): Promise<void> {
     // 1. Dispatch sender confirmation (EMAIL, PUSH)
     try {
@@ -388,21 +387,30 @@ export class NotificationEventsListener extends BaseService {
   }
 
   /**
-   * Retrieves the allow-listed country calling codes for WhatsApp like notifications.
+   * Retrieves and parses the allow-listed country calling codes for WhatsApp like notifications.
+   *
+   * Memoizes parsed digits in memory to avoid parsing JSON and resolving ISO codes on every event.
    * Supports JSON arrays (e.g. '["+91", "+65"]'), comma-separated strings (e.g. '+91, +65' or 'IN, SG'),
    * or direct array input. Converts ISO-2 country codes or +calling codes into digits-only calling codes.
    */
   private getAllowListedCountryCallingCodes(): string[] {
+    if (this.cachedCallingCodes) {
+      return this.cachedCallingCodes;
+    }
+
     const raw = this.configService.get<string | string[]>(
       'WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES',
       '["+91"]',
     );
 
-    const cacheKey = typeof raw === 'string' ? raw : JSON.stringify(raw);
-    if (this.cachedCountryCodesKey === cacheKey && this.cachedCallingCodes) {
-      return this.cachedCallingCodes;
-    }
+    this.cachedCallingCodes = this.parseCallingCodes(raw);
+    return this.cachedCallingCodes;
+  }
 
+  /**
+   * Parses raw configuration input into normalized digits-only country calling codes.
+   */
+  private parseCallingCodes(raw: string | string[] | undefined): string[] {
     let rawList: string[] = [];
     if (Array.isArray(raw)) {
       rawList = raw.map(String);
@@ -453,10 +461,7 @@ export class NotificationEventsListener extends BaseService {
       }
     }
 
-    const resolved = callingCodes.length > 0 ? callingCodes : ['91'];
-    this.cachedCountryCodesKey = cacheKey;
-    this.cachedCallingCodes = resolved;
-    return resolved;
+    return callingCodes.length > 0 ? callingCodes : ['91'];
   }
 
   /**
@@ -500,7 +505,7 @@ export class NotificationEventsListener extends BaseService {
     return null;
   }
 
-  @OnEvent(LIKE_WITHDRAWN_EVENT)
+  @OnEvent(LIKE_WITHDRAWN_EVENT, { async: true })
   async handleLikeWithdrawn(event: LikeWithdrawnEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -657,7 +662,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(IDENTITY_ADDED_EVENT)
+  @OnEvent(IDENTITY_ADDED_EVENT, { async: true })
   async handleIdentityAdded(event: IdentityAddedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -688,7 +693,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(IDENTITY_REMOVED_EVENT)
+  @OnEvent(IDENTITY_REMOVED_EVENT, { async: true })
   async handleIdentityRemoved(event: IdentityRemovedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -718,7 +723,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(USER_WELCOME_EVENT)
+  @OnEvent(USER_WELCOME_EVENT, { async: true })
   async handleUserWelcome(event: UserWelcomeEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -743,7 +748,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDITS_PURCHASED_EVENT)
+  @OnEvent(CREDITS_PURCHASED_EVENT, { async: true })
   async handleCreditsPurchased(event: CreditsPurchasedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -774,7 +779,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDITS_USED_EVENT)
+  @OnEvent(CREDITS_USED_EVENT, { async: true })
   async handleCreditsUsed(event: CreditsUsedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -802,7 +807,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(LIKES_EXPIRED_EVENT)
+  @OnEvent(LIKES_EXPIRED_EVENT, { async: true })
   async handleLikesExpired(event: LikesExpiredEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -829,7 +834,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDIT_BUNDLE_EXPIRING_EVENT)
+  @OnEvent(CREDIT_BUNDLE_EXPIRING_EVENT, { async: true })
   async handleCreditBundleExpiring(
     event: CreditBundleExpiringEvent,
   ): Promise<void> {

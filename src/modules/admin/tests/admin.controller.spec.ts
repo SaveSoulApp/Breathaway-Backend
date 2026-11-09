@@ -6,7 +6,7 @@ import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { THROTTLER_LIMIT } from '@nestjs/throttler/dist/throttler.constants';
 
-import { NonProductionGuard } from '@common/guards';
+import { NonProductionGuard, RequireTimezoneGuard } from '@common/guards';
 import { LoggerService } from '@core/logger';
 import { AuthService } from '@modules/auth/auth.service';
 import { AUTH_DEV_LOGIN_THROTTLE } from '@modules/auth/constants';
@@ -131,6 +131,19 @@ describe('AdminController', () => {
       // Assert
       expect(creditsService.consumeCredits).toHaveBeenCalledWith(dto);
       expect(result).toEqual(mockLedgerEntry);
+    });
+
+    it('should have RequireTimezoneGuard applied to both grantCredits and consumeCredits', () => {
+      // Act
+      const grantGuards = reflector.get('__guards__', controller.grantCredits);
+      const consumeGuards = reflector.get(
+        '__guards__',
+        controller.consumeCredits,
+      );
+
+      // Assert
+      expect(grantGuards).toContain(RequireTimezoneGuard);
+      expect(consumeGuards).toContain(RequireTimezoneGuard);
     });
   });
 
