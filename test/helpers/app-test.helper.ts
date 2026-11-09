@@ -274,6 +274,12 @@ export async function createAuthTestApp(
     process.env.META_VERIFY_TOKEN || 'test_meta_verify_token_123';
   process.env.META_APP_SECRET =
     process.env.META_APP_SECRET || 'test_meta_app_secret_value_123';
+  process.env.SUPABASE_URL =
+    process.env.SUPABASE_URL || 'https://mock-chats-project.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'mock-chats-service-role-key';
+  process.env.SUPABASE_JWT_KEY_ID =
+    process.env.SUPABASE_JWT_KEY_ID || 'mock-key-id';
 
   // Normalize API_KEYS and CLIENT_IDS into platform-keyed JSON format if configured as JSON arrays
   if (process.env.API_KEYS) {
