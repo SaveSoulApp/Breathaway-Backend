@@ -834,4 +834,28 @@ describe('PaymentsService', () => {
       expect(creditsGranted).toBe(10);
     });
   });
+
+  describe('generateReceipt', () => {
+    it('should generate a cryptographically secure receipt with timestamp and 16 hex characters', () => {
+      const receipt = (service as any).generateReceipt();
+
+      // Format: rcpt_<timestamp_ms>_<16_hex_chars>
+      expect(receipt).toMatch(/^rcpt_\d{13}_[0-9a-f]{16}$/);
+
+      // Must be <= 40 characters for Razorpay and <= 50 characters for Cashfree
+      expect(receipt.length).toBeLessThanOrEqual(40);
+      expect(receipt.length).toBe(35);
+    });
+
+    it('should generate unique receipts on successive calls without collision', () => {
+      const receipts = new Set<string>();
+      const count = 100;
+
+      for (let i = 0; i < count; i++) {
+        receipts.add((service as any).generateReceipt());
+      }
+
+      expect(receipts.size).toBe(count);
+    });
+  });
 });

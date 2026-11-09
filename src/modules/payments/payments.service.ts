@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto';
+
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -712,8 +714,12 @@ export class PaymentsService extends BaseService {
     }
   }
 
-  /** Generates a short unique receipt string for the gateway. */
+  /**
+   * Generates a cryptographically secure, unique receipt identifier for the payment gateway.
+   * Format: `rcpt_<timestamp_ms>_<16_hex_chars>` (35 characters total).
+   * Complies with Razorpay's 40-character maximum and Cashfree's 50-character maximum limit.
+   */
   private generateReceipt(): string {
-    return `rcpt_${DateUtil.now().getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+    return `rcpt_${DateUtil.now().getTime()}_${randomBytes(8).toString('hex')}`;
   }
 }

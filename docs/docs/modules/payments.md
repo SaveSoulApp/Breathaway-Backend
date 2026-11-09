@@ -435,6 +435,11 @@ To guarantee maximum checkout conversion and prevent international customer drop
      - `discountAmount`: Promotional savings (`originalAmount - amount`).
    - This permanent record guarantees ledger reconciliation and accounting transparency even if marketing changes the plan price later.
 
+5. **Cryptographically Secure Receipt Identifiers (CSPRNG)**:
+   - Gateway order receipts are generated using Node's `crypto.randomBytes(8)` (`rcpt_<timestamp_ms>_<16_hex_chars>`).
+   - With 64 bits of entropy ($2^{64} \approx 1.84 \times 10^{19}$ combinations per millisecond), this eliminates predictable pseudo-random sequences (`Math.random()`) and guarantees collision-free tracking.
+   - Total length is 35 characters, strictly adhering to Razorpay's 40-character maximum and Cashfree's 50-character maximum receipt constraints.
+
 ---
 
 ## 🔌 The Gateway Adapter Pattern
