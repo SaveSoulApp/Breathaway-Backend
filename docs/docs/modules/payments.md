@@ -532,18 +532,17 @@ Domain exceptions in `application/exceptions/` are automatically mapped to stand
 
 ## 🔑 Environment Configuration
 
-All runtime secrets and parameters are retrieved via NestJS `ConfigService`:
+All runtime secrets and parameters are retrieved via NestJS `ConfigService` and validated against `envValidationSchema` (`src/config/env.validation.ts`). When running in `NODE_ENV === 'production'`, all primary payment gateway credentials are strictly **required at startup**, failing fast during container boot if any secret is missing from Secret Manager:
 
-| Variable Name             | Environment    | Description                                                        | Example Value                             |
-| :------------------------ | :------------- | :----------------------------------------------------------------- | :---------------------------------------- |
-| `RAZORPAY_KEY_ID`         | Sandbox / Prod | Publishable key surfaced to client SDK.                            | `rzp_test_...` / `rzp_live_...`           |
-| `RAZORPAY_KEY_SECRET`     | Sandbox / Prod | Secret key for order creation & signature verification.            | `SecretManager(projects/.../secrets/...)` |
-| `RAZORPAY_WEBHOOK_SECRET` | Sandbox / Prod | Shared secret for validating inbound webhook HMAC.                 | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_APP_ID`         | Sandbox / Prod | Cashfree App ID / Client ID for PG orders API.                     | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_SECRET_KEY`     | Sandbox / Prod | Cashfree Secret Key for PG API and webhook HMAC verification.      | `SecretManager(projects/.../secrets/...)` |
-| `CASHFREE_ENVIRONMENT`    | Sandbox / Prod | Cashfree SDK environment (`SANDBOX` or `PRODUCTION`).              | `SANDBOX` / `PRODUCTION`                  |
-| `DEFAULT_COUNTRY_CODE`    | All            | Fallback ISO-3166-1 alpha-2 code when geolocation fails.           | `IN`                                      |
-| `CREDIT_EXPIRY_DAYS`      | All            | Default validity duration for granted credits if plan specifies 0. | `90`                                      |
+| Variable Name             | Environment    | Description                                                        | Production Requirement |
+| :------------------------ | :------------- | :----------------------------------------------------------------- | :--------------------- |
+| `RAZORPAY_KEY_ID`         | Sandbox / Prod | Publishable key surfaced to client SDK.                            | **Required**           |
+| `RAZORPAY_KEY_SECRET`     | Sandbox / Prod | Secret key for order creation & signature verification.            | **Required**           |
+| `RAZORPAY_WEBHOOK_SECRET` | Sandbox / Prod | Shared secret for validating inbound webhook HMAC.                 | **Required**           |
+| `CASHFREE_APP_ID`         | Sandbox / Prod | Cashfree App ID / Client ID for PG orders API.                     | **Required**           |
+| `CASHFREE_SECRET_KEY`     | Sandbox / Prod | Cashfree Secret Key for PG API and webhook HMAC verification.      | **Required**           |
+| `DEFAULT_COUNTRY_CODE`    | All            | Fallback ISO-3166-1 alpha-2 code when geolocation fails.           | Optional (default: `IN`)|
+| `CREDIT_EXPIRY_DAYS`      | All            | Default validity duration for granted credits if plan specifies 0. | Optional (default: `90`)|
 
 ---
 

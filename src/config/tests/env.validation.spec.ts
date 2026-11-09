@@ -88,6 +88,16 @@ describe('envValidationSchema', () => {
 
       // Swagger defaults
       expect(value.SWAGGER_ENABLED).toBe('true');
+
+      // Batch & Retention defaults
+      expect(value.CREDIT_EXPIRY_BATCH_SIZE).toBe(500);
+      expect(value.USER_SESSION_RETENTION_DAYS).toBe(30);
+      expect(value.USER_SESSION_CLEANUP_BATCH_SIZE).toBe(500);
+
+      // Integration & Runtime defaults
+      expect(value.APP_VERSION).toBe('1.0.0');
+      expect(value.SHOULD_LOG_RESPONSE).toBe(false);
+      expect(value.INSTAGRAM_GRAPH_API_VERSION).toBe('v21.0');
     });
 
     it('should coerce string values into numbers for all numeric fields', () => {
@@ -394,6 +404,50 @@ describe('envValidationSchema', () => {
 
       expect(error).toBeDefined();
       expect(error?.message).toContain('"SUPABASE_URL" must be a valid uri');
+    });
+
+    it('should fail when NODE_ENV is production and payment credentials or JWT_SECRET are missing', () => {
+      const { error } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          NODE_ENV: 'production',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeDefined();
+      const messages = error?.details.map((d) => d.message).join('; ') ?? '';
+      expect(messages).toContain('"JWT_SECRET" is required');
+      expect(messages).toContain('"RAZORPAY_KEY_ID" is required');
+      expect(messages).toContain('"RAZORPAY_KEY_SECRET" is required');
+      expect(messages).toContain('"RAZORPAY_WEBHOOK_SECRET" is required');
+      expect(messages).toContain('"CASHFREE_APP_ID" is required');
+      expect(messages).toContain('"CASHFREE_SECRET_KEY" is required');
+      expect(messages).toContain('"REVENUECAT_WEBHOOK_SECRET" is required');
+    });
+
+    it('should pass when NODE_ENV is production and all required production credentials are provided', () => {
+      const { error, value } = envValidationSchema.validate(
+        {
+          ...baseValidEnv,
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-key-12345',
+          RAZORPAY_KEY_ID: 'rzp_live_test_123',
+          RAZORPAY_KEY_SECRET: 'rzp_live_secret_456',
+          RAZORPAY_WEBHOOK_SECRET: 'rzp_whsec_789',
+          CASHFREE_APP_ID: 'cf_app_live_123',
+          CASHFREE_SECRET_KEY: 'cf_sec_live_456',
+          REVENUECAT_WEBHOOK_SECRET: 'rc_whsec_live_789',
+        },
+        envValidationOptions,
+      );
+
+      expect(error).toBeUndefined();
+      expect(value.NODE_ENV).toBe('production');
+      expect(value.JWT_SECRET).toBe('prod-jwt-secret-key-12345');
+      expect(value.RAZORPAY_KEY_ID).toBe('rzp_live_test_123');
+      expect(value.CASHFREE_APP_ID).toBe('cf_app_live_123');
+      expect(value.REVENUECAT_WEBHOOK_SECRET).toBe('rc_whsec_live_789');
     });
   });
 
