@@ -111,7 +111,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(DEVICE_ADDED_EVENT)
+  @OnEvent(DEVICE_ADDED_EVENT, { async: true })
   async handleDeviceAdded(event: DeviceAddedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -141,7 +141,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(LIKE_SENT_EVENT)
+  @OnEvent(LIKE_SENT_EVENT, { async: true })
   async handleLikeSent(event: LikeSentEvent): Promise<void> {
     // 1. Dispatch sender confirmation (EMAIL, PUSH)
     try {
@@ -500,7 +500,7 @@ export class NotificationEventsListener extends BaseService {
     return null;
   }
 
-  @OnEvent(LIKE_WITHDRAWN_EVENT)
+  @OnEvent(LIKE_WITHDRAWN_EVENT, { async: true })
   async handleLikeWithdrawn(event: LikeWithdrawnEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -657,7 +657,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(IDENTITY_ADDED_EVENT)
+  @OnEvent(IDENTITY_ADDED_EVENT, { async: true })
   async handleIdentityAdded(event: IdentityAddedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -688,7 +688,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(IDENTITY_REMOVED_EVENT)
+  @OnEvent(IDENTITY_REMOVED_EVENT, { async: true })
   async handleIdentityRemoved(event: IdentityRemovedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -718,7 +718,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(USER_WELCOME_EVENT)
+  @OnEvent(USER_WELCOME_EVENT, { async: true })
   async handleUserWelcome(event: UserWelcomeEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -743,7 +743,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDITS_PURCHASED_EVENT)
+  @OnEvent(CREDITS_PURCHASED_EVENT, { async: true })
   async handleCreditsPurchased(event: CreditsPurchasedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -774,7 +774,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDITS_USED_EVENT)
+  @OnEvent(CREDITS_USED_EVENT, { async: true })
   async handleCreditsUsed(event: CreditsUsedEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -802,7 +802,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(LIKES_EXPIRED_EVENT)
+  @OnEvent(LIKES_EXPIRED_EVENT, { async: true })
   async handleLikesExpired(event: LikesExpiredEvent): Promise<void> {
     try {
       const name = await this.resolveUserFirstName(event.userId);
@@ -829,7 +829,7 @@ export class NotificationEventsListener extends BaseService {
     }
   }
 
-  @OnEvent(CREDIT_BUNDLE_EXPIRING_EVENT)
+  @OnEvent(CREDIT_BUNDLE_EXPIRING_EVENT, { async: true })
   async handleCreditBundleExpiring(
     event: CreditBundleExpiringEvent,
   ): Promise<void> {

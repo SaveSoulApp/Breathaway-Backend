@@ -963,7 +963,7 @@ export class ChatsService extends BaseService {
    * Cleans up Supabase chat history (rooms and their messages via cascade)
    * where the user was a participant.
    */
-  @OnEvent(USER_DELETED_EVENT)
+  @OnEvent(USER_DELETED_EVENT, { async: true })
   async handleUserDeletedEvent(payload: UserDeletedEvent) {
     const { userId } = payload;
     try {
