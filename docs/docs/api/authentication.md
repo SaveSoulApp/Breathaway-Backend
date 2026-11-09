@@ -368,25 +368,12 @@ In serverless Google Cloud Run deployments fronted by Google Cloud Load Balancin
 
 To enforce per-client rate isolation:
 
-1. **Express Trust Proxy**: Configured via `app.set('trust proxy', true)` in [`main.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/main.ts).
-2. **Deterministic IP Resolution (`extractClientIp`)**: Provided in [`request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
-   ```typescript
-   export function extractClientIp(req: Request): string | undefined {
-     const forwarded = req.headers['x-forwarded-for'];
-     if (typeof forwarded === 'string' && forwarded.length > 0) {
-       return forwarded.split(',')[0].trim();
-     }
-     if (Array.isArray(forwarded) && forwarded.length > 0) {
-       return forwarded[0].split(',')[0].trim();
-     }
-     return (
-       (req.headers['x-real-ip'] as string) ||
-       req.ip ||
-       req.socket?.remoteAddress
-     );
-   }
-   ```
-   This guarantees that the client's genuine public IP address (the leftmost entry in `x-forwarded-for`) governs their individual rate limit bucket.
+1. **Express Reverse Proxy Trust**: Configured via `app.set('trust proxy', true)` in [`src/config/security.config.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/config/security.config.ts#L78). This enables Express to accurately detect HTTPS protocol state (`req.secure`) and preserve header forwarding across Cloud Run and intermediate CDN/WAF layers (Cloudflare, Vercel, GCLB).
+2. **Deterministic IP Resolution (`extractClientIp`)**: Defined in [`src/common/utils/request.utils.ts`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/utils/request.utils.ts#L105-L155) and wired into `ThrottlerModule.forRootAsync` via `getTracker`:
+   - Prioritizes authoritative edge headers (`CF-Connecting-IP`, `X-Real-IP`).
+   - Filters out internal Google Front End (GFE) link-local (`169.254.x.x`) and RFC 1918 private proxy hops from `X-Forwarded-For`.
+   - Resolves the genuine originating client IP without succumbing to the single-hop proxy collapse flaw of `trust proxy: 1`.
+   - See [Reverse Proxy Trust & Client IP Architecture](/architecture/reverse-proxy-ip-resolution) for the comprehensive multi-hop topology analysis.
 
 #### Multi-Tier Throttling Profiles
 
