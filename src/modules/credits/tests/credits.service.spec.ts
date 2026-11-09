@@ -1260,5 +1260,35 @@ describe('CreditsService', () => {
         }),
       );
     });
+
+    it('should process user batch concurrently across chunks and return total warned users count', async () => {
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const expiringDate = new Date('2026-09-05T00:00:00Z');
+      const userIds = Array.from({ length: 15 }, (_, i) => `user-${i + 1}`);
+
+      // Mock findMany for all 15 users
+      for (const uId of userIds) {
+        prisma.creditLedger.findMany.mockResolvedValueOnce([
+          {
+            id: `credit-${uId}`,
+            userId: uId,
+            amount: 5,
+            transactionType: CreditTransactionType.CREDIT,
+            source: CreditSource.PURCHASE,
+            expiresAt: expiringDate,
+            createdAt: new Date('2026-08-01T00:00:00Z'),
+          },
+        ] as never);
+      }
+
+      await expect(
+        service.handleExpiryWarningBatch({
+          userIds,
+          asOf: asOf.toISOString(),
+        }),
+      ).resolves.not.toThrow();
+
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(15);
+    });
   });
 });

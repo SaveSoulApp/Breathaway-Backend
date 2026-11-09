@@ -58,6 +58,12 @@ export class AuthTokenService extends BaseService {
   private readonly refreshExpiresInSeconds: number;
 
   /**
+   * Maximum entries permitted in the degraded in-memory grace cache.
+   * Protects against memory leaks during prolonged Redis outages.
+   */
+  private static readonly MAX_IN_MEMORY_GRACE_ENTRIES = 1000;
+
+  /**
    * Process-local fallback cache for single-instance / test environments.
    */
   private readonly inMemoryGraceCache = new Map<
@@ -669,6 +675,8 @@ export class AuthTokenService extends BaseService {
 
   /**
    * Prunes expired entries from the process-local fallback cache.
+   * If cache size exceeds MAX_IN_MEMORY_GRACE_ENTRIES even after expiring entries,
+   * evicts oldest entries (FIFO order) to maintain bounded heap footprint.
    */
   private cleanExpiredMemoryEntries(): void {
     if (this.inMemoryGraceCache.size > 200) {
@@ -676,6 +684,23 @@ export class AuthTokenService extends BaseService {
       for (const [key, val] of this.inMemoryGraceCache.entries()) {
         if (val.expiresAt <= now) {
           this.inMemoryGraceCache.delete(key);
+        }
+      }
+
+      if (
+        this.inMemoryGraceCache.size >
+        AuthTokenService.MAX_IN_MEMORY_GRACE_ENTRIES
+      ) {
+        const excess =
+          this.inMemoryGraceCache.size -
+          AuthTokenService.MAX_IN_MEMORY_GRACE_ENTRIES;
+        let pruned = 0;
+        for (const key of this.inMemoryGraceCache.keys()) {
+          this.inMemoryGraceCache.delete(key);
+          pruned++;
+          if (pruned >= excess) {
+            break;
+          }
         }
       }
     }

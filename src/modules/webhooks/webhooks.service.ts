@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 
 import {
   ForbiddenException,
@@ -82,17 +82,14 @@ export class WebhooksService extends BaseService {
   }
 
   /**
-   * Performs constant-time string comparison to prevent timing-based side-channel attacks.
+   * Performs constant-time comparison using fixed-length SHA-256 digests
+   * to eliminate both byte-comparison and token-length timing side channels.
    */
   private safeCompare(a: string, b: string): boolean {
-    const bufA = Buffer.from(a, 'utf8');
-    const bufB = Buffer.from(b, 'utf8');
+    const hashA = createHash('sha256').update(a, 'utf8').digest();
+    const hashB = createHash('sha256').update(b, 'utf8').digest();
 
-    if (bufA.length !== bufB.length) {
-      return false;
-    }
-
-    return timingSafeEqual(bufA, bufB);
+    return timingSafeEqual(hashA, hashB);
   }
 
   /**

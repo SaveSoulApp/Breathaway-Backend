@@ -171,7 +171,9 @@ export class AdminService extends BaseService {
           });
         }
 
-        // 10. Update blocks: stamp blockedPhoneHash and detach blockedUserId
+        // 10. Update blocks: stamp blockedPhoneHash and detach blockedUserId.
+        // If the deleted user lacked a phone credential, permanently remove block records
+        // to avoid unidentifiable orphan blocks (where both blockedUserId and blockedPhoneHash are null).
         if (primaryPhoneHash) {
           await tx.block.updateMany({
             where: { blockedUserId: targetUserId },
@@ -181,9 +183,8 @@ export class AdminService extends BaseService {
             },
           });
         } else {
-          await tx.block.updateMany({
+          await tx.block.deleteMany({
             where: { blockedUserId: targetUserId },
-            data: { blockedUserId: null },
           });
         }
       });
@@ -196,8 +197,16 @@ export class AdminService extends BaseService {
       throw error;
     }
 
-    // Revoke user in Redis active auth cache synchronously
-    await this.jwtAuthCacheService.revokeUser(targetUserId);
+    // Revoke user in Redis active auth cache synchronously with resilient error handling
+    try {
+      await this.jwtAuthCacheService.revokeUser(targetUserId);
+    } catch (cacheErr) {
+      this.logger.warn('Failed to revoke active user JWT cache in Redis', {
+        ...ctx,
+        step: 'revoke_jwt_cache',
+        err: serializeError(cacheErr),
+      });
+    }
 
     this.logger.event(LOG_EVENT.ADMIN_ACCOUNT_DELETED, {
       targetUserId: ctx.targetUserId,

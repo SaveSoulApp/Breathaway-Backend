@@ -790,54 +790,67 @@ export class CreditsService extends BaseService {
     });
 
     let warnedUsers = 0;
+    const BATCH_CONCURRENCY = 10;
 
-    for (const userId of payload.userIds) {
-      const expiringCredits = await this.getExpiringCredits(
-        userId,
-        undefined,
-        asOf,
-      );
-
-      // Identify bundles expiring in the warning window (asOf, targetEnd]
-      const targetBundles = expiringCredits.filter(
-        (b) => b.expiresAt && b.expiresAt > asOf && b.expiresAt <= targetEnd,
-      );
-
-      if (targetBundles.length > 0) {
-        // Pick the earliest expiring bundle to anchor the notification date
-        const earliest = targetBundles[0];
-        const earliestDateStr = earliest.expiresAt!.toISOString().slice(0, 10);
-
-        // Sum unconsumed credits expiring on that same earliest date
-        const expiringCount = targetBundles
-          .filter(
-            (b) => b.expiresAt!.toISOString().slice(0, 10) === earliestDateStr,
-          )
-          .reduce((sum, b) => sum + b.remainingBalance, 0);
-
-        const daysRemaining = Math.max(
-          1,
-          Math.round(
-            (earliest.expiresAt!.getTime() - asOf.getTime()) /
-              (1000 * 60 * 60 * 24),
-          ),
-        );
-        const isUrgent = daysRemaining <= 2;
-        const urgency = isUrgent ? 'warning' : 'info';
-
-        this.eventEmitter.emit(
-          CREDIT_BUNDLE_EXPIRING_EVENT,
-          new CreditBundleExpiringEvent(
+    for (let i = 0; i < payload.userIds.length; i += BATCH_CONCURRENCY) {
+      const chunk = payload.userIds.slice(i, i + BATCH_CONCURRENCY);
+      const results = await Promise.all(
+        chunk.map(async (userId) => {
+          const expiringCredits = await this.getExpiringCredits(
             userId,
-            expiringCount,
-            earliestDateStr,
-            daysRemaining,
-            urgency,
-            isUrgent,
-          ),
-        );
-        warnedUsers++;
-      }
+            undefined,
+            asOf,
+          );
+
+          // Identify bundles expiring in the warning window (asOf, targetEnd]
+          const targetBundles = expiringCredits.filter(
+            (b) =>
+              b.expiresAt && b.expiresAt > asOf && b.expiresAt <= targetEnd,
+          );
+
+          if (targetBundles.length === 0) {
+            return false;
+          }
+
+          // Pick the earliest expiring bundle to anchor the notification date
+          const earliest = targetBundles[0];
+          const earliestDateStr = earliest
+            .expiresAt!.toISOString()
+            .slice(0, 10);
+
+          // Sum unconsumed credits expiring on that same earliest date
+          const expiringCount = targetBundles
+            .filter(
+              (b) =>
+                b.expiresAt!.toISOString().slice(0, 10) === earliestDateStr,
+            )
+            .reduce((sum, b) => sum + b.remainingBalance, 0);
+
+          const daysRemaining = Math.max(
+            1,
+            Math.round(
+              (earliest.expiresAt!.getTime() - asOf.getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          );
+          const isUrgent = daysRemaining <= 2;
+          const urgency = isUrgent ? 'warning' : 'info';
+
+          this.eventEmitter.emit(
+            CREDIT_BUNDLE_EXPIRING_EVENT,
+            new CreditBundleExpiringEvent(
+              userId,
+              expiringCount,
+              earliestDateStr,
+              daysRemaining,
+              urgency,
+              isUrgent,
+            ),
+          );
+          return true;
+        }),
+      );
+      warnedUsers += results.filter(Boolean).length;
     }
 
     this.logger.log('Credit expiry warning batch completed', {

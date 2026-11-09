@@ -841,4 +841,55 @@ describe('AuthTokenService', () => {
       );
     });
   });
+
+  describe('cleanExpiredMemoryEntries', () => {
+    it('should evict expired entries when map size exceeds threshold', () => {
+      const cache = (service as any).inMemoryGraceCache;
+      cache.clear();
+
+      const now = Date.now();
+      // Populate 250 expired entries
+      for (let i = 0; i < 250; i++) {
+        cache.set(`expired-${i}`, {
+          response: {} as any,
+          expiresAt: now - 1000,
+        });
+      }
+
+      // Populate 10 valid entries
+      for (let i = 0; i < 10; i++) {
+        cache.set(`valid-${i}`, {
+          response: {} as any,
+          expiresAt: now + 60000,
+        });
+      }
+
+      expect(cache.size).toBe(260);
+      (service as any).cleanExpiredMemoryEntries();
+      expect(cache.size).toBe(10);
+    });
+
+    it('should enforce hard cap of 1000 entries and evict oldest when unexpired count exceeds cap', () => {
+      const cache = (service as any).inMemoryGraceCache;
+      cache.clear();
+
+      const future = Date.now() + 60000;
+      // Populate 1050 unexpired entries
+      for (let i = 0; i < 1050; i++) {
+        cache.set(`jti-${i}`, {
+          response: {} as any,
+          expiresAt: future,
+        });
+      }
+
+      expect(cache.size).toBe(1050);
+      (service as any).cleanExpiredMemoryEntries();
+      expect(cache.size).toBe(1000);
+      // First 50 entries should have been evicted (FIFO order)
+      expect(cache.has('jti-0')).toBe(false);
+      expect(cache.has('jti-49')).toBe(false);
+      expect(cache.has('jti-50')).toBe(true);
+      expect(cache.has('jti-1049')).toBe(true);
+    });
+  });
 });

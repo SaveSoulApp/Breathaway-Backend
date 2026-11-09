@@ -581,6 +581,7 @@ describe('PaymentsService', () => {
       expect(prisma.subscriptionPlanPrice.findMany).toHaveBeenCalledTimes(1);
       expect(prisma.subscriptionPlanPrice.findMany).toHaveBeenCalledWith({
         where: { planId, countryCode: { in: ['FR', 'IN'] } },
+        orderBy: { createdAt: 'desc' },
         select: expect.any(Object),
       });
       expect(prisma.paymentGatewayRoute.findMany).toHaveBeenCalledTimes(1);

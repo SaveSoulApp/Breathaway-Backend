@@ -37,7 +37,7 @@ describe('AdminService', () => {
     match: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     like: { updateMany: jest.fn() },
     transaction: { updateMany: jest.fn() },
-    block: { updateMany: jest.fn() },
+    block: { updateMany: jest.fn(), deleteMany: jest.fn() },
   };
 
   const mockJwtAuthCacheService = {
@@ -236,6 +236,52 @@ describe('AdminService', () => {
 
       expect(mockTx.match.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: ['match-1'] } },
+      });
+    });
+
+    it('should delete block records when target user lacks phone credentials', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: userId,
+        deletedAt: null,
+        identities: [],
+        authCredentials: [],
+      } as any);
+
+      await service.deleteAccount(userId, reason);
+
+      expect(mockTx.block.deleteMany).toHaveBeenCalledWith({
+        where: { blockedUserId: userId },
+      });
+      expect(mockTx.block.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('should emit USER_DELETED_EVENT and audit log even if jwtAuthCacheService.revokeUser fails', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: userId,
+        deletedAt: null,
+        identities: [],
+        authCredentials: [],
+      } as any);
+
+      mockJwtAuthCacheService.revokeUser.mockRejectedValueOnce(
+        new Error('Redis connection down'),
+      );
+
+      await expect(
+        service.deleteAccount(userId, reason),
+      ).resolves.not.toThrow();
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        USER_DELETED_EVENT,
+        new UserDeletedEvent(userId),
+      );
+      expect((service as any).emitAuditLog).toHaveBeenCalledWith({
+        actionType: AuditActionType.ADMIN_ACCOUNT_DELETED,
+        userId,
+        metadata: {
+          deletedUserId: userId,
+          reason,
+        },
       });
     });
   });

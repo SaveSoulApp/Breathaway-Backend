@@ -602,6 +602,7 @@ export class PaymentsService extends BaseService {
         planId,
         countryCode: { in: targetCodes },
       },
+      orderBy: { createdAt: 'desc' },
       select: {
         originalPrice: true,
         discountedPrice: true,
