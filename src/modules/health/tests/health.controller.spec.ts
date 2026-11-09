@@ -1,9 +1,11 @@
+import { Reflector } from '@nestjs/core';
 import {
   HealthCheckResult,
   HealthCheckService,
   MemoryHealthIndicator,
 } from '@nestjs/terminus';
 import { Test, TestingModule } from '@nestjs/testing';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 
 import { LoggerService } from '@core/logger';
 
@@ -154,6 +156,24 @@ describe('HealthController', () => {
       mockHealthCheckService.check.mockRejectedValue(checkError);
 
       await expect(controller.checkReady()).rejects.toThrow(checkError);
+    });
+  });
+
+  describe('Rate Limiting Bypass Verification', () => {
+    it('should bypass all throttler tiers on HealthController', () => {
+      const reflector = new Reflector();
+      expect(reflector.get(THROTTLER_SKIP + 'default', HealthController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'short', HealthController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'medium', HealthController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'long', HealthController)).toBe(
+        true,
+      );
     });
   });
 });

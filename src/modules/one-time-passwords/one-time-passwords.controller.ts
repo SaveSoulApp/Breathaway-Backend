@@ -5,6 +5,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { ApiStandardErrors, CurrentUserId } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -12,6 +13,7 @@ import { SerializeExpose } from '@common/interceptors';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 
+import { OTP_GENERATE_THROTTLE, OTP_VERIFY_THROTTLE } from './constants';
 import { OtpResponseDto, VerifyOtpDto, VerifyOtpResponseDto } from './dto';
 import { OneTimePasswordsService } from './one-time-passwords.service';
 
@@ -52,6 +54,7 @@ export class OneTimePasswordsController extends BaseController {
   @Post('generate')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Throttle(OTP_GENERATE_THROTTLE)
   @ApiOperation({ summary: 'Generate a new OTP for the current user' })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -89,6 +92,7 @@ export class OneTimePasswordsController extends BaseController {
   @Post('verify')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Throttle(OTP_VERIFY_THROTTLE)
   @ApiOperation({ summary: 'Verify an OTP' })
   @ApiResponse({
     status: HttpStatus.CREATED,

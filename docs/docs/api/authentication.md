@@ -390,13 +390,29 @@ To enforce per-client rate isolation:
 
 #### Multi-Tier Throttling Profiles
 
-Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
+Rather than a single coarse window, BreathAway configures three concurrent time horizons (`short`, `medium`, `long`) globally in `ThrottlerModule` and overrides them with specialized profile constants for sensitive operations to simultaneously defeat high-frequency bursts and sustained distributed brute-force campaigns:
 
-| Policy Constant               | Target Endpoints                                                                                                                                                       | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection                                                                                                                    |
-| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------: | :---------------: | :-------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| **`AUTH_REFRESH_THROTTLE`**   | `POST /api/v1/auth/refresh`                                                                                                                                            |      2 req      |       5 req       |     10 req      | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
-| **`AUTH_STRICT_THROTTLE`**    | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/add-phone`<br/>`POST /api/v1/auth/add-email` |      1 req      |       3 req       |      5 req      | Stringent throttle preventing credential stuffing, OTP toll fraud, and automated account farming.                                         |
-| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login`                                                                                                                                         |      2 req      |       5 req       |     10 req      | Protects local/staging developer bypass route from automation scripts.                                                                    |
+| Policy Profile | Target Endpoints | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Rationale & Protection |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Global Application Default** | All un-decorated API endpoints | 5 req | 20 req | 50 req | General DDoS and API abuse baseline across all public and authenticated endpoints. |
+| **`AUTH_REFRESH_THROTTLE`** | `POST /api/v1/auth/refresh` | 2 req | 5 req | 10 req | Permits an immediate burst of 2 requests in 1 second (handling parallel 401 retries from mobile apps), but strictly clamps at 10 req/min. |
+| **`AUTH_STRICT_THROTTLE`** | `POST /api/v1/auth/signup`<br/>`POST /api/v1/auth/signin`<br/>`POST /api/v1/auth/signin-or-signup`<br/>`POST /api/v1/auth/signout`<br/>`DELETE /api/v1/auth/account`<br/>`POST /api/v1/identities/email/link`<br/>`POST /api/v1/identities/email/unlink` | 1 req | 3 req | 5 req | Stringent throttle preventing credential stuffing, brute-force password guessing, and automated account farming. |
+| **`AUTH_DEV_LOGIN_THROTTLE`** | `POST /api/v1/admin/dev-login` | 2 req | 5 req | 10 req | Protects local/staging developer bypass route from automation scripts. |
+| **`SESSIONS_REVOKE_THROTTLE`** | `DELETE /api/v1/sessions/:id`<br/>`DELETE /api/v1/sessions` | 2 req | 5 req | 10 req | Mitigates burst database writes and mass Redis session cache eviction spikes. |
+| **`OTP_GENERATE_THROTTLE`** | `POST /api/v1/one-time-passwords/generate` | 1 req | 2 req | 5 req | Prevents OTP flooding, SMS/DM spam toll fraud, and Redis generation locks. |
+| **`OTP_VERIFY_THROTTLE`** | `POST /api/v1/one-time-passwords/verify` | 2 req | 5 req | 10 req | Mitigates online dictionary attacks and token slug enumeration. |
+| **`PAYMENTS_ORDER_THROTTLE`** | `POST /api/v1/payments/orders` | 2 req | 5 req | 10 req | Prevents upstream payment gateway rate-limit exhaustion (Razorpay/Cashfree) and pending order table bloat. |
+| **`PAYMENTS_VERIFY_THROTTLE`** | `POST /api/v1/payments/orders/:orderId/verify` | 2 req | 5 req | 15 req | Defends against HMAC brute-forcing, replay flooding, and credit fulfilment race conditions. |
+
+#### Rate Limiting Bypass (`@SkipAllThrottles`)
+
+Infrastructure endpoints, health checks, cron triggers, Pub/Sub push workers, and server-to-server webhook ingests must never be throttled by user IP buckets. In `@nestjs/throttler` v5+, `@SkipThrottle()` defaults only to skipping `'default'`; to prevent multi-tier throttlers (`short`, `medium`, `long`) from intercepting server operations, BreathAway provides [`@SkipAllThrottles()`](file:///Users/mohitmalpani/Business/BreathAway/Backend/breathaway/src/common/decorators/skip-all-throttles.decorator.ts):
+
+- `GET /health`, `GET /ready` (`HealthController`)
+- `POST /api/v1/internal/jobs/*` (`MaintenanceController`)
+- `POST /api/v1/pubsub` (`PubSubIngestionController`)
+- `POST /api/v1/webhooks/*` (`WebhooksController`)
+- `POST /api/v1/subscriptions/webhooks` (`SubscriptionsWebhookController`)
 
 #### Error Response Contract (`429 Too Many Requests`)
 

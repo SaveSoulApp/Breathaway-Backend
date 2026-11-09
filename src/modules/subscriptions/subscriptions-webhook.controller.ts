@@ -18,6 +18,7 @@ import {
   SubscriptionEventType,
 } from '@prisma/client';
 
+import { SkipAllThrottles } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { GcpOidcAuthGuard } from '@common/guards';
 import { serializeError } from '@common/utils/error.utils';
@@ -42,6 +43,7 @@ import { SubscriptionsService } from './services/subscriptions.service';
  */
 @ApiTags('Subscriptions Webhooks')
 @SkipClientIdentity()
+@SkipAllThrottles()
 @Controller({
   path: 'subscriptions/webhooks',
   version: ['1'],

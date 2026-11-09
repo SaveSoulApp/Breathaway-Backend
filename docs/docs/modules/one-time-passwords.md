@@ -47,7 +47,10 @@ To prevent exploitation in the event of a cache breach:
 
 ### 4. Rate Limiting & Atomic Consumption
 
-- **Sentinel Keys**: Before generating a new OTP, the system checks for a Redis sentinel key (`rate_limit:otp:${userId}`). If it exists, a `429 Too Many Requests` is thrown, enforcing strict burst limitations (defined by `OTP_RATE_LIMIT_TTL`).
+- **Multi-Tier Throttling**:
+  - `POST /api/v1/one-time-passwords/generate` is protected by `OTP_GENERATE_THROTTLE` (`short`: 1 req/1s, `medium`: 2 req/10s, `long`: 5 req/60s) to prevent generation spam and toll fraud.
+  - `POST /api/v1/one-time-passwords/verify` is protected by `OTP_VERIFY_THROTTLE` (`short`: 2 req/1s, `medium`: 5 req/10s, `long`: 10 req/60s) to block dictionary attacks and brute-force token enumeration.
+- **Sentinel Keys**: Before generating a new OTP, the system checks for a Redis sentinel key (`rate_limit:otp:${userId}`). If it exists, a `429 Too Many Requests` is thrown, enforcing strict per-user intervals (defined by `OTP_RATE_LIMIT_TTL`).
 - **Atomic Single-Use Consumption**: When an OTP is successfully verified via `verifyAndConsumeOtp`, its key is immediately deleted (`del` operation) from Redis, ensuring single-use atomicity and preventing replay attacks.
 
 ---

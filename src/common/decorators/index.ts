@@ -9,5 +9,6 @@ export * from './is-valid-timezone.decorator';
 export * from './non-production-only.decorator';
 export * from './optional-current-user-id.decorator';
 export * from './request-id.decorator';
+export * from './skip-all-throttles.decorator';
 export * from './timezone.decorator';
 export * from './user-agent.decorator';

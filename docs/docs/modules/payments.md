@@ -530,6 +530,18 @@ Domain exceptions in `application/exceptions/` are automatically mapped to stand
 
 ---
 
+## 🛡️ Multi-Tier Rate Limiting
+
+To safeguard upstream payment gateway quotas (Razorpay and Cashfree API limits), prevent database bloat with phantom pending orders, and protect against signature brute-force attacks, the `PaymentsController` enforces strict multi-tier rate limiting:
+
+| Profile | Endpoint | Short Tier (1s) | Medium Tier (10s) | Long Tier (60s) | Protection |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **`PAYMENTS_ORDER_THROTTLE`** | `POST /api/v1/payments/orders` | 2 req | 5 req | 10 req | Prevents rapid button clicking, automated order generation, and gateway quota depletion. |
+| **`PAYMENTS_VERIFY_THROTTLE`** | `POST /api/v1/payments/orders/:orderId/verify` | 2 req | 5 req | 15 req | Protects server-side HMAC signature verification against brute-forcing and replay floods. |
+| **Global Default** | `GET /api/v1/payments/orders/:orderId` | 5 req | 20 req | 50 req | Accommodates client polling while checkout UI is active without dropping status requests. |
+
+---
+
 ## 🔑 Environment Configuration
 
 All runtime secrets and parameters are retrieved via NestJS `ConfigService` and validated against `envValidationSchema` (`src/config/env.validation.ts`). When running in `NODE_ENV === 'production'`, all primary payment gateway credentials are strictly **required at startup**, failing fast during container boot if any secret is missing from Secret Manager:

@@ -1,4 +1,6 @@
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 import {
   CurrencyCode,
   StorePlatform,
@@ -436,6 +438,30 @@ describe('SubscriptionsWebhookController', () => {
 
       // Assert
       expect(result).toEqual({ status: 'error' });
+    });
+  });
+
+  describe('Rate Limiting Bypass Verification', () => {
+    it('should bypass all throttler tiers on SubscriptionsWebhookController', () => {
+      const reflector = new Reflector();
+      expect(
+        reflector.get(
+          THROTTLER_SKIP + 'default',
+          SubscriptionsWebhookController,
+        ),
+      ).toBe(true);
+      expect(
+        reflector.get(THROTTLER_SKIP + 'short', SubscriptionsWebhookController),
+      ).toBe(true);
+      expect(
+        reflector.get(
+          THROTTLER_SKIP + 'medium',
+          SubscriptionsWebhookController,
+        ),
+      ).toBe(true);
+      expect(
+        reflector.get(THROTTLER_SKIP + 'long', SubscriptionsWebhookController),
+      ).toBe(true);
     });
   });
 });

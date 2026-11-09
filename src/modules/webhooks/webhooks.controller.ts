@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { SkipAllThrottles } from '@common/decorators';
 import { SkipClientIdentity } from '@common/decorators/skip-client-identity.decorator';
 import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
@@ -36,6 +37,7 @@ import { WebhooksService } from './webhooks.service';
   version: ['1'],
 })
 @SkipClientIdentity()
+@SkipAllThrottles()
 export class WebhooksController extends BaseController {
   constructor(
     logger: LoggerService,

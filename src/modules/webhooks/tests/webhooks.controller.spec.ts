@@ -1,6 +1,8 @@
 import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
@@ -329,6 +331,24 @@ describe('WebhooksController', () => {
       expect(handler.canHandle).toHaveBeenCalledWith(dto);
       expect(handler.handle).not.toHaveBeenCalled();
       expect(result).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('Rate Limiting Bypass Verification', () => {
+    it('should bypass all throttler tiers on WebhooksController', () => {
+      const reflector = new Reflector();
+      expect(
+        reflector.get(THROTTLER_SKIP + 'default', WebhooksController),
+      ).toBe(true);
+      expect(reflector.get(THROTTLER_SKIP + 'short', WebhooksController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'medium', WebhooksController)).toBe(
+        true,
+      );
+      expect(reflector.get(THROTTLER_SKIP + 'long', WebhooksController)).toBe(
+        true,
+      );
     });
   });
 });

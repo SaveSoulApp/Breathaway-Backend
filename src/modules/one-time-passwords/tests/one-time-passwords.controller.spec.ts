@@ -1,14 +1,23 @@
+import { Reflector } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  THROTTLER_LIMIT,
+  THROTTLER_TTL,
+} from '@nestjs/throttler/dist/throttler.constants';
+import { ClsService } from 'nestjs-cls';
+
 import { LoggerService } from '@core/logger';
+
+import { OTP_GENERATE_THROTTLE, OTP_VERIFY_THROTTLE } from '../constants';
+import { VerifyOtpDto } from '../dto';
 import { OneTimePasswordsController } from '../one-time-passwords.controller';
 import { OneTimePasswordsService } from '../one-time-passwords.service';
-import { VerifyOtpDto } from '../dto';
-import { ClsService } from 'nestjs-cls';
 
 describe('OneTimePasswordsController', () => {
   let controller: OneTimePasswordsController;
   let service: jest.Mocked<OneTimePasswordsService>;
+  let reflector: Reflector;
 
   const userId = 'user-id-123';
 
@@ -31,6 +40,7 @@ describe('OneTimePasswordsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OneTimePasswordsController],
       providers: [
+        Reflector,
         { provide: ClsService, useValue: { get: jest.fn() } },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: OneTimePasswordsService, useValue: mockService },
@@ -42,10 +52,85 @@ describe('OneTimePasswordsController', () => {
       OneTimePasswordsController,
     );
     service = module.get(OneTimePasswordsService);
+    reflector = module.get<Reflector>(Reflector);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('Throttle Metadata Verification', () => {
+    it('should attach strict throttling metadata to generateOtp', () => {
+      const shortLimit = reflector.get(
+        THROTTLER_LIMIT + 'short',
+        controller.generateOtp,
+      );
+      const mediumLimit = reflector.get(
+        THROTTLER_LIMIT + 'medium',
+        controller.generateOtp,
+      );
+      const longLimit = reflector.get(
+        THROTTLER_LIMIT + 'long',
+        controller.generateOtp,
+      );
+
+      expect(shortLimit).toBe(OTP_GENERATE_THROTTLE.short.limit);
+      expect(mediumLimit).toBe(OTP_GENERATE_THROTTLE.medium.limit);
+      expect(longLimit).toBe(OTP_GENERATE_THROTTLE.long.limit);
+
+      const shortTtl = reflector.get(
+        THROTTLER_TTL + 'short',
+        controller.generateOtp,
+      );
+      const mediumTtl = reflector.get(
+        THROTTLER_TTL + 'medium',
+        controller.generateOtp,
+      );
+      const longTtl = reflector.get(
+        THROTTLER_TTL + 'long',
+        controller.generateOtp,
+      );
+
+      expect(shortTtl).toBe(OTP_GENERATE_THROTTLE.short.ttl);
+      expect(mediumTtl).toBe(OTP_GENERATE_THROTTLE.medium.ttl);
+      expect(longTtl).toBe(OTP_GENERATE_THROTTLE.long.ttl);
+    });
+
+    it('should attach strict throttling metadata to verifyOtp', () => {
+      const shortLimit = reflector.get(
+        THROTTLER_LIMIT + 'short',
+        controller.verifyOtp,
+      );
+      const mediumLimit = reflector.get(
+        THROTTLER_LIMIT + 'medium',
+        controller.verifyOtp,
+      );
+      const longLimit = reflector.get(
+        THROTTLER_LIMIT + 'long',
+        controller.verifyOtp,
+      );
+
+      expect(shortLimit).toBe(OTP_VERIFY_THROTTLE.short.limit);
+      expect(mediumLimit).toBe(OTP_VERIFY_THROTTLE.medium.limit);
+      expect(longLimit).toBe(OTP_VERIFY_THROTTLE.long.limit);
+
+      const shortTtl = reflector.get(
+        THROTTLER_TTL + 'short',
+        controller.verifyOtp,
+      );
+      const mediumTtl = reflector.get(
+        THROTTLER_TTL + 'medium',
+        controller.verifyOtp,
+      );
+      const longTtl = reflector.get(
+        THROTTLER_TTL + 'long',
+        controller.verifyOtp,
+      );
+
+      expect(shortTtl).toBe(OTP_VERIFY_THROTTLE.short.ttl);
+      expect(mediumTtl).toBe(OTP_VERIFY_THROTTLE.medium.ttl);
+      expect(longTtl).toBe(OTP_VERIFY_THROTTLE.long.ttl);
+    });
   });
 
   describe('generateOtp', () => {
