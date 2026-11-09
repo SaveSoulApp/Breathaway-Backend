@@ -576,8 +576,11 @@ export class AuthTokenService extends BaseService {
   }
 
   /**
-   * Caches a freshly rotated token response both in-memory and in Redis (Upstash)
-   * to accommodate rapid concurrent refresh requests during the rotation grace window.
+   * Caches a freshly rotated token response.
+   *
+   * Authoritative storage is distributed Redis across Cloud Run containers.
+   * Degraded process-local in-memory storage is used only as a fallback when Redis
+   * is unconfigured (e.g. offline local dev, tests) or experiencing transient failures.
    *
    * @param consumedJti - The JTI of the consumed/revoked refresh token.
    * @param response - The generated authentication response containing the new token pair.
@@ -586,23 +589,7 @@ export class AuthTokenService extends BaseService {
     consumedJti: string,
     response: UserAuthResponseDto,
   ): Promise<void> {
-    const expiresAt =
-      DateUtil.now().getTime() + ROTATION_GRACE_TTL_SECONDS * 1000;
-
-    // Prune expired entries if the in-memory cache grows large
-    if (this.inMemoryGraceCache.size > 500) {
-      const now = DateUtil.now().getTime();
-      for (const [key, val] of this.inMemoryGraceCache.entries()) {
-        if (val.expiresAt <= now) {
-          this.inMemoryGraceCache.delete(key);
-        }
-      }
-    }
-
-    // 1. Process-local cache fallback
-    this.inMemoryGraceCache.set(consumedJti, { response, expiresAt });
-
-    // 2. Distributed Redis cache across Cloud Run containers
+    // 1. Authoritative distributed Redis cache across Cloud Run containers
     if (this.redisService?.isConfigured) {
       try {
         const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
@@ -612,9 +599,10 @@ export class AuthTokenService extends BaseService {
           'EX',
           ROTATION_GRACE_TTL_SECONDS,
         );
+        return;
       } catch (err) {
         this.logger.warn(
-          'Failed to cache rotated token pair in Redis, relying on local fallback',
+          'Failed to cache rotated token pair in Redis, falling back to local memory',
           {
             step: 'cache_rotated_token_failed',
             jti: consumedJti,
@@ -623,11 +611,21 @@ export class AuthTokenService extends BaseService {
         );
       }
     }
+
+    // 2. Process-local cache fallback (when Redis is unconfigured or experiencing transient outage)
+    this.cleanExpiredMemoryEntries();
+    const expiresAt =
+      DateUtil.now().getTime() + ROTATION_GRACE_TTL_SECONDS * 1000;
+    this.inMemoryGraceCache.set(consumedJti, { response, expiresAt });
   }
 
   /**
    * Retrieves a cached rotated token response if available within the grace window.
-   * Checks the in-memory fallback first, then distributed Redis.
+   *
+   * In multi-instance Cloud Run, Redis is the authoritative store. An explicit cache miss
+   * (key not found in Redis) returns null immediately to guarantee distributed consistency
+   * and avoid serving stale local entries. The in-memory map is queried only when Redis
+   * is unconfigured or throws a connectivity exception.
    *
    * @param consumedJti - The JTI of the previously rotated refresh token.
    * @returns The cached authentication response, or null if not found or expired.
@@ -635,7 +633,29 @@ export class AuthTokenService extends BaseService {
   private async getCachedRotatedResponse(
     consumedJti: string,
   ): Promise<UserAuthResponseDto | null> {
-    // 1. Check in-memory fallback
+    // 1. Authoritative check in distributed Redis
+    if (this.redisService?.isConfigured) {
+      try {
+        const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
+        const cached = await this.redisService.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached) as UserAuthResponseDto;
+        }
+        // Authoritative cache miss in Redis: do not fall back to local memory
+        return null;
+      } catch (err) {
+        this.logger.warn(
+          'Redis unreachable while retrieving rotated token, checking local memory fallback',
+          {
+            step: 'read_cached_token_failed',
+            jti: consumedJti,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
+      }
+    }
+
+    // 2. Degraded process-local fallback (when Redis is unconfigured or threw an exception)
     const memoryEntry = this.inMemoryGraceCache.get(consumedJti);
     if (memoryEntry) {
       if (memoryEntry.expiresAt > DateUtil.now().getTime()) {
@@ -644,24 +664,21 @@ export class AuthTokenService extends BaseService {
       this.inMemoryGraceCache.delete(consumedJti);
     }
 
-    // 2. Check distributed Redis
-    if (this.redisService?.isConfigured) {
-      try {
-        const cacheKey = `${AUTH_REFRESH_GRACE_PREFIX}${consumedJti}`;
-        const cached = await this.redisService.get(cacheKey);
-        if (cached) {
-          return JSON.parse(cached) as UserAuthResponseDto;
+    return null;
+  }
+
+  /**
+   * Prunes expired entries from the process-local fallback cache.
+   */
+  private cleanExpiredMemoryEntries(): void {
+    if (this.inMemoryGraceCache.size > 200) {
+      const now = DateUtil.now().getTime();
+      for (const [key, val] of this.inMemoryGraceCache.entries()) {
+        if (val.expiresAt <= now) {
+          this.inMemoryGraceCache.delete(key);
         }
-      } catch (err) {
-        this.logger.warn('Failed to retrieve cached rotated token from Redis', {
-          step: 'read_cached_token_failed',
-          jti: consumedJti,
-          error: err instanceof Error ? err.message : String(err),
-        });
       }
     }
-
-    return null;
   }
 
   /**

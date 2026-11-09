@@ -550,16 +550,11 @@ describe('AuthTokenService', () => {
 
       redisClient.set.mockImplementation(async (key: string, value: string) => {
         redisStorage[key] = value;
-        // Simulate cross-container isolation: clear local in-memory cache so Request 2 must rely on Redis
-        (service as any).inMemoryGraceCache.clear();
         return 'OK';
       });
 
       redisClient.get.mockImplementation(async (key: string) => {
         pollAttempts++;
-        // Simulate cross-container isolation by ensuring in-memory cache remains empty for Request 2
-        (service as any).inMemoryGraceCache.clear();
-
         // Simulate that on the initial poll attempt (attempt 1), the winning request's write
         // to Redis was still in-flight, so it returns null.
         // On attempt 2, the write has completed and Redis returns the cached payload.
@@ -695,6 +690,65 @@ describe('AuthTokenService', () => {
       // Assert: Second call served identically from local in-memory fallback
       expect(secondResult).toEqual(firstResult);
       expect(prisma.userSession.create).toHaveBeenCalledTimes(1); // Only created on first call
+    });
+
+    it('should treat Redis as authoritative and not fall back to local memory on explicit cache miss', async () => {
+      // Arrange: Seed an entry in local inMemoryGraceCache
+      const staleJti = 'stale-memory-jti';
+      (service as any).inMemoryGraceCache.set(staleJti, {
+        response: { accessToken: 'stale-token' },
+        expiresAt: Date.now() + 10000,
+      });
+
+      // When Redis is configured and returns null (explicit cache miss)
+      redisClient.get.mockResolvedValue(null);
+
+      // Act
+      const result = await (service as any).getCachedRotatedResponse(staleJti);
+
+      // Assert: Must return null directly from Redis miss, completely ignoring the stale in-memory entry
+      expect(result).toBeNull();
+      expect(redisClient.get).toHaveBeenCalledWith(
+        `${AUTH_REFRESH_GRACE_PREFIX}${staleJti}`,
+      );
+    });
+
+    it('should prevent cross-instance replay after session revocation clears the distributed Redis key', async () => {
+      // Arrange
+      const revokedJti = 'revoked-after-logout-jti';
+      const familyId = 'family-logout-test';
+
+      jwtService.verify.mockReturnValue({
+        sub: 'user-auth-123',
+        jti: revokedJti,
+        familyId,
+        token_type: 'refresh',
+      });
+
+      // Session was revoked 500ms ago (within grace window duration, but explicitly revoked upon signout)
+      prisma.userSession.findUnique.mockResolvedValue({
+        id: 'session-revoked-logout',
+        userId: 'user-auth-123',
+        jti: revokedJti,
+        familyId,
+        revokedAt: new Date(Date.now() - 500),
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      // Redis key was deleted during logout
+      redisClient.get.mockResolvedValue(null);
+
+      // Act & Assert: Attempting to refresh with the revoked token must trigger breach containment
+      await expect(
+        service.refreshToken({ refreshToken: 'revoked-after-logout-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Verify the entire session family was revoked on reuse
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ familyId }),
+        }),
+      );
     });
 
     it('should throw UnauthorizedException when refresh token is expired', async () => {
