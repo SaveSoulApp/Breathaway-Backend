@@ -1084,17 +1084,15 @@ describe('CreditsService', () => {
       const asOf = new Date('2026-09-01T00:00:00Z');
       const expiringDate = new Date('2026-09-03T00:00:00Z'); // 2 days -> isUrgent = true
 
-      prisma.creditLedger.aggregate.mockResolvedValueOnce({
-        _sum: { amount: 0 },
-      } as never);
-
       prisma.creditLedger.findMany.mockResolvedValueOnce([
         {
           id: 'credit-1',
           userId,
           amount: 5,
           transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.PURCHASE,
           expiresAt: expiringDate,
+          createdAt: new Date('2026-08-01T00:00:00Z'),
         },
       ] as never);
 
@@ -1120,17 +1118,24 @@ describe('CreditsService', () => {
       const asOf = new Date('2026-09-01T00:00:00Z');
       const expiringDate = new Date('2026-09-05T00:00:00Z');
 
-      prisma.creditLedger.aggregate.mockResolvedValueOnce({
-        _sum: { amount: 10 },
-      } as never);
-
       prisma.creditLedger.findMany.mockResolvedValueOnce([
         {
           id: 'credit-1',
           userId,
           amount: 10,
           transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.PURCHASE,
           expiresAt: expiringDate,
+          createdAt: new Date('2026-08-01T00:00:00Z'),
+        },
+        {
+          id: 'debit-1',
+          userId,
+          amount: 10,
+          transactionType: CreditTransactionType.DEBIT,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-08-15T00:00:00Z'),
         },
       ] as never);
 
@@ -1142,6 +1147,118 @@ describe('CreditsService', () => {
 
       // Assert
       expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('should exclude past EXPIRED debits and calculate correct remaining balance for upcoming bundle', async () => {
+      // Arrange
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const pastExpiry = new Date('2026-08-15T00:00:00Z');
+      const upcomingExpiry = new Date('2026-09-06T00:00:00Z'); // 5 days away
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'credit-past',
+          userId,
+          amount: 10,
+          transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.PURCHASE,
+          expiresAt: pastExpiry,
+          createdAt: new Date('2026-07-01T00:00:00Z'),
+        },
+        {
+          id: 'debit-expired-cron',
+          userId,
+          amount: 10,
+          transactionType: CreditTransactionType.DEBIT,
+          source: CreditSource.EXPIRED,
+          expiresAt: null,
+          createdAt: new Date('2026-08-16T00:00:00Z'),
+        },
+        {
+          id: 'credit-upcoming',
+          userId,
+          amount: 15,
+          transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.PURCHASE,
+          expiresAt: upcomingExpiry,
+          createdAt: new Date('2026-08-20T00:00:00Z'),
+        },
+        {
+          id: 'debit-spend',
+          userId,
+          amount: 13,
+          transactionType: CreditTransactionType.DEBIT,
+          source: CreditSource.LIKE_USAGE,
+          expiresAt: null,
+          createdAt: new Date('2026-08-25T00:00:00Z'),
+        },
+      ] as never);
+
+      // Act
+      await service.handleExpiryWarningBatch({
+        userIds: [userId],
+        asOf: asOf.toISOString(),
+      });
+
+      // Assert:
+      // Real spend is 13: 10 is absorbed by past credit, 3 is absorbed by upcoming credit (15 - 3 = 12).
+      // Past EXPIRED debit (10) is excluded and not double-counted.
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDIT_BUNDLE_EXPIRING_EVENT,
+        expect.objectContaining({
+          userId,
+          count: 12,
+          daysRemaining: 5,
+          isUrgent: false,
+          urgency: 'info',
+        }),
+      );
+    });
+
+    it('should aggregate multiple bundles expiring on the same date within the warning window', async () => {
+      // Arrange
+      const asOf = new Date('2026-09-01T00:00:00Z');
+      const sameDayExpiry = new Date('2026-09-05T00:00:00Z');
+
+      prisma.creditLedger.findMany.mockResolvedValueOnce([
+        {
+          id: 'bundle-1',
+          userId,
+          amount: 5,
+          transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.PURCHASE,
+          expiresAt: sameDayExpiry,
+          createdAt: new Date('2026-08-01T00:00:00Z'),
+        },
+        {
+          id: 'bundle-2',
+          userId,
+          amount: 10,
+          transactionType: CreditTransactionType.CREDIT,
+          source: CreditSource.BONUS,
+          expiresAt: sameDayExpiry,
+          createdAt: new Date('2026-08-02T00:00:00Z'),
+        },
+      ] as never);
+
+      // Act
+      await service.handleExpiryWarningBatch({
+        userIds: [userId],
+        asOf: asOf.toISOString(),
+      });
+
+      // Assert — 5 + 10 = 15 total expiring on 2026-09-05
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CREDIT_BUNDLE_EXPIRING_EVENT,
+        expect.objectContaining({
+          userId,
+          count: 15,
+          expiryDate: '2026-09-05',
+          daysRemaining: 4,
+          isUrgent: false,
+          urgency: 'info',
+        }),
+      );
     });
   });
 });

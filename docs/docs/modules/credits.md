@@ -348,6 +348,44 @@ The client requires no timezone math. It receives the UTC ISO string (`2026-07-3
 
 ---
 
+## 🔔 Credit Expiry Warning Pipeline & Financial Parity
+
+The platform dispatches advance notifications (push and email) to users when a credit bundle is approaching expiration (within a 7-day window).
+
+### Expiry Warning Fan-Out Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sched as Cloud Scheduler (Daily)
+    participant Coord as MaintenanceService (Coordinator)
+    participant PubSub as GCP Pub/Sub (credit-expiry-warning)
+    participant Worker as CreditsService (handleExpiryWarningBatch)
+    participant Events as EventEmitter2 (CREDIT_BUNDLE_EXPIRING_EVENT)
+    participant Notif as NotificationsService (Push & Email)
+
+    Sched->>Coord: Trigger daily warning scan
+    Coord->>Coord: Pin authoritative snapshot asOf
+    Coord->>PubSub: Fan out chunked batches of userIds
+    PubSub->>Worker: POST /pubsub/ingest (CreditExpiryBatchRequestDto)
+    Worker->>Worker: getExpiringCredits(userId, undefined, asOf)
+    Worker->>Events: Emit CreditBundleExpiringEvent
+    Events->>Notif: Dispatch BUNDLE_EXPIRY_WARNING (Push + Email)
+```
+
+### The Parity Guarantee: Why `getExpiringCredits` Powers Warnings
+
+Earlier versions executed an independent `aggregate` query on debits during warning evaluation. Because `CreditSource.EXPIRED` compensating debits exist from past lapsed bundles, a naive aggregate included these compensating rows in `totalDebits`. This led to **double-deduction**, causing the warning notification to under-report the user's expiring balance compared to what `getBalance()` and the app UI displayed.
+
+To guarantee 100% financial consistency across all layers:
+
+1. `handleExpiryWarningBatch` delegates directly to `getExpiringCredits(userId, undefined, asOf)`.
+2. `getExpiringCredits` evaluates the exact same FIFO pass as `getBalance()`, filtering out `EXPIRED` compensating rows (`source !== CreditSource.EXPIRED`) so only real spends (`LIKE_USAGE`, `ADMIN`) are drained against bundles.
+3. If a user holds multiple bundles expiring on the exact same calendar date within the 7-day window, their unconsumed balances are aggregated into a single combined count for the notification.
+4. If all credits in the window have already been consumed by prior spends, no spurious warning is emitted.
+
+---
+
 ## 🏗 Architecture Decisions
 
 | Decision                                                | Rationale                                                                                                                                                 |
@@ -356,5 +394,6 @@ The client requires no timezone math. It receives the UTC ISO string (`2026-07-3
 | `getBalance` is cron-independent                        | The Pub/Sub fan-out pipeline can be delayed hours by backlog or misconfiguration; balance correctness must not depend on it                               |
 | `EXPIRED` DEBITs excluded from `getBalance`             | Including them would double-deduct: the expired bundle's CREDIT is already excluded; subtracting the EXPIRED DEBIT again would produce a negative balance |
 | Cron includes `EXPIRED` DEBITs in its own `totalDebits` | How idempotency works: existing EXPIRED rows inflate `totalDebits`, making bundles appear fully consumed → `unusedAmount = 0` → no duplicate row          |
+| `getExpiringCredits` powers `handleExpiryWarningBatch`  | Guarantees warning notifications match the app UI and `getBalance()` with single-source-of-truth FIFO allocation, eliminating `EXPIRED` double-deduction  |
 | Fan-out via Pub/Sub                                     | Synchronous processing of all users at once would block the API and timeout on large user bases                                                           |
 | Append-only ledger                                      | Immutable audit trail; balances are always fully derivable from history; no risk of cached balance drift                                                  |

@@ -171,14 +171,16 @@ export class CreditsService extends BaseService {
    *
    * @param userId - UUID of the user whose expiring credits to compute.
    * @param tx     - Optional Prisma transaction client.
+   * @param asOf   - Optional reference date for expiry evaluation (defaults to now).
    * @returns An array of active credit bundles and their remaining balances.
    */
   async getExpiringCredits(
     userId: string,
     tx?: Prisma.TransactionClient,
+    asOf?: Date,
   ): Promise<ExpiringCreditItemDto[]> {
     const client = tx ?? this.prisma;
-    const now = DateUtil.now();
+    const now = asOf ?? DateUtil.now();
 
     const ledger = await client.creditLedger.findMany({
       where: { userId },
@@ -790,62 +792,36 @@ export class CreditsService extends BaseService {
     let warnedUsers = 0;
 
     for (const userId of payload.userIds) {
-      const debitAggregate = await this.prisma.creditLedger.aggregate({
-        where: { userId, transactionType: CreditTransactionType.DEBIT },
-        _sum: { amount: true },
-      });
+      const expiringCredits = await this.getExpiringCredits(
+        userId,
+        undefined,
+        asOf,
+      );
 
-      let totalDebits = debitAggregate._sum.amount ?? 0;
+      // Identify bundles expiring in the warning window (asOf, targetEnd]
+      const targetBundles = expiringCredits.filter(
+        (b) => b.expiresAt && b.expiresAt > asOf && b.expiresAt <= targetEnd,
+      );
 
-      const credits = await this.prisma.creditLedger.findMany({
-        where: {
-          userId,
-          transactionType: CreditTransactionType.CREDIT,
-          expiresAt: { not: null },
-        },
-        orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
-      });
+      if (targetBundles.length > 0) {
+        // Pick the earliest expiring bundle to anchor the notification date
+        const earliest = targetBundles[0];
+        const earliestDateStr = earliest.expiresAt!.toISOString().slice(0, 10);
 
-      let needsWarning = false;
-      let expiringCount = 0;
-      let expiringDate = '';
-      let daysRemaining = 7;
+        // Sum unconsumed credits expiring on that same earliest date
+        const expiringCount = targetBundles
+          .filter(
+            (b) => b.expiresAt!.toISOString().slice(0, 10) === earliestDateStr,
+          )
+          .reduce((sum, b) => sum + b.remainingBalance, 0);
 
-      for (const credit of credits) {
-        let usedFromThisCredit = 0;
-        if (totalDebits >= credit.amount) {
-          usedFromThisCredit = credit.amount;
-          totalDebits -= credit.amount;
-        } else {
-          usedFromThisCredit = totalDebits;
-          totalDebits = 0;
-        }
-
-        const unusedAmount = credit.amount - usedFromThisCredit;
-
-        // Warn if they have an unconsumed bundle expiring near targetEnd
-        // (the coordinator guarantees these bundles were queried from the [now+6d, now+7d) window)
-        if (
-          credit.expiresAt &&
-          credit.expiresAt > asOf &&
-          credit.expiresAt <= targetEnd &&
-          unusedAmount > 0
-        ) {
-          needsWarning = true;
-          expiringCount = unusedAmount;
-          expiringDate = credit.expiresAt.toISOString().slice(0, 10);
-          daysRemaining = Math.max(
-            1,
-            Math.round(
-              (credit.expiresAt.getTime() - asOf.getTime()) /
-                (1000 * 60 * 60 * 24),
-            ),
-          );
-          break; // One warning per user is sufficient even if they have multiple bundles expiring
-        }
-      }
-
-      if (needsWarning) {
+        const daysRemaining = Math.max(
+          1,
+          Math.round(
+            (earliest.expiresAt!.getTime() - asOf.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        );
         const isUrgent = daysRemaining <= 2;
         const urgency = isUrgent ? 'warning' : 'info';
 
@@ -854,7 +830,7 @@ export class CreditsService extends BaseService {
           new CreditBundleExpiringEvent(
             userId,
             expiringCount,
-            expiringDate,
+            earliestDateStr,
             daysRemaining,
             urgency,
             isUrgent,
