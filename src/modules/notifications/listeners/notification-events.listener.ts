@@ -74,7 +74,6 @@ import { WhatsAppProviderService } from '../providers/whatsapp.provider.service'
  */
 @Injectable()
 export class NotificationEventsListener extends BaseService {
-  private cachedCountryCodesKey?: string;
   private cachedCallingCodes?: string[];
 
   constructor(
@@ -388,21 +387,30 @@ export class NotificationEventsListener extends BaseService {
   }
 
   /**
-   * Retrieves the allow-listed country calling codes for WhatsApp like notifications.
+   * Retrieves and parses the allow-listed country calling codes for WhatsApp like notifications.
+   *
+   * Memoizes parsed digits in memory to avoid parsing JSON and resolving ISO codes on every event.
    * Supports JSON arrays (e.g. '["+91", "+65"]'), comma-separated strings (e.g. '+91, +65' or 'IN, SG'),
    * or direct array input. Converts ISO-2 country codes or +calling codes into digits-only calling codes.
    */
   private getAllowListedCountryCallingCodes(): string[] {
+    if (this.cachedCallingCodes) {
+      return this.cachedCallingCodes;
+    }
+
     const raw = this.configService.get<string | string[]>(
       'WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES',
       '["+91"]',
     );
 
-    const cacheKey = typeof raw === 'string' ? raw : JSON.stringify(raw);
-    if (this.cachedCountryCodesKey === cacheKey && this.cachedCallingCodes) {
-      return this.cachedCallingCodes;
-    }
+    this.cachedCallingCodes = this.parseCallingCodes(raw);
+    return this.cachedCallingCodes;
+  }
 
+  /**
+   * Parses raw configuration input into normalized digits-only country calling codes.
+   */
+  private parseCallingCodes(raw: string | string[] | undefined): string[] {
     let rawList: string[] = [];
     if (Array.isArray(raw)) {
       rawList = raw.map(String);
@@ -453,10 +461,7 @@ export class NotificationEventsListener extends BaseService {
       }
     }
 
-    const resolved = callingCodes.length > 0 ? callingCodes : ['91'];
-    this.cachedCountryCodesKey = cacheKey;
-    this.cachedCallingCodes = resolved;
-    return resolved;
+    return callingCodes.length > 0 ? callingCodes : ['91'];
   }
 
   /**
