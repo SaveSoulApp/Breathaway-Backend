@@ -100,7 +100,7 @@ export class AdminController extends BaseController {
   @ApiOperation({
     summary: 'Grant credits to a user (Admin)',
     description:
-      'Awards credits to a specified user. Requires HTTP Basic Auth with admin credentials. Not accessible via user JWTs.',
+      'Awards credits to a specified user. Requires Google Cloud OIDC ID token with authorized GCP IAM project roles (AdminOidcAuthGuard). Not accessible via user JWTs.',
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -118,8 +118,8 @@ export class AdminController extends BaseController {
   }
 
   /**
-   * Consumes (deducts) credits from a user's account. Callable only with valid admin
-   * Basic Auth credentials — no user JWT is accepted on this route.
+   * Consumes (deducts) credits from a user's account. Callable only by authorized
+   * administrators via Google Cloud OIDC ID tokens — no user JWT is accepted on this route.
    *
    * @param dto - Consume payload: target `userId`, `amount`, and `referenceId`.
    * @returns The newly created ledger entry recording the debit transaction.
@@ -131,13 +131,14 @@ export class AdminController extends BaseController {
   @ApiOperation({
     summary: 'Consume credits from a user (Admin)',
     description:
-      'Deducts credits from a specified user. Requires HTTP Basic Auth with admin credentials. Not accessible via user JWTs.',
+      'Deducts credits from a specified user. Requires Google Cloud OIDC ID token with authorized GCP IAM project roles (AdminOidcAuthGuard). Not accessible via user JWTs.',
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Credits successfully consumed; debit ledger entry returned.',
     type: CreditLedgerResponseDto,
   })
+  @UseGuards(RequireTimezoneGuard)
   @SerializeExpose(CreditLedgerResponseDto)
   async consumeCredits(
     @Body() dto: ConsumeCreditsRequestDto,

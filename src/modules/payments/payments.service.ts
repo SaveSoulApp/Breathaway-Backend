@@ -587,12 +587,21 @@ export class PaymentsService extends BaseService {
   }
 
   private async loadPlanPrice(planId: string, countryCode: string) {
+    const normalizedCountryCode = countryCode.toUpperCase();
     const defaultCountryCode = (
       this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
     ).toUpperCase();
 
-    let price = await this.prisma.subscriptionPlanPrice.findFirst({
-      where: { planId, countryCode },
+    const targetCodes =
+      normalizedCountryCode === defaultCountryCode
+        ? [normalizedCountryCode]
+        : [normalizedCountryCode, defaultCountryCode];
+
+    const prices = await this.prisma.subscriptionPlanPrice.findMany({
+      where: {
+        planId,
+        countryCode: { in: targetCodes },
+      },
       select: {
         originalPrice: true,
         discountedPrice: true,
@@ -603,24 +612,16 @@ export class PaymentsService extends BaseService {
       },
     });
 
-    if (!price && countryCode !== defaultCountryCode) {
-      price = await this.prisma.subscriptionPlanPrice.findFirst({
-        where: { planId, countryCode: defaultCountryCode },
-        select: {
-          originalPrice: true,
-          discountedPrice: true,
-          discountStartsAt: true,
-          discountEndsAt: true,
-          currencyCode: true,
-          countryCode: true,
-        },
-      });
-    }
+    const price =
+      prices.find(
+        (p) => p.countryCode.toUpperCase() === normalizedCountryCode,
+      ) ??
+      prices.find((p) => p.countryCode.toUpperCase() === defaultCountryCode);
 
     if (!price) {
       this.logger.warn('Create order: no price for country', {
         planId,
-        countryCode,
+        countryCode: normalizedCountryCode,
         defaultCountryCode,
         step: 'load_plan_price',
       });
@@ -631,13 +632,19 @@ export class PaymentsService extends BaseService {
   }
 
   private async selectGateway(countryCode: string, amount: number) {
+    const normalizedCountryCode = countryCode.toUpperCase();
     const defaultCountryCode = (
       this.configService.get<string>('DEFAULT_COUNTRY_CODE') ?? 'IN'
     ).toUpperCase();
 
-    let route = await this.prisma.paymentGatewayRoute.findFirst({
+    const targetCodes =
+      normalizedCountryCode === defaultCountryCode
+        ? [normalizedCountryCode]
+        : [normalizedCountryCode, defaultCountryCode];
+
+    const routes = await this.prisma.paymentGatewayRoute.findMany({
       where: {
-        countryCode,
+        countryCode: { in: targetCodes },
         enabled: true,
         OR: [{ minAmount: null }, { minAmount: { lte: amount } }],
         AND: [
@@ -647,34 +654,23 @@ export class PaymentsService extends BaseService {
         ],
       },
       orderBy: { priority: 'asc' },
-      select: { gateway: true, priority: true },
+      select: { gateway: true, priority: true, countryCode: true },
     });
 
-    if (!route && countryCode !== defaultCountryCode) {
-      route = await this.prisma.paymentGatewayRoute.findFirst({
-        where: {
-          countryCode: defaultCountryCode,
-          enabled: true,
-          OR: [{ minAmount: null }, { minAmount: { lte: amount } }],
-          AND: [
-            {
-              OR: [{ maxAmount: null }, { maxAmount: { gte: amount } }],
-            },
-          ],
-        },
-        orderBy: { priority: 'asc' },
-        select: { gateway: true, priority: true },
-      });
-    }
+    const route =
+      routes.find(
+        (r) => r.countryCode.toUpperCase() === normalizedCountryCode,
+      ) ??
+      routes.find((r) => r.countryCode.toUpperCase() === defaultCountryCode);
 
     if (!route) {
       this.logger.warn('No gateway route available', {
-        countryCode,
+        countryCode: normalizedCountryCode,
         defaultCountryCode,
         amount,
         step: 'select_gateway',
       });
-      throw new GatewayNotAvailableException(countryCode);
+      throw new GatewayNotAvailableException(normalizedCountryCode);
     }
 
     return route;

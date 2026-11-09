@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 
 import { LoggerService } from '@core/logger';
+import { RedisService } from '@infrastructure/redis';
 
 import { AdminOidcAuthGuard } from './admin-oidc-auth.guard';
 
@@ -19,7 +20,8 @@ export class AdminBasicAuthGuard extends AdminOidcAuthGuard {
     loggerService: LoggerService,
     configService: ConfigService,
     clsService: ClsService,
+    @Optional() redisService?: RedisService,
   ) {
-    super(loggerService, configService, clsService);
+    super(loggerService, configService, clsService, redisService);
   }
 }

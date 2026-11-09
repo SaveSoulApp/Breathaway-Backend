@@ -239,33 +239,31 @@ export class AdminService extends BaseService {
       step: 'initiate_truncate',
     });
 
-    const truncateSql = `
-      TRUNCATE TABLE
-        "AuthCredential",
-        "Block",
-        "ChatRoom",
-        "ConsentLedger",
-        "CreditLedger",
-        "Device",
-        "DsarExport",
-        "Identity",
-        "Like",
-        "Match",
-        "Message",
-        "Notification",
-        "NotificationPreference",
-        "PaymentOrder",
-        "SubscriptionEvent",
-        "Transaction",
-        "User",
-        "UserProfile",
-        "UserSession",
-        "UserSubscription"
-      RESTART IDENTITY CASCADE;
-    `;
-
     try {
-      await this.prisma.$executeRawUnsafe(truncateSql);
+      await this.prisma.$executeRaw`
+        TRUNCATE TABLE
+          "AuthCredential",
+          "Block",
+          "ChatRoom",
+          "ConsentLedger",
+          "CreditLedger",
+          "Device",
+          "DsarExport",
+          "Identity",
+          "Like",
+          "Match",
+          "Message",
+          "Notification",
+          "NotificationPreference",
+          "PaymentOrder",
+          "SubscriptionEvent",
+          "Transaction",
+          "User",
+          "UserProfile",
+          "UserSession",
+          "UserSubscription"
+        RESTART IDENTITY CASCADE;
+      `;
     } catch (error) {
       this.logger.error('Admin database truncate failed', {
         ...ctx,

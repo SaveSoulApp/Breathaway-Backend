@@ -49,7 +49,7 @@ describe('AdminService', () => {
       findUnique: jest.fn(),
     },
     $transaction: jest.fn((callback) => callback(mockTx)),
-    $executeRawUnsafe: jest.fn(),
+    $executeRaw: jest.fn(),
   };
 
   let mockEventEmitter: { emit: jest.Mock; emitAsync: jest.Mock };
@@ -248,15 +248,17 @@ describe('AdminService', () => {
 
     it('should execute raw SQL truncate with CASCADE across all 20 tables and return response', async () => {
       // Arrange
-      (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue(1);
+      (prisma.$executeRaw as jest.Mock).mockResolvedValue(1);
 
       // Act
       const result = await service.truncateDatabase(dto);
 
       // Assert
-      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
-      const executedSql: string = (prisma.$executeRawUnsafe as jest.Mock).mock
-        .calls[0][0];
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const callArg = (prisma.$executeRaw as jest.Mock).mock.calls[0][0];
+      const executedSql: string = Array.isArray(callArg)
+        ? callArg.join(' ')
+        : String(callArg);
 
       expect(executedSql).toContain('TRUNCATE TABLE');
       expect(executedSql).toContain('CASCADE');
@@ -299,10 +301,10 @@ describe('AdminService', () => {
       });
     });
 
-    it('should rethrow error if $executeRawUnsafe fails', async () => {
+    it('should rethrow error if $executeRaw fails', async () => {
       // Arrange
       const dbError = new Error('Database connection failed');
-      (prisma.$executeRawUnsafe as jest.Mock).mockRejectedValue(dbError);
+      (prisma.$executeRaw as jest.Mock).mockRejectedValue(dbError);
 
       // Act & Assert
       await expect(service.truncateDatabase(dto)).rejects.toThrow(

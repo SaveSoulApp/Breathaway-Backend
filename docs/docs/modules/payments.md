@@ -420,12 +420,14 @@ To guarantee maximum checkout conversion and prevent international customer drop
    - Priority 2: Public client IP geolocation via `IpGeolocationService` (IPinfo Lite).
    - Priority 3: System-level fallback to `DEFAULT_COUNTRY_CODE` (`'IN'`).
 
-2. **Plan Price Regional Fallback**:
+2. **Plan Price Regional Fallback (Single Round-Trip)**:
    - If a customer visits from a region (e.g., `DE` or `CA`) that does not yet have an explicit `SubscriptionPlanPrice` row configured in the catalog, `PaymentsService.loadPlanPrice()` automatically falls back to the `defaultCountryCode` (`'IN'`) price row.
+   - To eliminate sequential DB round-trips, `loadPlanPrice()` queries both target country and default country in a single unified `findMany({ where: { planId, countryCode: { in: targetCodes } } })` query, prioritizing the user's specific regional price and falling back to default in-memory.
    - The user is billed in the default currency rather than receiving a `404 SubscriptionPlanPriceNotFoundException`.
 
-3. **Payment Gateway Route Regional Fallback**:
+3. **Payment Gateway Route Regional Fallback (Single Round-Trip)**:
    - If no active, enabled `PaymentGatewayRoute` matches the resolved country and order amount, `PaymentsService.selectGateway()` automatically falls back to the active gateway routes configured for `defaultCountryCode` (`'IN'`).
+   - To eliminate sequential round-trips, `selectGateway()` queries matching enabled routes for both target and default countries in a single unified `findMany({ where: { countryCode: { in: targetCodes }, enabled: true, ... }, orderBy: { priority: 'asc' } })` query, selecting the highest-priority country route or default fallback in O(1).
    - This prevents `GatewayNotAvailableException` and allows global users to complete checkout via international-capable default gateways (such as Razorpay).
 
 4. **Financial Snapshot & Non-Repudiation**:
@@ -434,6 +436,7 @@ To guarantee maximum checkout conversion and prevent international customer drop
      - `originalAmount`: Regular retail anchor price.
      - `discountAmount`: Promotional savings (`originalAmount - amount`).
    - This permanent record guarantees ledger reconciliation and accounting transparency even if marketing changes the plan price later.
+   - `PaymentOrder` is optimized with composite index `@@index([status, createdAt])` alongside `@@unique([gateway, gatewayOrderId])`, ensuring `PaymentReconciliationService` sweeps stale `PENDING` orders with high efficiency without table scans.
 
 5. **Cryptographically Secure Receipt Identifiers (CSPRNG)**:
    - Gateway order receipts are generated using Node's `crypto.randomBytes(8)` (`rcpt_<timestamp_ms>_<16_hex_chars>`).
