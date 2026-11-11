@@ -13,6 +13,7 @@ import { ChatsModule } from '@modules/chats/chats.module';
 import { CreditsModule } from '@modules/credits/credits.module';
 import { DevicesModule } from '@modules/devices/devices.module';
 import { HealthModule } from '@modules/health/health.module';
+import { EmailIdentitiesModule } from '@modules/identities/email/email-identities.module';
 import { IdentitiesModule } from '@modules/identities/identities.module';
 import { IdentityWorkflowsModule } from '@modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from '@modules/instagram/instagram.module';
@@ -69,6 +70,7 @@ function publicApiDocumentation(app: INestApplication): void {
     ChatsModule,
     CreditsModule,
     DevicesModule,
+    EmailIdentitiesModule,
     HealthModule,
     IdentitiesModule,
     LikesModule,

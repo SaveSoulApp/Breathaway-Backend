@@ -71,6 +71,10 @@ export class EmailIdentitiesController extends BaseController {
     type: SendEmailOtpResponseDto,
   })
   @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failure (invalid or missing email address)',
+  })
+  @ApiResponse({
     status: HttpStatus.TOO_MANY_REQUESTS,
     description: 'Too many OTP requests; rate limit cooldown active',
   })
@@ -108,6 +112,10 @@ export class EmailIdentitiesController extends BaseController {
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid or expired verification code',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Email is already claimed by another account',
   })
   @ApiResponse({
     status: HttpStatus.TOO_MANY_REQUESTS,
