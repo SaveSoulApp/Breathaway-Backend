@@ -54,8 +54,9 @@ export class EmailIdentitiesController extends BaseController {
   /**
    * Dispatches a 6-digit verification code to the specified email address.
    *
-   * Rate limited with strict throttle. Validates that the email is not already claimed
-   * or verified before generating the OTP.
+   * Rate limited with strict throttle. Validates only that the email is not already
+   * verified on the caller's own account before generating the OTP, avoiding cross-account
+   * enumeration of existing users.
    *
    * @param userId - ID of the authenticated user requesting verification.
    * @param dto - Container for the email address to verify.
@@ -80,7 +81,7 @@ export class EmailIdentitiesController extends BaseController {
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
-    description: 'Email is already linked or claimed by another account',
+    description: 'Email is already verified and linked to your account',
   })
   @SerializeExpose(SendEmailOtpResponseDto)
   async sendEmailOtp(

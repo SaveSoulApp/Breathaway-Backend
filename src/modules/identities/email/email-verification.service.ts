@@ -17,7 +17,6 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { RedisService } from '@infrastructure/redis';
 import { AuditActionType } from '@modules/audit/dto';
-import { IdentityAlreadyExistsException } from '@modules/identities/application/exceptions';
 import { IdentityResponseDto } from '@modules/identities/dto';
 import {
   EMAIL_VERIFICATION_REQUESTED_EVENT,
@@ -84,25 +83,18 @@ export class EmailVerificationService extends BaseService {
     return `rate_limit:email_otp:hourly:email:${emailHex}`;
   }
 
-  private isActivelyOwned(identity: {
-    userId: string | null;
-    isVerified: boolean;
-  }): boolean {
-    return identity.userId !== null && identity.isVerified;
-  }
-
   /**
    * Generates and dispatches a 6-digit verification code to the target email address.
    *
-   * Verifies that the email is not already claimed by another user or verified by the caller.
-   * Enforces multi-tier rate limiting (per-user cooldown, per-email cooldown, and hourly limit).
+   * Checks only whether the email is already verified on the caller's own account to prevent
+   * account enumeration (never leaks whether another user owns the email). Enforces multi-tier
+   * rate limiting (per-user cooldown, per-email cooldown, and hourly limit).
    * Emits `EmailVerificationRequestedEvent` for decoupled Brevo email dispatch.
    *
    * @param userId - ID of the authenticated user requesting verification.
    * @param dto - Container for the email address to verify.
    * @returns Expiration and resend cooldown durations.
    * @throws {ConflictException} When the email is already linked to the caller's account.
-   * @throws {IdentityAlreadyExistsException} When the email is already actively owned by another user.
    * @throws {OtpRateLimitExceededException} When user/email cooldown or hourly cap is exceeded.
    */
   async sendEmailOtp(
@@ -126,42 +118,33 @@ export class EmailVerificationService extends BaseService {
       maskedValue: publicValueData.publicValueMasked,
     });
 
-    // 1. Ownership & Duplicate Pre-flight Check
-    const existing = await this.prisma.identity.findFirst({
+    // 1. Caller Self-Duplicate Pre-flight Check
+    // Scoped strictly to the caller's userId so we never disclose whether another
+    // user already owns this email address (prevents account enumeration).
+    const existingOwnIdentity = await this.prisma.identity.findFirst({
       where: {
         type: IdentityType.EMAIL,
         publicValueHash: publicValueData.publicValueHash,
+        userId,
+        isVerified: true,
         deletedAt: null,
       },
       select: {
         id: true,
-        userId: true,
-        isVerified: true,
       },
     });
 
-    if (existing && this.isActivelyOwned(existing)) {
-      if (existing.userId === userId) {
-        this.logger.warn(
-          'Email OTP request aborted: already verified by caller',
-          {
-            ...ctx,
-            step: 'ownership_check',
-          },
-        );
-        throw new ConflictException(
-          'This email is already verified and linked to your account',
-        );
-      }
+    if (existingOwnIdentity) {
       this.logger.warn(
-        'Email OTP request aborted: already actively owned by another user',
+        'Email OTP request aborted: already verified by caller',
         {
           ...ctx,
-          existingUserId: existing.userId,
           step: 'ownership_check',
         },
       );
-      throw new IdentityAlreadyExistsException();
+      throw new ConflictException(
+        'This email is already verified and linked to your account',
+      );
     }
 
     // 2. Multi-tier Rate Limiting Checks
@@ -319,6 +302,7 @@ export class EmailVerificationService extends BaseService {
    * @param dto - Container for the email address and 6-digit OTP code.
    * @returns Masked representation of the newly verified identity.
    * @throws {InvalidOtpException} When OTP is expired, invalid, or max attempts exceeded.
+   * @throws {IdentityAlreadyClaimedException} When the email is already claimed by another user.
    */
   async verifyEmailOtp(
     userId: string,

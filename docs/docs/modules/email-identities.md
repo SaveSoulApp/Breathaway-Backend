@@ -97,13 +97,10 @@ sequenceDiagram
     Ctrl->>Svc: sendEmailOtp(userId, dto)
 
     rect rgb(240, 248, 255)
-        Note over Svc,DB: Step 1: Pre-flight Ownership Check
-        Svc->>DB: findFirst(type: EMAIL, publicValueHash, select: [id, userId, isVerified])
+        Note over Svc,DB: Step 1: Caller Self-Duplicate Check (Privacy-Preserving)
+        Svc->>DB: findFirst(type: EMAIL, publicValueHash, userId, isVerified: true, deletedAt: null)
         alt Email already verified by caller
             Svc-->>Ctrl: 409 ConflictException ("Already verified")
-            Ctrl-->>Client: 409 Conflict
-        else Email actively verified by another user
-            Svc-->>Ctrl: 409 IdentityAlreadyExistsException
             Ctrl-->>Client: 409 Conflict
         end
     end
@@ -188,11 +185,17 @@ sequenceDiagram
             Note over Svc,DB: Step 2: Atomic Consumption & Identity Claim
             Svc->>Redis: DEL email_verification_otp:<userId>:<emailHex>
             Svc->>IdentSvc: claimOrCreateIdentity(EMAIL, normalizedEmail, undefined, userId)
-            IdentSvc->>DB: $transaction: upsert Identity with isVerified: true, verifiedAt: now()
-            IdentSvc->>Bus: emit(IDENTITY_ADDED_EVENT)
-            IdentSvc-->>Svc: IdentityResponseDto (masked representation)
-            Svc-->>Ctrl: IdentityResponseDto
-            Ctrl-->>Client: 200 OK { id, type: "EMAIL", publicValueMasked: "u••••r@example.com", isVerified: true }
+            IdentSvc->>DB: $transaction: check ownership & upsert Identity (isVerified: true)
+            alt Email already claimed by another user
+                IdentSvc-->>Svc: 409 IdentityAlreadyClaimedException
+                Svc-->>Ctrl: 409 Conflict
+                Ctrl-->>Client: 409 Conflict
+            else Unclaimed or owned by caller
+                IdentSvc->>Bus: emit(IDENTITY_ADDED_EVENT)
+                IdentSvc-->>Svc: IdentityResponseDto (masked representation)
+                Svc-->>Ctrl: IdentityResponseDto
+                Ctrl-->>Client: 200 OK { id, type: "EMAIL", publicValueMasked: "u••••r@example.com", isVerified: true }
+            end
         end
     end
 ```
@@ -263,7 +266,7 @@ In adherence to the **Decoupled Notifications Golden Rule**:
   ```
 - **Error Responses**:
   - `400 Bad Request`: Validation failure (malformed email).
-  - `409 Conflict`: Email already verified by caller or owned by another user.
+  - `409 Conflict`: Email already verified and linked to the caller's own account (cross-account ownership is intentionally not disclosed here to prevent account enumeration).
   - `429 Too Many Requests`: Cooldown active or hourly cap exceeded.
 
 ### 2. Verify OTP & Link Identity
@@ -292,6 +295,7 @@ In adherence to the **Decoupled Notifications Golden Rule**:
   ```
 - **Error Responses**:
   - `400 Bad Request`: Code expired, invalid OTP, or maximum attempts exceeded.
+  - `409 Conflict`: Email is already claimed by another user.
   - `429 Too Many Requests`: Rate limit exceeded.
 
 ---

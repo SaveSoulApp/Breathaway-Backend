@@ -13,7 +13,7 @@ import {
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { RedisService } from '@infrastructure/redis';
-import { IdentityAlreadyExistsException } from '@modules/identities/application/exceptions';
+import { IdentityAlreadyClaimedException } from '@modules/identities/application/exceptions';
 import {
   EMAIL_VERIFICATION_REQUESTED_EVENT,
   IDENTITY_ADDED_EVENT,
@@ -204,8 +204,6 @@ describe('EmailVerificationService', () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue({
         id: 'id-1',
-        userId: mockUserId,
-        isVerified: true,
       } as any);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
@@ -214,31 +212,23 @@ describe('EmailVerificationService', () => {
       await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
         ConflictException,
       );
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: IdentityType.EMAIL,
+          publicValueHash: mockEncryptedData.publicValueHash,
+          userId: mockUserId,
+          isVerified: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
     });
 
-    it('should throw IdentityAlreadyExistsException if email is already verified and owned by another user', async () => {
-      // Arrange
-      prisma.identity.findFirst.mockResolvedValue({
-        id: 'id-2',
-        userId: 'other-user',
-        isVerified: true,
-      } as any);
-
-      const dto: SendEmailOtpRequestDto = { email: mockEmail };
-
-      // Act & Assert
-      await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
-        IdentityAlreadyExistsException,
-      );
-    });
-
-    it('should allow sending OTP when unverified identity exists for another user', async () => {
-      // Arrange
-      prisma.identity.findFirst.mockResolvedValue({
-        id: 'id-3',
-        userId: 'other-user',
-        isVerified: false,
-      } as any);
+    it('should scope ownership check strictly to caller and send OTP even when email is owned by another user', async () => {
+      // Arrange — query is scoped to caller userId, so another user's verified identity yields null
+      prisma.identity.findFirst.mockResolvedValue(null);
       redisService.get.mockResolvedValue(null);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
@@ -247,6 +237,18 @@ describe('EmailVerificationService', () => {
       const result = await service.sendEmailOtp(mockUserId, dto);
 
       // Assert
+      expect(prisma.identity.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: IdentityType.EMAIL,
+          publicValueHash: mockEncryptedData.publicValueHash,
+          userId: mockUserId,
+          isVerified: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
       expect(result.expiresIn).toBe(600);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         EMAIL_VERIFICATION_REQUESTED_EVENT,
@@ -364,6 +366,41 @@ describe('EmailVerificationService', () => {
         }),
       );
       expect(result).toEqual(mockIdentityResponse);
+    });
+
+    it('should throw IdentityAlreadyClaimedException when OTP is valid but email is already claimed by another user', async () => {
+      // Arrange
+      const plainOtp = '482910';
+      const otpHash = hashString(plainOtp);
+
+      redisService.get.mockResolvedValue(
+        JSON.stringify({
+          otpHash,
+          userId: mockUserId,
+          email: mockEmail,
+          attempts: 0,
+          maxAttempts: 5,
+        }),
+      );
+
+      identitiesService.claimOrCreateIdentity.mockRejectedValue(
+        new IdentityAlreadyClaimedException(),
+      );
+
+      const dto: VerifyEmailOtpRequestDto = {
+        email: mockEmail,
+        otp: plainOtp,
+      };
+
+      // Act & Assert
+      await expect(service.verifyEmailOtp(mockUserId, dto)).rejects.toThrow(
+        IdentityAlreadyClaimedException,
+      );
+      expect(redisService.del).toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        IDENTITY_ADDED_EVENT,
+        expect.anything(),
+      );
     });
 
     it('should throw InvalidOtpException if OTP is expired or not found in Redis', async () => {
