@@ -306,5 +306,84 @@ describe('MatchResolverService (e2e)', () => {
       // RELATIONSHIP and CASUAL are incompatible — no match expected.
       expect(match).toBeNull();
     });
+
+    it('should not match against a VOIDED reverse like from an unmatched pair until re-initiated to PENDING', async () => {
+      const { user: userA, identity: identityA } =
+        await createUserWithIdentity('userA-voided');
+      const { user: userB, identity: identityB } =
+        await createUserWithIdentity('userB-voided');
+
+      const likeFromA = await prisma.like.create({
+        data: {
+          senderUserId: userA.id,
+          targetIdentityId: identityB.id,
+          intent: IntentType.RELATIONSHIP,
+          status: LikeStatus.PENDING,
+          label: null,
+          expiresAt: new Date(Date.now() + 86400000),
+        },
+      });
+
+      const likeFromB = await prisma.like.create({
+        data: {
+          senderUserId: userB.id,
+          targetIdentityId: identityA.id,
+          intent: IntentType.RELATIONSHIP,
+          status: LikeStatus.VOIDED,
+          label: null,
+          expiresAt: new Date(Date.now() + 86400000),
+        },
+      });
+
+      const [userOneId, userTwoId] = [userA.id, userB.id].sort();
+      await prisma.match.create({
+        data: {
+          userOneId,
+          userTwoId,
+          likeOneId: userOneId === userA.id ? likeFromA.id : likeFromB.id,
+          likeTwoId: userTwoId === userB.id ? likeFromB.id : likeFromA.id,
+          intentOne: IntentType.RELATIONSHIP,
+          intentTwo: IntentType.RELATIONSHIP,
+          status: MatchStatus.UNMATCHED,
+          deletedAt: new Date(),
+        },
+      });
+
+      // A re-initiated their like (PENDING), while B's like remains VOIDED
+      const noMatchResult = await matchResolverService.resolveFromLike({
+        id: likeFromA.id,
+        senderUserId: likeFromA.senderUserId,
+        targetIdentityId: likeFromA.targetIdentityId,
+        intent: likeFromA.intent,
+        label: likeFromA.label,
+        status: likeFromA.status,
+        targetIdentity: { userId: userB.id },
+      });
+
+      expect(noMatchResult).toBeNull();
+
+      const matchAfterARelike = await prisma.match.findUnique({
+        where: { userOneId_userTwoId: { userOneId, userTwoId } },
+      });
+      expect(matchAfterARelike?.status).toBe(MatchStatus.UNMATCHED);
+
+      // B explicitly re-initiates their like (VOIDED -> PENDING)
+      const reinitiatedLikeB = await prisma.like.update({
+        where: { id: likeFromB.id },
+        data: { status: LikeStatus.PENDING },
+      });
+
+      const matchResult = await matchResolverService.resolveFromLike({
+        id: reinitiatedLikeB.id,
+        senderUserId: reinitiatedLikeB.senderUserId,
+        targetIdentityId: reinitiatedLikeB.targetIdentityId,
+        intent: reinitiatedLikeB.intent,
+        label: reinitiatedLikeB.label,
+        status: reinitiatedLikeB.status,
+        targetIdentity: { userId: userA.id },
+      });
+
+      expect(matchResult?.status).toBe(MatchStatus.ACTIVE);
+    });
   });
 });

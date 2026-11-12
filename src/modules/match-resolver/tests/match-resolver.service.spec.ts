@@ -178,9 +178,10 @@ describe('MatchResolverService', () => {
         where: {
           senderUserId: 'user-2',
           targetIdentity: { userId: 'user-1' },
-          // Option A: VOIDED likes (system-set after unmatch) are included so
-          // that a re-like from the other side triggers a frictionless re-match.
-          status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
+          // Only PENDING likes are eligible — VOIDED (system-set after unmatch)
+          // and WITHDRAWN likes must be explicitly re-initiated to PENDING
+          // before a new match can form.
+          status: LikeStatus.PENDING,
           deletedAt: null,
           // ACTIVE_LIKE_FILTER: permanent likes (null) always pass;
           // time-limited likes must still be within their window.
