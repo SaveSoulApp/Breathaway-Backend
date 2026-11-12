@@ -1,8 +1,9 @@
-import { IntentType, LikeStatus } from '@prisma/client';
-import { SortOrder } from '@common/enums';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IdentityType, IntentType, LikeStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+
+import { SortOrder } from '@common/enums';
 
 /**
  * Query parameters for GET /likes — controls pagination, filtering, and sort order.
@@ -40,6 +41,17 @@ export class LikeListQueryDto {
   @IsOptional()
   @IsEnum(LikeStatus)
   status?: LikeStatus;
+
+  @ApiPropertyOptional({
+    enum: IdentityType,
+    description: 'Filter by target identity type',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
+  @IsEnum(IdentityType)
+  targetIdentityType?: IdentityType;
 
   @ApiPropertyOptional({
     description: 'Sort order',
