@@ -232,6 +232,36 @@ describe('NotificationEventsListener', () => {
             targetMaskedValue: '+1***99',
             targetLabel: 'Gym Buddy',
             intent: 'ROMANTIC',
+            notifyRecipientAnonymously: true,
+          }),
+        }),
+      );
+    });
+
+    it('should forward notifyRecipientAnonymously: false in LIKE_SENT payload when sender opts out', async () => {
+      prisma.userProfile.findUnique.mockResolvedValue({
+        firstName: 'Bob',
+      } as never);
+
+      const event = new LikeSentEvent(
+        'user-1',
+        '+1***99',
+        'Gym Buddy',
+        'ROMANTIC',
+        new Date('2026-10-01'),
+        undefined,
+        undefined,
+        false,
+        false,
+      );
+
+      await listener.handleLikeSent(event);
+
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.LIKE_SENT,
+          payload: expect.objectContaining({
+            notifyRecipientAnonymously: false,
           }),
         }),
       );

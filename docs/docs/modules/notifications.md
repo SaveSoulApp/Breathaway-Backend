@@ -932,6 +932,7 @@ Sent to the sender confirming that their like has been securely recorded and rea
   | `targetLabel` | `string` _(optional)_ | Contact nickname or label chosen by sender |
   | `intent` | `string` | Like intent (e.g., `CRUSH`, `DATING`, `NETWORKING`) |
   | `expiresAt` | `string` | Formatted expiration date string (e.g., 90 days out) |
+  | `notifyRecipientAnonymously` | `boolean` | Whether recipient was notified anonymously (modifies Double-Blind copy) |
   | `date` | `string` | ISO timestamp of the like creation (`DateUtil.now()`) |
 
 > [!IMPORTANT]
