@@ -37,6 +37,19 @@ describe('LikeListQueryDto', () => {
     expect(dto.targetIdentityType).toBe(IdentityType.INSTAGRAM);
   });
 
+  it('should treat empty or whitespace-only targetIdentityType as undefined', async () => {
+    // Arrange
+    const payload = { targetIdentityType: '   ' };
+
+    // Act
+    const dto = plainToInstance(LikeListQueryDto, payload);
+    const errors = await validate(dto);
+
+    // Assert
+    expect(errors).toHaveLength(0);
+    expect(dto.targetIdentityType).toBeUndefined();
+  });
+
   it('should reject an invalid targetIdentityType value', async () => {
     // Arrange
     const payload = { targetIdentityType: 'SNAPCHAT' };

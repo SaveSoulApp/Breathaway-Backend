@@ -71,10 +71,14 @@ export class FailoverEmailAdapter extends BaseService implements IEmailAdapter {
       this.configService.get<string>('EMAIL_PROVIDERS') ??
       'resend,brevo,mailgun';
 
-    const providerNames = configuredChain
-      .split(',')
-      .map((p) => p.trim().toLowerCase())
-      .filter(Boolean);
+    const providerNames = Array.from(
+      new Set(
+        configuredChain
+          .split(',')
+          .map((p) => p.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
 
     const resolved: Array<{ name: string; adapter: IEmailAdapter }> = [];
 
@@ -85,6 +89,10 @@ export class FailoverEmailAdapter extends BaseService implements IEmailAdapter {
       } else {
         this.logger.warn(
           `Configured email provider "${name}" is unknown or unsupported`,
+          {
+            step: 'bootstrap_warning',
+            provider: name,
+          },
         );
       }
     }
@@ -134,6 +142,7 @@ export class FailoverEmailAdapter extends BaseService implements IEmailAdapter {
           this.logger.warn(
             'Email delivery failed for provider; attempting fallback to next provider',
             {
+              step: 'provider_failover',
               failedProvider: name,
               nextProvider,
               attempt: i + 1,
@@ -142,6 +151,7 @@ export class FailoverEmailAdapter extends BaseService implements IEmailAdapter {
           );
         } else {
           this.logger.error('Final email provider in failover chain failed', {
+            step: 'failover_exhausted',
             failedProvider: name,
             attempt: i + 1,
             err: serializeError(error),

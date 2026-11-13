@@ -29,6 +29,7 @@ export class ResendEmailAdapter extends BaseService implements IEmailAdapter {
     if (!this.apiKey) {
       this.logger.warn(
         'RESEND_API_KEY is not configured — Resend adapter will fail at send time',
+        { step: 'init_config_warning' },
       );
     }
 
@@ -37,6 +38,7 @@ export class ResendEmailAdapter extends BaseService implements IEmailAdapter {
     if (!this.fromAddress) {
       this.logger.warn(
         'EMAIL_FROM_ADDRESS is not configured — Resend adapter will fail at send time',
+        { step: 'init_config_warning' },
       );
     }
 

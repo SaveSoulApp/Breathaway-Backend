@@ -162,6 +162,16 @@ describe('FailoverEmailAdapter', () => {
     ]);
   });
 
+  it('should deduplicate provider names when duplicates are configured', async () => {
+    const deduplicatedAdapter = await createAdapter(
+      'resend,brevo,resend,brevo',
+    );
+
+    expect(deduplicatedAdapter.getOrderedAdapters().map((a) => a.name)).toEqual(
+      ['resend', 'brevo'],
+    );
+  });
+
   it('should default to resend if no valid providers are found in config', async () => {
     const emptyAdapter = await createAdapter('nonexistent,another_invalid');
     mockResend.send.mockResolvedValueOnce();

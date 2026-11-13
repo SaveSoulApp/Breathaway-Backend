@@ -48,7 +48,9 @@ export class LikeListQueryDto {
   })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.toUpperCase() : value,
+    typeof value === 'string' && value.trim() !== ''
+      ? (value.trim().toUpperCase() as IdentityType)
+      : undefined,
   )
   @IsEnum(IdentityType)
   targetIdentityType?: IdentityType;
