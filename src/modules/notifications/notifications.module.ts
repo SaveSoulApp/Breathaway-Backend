@@ -8,6 +8,7 @@ import { PreferencesModule } from '@modules/preferences/preferences.module';
 import { BrevoEmailAdapter } from './email/adapters/brevo.email.adapter';
 import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
 import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
+import { ResendEmailAdapter } from './email/adapters/resend.email.adapter';
 import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
 import { EmailService } from './email/email.service';
 import { NotificationEventsListener } from './listeners/notification-events.listener';
@@ -44,6 +45,7 @@ import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.int
     SendGridEmailAdapter,
     MailgunEmailAdapter,
     BrevoEmailAdapter,
+    ResendEmailAdapter,
     // Factory provider: selects the active adapter at runtime based on EMAIL_PROVIDER env
     {
       provide: EMAIL_ADAPTER_TOKEN,
@@ -52,16 +54,19 @@ import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.int
         SendGridEmailAdapter,
         MailgunEmailAdapter,
         BrevoEmailAdapter,
+        ResendEmailAdapter,
       ],
       useFactory: (
         config: ConfigService,
         sendGrid: SendGridEmailAdapter,
         mailgun: MailgunEmailAdapter,
         brevo: BrevoEmailAdapter,
+        resend: ResendEmailAdapter,
       ) => {
-        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'brevo';
+        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'resend';
         if (provider === 'brevo') return brevo;
         if (provider === 'sendgrid') return sendGrid;
+        if (provider === 'resend') return resend;
         return mailgun;
       },
     },

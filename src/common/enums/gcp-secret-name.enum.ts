@@ -23,6 +23,7 @@ export enum GcpSecretName {
   REVENUECAT_WEBHOOK_SECRET = 'revenuecat-webhook-secret',
   IPINFO_TOKEN = 'ipinfo-token',
   BREVO_API_KEY = 'brevo-api-key',
+  RESEND_API_KEY = 'resend-api-key',
   RAZORPAY_KEY_ID = 'razorpay-key-id',
   RAZORPAY_KEY_SECRET = 'razorpay-key-secret',
   RAZORPAY_WEBHOOK_SECRET = 'razorpay-webhook-secret',

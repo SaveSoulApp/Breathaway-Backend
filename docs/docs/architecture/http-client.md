@@ -130,6 +130,7 @@ The following services have been migrated from scattered `axios` imports to `Htt
 | **`InstagramService`**          | `src/modules/instagram/instagram.service.ts`                              | Short-to-long OAuth token exchange and long-lived token rotation via Instagram Graph API.       |
 | **`GoogleSubscriptionService`** | `src/modules/subscriptions/services/google-subscription.service.ts`       | Verifies Android in-app subscription purchase tokens via Google Play API.                       |
 | **`BrevoEmailAdapter`**         | `src/modules/notifications/email/adapters/brevo.email.adapter.ts`         | Dispatches transactional HTML emails via Brevo v3 SMTP API.                                     |
+| **`ResendEmailAdapter`**        | `src/modules/notifications/email/adapters/resend.email.adapter.ts`        | Dispatches transactional HTML emails via Resend REST API.                                       |
 | **`MailgunEmailAdapter`**       | `src/modules/notifications/email/adapters/mailgun.email.adapter.ts`       | Sends multipart/form-data emails with Basic Authentication via Mailgun API.                     |
 | **`LiteAppWhatsAppAdapter`**    | `src/modules/notifications/whatsapp/adapters/liteapp.whatsapp.adapter.ts` | Dispatches WhatsApp template notifications via LiteApp gateway with 429 `Retry-After` handling. |
 

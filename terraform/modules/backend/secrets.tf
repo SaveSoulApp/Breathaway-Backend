@@ -36,6 +36,7 @@ locals {
     meta_app_secret             = "meta-app-secret"
     gcp_secret_chat_master_keys = "gcp-secret-chat-master-keys"
     active_chat_master_key_id   = "active-chat-master-key-id"
+    resend_api_key              = "resend-api-key"
   }
 
   # List of all secrets required by the backend service at runtime (mirrors COMMON_SECRETS)

@@ -32,6 +32,9 @@ export WHATSAPP_LIKE_NOTIFICATION_ENABLED='true'
 export WHATSAPP_LIKE_NOTIFICATION_BUFFER_DAYS='7'
 export WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES='["+91"]'
 
+# Resend Email Configuration (Development Placeholder)
+export RESEND_API_KEY="${RESEND_API_KEY:-re_dev_placeholder_api_key}"
+
 # Source shared base configurations and derived variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "${SCRIPT_DIR}/common.base.sh"

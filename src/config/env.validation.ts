@@ -145,11 +145,12 @@ export const envValidationSchema = Joi.object({
   // 8. Notifications (Email, WhatsApp, WebPush)
   // ============================================================================
   EMAIL_PROVIDER: Joi.string()
-    .valid('mailgun', 'sendgrid', 'brevo')
+    .valid('mailgun', 'sendgrid', 'brevo', 'resend')
     .default('brevo'),
   EMAIL_FROM_ADDRESS: Joi.string().email().default('no-reply@breathaway.app'),
   EMAIL_FROM_NAME: Joi.string().default('BreathAway'),
   BREVO_API_KEY: Joi.string().optional(),
+  RESEND_API_KEY: Joi.string().optional(),
   MAILGUN_API_KEY: Joi.string().optional(),
   MAILGUN_DOMAIN: Joi.string().optional(),
   MAILGUN_HOST: Joi.string().optional(),

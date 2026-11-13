@@ -51,6 +51,7 @@ export SECRET_REVENUECAT_WEBHOOK_SECRET="revenuecat-webhook-secret"
 # --- Notifications ---
 export SECRET_BREVO_API_KEY="brevo-api-key"
 export SECRET_LITEAPP_WHATSAPP_KEY="liteapp-whatsapp-key"
+export SECRET_RESEND_API_KEY="resend-api-key"
 
 # --- API Documentation ---
 export SECRET_SWAGGER_PASSWORD="swagger-password"
@@ -102,6 +103,7 @@ COMMON_SECRETS=(
     # --- Notifications ---
     "BREVO_API_KEY=${SECRET_BREVO_API_KEY}:latest"
     "LITEAPP_WHATSAPP_KEY=${SECRET_LITEAPP_WHATSAPP_KEY}:latest"
+    "RESEND_API_KEY=${SECRET_RESEND_API_KEY}:latest"
 
     # --- API Documentation ---
     "SWAGGER_PASSWORD=${SECRET_SWAGGER_PASSWORD}:latest"
