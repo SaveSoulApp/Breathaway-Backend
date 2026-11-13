@@ -471,6 +471,45 @@ describe('RedisService', () => {
         expect.objectContaining({ key: 'my-counter', ttlSeconds: 3600 }),
       );
     });
+
+    describe('eval', () => {
+      it('eval delegates to client.eval and returns result', async () => {
+        mockRedisClient!.eval.mockResolvedValue('CUSTOM_RESULT');
+
+        const result = await service.eval(
+          'return "CUSTOM_RESULT"',
+          ['key1', 'key2'],
+          ['arg1', 10],
+        );
+
+        expect(mockRedisClient!.eval).toHaveBeenCalledWith(
+          'return "CUSTOM_RESULT"',
+          2,
+          'key1',
+          'key2',
+          'arg1',
+          10,
+        );
+        expect(result).toBe('CUSTOM_RESULT');
+      });
+
+      it('eval rethrows error and logs when Redis throws', async () => {
+        const err = new Error('EVAL syntax error');
+        mockRedisClient!.eval.mockRejectedValue(err);
+
+        await expect(service.eval('invalid lua', ['key1'])).rejects.toThrow(
+          err,
+        );
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Redis EVAL failed',
+          expect.objectContaining({
+            step: 'redis_eval',
+            keyCount: 1,
+            keys: ['key1'],
+          }),
+        );
+      });
+    });
   });
 
   describe('when Redis client is null (unconfigured)', () => {
@@ -549,6 +588,11 @@ describe('RedisService', () => {
     it('incrWithTtl returns 0 gracefully', async () => {
       const result = await service.incrWithTtl('any-key', 3600);
       expect(result).toBe(0);
+    });
+
+    it('eval returns null gracefully', async () => {
+      const result = await service.eval('return 1', ['any-key']);
+      expect(result).toBeNull();
     });
   });
 });

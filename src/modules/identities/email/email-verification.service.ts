@@ -84,110 +84,119 @@ export class EmailVerificationService extends BaseService {
     return `rate_limit:email_otp:hourly:email:${emailHex}`;
   }
 
-  // ----- Rate-Limiting Helpers -----
-
   /**
-   * Enforces per-user and per-email cooldowns and hourly caps before generating an OTP.
-   *
-   * Executes rate-limit state lookups in parallel via Promise.all to minimize Redis round-trip latency.
-   *
-   * @throws {OtpRateLimitExceededException} When any cooldown or hourly cap is active.
+   * Atomically evaluates multi-tier rate limits (user/email cooldowns and hourly caps)
+   * and persists the OTP payload in Redis via a single Lua script evaluation.
    */
-  private async enforceSendRateLimits(
+  private async evaluateRateLimitAndStoreOtp(
     userId: string,
     emailHex: string,
-    ctx: { userId: string; identityType: IdentityType; emailHex: string },
-  ): Promise<void> {
+    otpKey: string,
+    otpPayload: string,
+  ): Promise<{
+    allowed: boolean;
+    reason?:
+      | 'USER_COOLDOWN'
+      | 'EMAIL_COOLDOWN'
+      | 'USER_HOURLY_LIMIT'
+      | 'EMAIL_HOURLY_LIMIT';
+    count?: number;
+  }> {
     const userCooldownKey = this.getEmailOtpUserCooldownKey(userId);
     const emailCooldownKey = this.getEmailOtpEmailCooldownKey(emailHex);
     const userHourlyKey = this.getEmailOtpHourlyKey(userId);
     const emailHourlyKey = this.getEmailOtpEmailHourlyKey(emailHex);
 
-    const [userCooldown, emailCooldown, userHourlyStr, emailHourlyStr] =
-      await Promise.all([
-        this.redisService.get(userCooldownKey),
-        this.redisService.get(emailCooldownKey),
-        this.redisService.get(userHourlyKey),
-        this.redisService.get(emailHourlyKey),
-      ]);
+    const luaScript = `
+      local userCooldownKey = KEYS[1]
+      local emailCooldownKey = KEYS[2]
+      local userHourlyKey = KEYS[3]
+      local emailHourlyKey = KEYS[4]
+      local otpKey = KEYS[5]
 
-    if (userCooldown) {
-      this.logger.warn('Email OTP request throttled: user cooldown active', {
-        ...ctx,
-        step: 'rate_limit_user',
-      });
-      throw new OtpRateLimitExceededException(
-        'Please wait 60 seconds before requesting another verification code.',
-      );
-    }
+      local cooldownTtl = tonumber(ARGV[1])
+      local hourlyLimit = tonumber(ARGV[2])
+      local hourlyWindow = tonumber(ARGV[3])
+      local otpPayload = ARGV[4]
+      local otpTtl = tonumber(ARGV[5])
 
-    if (emailCooldown) {
-      this.logger.warn('Email OTP request throttled: email cooldown active', {
-        ...ctx,
-        step: 'rate_limit_email',
-      });
-      throw new OtpRateLimitExceededException(
-        'A verification code was recently sent to this email. Please wait 60 seconds.',
-      );
-    }
+      -- 1. Check User Cooldown Sentinel
+      if redis.call('EXISTS', userCooldownKey) == 1 then
+        return { 0, 'USER_COOLDOWN' }
+      end
 
-    const userHourlyCount = userHourlyStr ? parseInt(userHourlyStr, 10) : 0;
-    if (userHourlyCount >= EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT) {
-      this.logger.warn('Email OTP request throttled: hourly limit exceeded', {
-        ...ctx,
-        hourlyCount: userHourlyCount,
-        step: 'rate_limit_hourly',
-      });
-      throw new OtpRateLimitExceededException(
-        'You have exceeded the maximum email verification attempts for this hour. Please try again later.',
-      );
-    }
+      -- 2. Check Email Cooldown Sentinel
+      if redis.call('EXISTS', emailCooldownKey) == 1 then
+        return { 0, 'EMAIL_COOLDOWN' }
+      end
 
-    const emailHourlyCount = emailHourlyStr ? parseInt(emailHourlyStr, 10) : 0;
-    if (emailHourlyCount >= EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT) {
-      this.logger.warn(
-        'Email OTP request throttled: email hourly limit exceeded',
-        {
-          ...ctx,
-          emailHourlyCount,
-          step: 'rate_limit_email_hourly',
-        },
-      );
-      throw new OtpRateLimitExceededException(
-        'This email address has exceeded the maximum verification attempts for this hour. Please try again later.',
-      );
-    }
-  }
+      -- 3. Check User Hourly Limit
+      local userHourly = tonumber(redis.call('GET', userHourlyKey) or '0')
+      if userHourly >= hourlyLimit then
+        return { 0, 'USER_HOURLY_LIMIT', tostring(userHourly) }
+      end
 
-  /**
-   * Sets per-user and per-email cooldown sentinels and advances hourly counters in Redis in parallel.
-   */
-  private async recordSendRateLimits(
-    userId: string,
-    emailHex: string,
-  ): Promise<void> {
-    await Promise.all([
-      this.redisService.set(
-        this.getEmailOtpUserCooldownKey(userId),
-        '1',
-        'EX',
+      -- 4. Check Email Hourly Limit
+      local emailHourly = tonumber(redis.call('GET', emailHourlyKey) or '0')
+      if emailHourly >= hourlyLimit then
+        return { 0, 'EMAIL_HOURLY_LIMIT', tostring(emailHourly) }
+      end
+
+      -- 5. Atomically commit sentinels, counters, and OTP payload:
+      redis.call('SET', userCooldownKey, '1', 'EX', cooldownTtl)
+      redis.call('SET', emailCooldownKey, '1', 'EX', cooldownTtl)
+
+      local newUserHourly = redis.call('INCR', userHourlyKey)
+      if newUserHourly == 1 or redis.call('TTL', userHourlyKey) == -1 then
+        redis.call('EXPIRE', userHourlyKey, hourlyWindow)
+      end
+
+      local newEmailHourly = redis.call('INCR', emailHourlyKey)
+      if newEmailHourly == 1 or redis.call('TTL', emailHourlyKey) == -1 then
+        redis.call('EXPIRE', emailHourlyKey, hourlyWindow)
+      end
+
+      redis.call('SET', otpKey, otpPayload, 'EX', otpTtl)
+
+      return { 1, 'OK' }
+    `;
+
+    const result = await this.redisService.eval<[number, string, string?]>(
+      luaScript,
+      [
+        userCooldownKey,
+        emailCooldownKey,
+        userHourlyKey,
+        emailHourlyKey,
+        otpKey,
+      ],
+      [
         EmailVerificationService.EMAIL_OTP_COOLDOWN_SECONDS,
-      ),
-      this.redisService.set(
-        this.getEmailOtpEmailCooldownKey(emailHex),
-        '1',
-        'EX',
-        EmailVerificationService.EMAIL_OTP_COOLDOWN_SECONDS,
-      ),
-      this.redisService.incrWithTtl(
-        this.getEmailOtpHourlyKey(userId),
+        EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT,
         EmailVerificationService.EMAIL_OTP_HOURLY_WINDOW_SECONDS,
-      ),
-      this.redisService.incrWithTtl(
-        this.getEmailOtpEmailHourlyKey(emailHex),
-        EmailVerificationService.EMAIL_OTP_HOURLY_WINDOW_SECONDS,
-      ),
-    ]);
+        otpPayload,
+        EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
+      ],
+    );
+
+    if (!result) {
+      return { allowed: false };
+    }
+
+    const [status, reason, countStr] = result;
+    if (status === 1) {
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      reason: reason as
+        | 'USER_COOLDOWN'
+        | 'EMAIL_COOLDOWN'
+        | 'USER_HOURLY_LIMIT'
+        | 'EMAIL_HOURLY_LIMIT',
+      count: countStr ? parseInt(countStr, 10) : undefined,
+    };
   }
 
   /**
@@ -195,8 +204,9 @@ export class EmailVerificationService extends BaseService {
    *
    * Checks only whether the email is already verified on the caller's own account to prevent
    * account enumeration (never leaks whether another user owns the email). Enforces multi-tier
-   * rate limiting (per-user cooldown, per-email cooldown, and hourly limit).
-   * Emits `EmailVerificationRequestedEvent` for decoupled Brevo email dispatch.
+   * rate limiting (per-user cooldown, per-email cooldown, and hourly limit) and persists the
+   * OTP payload in a single atomic Redis Lua transaction.
+   * Emits `EmailVerificationRequestedEvent` for decoupled email dispatch.
    *
    * @param userId - ID of the authenticated user requesting verification.
    * @param dto - Container for the email address to verify.
@@ -254,14 +264,9 @@ export class EmailVerificationService extends BaseService {
       );
     }
 
-    // 2. Multi-tier Rate Limiting Checks
-    await this.enforceSendRateLimits(userId, emailHex, ctx);
-
-    // 3. Generate Cryptographically Secure 6-digit OTP
+    // 2. Generate Cryptographically Secure 6-digit OTP & Payload
     const plainOtp = randomInt(100000, 1000000).toString();
     const hashedOtp = hashString(plainOtp);
-
-    // 4. Store State in Redis
     const redisKey = this.getEmailOtpRedisKey(userId, emailHex);
     const otpPayload = JSON.stringify({
       otpHash: hashedOtp,
@@ -271,29 +276,74 @@ export class EmailVerificationService extends BaseService {
       maxAttempts: EmailVerificationService.EMAIL_OTP_MAX_ATTEMPTS,
     });
 
-    try {
-      await this.redisService.set(
-        redisKey,
-        otpPayload,
-        'EX',
-        EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
+    // 3. Atomically Evaluate Multi-Tier Rate Limits & Store OTP Payload in Redis
+    const rateLimitResult = await this.evaluateRateLimitAndStoreOtp(
+      userId,
+      emailHex,
+      redisKey,
+      otpPayload,
+    );
+
+    if (!rateLimitResult.allowed) {
+      if (rateLimitResult.reason === 'USER_COOLDOWN') {
+        this.logger.warn('Email OTP request throttled: user cooldown active', {
+          ...ctx,
+          step: 'rate_limit_user',
+        });
+        throw new OtpRateLimitExceededException(
+          'Please wait 60 seconds before requesting another verification code.',
+        );
+      }
+
+      if (rateLimitResult.reason === 'EMAIL_COOLDOWN') {
+        this.logger.warn('Email OTP request throttled: email cooldown active', {
+          ...ctx,
+          step: 'rate_limit_email',
+        });
+        throw new OtpRateLimitExceededException(
+          'A verification code was recently sent to this email. Please wait 60 seconds.',
+        );
+      }
+
+      if (rateLimitResult.reason === 'USER_HOURLY_LIMIT') {
+        this.logger.warn('Email OTP request throttled: hourly limit exceeded', {
+          ...ctx,
+          hourlyCount: rateLimitResult.count,
+          step: 'rate_limit_hourly',
+        });
+        throw new OtpRateLimitExceededException(
+          'You have exceeded the maximum email verification attempts for this hour. Please try again later.',
+        );
+      }
+
+      if (rateLimitResult.reason === 'EMAIL_HOURLY_LIMIT') {
+        this.logger.warn(
+          'Email OTP request throttled: email hourly limit exceeded',
+          {
+            ...ctx,
+            emailHourlyCount: rateLimitResult.count,
+            step: 'rate_limit_email_hourly',
+          },
+        );
+        throw new OtpRateLimitExceededException(
+          'This email address has exceeded the maximum verification attempts for this hour. Please try again later.',
+        );
+      }
+
+      this.logger.warn('Email OTP request throttled by rate limit', {
+        ...ctx,
+        step: 'rate_limit_check',
+      });
+      throw new OtpRateLimitExceededException(
+        'Please wait 60 seconds before requesting another verification code.',
       );
-
-      await this.recordSendRateLimits(userId, emailHex);
-
-      this.logger.debug('Stored email verification OTP in Redis', {
-        ...ctx,
-        step: 'persist_otp',
-        otpTtl: EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
-      });
-    } catch (error) {
-      this.logger.error('Failed to store email OTP in Redis', {
-        ...ctx,
-        step: 'persist_otp',
-        err: serializeError(error),
-      });
-      throw error;
     }
+
+    this.logger.debug('Stored email verification OTP in Redis', {
+      ...ctx,
+      step: 'persist_otp',
+      otpTtl: EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
+    });
 
     // 5. Emit Audit Log & Structured Event
     this.emitAuditLog({

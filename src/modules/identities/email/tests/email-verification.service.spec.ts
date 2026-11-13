@@ -38,6 +38,7 @@ describe('EmailVerificationService', () => {
     ttl: jest.Mock;
     incr: jest.Mock;
     incrWithTtl: jest.Mock;
+    eval: jest.Mock;
   };
   let identitiesService: {
     claimOrCreateIdentity: jest.Mock;
@@ -82,6 +83,7 @@ describe('EmailVerificationService', () => {
       ttl: jest.fn(),
       incr: jest.fn(),
       incrWithTtl: jest.fn().mockResolvedValue(1),
+      eval: jest.fn(),
     };
 
     identitiesService = {
@@ -129,7 +131,7 @@ describe('EmailVerificationService', () => {
     it('should successfully generate OTP, persist in Redis, emit event, and return response', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockResolvedValue(null);
+      redisService.eval.mockResolvedValue([1, 'OK']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
@@ -143,31 +145,16 @@ describe('EmailVerificationService', () => {
         resendAfter: 60,
       });
 
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining(`email_verification_otp:${mockUserId}:`),
-        expect.stringContaining('otpHash'),
-        'EX',
-        600,
-      );
-      expect(redisService.set).toHaveBeenCalledWith(
-        `rate_limit:email_otp:user:${mockUserId}`,
-        '1',
-        'EX',
-        60,
-      );
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining('rate_limit:email_otp:email:'),
-        '1',
-        'EX',
-        60,
-      );
-      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
-        `rate_limit:email_otp:hourly:${mockUserId}`,
-        3600,
-      );
-      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
-        expect.stringContaining('rate_limit:email_otp:hourly:email:'),
-        3600,
+      expect(redisService.eval).toHaveBeenCalledWith(
+        expect.stringContaining('USER_COOLDOWN'),
+        [
+          `rate_limit:email_otp:user:${mockUserId}`,
+          expect.stringContaining('rate_limit:email_otp:email:'),
+          `rate_limit:email_otp:hourly:${mockUserId}`,
+          expect.stringContaining('rate_limit:email_otp:hourly:email:'),
+          expect.stringContaining(`email_verification_otp:${mockUserId}:`),
+        ],
+        [60, 5, 3600, expect.stringContaining('otpHash'), 600],
       );
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -177,26 +164,6 @@ describe('EmailVerificationService', () => {
           email: mockEmail,
           expiresInSeconds: 600,
         }),
-      );
-    });
-
-    it('should advance hourly counter via incrWithTtl when hourly counter already exists', async () => {
-      // Arrange
-      prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockImplementation(async (key: string) => {
-        if (key.includes('hourly')) return '2';
-        return null;
-      });
-
-      const dto: SendEmailOtpRequestDto = { email: mockEmail };
-
-      // Act
-      await service.sendEmailOtp(mockUserId, dto);
-
-      // Assert
-      expect(redisService.incrWithTtl).toHaveBeenCalledWith(
-        `rate_limit:email_otp:hourly:${mockUserId}`,
-        3600,
       );
     });
 
@@ -224,12 +191,13 @@ describe('EmailVerificationService', () => {
           id: true,
         },
       });
+      expect(redisService.eval).not.toHaveBeenCalled();
     });
 
     it('should scope ownership check strictly to caller and send OTP even when email is owned by another user', async () => {
       // Arrange — query is scoped to caller userId, so another user's verified identity yields null
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockResolvedValue(null);
+      redisService.eval.mockResolvedValue([1, 'OK']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
@@ -259,64 +227,52 @@ describe('EmailVerificationService', () => {
     it('should throw OtpRateLimitExceededException when user cooldown is active', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockImplementation(async (key: string) => {
-        if (key.includes('rate_limit:email_otp:user')) return '1';
-        return null;
-      });
+      redisService.eval.mockResolvedValue([0, 'USER_COOLDOWN']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
       // Act & Assert
       await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
-        OtpRateLimitExceededException,
+        'Please wait 60 seconds before requesting another verification code.',
       );
     });
 
     it('should throw OtpRateLimitExceededException when email cooldown is active', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockImplementation(async (key: string) => {
-        if (key.startsWith('rate_limit:email_otp:email:')) return '1';
-        return null;
-      });
+      redisService.eval.mockResolvedValue([0, 'EMAIL_COOLDOWN']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
       // Act & Assert
       await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
-        OtpRateLimitExceededException,
+        'A verification code was recently sent to this email. Please wait 60 seconds.',
       );
     });
 
     it('should throw OtpRateLimitExceededException when user hourly limit is reached', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockImplementation(async (key: string) => {
-        if (key === `rate_limit:email_otp:hourly:${mockUserId}`) return '5';
-        return null;
-      });
+      redisService.eval.mockResolvedValue([0, 'USER_HOURLY_LIMIT', '5']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
       // Act & Assert
       await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
-        OtpRateLimitExceededException,
+        'You have exceeded the maximum email verification attempts for this hour. Please try again later.',
       );
     });
 
     it('should throw OtpRateLimitExceededException when email hourly limit is reached', async () => {
       // Arrange
       prisma.identity.findFirst.mockResolvedValue(null);
-      redisService.get.mockImplementation(async (key: string) => {
-        if (key.startsWith('rate_limit:email_otp:hourly:email:')) return '5';
-        return null;
-      });
+      redisService.eval.mockResolvedValue([0, 'EMAIL_HOURLY_LIMIT', '5']);
 
       const dto: SendEmailOtpRequestDto = { email: mockEmail };
 
       // Act & Assert
       await expect(service.sendEmailOtp(mockUserId, dto)).rejects.toThrow(
-        OtpRateLimitExceededException,
+        'This email address has exceeded the maximum verification attempts for this hour. Please try again later.',
       );
     });
   });
