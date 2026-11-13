@@ -76,7 +76,7 @@ graph TB
 Foundational services providing cloud platform integrations, observability, asynchronous messaging, and system health.
 
 - **[Firebase Module](./firebase.md)**: Manages Firebase Admin SDK credentials, token verification, and FCM push messaging initialization.
-- **[Notifications Module](./notifications.md)**: Dispatches multi-channel alerts (Transactional Email via Brevo, Push notifications via FCM, and WhatsApp) with Handlebars template hydration and envelope-encrypted PII resolution.
+- **[Notifications Module](./notifications.md)**: Dispatches multi-channel alerts (Transactional Email with cascading failover across Resend, Brevo, and Mailgun, Push notifications via FCM, and WhatsApp) with Handlebars template hydration and envelope-encrypted PII resolution.
 - **[Health Module](./health.md)**: Cloud Run liveness and readiness probes (`/health/live`, `/health/ready`), validating PostgreSQL, Redis, and KMS connectivity.
 - **[PubSub Module](./pubsub.md)**: Asynchronous event ingestion and publishing using GCP Cloud Pub/Sub topics and subscription worker handlers.
 - **[Maintenance Module](./maintenance.md)**: Provides scheduled tasks, cleanup cron jobs, soft-deleted record pruning, and system maintenance guards.

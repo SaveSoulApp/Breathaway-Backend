@@ -80,7 +80,7 @@ flowchart TD
 
     subgraph DeliveryChannels["Multi-Channel Delivery"]
         FCM["Firebase Cloud Messaging (Push)"]
-        BREVO["Brevo SMTP API (Transactional Email)"]
+        EMAIL_FAILOVER["Email Failover Engine (Resend -> Brevo -> Mailgun)"]
         WA["WhatsApp Adapter (LiteApp / Meta API)"]
     end
 
@@ -97,13 +97,13 @@ flowchart TD
     BUS --> LISTENER
     LISTENER --> RESOLVER
     LISTENER -->|Direct Send| EMAIL_SVC["EmailService.sendDirect()"]
-    EMAIL_SVC --> BREVO
+    EMAIL_SVC --> EMAIL_FAILOVER
     RESOLVER --> NOTIF_SVC
     NOTIF_SVC --> PUBSUB
     PUBSUB --> WORKER
     WORKER --> FALLBACK
     FALLBACK --> FCM
-    FALLBACK --> BREVO
+    FALLBACK --> EMAIL_FAILOVER
     FALLBACK --> WA
 ```
 

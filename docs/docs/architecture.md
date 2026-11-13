@@ -87,7 +87,7 @@ The platform provides a provider-agnostic, secure payment orchestration engine f
 
 To protect the application from hung socket leaks, distribute tracing context across third-party boundaries, and avoid brittle unit test monkey-patching, all external HTTP requests are routed through a centralized service:
 
-- **Centralized Wrapper**: Third-party APIs (Instagram, Google Play, Brevo, Mailgun, LiteApp, IPinfo) are consumed exclusively via `HttpClientService` (`@infrastructure/http`), wrapping an underlying Axios client.
+- **Centralized Wrapper**: Third-party APIs (Instagram, Google Play, Resend, Brevo, Mailgun, LiteApp, IPinfo) are consumed exclusively via `HttpClientService` (`@infrastructure/http`), wrapping an underlying Axios client. Transactional emails utilize an autonomous cascading failover chain (`FailoverEmailAdapter`) across Resend, Brevo, and Mailgun.
 - **Distributed Tracing Propagation**: Outgoing request interceptors automatically extract `requestId` and `traceContext` from CLS (`nestjs-cls`) and inject `x-request-id` and `x-cloud-trace-context` HTTP headers.
 - **Bounded Timeouts**: All outbound calls enforce bounded default execution timeouts (`HTTP_CLIENT_TIMEOUT_MS`, default 10,000ms), safeguarding Cloud Run container sockets.
 - **Deep Dive**: See the dedicated [Resilient External HTTP Clients](./architecture/http-client.md) guide.

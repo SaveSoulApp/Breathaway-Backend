@@ -38,6 +38,7 @@ flowchart LR
 
     subgraph External["External APIs"]
         META["Meta / Instagram Graph API"]
+        RESEND["Resend REST Email API"]
         BREVO["Brevo Transactional Email"]
         MAILGUN["Mailgun API"]
         LITEAPP["LiteApp WhatsApp Gateway"]
@@ -47,8 +48,8 @@ flowchart LR
 
     SVC -->|this.httpClient.post / get| INTER_REQ
     INTER_REQ --> AXIOS
-    AXIOS -->|Outbound HTTPS Request| META & BREVO & MAILGUN & LITEAPP & IPINFO & GOOGLE
-    META & BREVO & MAILGUN & LITEAPP & IPINFO & GOOGLE -->|HTTPS Response| INTER_RES
+    AXIOS -->|Outbound HTTPS Request| META & RESEND & BREVO & MAILGUN & LITEAPP & IPINFO & GOOGLE
+    META & RESEND & BREVO & MAILGUN & LITEAPP & IPINFO & GOOGLE -->|HTTPS Response| INTER_RES
     INTER_RES --> SVC
     AXIOS -.->|HTTP Failure / Timeout| INTER_ERR
     INTER_ERR -.->|Promise.reject| SVC
