@@ -27,6 +27,7 @@ locals {
     revenuecat_webhook_secret   = "revenuecat-webhook-secret"
     ipinfo_token                = "ipinfo-token"
     brevo_api_key               = "brevo-api-key"
+    resend_api_key              = "resend-api-key"
     razorpay_key_id             = "razorpay-key-id"
     razorpay_key_secret         = "razorpay-key-secret"
     razorpay_webhook_secret     = "razorpay-webhook-secret"
@@ -36,7 +37,6 @@ locals {
     meta_app_secret             = "meta-app-secret"
     gcp_secret_chat_master_keys = "gcp-secret-chat-master-keys"
     active_chat_master_key_id   = "active-chat-master-key-id"
-    resend_api_key              = "resend-api-key"
   }
 
   # List of all secrets required by the backend service at runtime (mirrors COMMON_SECRETS)
