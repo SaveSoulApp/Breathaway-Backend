@@ -567,6 +567,23 @@ Communicates with the Resend REST API (`POST https://api.resend.com/emails`) usi
 }
 ```
 
+#### Dynamic Failover & Cascading Delivery (`FailoverEmailAdapter`)
+
+To guarantee high availability and resilience against third-party provider outages or rate limits, BreathAway implements `FailoverEmailAdapter`.
+
+It evaluates the configured provider priority chain via the `EMAIL_PROVIDERS` environment variable (e.g. `resend,brevo,mailgun`):
+
+1. **Primary Attempt**: Dispatches through Provider 1 (`resend`).
+2. **Cascading Fallback**: If Provider 1 fails with an unhandled exception or rate limit, a warning is logged (`failedProvider: 'resend', nextProvider: 'brevo'`), and delivery is immediately attempted through Provider 2 (`brevo`).
+3. **Tertiary Fallback**: If Provider 2 also fails, delivery cascades to Provider 3 (`mailgun`).
+4. **Exhaustion Guard**: If all providers in the configured chain fail, an aggregate exception is raised with details from every failed attempt.
+
+The priority order can be reconfigured dynamically at runtime via the environment without altering application code:
+
+```bash
+EMAIL_PROVIDERS="resend,brevo,mailgun"
+```
+
 ---
 
 ## 📲 Push Notifications & Multi-Platform FCM Delivery
@@ -1091,21 +1108,21 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 
 ## ⚙️ Configuration & Environment Variables
 
-| Variable                     | Type   | Description                                                            | Example                                       |
-| :--------------------------- | :----- | :--------------------------------------------------------------------- | :-------------------------------------------- |
-| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager)   | `xkeysib-••••••••••••`                        |
-| `RESEND_API_KEY`             | String | Secret API key for Resend transactional email API (Secret Manager)     | `re_••••••••••••••••`                         |
-| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in email provider                   | `no-reply@breathaway.app`                     |
-| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                                | `BreathAway`                                  |
-| `EMAIL_PROVIDER`             | String | Active email provider (`brevo` \| `resend` \| `sendgrid` \| `mailgun`) | `brevo`                                       |
-| `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)                | `liteapp`                                     |
-| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                             | `https://www.liteapp.store`                   |
-| `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)      | `Bearer la_sec_••••••••`                      |
-| `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication     | `redis://default:••••@10.0.0.5:6379`          |
-| `APP_URL`                    | String | Base frontend or universal deep-link URL                               | `https://app.breathaway.app`                  |
-| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                                   | `https://app.breathaway.app/icon-192x192.png` |
-| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                                    | `https://app.breathaway.app/badge-72x72.png`  |
-| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                         | `notifications-stream`                        |
+| Variable                     | Type   | Description                                                          | Example                                       |
+| :--------------------------- | :----- | :------------------------------------------------------------------- | :-------------------------------------------- |
+| `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager) | `xkeysib-••••••••••••`                        |
+| `RESEND_API_KEY`             | String | Secret API key for Resend transactional email API (Secret Manager)   | `re_••••••••••••••••`                         |
+| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in email provider                 | `no-reply@breathaway.app`                     |
+| `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                  |
+| `EMAIL_PROVIDERS`            | String | Comma-separated prioritized email failover chain                     | `resend,brevo,mailgun`                        |
+| `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                     |
+| `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://www.liteapp.store`                   |
+| `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                      |
+| `REDIS_URL`                  | String | Optional Redis connection string for distributed 24h deduplication   | `redis://default:••••@10.0.0.5:6379`          |
+| `APP_URL`                    | String | Base frontend or universal deep-link URL                             | `https://app.breathaway.app`                  |
+| `WEBPUSH_ICON_URL`           | String | Web push notification icon asset URL                                 | `https://app.breathaway.app/icon-192x192.png` |
+| `WEBPUSH_BADGE_URL`          | String | Web push monochrome badge asset URL                                  | `https://app.breathaway.app/badge-72x72.png`  |
+| `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                        |
 
 > [!CAUTION]
 > In production environments (Cloud Run), `BREVO_API_KEY`, `RESEND_API_KEY`, and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/deploy/common.secrets.sh`.

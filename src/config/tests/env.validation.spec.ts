@@ -75,7 +75,7 @@ describe('envValidationSchema', () => {
       expect(value.IPINFO_TIMEOUT_MS).toBe(1500);
 
       // Email defaults
-      expect(value.EMAIL_PROVIDER).toBe('brevo');
+      expect(value.EMAIL_PROVIDERS).toBe('resend,brevo,mailgun');
       expect(value.EMAIL_FROM_ADDRESS).toBe('no-reply@breathaway.app');
       expect(value.EMAIL_FROM_NAME).toBe('BreathAway');
 
@@ -195,16 +195,6 @@ describe('envValidationSchema', () => {
       expect(error?.message).toContain('"LOG_LEVEL" must be one of');
     });
 
-    it('should fail when EMAIL_PROVIDER is unsupported', () => {
-      const { error } = envValidationSchema.validate(
-        { ...baseValidEnv, EMAIL_PROVIDER: 'ses' },
-        envValidationOptions,
-      );
-
-      expect(error).toBeDefined();
-      expect(error?.message).toContain('"EMAIL_PROVIDER" must be one of');
-    });
-
     it('should fail when WHATSAPP_PROVIDER is unsupported', () => {
       const { error } = envValidationSchema.validate(
         { ...baseValidEnv, WHATSAPP_PROVIDER: 'unsupported' },
@@ -256,18 +246,18 @@ describe('envValidationSchema', () => {
       expect(value.WHATSAPP_LIKE_ALLOWED_COUNTRY_CODES).toBe('["+91","+65"]');
     });
 
-    it('should accept "resend" as a valid EMAIL_PROVIDER and optional RESEND_API_KEY', () => {
+    it('should accept custom EMAIL_PROVIDERS and optional RESEND_API_KEY', () => {
       const { error, value } = envValidationSchema.validate(
         {
           ...baseValidEnv,
-          EMAIL_PROVIDER: 'resend',
+          EMAIL_PROVIDERS: 'resend,brevo',
           RESEND_API_KEY: 're_test_12345',
         },
         envValidationOptions,
       );
 
       expect(error).toBeUndefined();
-      expect(value.EMAIL_PROVIDER).toBe('resend');
+      expect(value.EMAIL_PROVIDERS).toBe('resend,brevo');
       expect(value.RESEND_API_KEY).toBe('re_test_12345');
     });
 
@@ -342,7 +332,7 @@ describe('envValidationSchema', () => {
         {
           DB_POOL_MAX: 'invalid',
           LOG_LEVEL: 'invalid',
-          EMAIL_PROVIDER: 'unknown',
+          WHATSAPP_PROVIDER: 'unknown',
         },
         envValidationOptions,
       );
@@ -483,7 +473,7 @@ describe('envValidationSchema', () => {
       process.env.DB_POOL_MAX = '6';
       process.env.OTP_TTL = '450';
       process.env.CREDIT_EXPIRY_DAYS = '120';
-      process.env.EMAIL_PROVIDER = 'brevo';
+      process.env.EMAIL_PROVIDERS = 'resend,brevo';
       process.env.RESEND_API_KEY = 're_integrated_key';
       process.env.CASHFREE_APP_ID = 'cf_app_integrated_123';
       process.env.CASHFREE_SECRET_KEY = 'cf_sec_integrated_456';
@@ -504,7 +494,7 @@ describe('envValidationSchema', () => {
       expect(configService.get<number>('DB_POOL_MAX')).toBe(6);
       expect(configService.get<number>('OTP_TTL')).toBe(450);
       expect(configService.get<number>('CREDIT_EXPIRY_DAYS')).toBe(120);
-      expect(configService.get<string>('EMAIL_PROVIDER')).toBe('brevo');
+      expect(configService.get<string>('EMAIL_PROVIDERS')).toBe('resend,brevo');
       expect(configService.get<string>('RESEND_API_KEY')).toBe(
         're_integrated_key',
       );

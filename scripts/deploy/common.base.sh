@@ -51,7 +51,7 @@ export OTP_RATE_LIMIT_TTL="${OTP_RATE_LIMIT_TTL:-120}"
 # Mail Provider Configuration
 export EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-no-reply@breathaway.app}"
 export EMAIL_FROM_NAME="${EMAIL_FROM_NAME:-Breathaway}"
-export EMAIL_PROVIDER="${EMAIL_PROVIDER:-resend}"
+export EMAIL_PROVIDERS="${EMAIL_PROVIDERS:-resend,brevo,mailgun}"
 export MAILGUN_API_KEY="${MAILGUN_API_KEY:-some-api-key}"
 export MAILGUN_DOMAIN="${MAILGUN_DOMAIN:-domain@domaincom}"
 export SENDGRID_API_KEY="${SENDGRID_API_KEY:-SG.some-api-key}"
