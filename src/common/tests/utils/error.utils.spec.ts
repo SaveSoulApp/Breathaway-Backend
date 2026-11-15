@@ -179,6 +179,109 @@ describe('Error Utilities & PII Scrubbing (LOG-02)', () => {
           'Failed for customer [REDACTED_EMAIL] with phone [REDACTED_PHONE]',
       });
     });
+
+    it('should safely handle AxiosError with circular references in response data', () => {
+      const circularData: Record<string, unknown> = {
+        error: 'Email delivery failed to customer@example.com',
+      };
+      circularData.self = circularData;
+
+      const axiosErr = new AxiosError(
+        'Provider outage',
+        'ERR_BAD_GATEWAY',
+        { headers: {} } as never,
+        {},
+        {
+          status: 502,
+          data: circularData,
+        } as never,
+      );
+
+      const serialized = serializeError(axiosErr);
+
+      expect(serialized.httpStatus).toBe(502);
+      expect(serialized.httpData).toEqual({
+        error: 'Email delivery failed to [REDACTED_EMAIL]',
+        self: '[Circular]',
+      });
+      // Verifies JSON.stringify does not crash on the serialized result
+      expect(() => JSON.stringify(serialized)).not.toThrow();
+    });
+
+    it('should safely serialize duck-typed Axios errors with circular references in response', () => {
+      const circularReq: Record<string, unknown> = {};
+      const circularRes: Record<string, unknown> = { req: circularReq };
+      circularReq.res = circularRes;
+
+      const duckTypedAxiosError = {
+        isAxiosError: true,
+        name: 'AxiosError',
+        message: 'Resend API returned 500 for test@example.com',
+        code: 'ERR_BAD_RESPONSE',
+        response: {
+          status: 500,
+          data: { details: 'Internal server error' },
+          request: circularReq,
+        },
+        config: { headers: { Authorization: 'Bearer re_key' } },
+      };
+
+      const serialized = serializeError(duckTypedAxiosError);
+
+      expect(serialized.message).toBe(
+        'Resend API returned 500 for [REDACTED_EMAIL]',
+      );
+      expect(serialized.httpStatus).toBe(500);
+      expect(serialized.httpData).toEqual({ details: 'Internal server error' });
+      expect(serialized).not.toHaveProperty('config');
+      expect(serialized).not.toHaveProperty('request');
+      expect(() => JSON.stringify(serialized)).not.toThrow();
+    });
+
+    it('should safely serialize thrown raw Axios response objects without traversing circular sockets', () => {
+      const circularSocket: Record<string, unknown> = {};
+      circularSocket.socket = circularSocket;
+
+      const rawAxiosResponse = {
+        status: 429,
+        statusText: 'Too Many Requests to mailgun@example.com',
+        data: { message: 'Rate limit exceeded' },
+        headers: { 'retry-after': '60' },
+        request: circularSocket,
+        config: { url: 'https://api.mailgun.net' },
+      };
+
+      const serialized = serializeError(rawAxiosResponse);
+
+      expect(serialized.httpStatus).toBe(429);
+      expect(serialized.message).toBe('Too Many Requests to [REDACTED_EMAIL]');
+      expect(serialized.httpData).toEqual({ message: 'Rate limit exceeded' });
+      expect(serialized).not.toHaveProperty('request');
+      expect(() => JSON.stringify(serialized)).not.toThrow();
+    });
+
+    it('should safely serialize plain objects with circular references', () => {
+      const circularObj: Record<string, unknown> = {
+        message: 'Failed operation for user@example.com',
+      };
+      circularObj.circular = circularObj;
+
+      const serialized = serializeError(circularObj);
+
+      expect(serialized.message).toBe('Failed operation for [REDACTED_EMAIL]');
+      expect(serialized.circular).toBe('[Circular]');
+      expect(() => JSON.stringify(serialized)).not.toThrow();
+    });
+
+    it('should truncate deeply nested objects beyond MAX_SANITIZE_DEPTH to prevent bypass', () => {
+      let nested: Record<string, unknown> = { level: 10 };
+      for (let i = 9; i >= 1; i--) {
+        nested = { level: i, child: nested };
+      }
+
+      const serialized = serializeError(nested);
+      expect(() => JSON.stringify(serialized)).not.toThrow();
+    });
   });
 
   describe('sanitizeAuditMetadata', () => {

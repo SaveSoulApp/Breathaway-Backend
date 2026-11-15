@@ -100,6 +100,31 @@ describe('FailoverEmailAdapter', () => {
     expect(mockMailgun.send).not.toHaveBeenCalled();
   });
 
+  it('should safely serialize circular Axios errors without crashing when falling back', async () => {
+    const circularData: Record<string, unknown> = {
+      error: 'Upstream rate limit',
+    };
+    circularData.self = circularData;
+
+    const circularAxiosError = {
+      isAxiosError: true,
+      name: 'AxiosError',
+      message: 'Request failed with status code 429',
+      response: {
+        status: 429,
+        data: circularData,
+      },
+    };
+
+    mockResend.send.mockRejectedValueOnce(circularAxiosError);
+    mockBrevo.send.mockResolvedValueOnce();
+
+    await expect(adapter.send(samplePayload)).resolves.not.toThrow();
+
+    expect(mockResend.send).toHaveBeenCalledWith(samplePayload);
+    expect(mockBrevo.send).toHaveBeenCalledWith(samplePayload);
+  });
+
   it('should cascade to provider 3 (mailgun) when both resend and brevo fail', async () => {
     mockResend.send.mockRejectedValueOnce(new Error('Resend network outage'));
     mockBrevo.send.mockRejectedValueOnce(new Error('Brevo quota exceeded'));

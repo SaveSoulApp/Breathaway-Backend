@@ -37,6 +37,120 @@ import {
 } from './dto';
 
 /**
+ * Redis Lua script KEYS index mappings for email OTP rate limiting & storage.
+ * Lua arrays are 1-indexed.
+ */
+export const EMAIL_OTP_LUA_KEY_INDICES = {
+  USER_COOLDOWN: 1,
+  EMAIL_COOLDOWN: 2,
+  USER_HOURLY: 3,
+  EMAIL_HOURLY: 4,
+  OTP_STORAGE: 5,
+} as const;
+
+/**
+ * Redis Lua script ARGV index mappings for email OTP rate limiting & storage.
+ * Lua arrays are 1-indexed.
+ */
+export const EMAIL_OTP_LUA_ARGV_INDICES = {
+  COOLDOWN_TTL: 1,
+  HOURLY_LIMIT: 2,
+  HOURLY_WINDOW: 3,
+  OTP_PAYLOAD: 4,
+  OTP_TTL: 5,
+} as const;
+
+/**
+ * Rejection reason identifiers returned by the atomic email OTP rate limiter.
+ */
+export type EmailOtpRateLimitRejectionReason =
+  | 'USER_COOLDOWN'
+  | 'EMAIL_COOLDOWN'
+  | 'USER_HOURLY_LIMIT'
+  | 'EMAIL_HOURLY_LIMIT';
+
+/**
+ * Strongly typed tuple return shape from the atomic Redis Lua evaluation:
+ * - [0]: Status number (1 = allowed & committed, 0 = throttled/rejected)
+ * - [1]: Rejection reason or confirmation status ('OK' | EmailOtpRateLimitRejectionReason)
+ * - [2]: Optional current hourly count as a string when hourly quota is exceeded
+ */
+export type EmailOtpRateLimitLuaTuple = [
+  status: number,
+  reason: string,
+  count?: string,
+];
+
+/**
+ * Evaluated domain outcome for multi-tier email OTP rate limits.
+ */
+export interface EmailOtpRateLimitResult {
+  allowed: boolean;
+  reason?: EmailOtpRateLimitRejectionReason;
+  count?: number;
+}
+
+/**
+ * Redis Lua script executing multi-tier email OTP rate limit verification and storage atomically.
+ *
+ * All KEYS and ARGV access is bound to canonical named index constants to guard against
+ * positional parameter drift and off-by-one indexing errors.
+ */
+const EMAIL_OTP_RATE_LIMIT_LUA_SCRIPT = `
+  local userCooldownKey = KEYS[${EMAIL_OTP_LUA_KEY_INDICES.USER_COOLDOWN}]
+  local emailCooldownKey = KEYS[${EMAIL_OTP_LUA_KEY_INDICES.EMAIL_COOLDOWN}]
+  local userHourlyKey = KEYS[${EMAIL_OTP_LUA_KEY_INDICES.USER_HOURLY}]
+  local emailHourlyKey = KEYS[${EMAIL_OTP_LUA_KEY_INDICES.EMAIL_HOURLY}]
+  local otpKey = KEYS[${EMAIL_OTP_LUA_KEY_INDICES.OTP_STORAGE}]
+
+  local cooldownTtl = tonumber(ARGV[${EMAIL_OTP_LUA_ARGV_INDICES.COOLDOWN_TTL}])
+  local hourlyLimit = tonumber(ARGV[${EMAIL_OTP_LUA_ARGV_INDICES.HOURLY_LIMIT}])
+  local hourlyWindow = tonumber(ARGV[${EMAIL_OTP_LUA_ARGV_INDICES.HOURLY_WINDOW}])
+  local otpPayload = ARGV[${EMAIL_OTP_LUA_ARGV_INDICES.OTP_PAYLOAD}]
+  local otpTtl = tonumber(ARGV[${EMAIL_OTP_LUA_ARGV_INDICES.OTP_TTL}])
+
+  -- 1. Check User Cooldown Sentinel
+  if redis.call('EXISTS', userCooldownKey) == 1 then
+    return { 0, 'USER_COOLDOWN' }
+  end
+
+  -- 2. Check Email Cooldown Sentinel
+  if redis.call('EXISTS', emailCooldownKey) == 1 then
+    return { 0, 'EMAIL_COOLDOWN' }
+  end
+
+  -- 3. Check User Hourly Limit
+  local userHourly = tonumber(redis.call('GET', userHourlyKey) or '0')
+  if userHourly >= hourlyLimit then
+    return { 0, 'USER_HOURLY_LIMIT', tostring(userHourly) }
+  end
+
+  -- 4. Check Email Hourly Limit
+  local emailHourly = tonumber(redis.call('GET', emailHourlyKey) or '0')
+  if emailHourly >= hourlyLimit then
+    return { 0, 'EMAIL_HOURLY_LIMIT', tostring(emailHourly) }
+  end
+
+  -- 5. Atomically commit sentinels, counters, and OTP payload:
+  redis.call('SET', userCooldownKey, '1', 'EX', cooldownTtl)
+  redis.call('SET', emailCooldownKey, '1', 'EX', cooldownTtl)
+
+  local newUserHourly = redis.call('INCR', userHourlyKey)
+  if newUserHourly == 1 or redis.call('TTL', userHourlyKey) == -1 then
+    redis.call('EXPIRE', userHourlyKey, hourlyWindow)
+  end
+
+  local newEmailHourly = redis.call('INCR', emailHourlyKey)
+  if newEmailHourly == 1 or redis.call('TTL', emailHourlyKey) == -1 then
+    redis.call('EXPIRE', emailHourlyKey, hourlyWindow)
+  end
+
+  redis.call('SET', otpKey, otpPayload, 'EX', otpTtl)
+
+  return { 1, 'OK' }
+`;
+
+/**
  * Manages the full lifecycle of email verification OTPs and identity linking.
  *
  * Enforces multi-tier rate limiting (cooldowns, hourly caps), stores hashed OTPs
@@ -93,90 +207,34 @@ export class EmailVerificationService extends BaseService {
     emailHex: string,
     otpKey: string,
     otpPayload: string,
-  ): Promise<{
-    allowed: boolean;
-    reason?:
-      | 'USER_COOLDOWN'
-      | 'EMAIL_COOLDOWN'
-      | 'USER_HOURLY_LIMIT'
-      | 'EMAIL_HOURLY_LIMIT';
-    count?: number;
-  }> {
+  ): Promise<EmailOtpRateLimitResult> {
     const userCooldownKey = this.getEmailOtpUserCooldownKey(userId);
     const emailCooldownKey = this.getEmailOtpEmailCooldownKey(emailHex);
     const userHourlyKey = this.getEmailOtpHourlyKey(userId);
     const emailHourlyKey = this.getEmailOtpEmailHourlyKey(emailHex);
 
-    const luaScript = `
-      local userCooldownKey = KEYS[1]
-      local emailCooldownKey = KEYS[2]
-      local userHourlyKey = KEYS[3]
-      local emailHourlyKey = KEYS[4]
-      local otpKey = KEYS[5]
+    const keys: string[] = [];
+    keys[EMAIL_OTP_LUA_KEY_INDICES.USER_COOLDOWN - 1] = userCooldownKey;
+    keys[EMAIL_OTP_LUA_KEY_INDICES.EMAIL_COOLDOWN - 1] = emailCooldownKey;
+    keys[EMAIL_OTP_LUA_KEY_INDICES.USER_HOURLY - 1] = userHourlyKey;
+    keys[EMAIL_OTP_LUA_KEY_INDICES.EMAIL_HOURLY - 1] = emailHourlyKey;
+    keys[EMAIL_OTP_LUA_KEY_INDICES.OTP_STORAGE - 1] = otpKey;
 
-      local cooldownTtl = tonumber(ARGV[1])
-      local hourlyLimit = tonumber(ARGV[2])
-      local hourlyWindow = tonumber(ARGV[3])
-      local otpPayload = ARGV[4]
-      local otpTtl = tonumber(ARGV[5])
+    const args: (string | number)[] = [];
+    args[EMAIL_OTP_LUA_ARGV_INDICES.COOLDOWN_TTL - 1] =
+      EmailVerificationService.EMAIL_OTP_COOLDOWN_SECONDS;
+    args[EMAIL_OTP_LUA_ARGV_INDICES.HOURLY_LIMIT - 1] =
+      EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT;
+    args[EMAIL_OTP_LUA_ARGV_INDICES.HOURLY_WINDOW - 1] =
+      EmailVerificationService.EMAIL_OTP_HOURLY_WINDOW_SECONDS;
+    args[EMAIL_OTP_LUA_ARGV_INDICES.OTP_PAYLOAD - 1] = otpPayload;
+    args[EMAIL_OTP_LUA_ARGV_INDICES.OTP_TTL - 1] =
+      EmailVerificationService.EMAIL_OTP_TTL_SECONDS;
 
-      -- 1. Check User Cooldown Sentinel
-      if redis.call('EXISTS', userCooldownKey) == 1 then
-        return { 0, 'USER_COOLDOWN' }
-      end
-
-      -- 2. Check Email Cooldown Sentinel
-      if redis.call('EXISTS', emailCooldownKey) == 1 then
-        return { 0, 'EMAIL_COOLDOWN' }
-      end
-
-      -- 3. Check User Hourly Limit
-      local userHourly = tonumber(redis.call('GET', userHourlyKey) or '0')
-      if userHourly >= hourlyLimit then
-        return { 0, 'USER_HOURLY_LIMIT', tostring(userHourly) }
-      end
-
-      -- 4. Check Email Hourly Limit
-      local emailHourly = tonumber(redis.call('GET', emailHourlyKey) or '0')
-      if emailHourly >= hourlyLimit then
-        return { 0, 'EMAIL_HOURLY_LIMIT', tostring(emailHourly) }
-      end
-
-      -- 5. Atomically commit sentinels, counters, and OTP payload:
-      redis.call('SET', userCooldownKey, '1', 'EX', cooldownTtl)
-      redis.call('SET', emailCooldownKey, '1', 'EX', cooldownTtl)
-
-      local newUserHourly = redis.call('INCR', userHourlyKey)
-      if newUserHourly == 1 or redis.call('TTL', userHourlyKey) == -1 then
-        redis.call('EXPIRE', userHourlyKey, hourlyWindow)
-      end
-
-      local newEmailHourly = redis.call('INCR', emailHourlyKey)
-      if newEmailHourly == 1 or redis.call('TTL', emailHourlyKey) == -1 then
-        redis.call('EXPIRE', emailHourlyKey, hourlyWindow)
-      end
-
-      redis.call('SET', otpKey, otpPayload, 'EX', otpTtl)
-
-      return { 1, 'OK' }
-    `;
-
-    const result = await this.redisService.eval<[number, string, string?]>(
-      luaScript,
-      [
-        userCooldownKey,
-        emailCooldownKey,
-        userHourlyKey,
-        emailHourlyKey,
-        otpKey,
-      ],
-      [
-        EmailVerificationService.EMAIL_OTP_COOLDOWN_SECONDS,
-        EmailVerificationService.EMAIL_OTP_HOURLY_LIMIT,
-        EmailVerificationService.EMAIL_OTP_HOURLY_WINDOW_SECONDS,
-        otpPayload,
-        EmailVerificationService.EMAIL_OTP_TTL_SECONDS,
-      ],
+    const result = await this.redisService.eval<EmailOtpRateLimitLuaTuple>(
+      EMAIL_OTP_RATE_LIMIT_LUA_SCRIPT,
+      keys,
+      args,
     );
 
     if (!result) {
@@ -190,11 +248,7 @@ export class EmailVerificationService extends BaseService {
 
     return {
       allowed: false,
-      reason: reason as
-        | 'USER_COOLDOWN'
-        | 'EMAIL_COOLDOWN'
-        | 'USER_HOURLY_LIMIT'
-        | 'EMAIL_HOURLY_LIMIT',
+      reason: reason as EmailOtpRateLimitRejectionReason,
       count: countStr ? parseInt(countStr, 10) : undefined,
     };
   }

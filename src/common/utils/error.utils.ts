@@ -112,6 +112,33 @@ export function scrubPii(text?: string | null): string {
 }
 
 /**
+ * Helper to determine if an unknown error object exhibits Axios-like error structure.
+ */
+function isAxiosLikeError(err: unknown): err is axios.AxiosError {
+  if (axios.isAxiosError(err)) return true;
+  if (!err || typeof err !== 'object') return false;
+  const candidate = err as Record<string, unknown>;
+  return Boolean(
+    candidate.isAxiosError === true ||
+    ('response' in candidate && 'config' in candidate),
+  );
+}
+
+/**
+ * Helper to determine if an object is an Axios response object (which carries circular request/socket graphs).
+ */
+function isAxiosResponse(val: unknown): boolean {
+  if (!val || typeof val !== 'object') return false;
+  const obj = val as Record<string, unknown>;
+  return (
+    typeof obj.status === 'number' &&
+    'data' in obj &&
+    'headers' in obj &&
+    ('config' in obj || 'request' in obj)
+  );
+}
+
+/**
  * Recursively sanitizes a value, scrubbing PII from strings, serializing embedded errors,
  * censoring sensitive credential keys, and defending against circular references.
  */
@@ -121,8 +148,13 @@ function sanitizeValue(
   seen: WeakSet<object> = new WeakSet(),
   depth = 0,
 ): unknown {
-  if (val === null || val === undefined || depth > MAX_SANITIZE_DEPTH) {
+  if (val === null || val === undefined) {
     return val;
+  }
+
+  // Prevent stack overflow and circular reference bypass at deep recursion levels
+  if (depth > MAX_SANITIZE_DEPTH) {
+    return typeof val === 'object' ? '[Truncated]' : val;
   }
 
   // Preserve Date instances as ISO strings
@@ -156,6 +188,14 @@ function sanitizeValue(
     return scrubPii(val);
   }
 
+  // Truncate non-serializable primitives and functions
+  if (typeof val === 'function') {
+    return '[Function]';
+  }
+  if (typeof val === 'symbol' || typeof val === 'bigint') {
+    return val.toString();
+  }
+
   // Handle arrays and objects with circular reference guard
   if (typeof val === 'object') {
     if (seen.has(val)) {
@@ -163,13 +203,28 @@ function sanitizeValue(
     }
     seen.add(val);
 
+    // Guard against Node Streams, Sockets, and HTTP IncomingMessage/ClientRequest objects
+    if (
+      'pipe' in val &&
+      typeof (val as { pipe?: unknown }).pipe === 'function'
+    ) {
+      return '[Stream]';
+    }
+    if ('socket' in val && 'incoming' in val) {
+      return '[ServerResponse]';
+    }
+
     if (Array.isArray(val)) {
       return val.map((item) => sanitizeValue(item, undefined, seen, depth + 1));
     }
 
     const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(val)) {
-      result[k] = sanitizeValue(v, k, seen, depth + 1);
+    try {
+      for (const [k, v] of Object.entries(val)) {
+        result[k] = sanitizeValue(v, k, seen, depth + 1);
+      }
+    } catch {
+      return '[Unserializable]';
     }
     return result;
   }
@@ -243,30 +298,33 @@ export function serializeError(
   const scrubString = (str?: string | null) =>
     shouldScrub ? scrubPii(str) : (str ?? '');
 
-  // 1. Axios HTTP client errors — strip config to prevent credential/PII leakage
-  if (axios.isAxiosError(err)) {
-    const responseData: unknown = err.response?.data;
+  // 1. Axios HTTP client errors — strip config and request to prevent circular structures and credential/PII leakage
+  if (isAxiosLikeError(err)) {
+    const axiosErr = err;
+    const responseData: unknown = axiosErr.response?.data;
     const serializedData: unknown =
       typeof responseData === 'string'
         ? scrubString(responseData)
         : typeof responseData === 'object' && responseData !== null
-          ? (sanitizeValue(responseData) as Record<string, unknown>)
+          ? sanitizeValue(responseData, undefined, new WeakSet())
           : responseData;
 
-    const scrubbedMessage = scrubString(err.message);
-    const scrubbedStack = err.stack ? scrubString(err.stack) : undefined;
+    const scrubbedMessage = scrubString(axiosErr.message);
+    const scrubbedStack = axiosErr.stack
+      ? scrubString(axiosErr.stack)
+      : undefined;
 
     return {
       message: scrubbedMessage,
-      name: err.name,
+      name: axiosErr.name,
       stack: scrubbedStack,
       // Network-level error code (e.g. ECONNREFUSED, ETIMEDOUT, ERR_NETWORK)
-      code: err.code,
+      code: axiosErr.code,
       // Upstream HTTP response — already sanitized by the external API
-      httpStatus: err.response?.status,
+      httpStatus: axiosErr.response?.status,
       httpData: serializedData,
-      // config is intentionally omitted — it contains Authorization headers,
-      // API keys, and request body which may hold credentials or user PII.
+      // config and request are intentionally omitted — they contain circular socket graphs,
+      // ClientRequest, and Authorization headers that cause log-processor crashes.
     };
   }
 
@@ -286,6 +344,25 @@ export function serializeError(
       };
     }
 
+    // Inspect if generic Error carries an attached Axios response object
+    const candidate = err as unknown as Record<string, unknown>;
+    let httpStatus: number | undefined;
+    let httpData: unknown;
+
+    if (
+      'response' in candidate &&
+      candidate.response &&
+      typeof candidate.response === 'object'
+    ) {
+      const resp = candidate.response as Record<string, unknown>;
+      if (typeof resp.status === 'number') {
+        httpStatus = resp.status;
+      }
+      if ('data' in resp) {
+        httpData = sanitizeValue(resp.data, undefined, new WeakSet());
+      }
+    }
+
     // 3. Generic Error — covers Node.js ErrnoException (ECONNREFUSED, ETIMEDOUT, etc.)
     return {
       message: scrubbedMessage,
@@ -294,15 +371,35 @@ export function serializeError(
       ...('code' in err && err.code !== undefined
         ? { code: (err as NodeJS.ErrnoException).code }
         : {}),
+      ...(httpStatus !== undefined ? { httpStatus } : {}),
+      ...(httpData !== undefined ? { httpData } : {}),
     };
   }
 
-  // 4. Plain objects (e.g. thrown { code, message } shapes from legacy SDK wrappers)
+  // 4. Plain objects (e.g. thrown Axios response objects or { code, message } shapes from legacy SDK wrappers)
   if (typeof err === 'object' && err !== null) {
+    // Defend against thrown raw Axios response objects carrying circular request graphs
+    if (isAxiosResponse(err)) {
+      const resp = err as {
+        status?: number;
+        statusText?: string;
+        data?: unknown;
+      };
+      return {
+        message:
+          typeof resp.statusText === 'string' && resp.statusText
+            ? scrubString(resp.statusText)
+            : `HTTP ${resp.status ?? 'Error'}`,
+        httpStatus: resp.status,
+        httpData: sanitizeValue(resp.data, undefined, new WeakSet()),
+      };
+    }
+
+    const sanitizedObj = sanitizeValue(err, undefined, new WeakSet());
     const obj =
-      (shouldScrub
-        ? (sanitizeValue(err) as Record<string, unknown>)
-        : (err as Record<string, unknown>)) ?? {};
+      typeof sanitizedObj === 'object' && sanitizedObj !== null
+        ? (sanitizedObj as Record<string, unknown>)
+        : {};
     return {
       message: typeof obj.message === 'string' ? obj.message : '',
       ...obj,
