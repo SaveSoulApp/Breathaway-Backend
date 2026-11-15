@@ -635,8 +635,8 @@ export class LikesService extends BaseService {
    * performs one decryption call per row — avoid large `limit` values in hot paths.
    *
    * @param userId - UUID of the user whose likes are being listed.
-   * @param query  - Pagination parameters (`page`, `limit`), optional `intent` and `status` filters,
-   *                 and `sortOrder` (defaults to DESC).
+   * @param query  - Pagination parameters (`page`, `limit`), optional `intent`, `status`,
+   *                 and `targetIdentityType` filters, and `sortOrder` (defaults to DESC).
    * @returns A paginated envelope containing the like rows and cursor metadata.
    */
   async findAllForUser(userId: string, query: LikeListQueryDto) {
@@ -645,6 +645,7 @@ export class LikesService extends BaseService {
       limit = 20,
       intent,
       status,
+      targetIdentityType,
       sortOrder = SortOrder.DESC,
     } = query;
     const safeLimit = Math.min(100, Math.max(1, limit));
@@ -656,6 +657,7 @@ export class LikesService extends BaseService {
       ...ctx,
       intent,
       status,
+      targetIdentityType,
       sortOrder,
     });
 
@@ -669,6 +671,10 @@ export class LikesService extends BaseService {
 
     if (status) {
       where.status = status;
+    }
+
+    if (targetIdentityType) {
+      where.targetIdentity = { type: targetIdentityType };
     }
 
     const [total, rows] = await Promise.all([

@@ -217,10 +217,10 @@ export class MatchResolverService extends BaseService {
       where: {
         senderUserId: userBId,
         targetIdentity: { userId: userAId },
-        // Include VOIDED so that B's like — which was system-voided when a
-        // previous match was dissolved — can still satisfy the mutual-like
-        // condition when A re-likes B (Option A: frictionless re-match).
-        status: { in: [LikeStatus.PENDING, LikeStatus.VOIDED] },
+        // Only PENDING reverse likes can form a match. VOIDED and WITHDRAWN
+        // likes (e.g. from a dissolved match) must be explicitly re-initiated
+        // by their sender back to PENDING before a new match can be established.
+        status: LikeStatus.PENDING,
         deletedAt: null,
         // Only admit likes that have not yet expired. Permanent likes
         // (expiresAt = null) always pass. Time-limited likes must still be

@@ -393,8 +393,9 @@ export class MatchesService extends BaseService {
     try {
       // Atomically dissolve the match, mark the initiator's like as WITHDRAWN
       // (they actively ended the relationship) and the other party's like as
-      // VOIDED (ended by the system on their behalf). This asymmetry is what
-      // prevents the other party from triggering an accidental re-match.
+      // VOIDED (ended by the system on their behalf). Neither WITHDRAWN nor
+      // VOIDED likes can form a match again until explicitly re-initiated
+      // back to PENDING by each respective user.
       await this.prisma.$transaction([
         this.prisma.match.update({
           where: { id: matchId },

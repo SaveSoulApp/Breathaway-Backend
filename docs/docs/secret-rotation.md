@@ -106,13 +106,13 @@ flowchart TD
 
 Before touching Secret Manager, determine the secret category and its transition strategy:
 
-| Secret Category             | Examples                                                | Transition Strategy                                                    | Dual-Key Window Required?                        |
-| :-------------------------- | :------------------------------------------------------ | :--------------------------------------------------------------------- | :----------------------------------------------- |
-| **Third-Party API Keys**    | `BREVO_API_KEY`, `IPINFO_TOKEN`, `LITEAPP_WHATSAPP_KEY` | Generate new key in provider dashboard alongside existing key          | No (provider supports multiple keys)             |
-| **Webhook HMAC Secrets**    | `RAZORPAY_WEBHOOK_SECRET`, `META_APP_SECRET`            | Add new secret version, then update webhook signing secret in provider | Yes (or instant transition)                      |
-| **Database Credentials**    | `DATABASE_URL` (PostgreSQL / Cloud SQL)                 | Create secondary DB user or update password during maintenance         | Recommended (dual DB users)                      |
-| **Authentication & Tokens** | `JWT_SECRET`, `SUPABASE_JWT_PRIVATE_KEY`                | Deploy new key; consider session rollover                              | Yes (if instant logout is unacceptable)          |
-| **Symmetric Master Keys**   | `GCP_SECRET_MASTER_KEYS`, `GCP_SECRET_CHAT_MASTER_KEYS` | Add new key to JSON ring; update active ID pointer                     | Yes (key ring retains older keys for decryption) |
+| Secret Category             | Examples                                                                  | Transition Strategy                                                    | Dual-Key Window Required?                        |
+| :-------------------------- | :------------------------------------------------------------------------ | :--------------------------------------------------------------------- | :----------------------------------------------- |
+| **Third-Party API Keys**    | `BREVO_API_KEY`, `RESEND_API_KEY`, `IPINFO_TOKEN`, `LITEAPP_WHATSAPP_KEY` | Generate new key in provider dashboard alongside existing key          | No (provider supports multiple keys)             |
+| **Webhook HMAC Secrets**    | `RAZORPAY_WEBHOOK_SECRET`, `META_APP_SECRET`                              | Add new secret version, then update webhook signing secret in provider | Yes (or instant transition)                      |
+| **Database Credentials**    | `DATABASE_URL` (PostgreSQL / Cloud SQL)                                   | Create secondary DB user or update password during maintenance         | Recommended (dual DB users)                      |
+| **Authentication & Tokens** | `JWT_SECRET`, `SUPABASE_JWT_PRIVATE_KEY`                                  | Deploy new key; consider session rollover                              | Yes (if instant logout is unacceptable)          |
+| **Symmetric Master Keys**   | `GCP_SECRET_MASTER_KEYS`, `GCP_SECRET_CHAT_MASTER_KEYS`                   | Add new key to JSON ring; update active ID pointer                     | Yes (key ring retains older keys for decryption) |
 
 #### Pre-Flight IAM Check:
 

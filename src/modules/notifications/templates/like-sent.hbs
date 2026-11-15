@@ -1,14 +1,15 @@
 {{!
   Template: like-sent
   Data keys:
-    - name              {string}  Recipient's (sender's) first name
-    - targetMaskedValue {string}  Masked target phone or handle
-    - targetLabel       {string}  Optional nickname or contact label
-    - intent            {string}  Like intent (e.g. CRUSH, CASUAL)
-    - expiresAt         {string}  Expiration date string
-    - appUrl            {string}  Base URL of the app
-    - unsubscribeToken  {string}
-    - currentYear       {number}
+    - name                       {string}  Recipient's (sender's) first name
+    - targetMaskedValue          {string}  Masked target phone or handle
+    - targetLabel                {string}  Optional nickname or contact label
+    - intent                     {string}  Like intent (e.g. CRUSH, CASUAL)
+    - expiresAt                  {string}  Expiration date string
+    - notifyRecipientAnonymously {boolean} Whether recipient is notified anonymously
+    - appUrl                     {string}  Base URL of the app
+    - unsubscribeToken           {string}
+    - currentYear                {number}
 }}
 <p class='email-greeting'>{{#if name}}Your like has been sent,
     {{name}}! 💌{{else}}Your like has been sent! 💌{{/if}}</p>
@@ -27,8 +28,14 @@
   <p>
     🔒
     <strong>Double-Blind Confidentiality:</strong>
-    They will never be told you liked them unless they like you back! Your
-    intent is completely secret.
+    {{#if notifyRecipientAnonymously}}
+      We'll anonymously let them know someone likes them, but they will never be
+      told it was you unless they like you back! Your identity and intent remain
+      completely secret.
+    {{else}}
+      You chose to keep this silent. No notification will be sent to them, and
+      they will never know you liked them unless they join and like you back!
+    {{/if}}
   </p>
 </div>
 

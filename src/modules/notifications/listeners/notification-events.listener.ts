@@ -161,6 +161,7 @@ export class NotificationEventsListener extends BaseService {
             ? event.expiresAt.toISOString().slice(0, 10)
             : '',
           link: '/likes',
+          notifyRecipientAnonymously: event.notifyRecipientAnonymously ?? true,
         },
       });
     } catch (err) {

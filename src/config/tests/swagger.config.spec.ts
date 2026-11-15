@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from '@nestjs/swagger';
 import redoc from 'redoc-express';
 
+import { EmailIdentitiesModule } from '@modules/identities/email/email-identities.module';
 import { SocialIdentitiesModule } from '@modules/social-identities/social-identities.module';
 import { UsersModule } from '@modules/users/users.module';
 
@@ -143,9 +144,11 @@ describe('setupSwagger', () => {
       .calls[0];
     const adminCall = (SwaggerModule.createDocument as jest.Mock).mock.calls[1];
     expect(publicCall[2].include).toContain(UsersModule);
+    expect(publicCall[2].include).toContain(EmailIdentitiesModule);
     expect(publicCall[2].include).not.toContain(SocialIdentitiesModule);
     expect(adminCall[2].include).toContain(SocialIdentitiesModule);
     expect(adminCall[2].include).not.toContain(UsersModule);
+    expect(adminCall[2].include).not.toContain(EmailIdentitiesModule);
 
     // Assert public doc is sanitized
     expect(publicMockDoc.paths['/api/v1/payments/orders']).toBeDefined();

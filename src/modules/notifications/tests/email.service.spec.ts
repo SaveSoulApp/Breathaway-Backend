@@ -496,6 +496,7 @@ describe('EmailService', () => {
           targetLabel: 'Bob',
           intent: 'CRUSH',
           expiresAt: '2026-12-31',
+          notifyRecipientAnonymously: true,
         },
         [EmailType.NEW_MATCH]: {
           name: 'Alice',
@@ -598,6 +599,48 @@ describe('EmailService', () => {
           expect(contentWithoutName).not.toMatch(/match, !/);
         }).not.toThrow();
       }
+    });
+
+    it('should render anonymous notification copy in like-sent template when notifyRecipientAnonymously is true', () => {
+      const realFs = jest.requireActual('fs');
+      const realPath = jest.requireActual('path');
+      const HandlebarsActual = jest.requireActual('handlebars');
+      const templatesDir = realPath.resolve(__dirname, '../templates');
+      const templatePath = realPath.join(templatesDir, 'like-sent.hbs');
+      const templateSource = realFs.readFileSync(templatePath, 'utf-8');
+      const compiled = HandlebarsActual.compile(templateSource);
+
+      const html = compiled({
+        name: 'Alice',
+        targetMaskedValue: '+1 555 ••• ••89',
+        notifyRecipientAnonymously: true,
+      });
+
+      expect(html).toContain(
+        "We'll anonymously let them know someone likes them",
+      );
+      expect(html).not.toContain('You chose to keep this silent');
+    });
+
+    it('should render silent notification copy in like-sent template when notifyRecipientAnonymously is false', () => {
+      const realFs = jest.requireActual('fs');
+      const realPath = jest.requireActual('path');
+      const HandlebarsActual = jest.requireActual('handlebars');
+      const templatesDir = realPath.resolve(__dirname, '../templates');
+      const templatePath = realPath.join(templatesDir, 'like-sent.hbs');
+      const templateSource = realFs.readFileSync(templatePath, 'utf-8');
+      const compiled = HandlebarsActual.compile(templateSource);
+
+      const html = compiled({
+        name: 'Alice',
+        targetMaskedValue: '+1 555 ••• ••89',
+        notifyRecipientAnonymously: false,
+      });
+
+      expect(html).toContain('You chose to keep this silent');
+      expect(html).not.toContain(
+        "We'll anonymously let them know someone likes them",
+      );
     });
   });
 

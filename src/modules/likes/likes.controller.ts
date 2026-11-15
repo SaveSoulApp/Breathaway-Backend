@@ -127,8 +127,9 @@ export class LikesController extends BaseController {
   /**
    * Returns a paginated list of likes sent by the authenticated user.
    *
-   * Results can be filtered by `intent` and `status` and are sorted by `createdAt`
-   * descending by default. Each like includes the decrypted target identity `publicValue`.
+   * Results can be filtered by `intent`, `status`, and `targetIdentityType` and are
+   * sorted by `createdAt` descending by default. Each like includes the decrypted target
+   * identity `publicValue`.
    *
    * @param query - Pagination, filter, and sort options.
    * @returns A paginated envelope with likes and cursor metadata.

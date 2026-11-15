@@ -378,4 +378,36 @@ export class RedisService {
       throw error;
     }
   }
+
+  /**
+   * Executes a Lua script against Redis with driver-level error handling and logging.
+   *
+   * @param script - Lua script source code.
+   * @param keys - Array of Redis keys accessible as KEYS[1..n] in the script.
+   * @param args - Array of scalar arguments accessible as ARGV[1..m] in the script.
+   * @returns Result of the Lua script execution, or null if Redis is unconfigured.
+   */
+  async eval<T = unknown>(
+    script: string,
+    keys: string[],
+    args: (string | number)[] = [],
+  ): Promise<T | null> {
+    if (!this.client) return null;
+    try {
+      return (await this.client.eval(
+        script,
+        keys.length,
+        ...keys,
+        ...args,
+      )) as T;
+    } catch (error) {
+      this.logger.error('Redis EVAL failed', {
+        step: 'redis_eval',
+        keyCount: keys.length,
+        keys,
+        err: serializeError(error),
+      });
+      throw error;
+    }
+  }
 }

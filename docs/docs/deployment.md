@@ -106,7 +106,7 @@ For comprehensive rotation protocols, dual-key migration recipes, and deprecatio
 
 Deployment configurations follow a modular single-source-of-truth pattern:
 
-- **Shared Defaults & Invariants**: Defined in [`scripts/deploy/common.base.sh`](file:///scripts/deploy/common.base.sh) (e.g. CPU, memory, database pool timeouts, pub/sub topics, default country code).
+- **Shared Defaults & Invariants**: Defined in [`scripts/deploy/common.base.sh`](file:///scripts/deploy/common.base.sh) (e.g. CPU, memory, database pool timeouts, pub/sub topics, default country code, email failover priority chain `EMAIL_PROVIDERS`).
 - **Environment Overrides**: Specified in [`scripts/deploy/common.dev.sh`](file:///scripts/deploy/common.dev.sh) and [`scripts/deploy/common.prod.sh`](file:///scripts/deploy/common.prod.sh) (e.g. `PROJECT_ID`, `NODE_ENV`, `CORS_ORIGINS`, `JWT_ISSUER`, `MAX_INSTANCES`, `SWAGGER_ENABLED`), which source `common.base.sh`.
 
 ```bash

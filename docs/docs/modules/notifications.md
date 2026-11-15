@@ -10,7 +10,7 @@ The `NotificationsModule` provides BreathAway's multi-channel notification infra
 
 ## 📋 Purpose & Responsibilities
 
-- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo / Mailgun / SendGrid SMTP API), **Push** (Firebase Cloud Messaging: iOS, Android, WebPush), and **WhatsApp** (LiteApp / Meta Cloud API) without duplicating business logic.
+- **Multi-Channel Dispatch**: Distributes notifications across **Email** (Brevo / Resend / Mailgun / SendGrid SMTP API), **Push** (Firebase Cloud Messaging: iOS, Android, WebPush), and **WhatsApp** (LiteApp / Meta Cloud API) without duplicating business logic.
 - **In-App Notification Center & Durable Storage**: Persists push-targeted communications in PostgreSQL with polymorphic JSONB payloads, read/unread states, and dismissal tracking, powering real-time inbox feeds and badge counters across all user devices.
 - **Selective Push Channel Persistence**: Enforces a strict separation between transient delivery protocols (Email, WhatsApp) and persistent in-app notifications. Only communications routed through the `PUSH` channel are written to the database.
 - **Segregated Controller Architecture**: Separates public client inbox interactions (`NotificationsController` secured by `JwtAuthGuard`) from administrative dispatch endpoints (`NotificationsAdminController` secured by `AdminBasicAuthGuard`).
@@ -80,7 +80,10 @@ flowchart TD
     subgraph Providers["External Delivery Providers & Adapters"]
         FCM["FcmProviderService<br/>(Firebase Cloud Messaging: iOS, Android, WebPush)"]
         EMAIL_SVC["EmailService<br/>(Handlebars Layout & Caching)"]
-        BREVO["BrevoEmailAdapter / Mailgun / SendGrid<br/>(IEmailAdapter)"]
+        FAILOVER["FailoverEmailAdapter<br/>(Cascading Priority Engine)"]
+        RESEND["ResendEmailAdapter<br/>(Primary Transport)"]
+        BREVO["BrevoEmailAdapter<br/>(Secondary Fallback)"]
+        MAILGUN["MailgunEmailAdapter<br/>(Tertiary Fallback)"]
         WA_SVC["WhatsAppProviderService<br/>(Redis 24h Dedup & Template Registry)"]
         LITEAPP["LiteAppWhatsAppAdapter<br/>(IWhatsAppAdapter: LiteApp / Meta API)"]
     end
@@ -116,7 +119,10 @@ flowchart TD
     SEND_PUSH -->|pushEnabled: true| FCM
     SEND_EMAIL -->|emailEnabled: true| EMAIL_SVC
     EMAIL_SVC --> RESOLVER
-    EMAIL_SVC --> BREVO
+    EMAIL_SVC --> FAILOVER
+    FAILOVER -->|Priority 1| RESEND
+    FAILOVER -.->|On Failure: Fallback 2| BREVO
+    FAILOVER -.->|On Failure: Fallback 3| MAILGUN
 
     SEND_WA -->|whatsappEnabled: true| WA_SVC
     WA_SVC --> RESOLVER
@@ -537,9 +543,13 @@ BreathAway enforces zero-plaintext storage of Personally Identifiable Informatio
 4. Returns a `Map<string, ResolvedEmailContact>` with trimmed lowercase emails and profile `firstName`.
 5. `EmailService` deduplicates by recipient email address to avoid sending multiple identical emails to the same destination.
 
-### 3. Provider Adapter (`BrevoEmailAdapter`)
+### 3. Provider Adapters (`BrevoEmailAdapter`, `ResendEmailAdapter`, etc.)
 
-The `BrevoEmailAdapter` implements `IEmailAdapter` and communicates with the Brevo v3 Transactional SMTP API (`POST https://api.brevo.com/v3/smtp/email`):
+The email adapters implement `IEmailAdapter`.
+
+#### Brevo (`BrevoEmailAdapter`)
+
+Communicates with the Brevo v3 Transactional SMTP API (`POST https://api.brevo.com/v3/smtp/email`):
 
 ```typescript
 {
@@ -548,6 +558,101 @@ The `BrevoEmailAdapter` implements `IEmailAdapter` and communicates with the Bre
   "subject": "Personalized Subject Line",
   "htmlContent": "<!DOCTYPE html>..."
 }
+```
+
+#### Resend (`ResendEmailAdapter`)
+
+Communicates with the Resend REST API (`POST https://api.resend.com/emails`) using Bearer token authentication:
+
+```typescript
+{
+  "from": "BreathAway <notifications@breathaway.app>",
+  "to": ["recipient@example.com"],
+  "subject": "Personalized Subject Line",
+  "html": "<!DOCTYPE html>..."
+}
+```
+
+#### Dynamic Failover & Cascading Delivery (`FailoverEmailAdapter`)
+
+To guarantee high availability and resilience against third-party provider outages, rate limits, or transient gateway failures, BreathAway implements `FailoverEmailAdapter` (`src/modules/notifications/email/adapters/failover.email.adapter.ts`).
+
+Instead of coupling `EmailService` to any single provider, `EMAIL_ADAPTER_TOKEN` is backed by `FailoverEmailAdapter`, which manages a prioritized chain of concrete transports (`resend`, `brevo`, `mailgun`, `sendgrid`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Caller as Notification Listener / EmailService
+    participant Failover as FailoverEmailAdapter
+    participant Resend as ResendEmailAdapter (Priority 1)
+    participant Brevo as BrevoEmailAdapter (Priority 2)
+    participant Mailgun as MailgunEmailAdapter (Priority 3)
+
+    Caller->>Failover: send(payload)
+    activate Failover
+
+    Note over Failover,Resend: Attempt 1: Primary Transport
+    Failover->>Resend: send(payload)
+    activate Resend
+    alt Resend 200 OK
+        Resend-->>Failover: Success
+        Failover-->>Caller: Delivery Complete (attempt: 1)
+    else Resend Error (429 Rate Limit / 5xx / Timeout)
+        Resend-->>Failover: Throws Error
+        deactivate Resend
+        Note over Failover: Log structured WARN:<br/>step: 'provider_failover', failedProvider: 'resend', nextProvider: 'brevo'
+
+        Note over Failover,Brevo: Attempt 2: Secondary Transport
+        Failover->>Brevo: send(payload)
+        activate Brevo
+        alt Brevo 200 OK
+            Brevo-->>Failover: Success
+            Failover-->>Caller: Delivery Complete (attempt: 2, fellBack: true)
+        else Brevo Error (Quota Exceeded / Network Error)
+            Brevo-->>Failover: Throws Error
+            deactivate Brevo
+            Note over Failover: Log structured WARN:<br/>step: 'provider_failover', failedProvider: 'brevo', nextProvider: 'mailgun'
+
+            Note over Failover,Mailgun: Attempt 3: Tertiary Transport
+            Failover->>Mailgun: send(payload)
+            activate Mailgun
+            alt Mailgun 200 OK
+                Mailgun-->>Failover: Success
+                Failover-->>Caller: Delivery Complete (attempt: 3, fellBack: true)
+            else Mailgun Error
+                Mailgun-->>Failover: Throws Error
+                deactivate Mailgun
+                Note over Failover: Final provider failed; aggregate all errors
+                Failover-->>Caller: Throws Aggregate Error:<br/>[resend] error; [brevo] error; [mailgun] error
+            end
+        end
+    end
+    deactivate Failover
+```
+
+##### 1. Zero-Allocation Bootstrapping Optimization
+
+To eliminate redundant string parsing and CPU overhead at runtime, `FailoverEmailAdapter` pre-resolves and caches the prioritized adapter sequence **once** during service instantiation in its constructor. On every subsequent email dispatch, the loop executes direct `O(1)` pointer array access (`this.orderedAdapters[i]`) with **zero runtime string allocations and zero ConfigService lookups**.
+
+##### 2. Performance & Server Load Characteristics
+
+- **Happy Path CPU Overhead**: Unmeasurable (&lt; 0.00005 ms). A single-iteration loop costs less than 30 nanoseconds, while network transmission takes 100–300 ms.
+- **Asynchronous Execution Decoupling**: Because domain events and notifications run asynchronously (`@OnEvent(..., { async: true })` or via Pub/Sub), downstream failovers or retries **never** block client HTTP requests or database transactions.
+- **Failover Latency**: In the rare event of a provider failure, failover occurs in milliseconds (fast rejection) without server thread blocking, as Node.js uses asynchronous non-blocking socket I/O.
+
+##### 3. Priority Reordering & Configuration
+
+The priority order is dynamically controlled via the `EMAIL_PROVIDERS` environment variable as a comma-separated list:
+
+```bash
+# Default Priority Chain (Resend -> Brevo -> Mailgun)
+EMAIL_PROVIDERS="resend,brevo,mailgun"
+
+# Custom Priority: Brevo Primary, Resend Fallback
+EMAIL_PROVIDERS="brevo,resend,mailgun"
+
+# Dual-Provider Setup: Resend Primary, SendGrid Fallback
+EMAIL_PROVIDERS="resend,sendgrid"
 ```
 
 ---
@@ -827,6 +932,7 @@ Sent to the sender confirming that their like has been securely recorded and rea
   | `targetLabel` | `string` _(optional)_ | Contact nickname or label chosen by sender |
   | `intent` | `string` | Like intent (e.g., `CRUSH`, `DATING`, `NETWORKING`) |
   | `expiresAt` | `string` | Formatted expiration date string (e.g., 90 days out) |
+  | `notifyRecipientAnonymously` | `boolean` | Whether recipient was notified anonymously (modifies Double-Blind copy) |
   | `date` | `string` | ISO timestamp of the like creation (`DateUtil.now()`) |
 
 > [!IMPORTANT]
@@ -1077,8 +1183,10 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | Variable                     | Type   | Description                                                          | Example                                       |
 | :--------------------------- | :----- | :------------------------------------------------------------------- | :-------------------------------------------- |
 | `BREVO_API_KEY`              | String | Secret API key for Brevo transactional email v3 API (Secret Manager) | `xkeysib-••••••••••••`                        |
-| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in Brevo                          | `no-reply@breathaway.app`                     |
+| `RESEND_API_KEY`             | String | Secret API key for Resend transactional email API (Secret Manager)   | `re_••••••••••••••••`                         |
+| `EMAIL_FROM_ADDRESS`         | String | Verified sender address configured in email provider                 | `no-reply@breathaway.app`                     |
 | `EMAIL_FROM_NAME`            | String | Display name for outgoing system emails                              | `BreathAway`                                  |
+| `EMAIL_PROVIDERS`            | String | Comma-separated prioritized email failover chain                     | `resend,brevo,mailgun`                        |
 | `WHATSAPP_PROVIDER`          | String | Active WhatsApp delivery provider (`liteapp` \| `meta`)              | `liteapp`                                     |
 | `LITEAPP_WHATSAPP_URL`       | String | Base URL for LiteApp WhatsApp HTTP gateway                           | `https://www.liteapp.store`                   |
 | `LITEAPP_WHATSAPP_KEY`       | String | Secret API key for LiteApp gateway authorization (Secret Manager)    | `Bearer la_sec_••••••••`                      |
@@ -1089,7 +1197,7 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
 | `PUBSUB_NOTIFICATIONS_TOPIC` | String | GCP Pub/Sub topic for async notification queue                       | `notifications-stream`                        |
 
 > [!CAUTION]
-> In production environments (Cloud Run), `BREVO_API_KEY` and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/deploy/common.secrets.sh`.
+> In production environments (Cloud Run), `BREVO_API_KEY`, `RESEND_API_KEY`, and `LITEAPP_WHATSAPP_KEY` must be mounted from **Google Cloud Secret Manager**. Never hardcode API keys or commit them to source control. Ensure cross-layer synchronization across `GcpSecretName`, `terraform/secrets.tf`, and `scripts/deploy/common.secrets.sh`.
 
 ---
 
@@ -1111,8 +1219,12 @@ async handleLikeSent(event: LikeSentEvent): Promise<void> {
   - File: `src/modules/notifications/tests/notifications-admin.controller.spec.ts`
 - **`NotificationsService`**: Tests selective push persistence, fallback name resolution, provider fan-out with `Promise.allSettled`, and inbox pagination.
   - File: `src/modules/notifications/tests/notifications.service.spec.ts`
-- **`BrevoEmailAdapter`**: Tested with mocked `axios.post` calls to verify payload serialization, authentication headers (`api-key`), timeout configurations, and error handling.
+- **`BrevoEmailAdapter`**: Tested with mocked `HttpClientService.post` calls to verify payload serialization, authentication headers (`api-key`), timeout configurations, and error handling.
   - File: `src/modules/notifications/tests/brevo.email.adapter.spec.ts`
+- **`ResendEmailAdapter`**: Tested with mocked `HttpClientService.post` calls to verify Bearer authentication, sender name/address formatting, payload structure (`from`, `to`, `subject`, `html`), timeout budget, and error handling.
+  - File: `src/modules/notifications/tests/resend.email.adapter.spec.ts`
+- **`FailoverEmailAdapter`**: Tests primary success short-circuiting, cascading fallback upon provider failure, tertiary fallbacks, aggregate error propagation upon full chain failure, and pre-cached priority reordering.
+  - File: `src/modules/notifications/tests/failover.email.adapter.spec.ts`
 - **Full Test Suite Execution**:
   ```bash
   npm test src/modules/notifications

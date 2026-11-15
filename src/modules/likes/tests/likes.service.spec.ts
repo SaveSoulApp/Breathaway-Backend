@@ -759,6 +759,56 @@ describe('LikesService', () => {
         },
       });
     });
+
+    it('should filter likes by targetIdentityType when provided', async () => {
+      // Arrange
+      prisma.like.findMany.mockResolvedValue([mockLikeData]);
+      prisma.like.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+        targetIdentityType: IdentityType.PHONE,
+      });
+
+      // Assert
+      const expectedWhere = {
+        senderUserId: userId,
+        targetIdentity: { type: IdentityType.PHONE },
+      };
+      expect(prisma.like.count).toHaveBeenCalledWith({ where: expectedWhere });
+      expect(prisma.like.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+    });
+
+    it('should combine status, intent, and targetIdentityType filters together', async () => {
+      // Arrange
+      prisma.like.findMany.mockResolvedValue([mockLikeData]);
+      prisma.like.count.mockResolvedValue(1);
+
+      // Act
+      await service.findAllForUser(userId, {
+        page: 1,
+        limit: 20,
+        status: LikeStatus.VOIDED,
+        intent: IntentType.RELATIONSHIP,
+        targetIdentityType: IdentityType.INSTAGRAM,
+      });
+
+      // Assert
+      const expectedWhere = {
+        senderUserId: userId,
+        status: LikeStatus.VOIDED,
+        intent: IntentType.RELATIONSHIP,
+        targetIdentity: { type: IdentityType.INSTAGRAM },
+      };
+      expect(prisma.like.count).toHaveBeenCalledWith({ where: expectedWhere });
+      expect(prisma.like.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+    });
   });
 
   describe('findOneForUser', () => {

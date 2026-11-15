@@ -7,7 +7,9 @@ import { PreferencesModule } from '@modules/preferences/preferences.module';
 
 import { BrevoEmailAdapter } from './email/adapters/brevo.email.adapter';
 import { EMAIL_ADAPTER_TOKEN } from './email/adapters/email-adapter.interface';
+import { FailoverEmailAdapter } from './email/adapters/failover.email.adapter';
 import { MailgunEmailAdapter } from './email/adapters/mailgun.email.adapter';
+import { ResendEmailAdapter } from './email/adapters/resend.email.adapter';
 import { SendGridEmailAdapter } from './email/adapters/sendgrid.email.adapter';
 import { EmailService } from './email/email.service';
 import { NotificationEventsListener } from './listeners/notification-events.listener';
@@ -44,26 +46,12 @@ import { WHATSAPP_ADAPTER_TOKEN } from './whatsapp/adapters/whatsapp-adapter.int
     SendGridEmailAdapter,
     MailgunEmailAdapter,
     BrevoEmailAdapter,
-    // Factory provider: selects the active adapter at runtime based on EMAIL_PROVIDER env
+    ResendEmailAdapter,
+    FailoverEmailAdapter,
+    // Active email adapter provided to EmailService (cascading failover)
     {
       provide: EMAIL_ADAPTER_TOKEN,
-      inject: [
-        ConfigService,
-        SendGridEmailAdapter,
-        MailgunEmailAdapter,
-        BrevoEmailAdapter,
-      ],
-      useFactory: (
-        config: ConfigService,
-        sendGrid: SendGridEmailAdapter,
-        mailgun: MailgunEmailAdapter,
-        brevo: BrevoEmailAdapter,
-      ) => {
-        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'brevo';
-        if (provider === 'brevo') return brevo;
-        if (provider === 'sendgrid') return sendGrid;
-        return mailgun;
-      },
+      useExisting: FailoverEmailAdapter,
     },
     EmailService,
     NotificationRecipientResolverService,
