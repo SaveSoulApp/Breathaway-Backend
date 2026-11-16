@@ -3,6 +3,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { IdentityCryptoModule } from '@core/identity-crypto/identity-crypto.module';
 import { FirebaseModule } from '@modules/firebase/firebase.module';
+import { LegalModule } from '@modules/legal/legal.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -21,6 +22,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
  *   - FirebaseModule: Provides services for verifying identity tokens with Firebase.
  *   - JwtAuthModule: Registers the asymmetric/symmetric token generation configurations.
  *   - IdentityCryptoModule: Provides hashing and encryption methods for storing privacy-safe credentials.
+ *   - LegalModule: Handles legal document compliance validation and consent recording during signup.
  */
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     FirebaseModule,
     JwtAuthModule,
     IdentityCryptoModule,
+    LegalModule,
   ],
   controllers: [AuthController],
   providers: [

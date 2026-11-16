@@ -214,6 +214,9 @@ describe('DsarExportWorkerService', () => {
       block: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      userLegalConsent: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
 
     const mockChatsService = {

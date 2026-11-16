@@ -10,6 +10,7 @@ import {
   createPrismaMock,
   MockPrismaService,
 } from '@infrastructure/database/tests/mocks/prisma.mock';
+import { LegalService } from '@modules/legal/legal.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 
@@ -63,6 +64,12 @@ describe('AuthCredentialService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: IdentityCryptoService, useValue: encryptionService },
         { provide: PubSubPublisherService, useValue: pubSubPublisher },
+        {
+          provide: LegalService,
+          useValue: {
+            resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         {
           provide: LoggerService,
           useValue: { forContext: jest.fn().mockReturnValue(mockLogger) },

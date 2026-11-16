@@ -21,6 +21,7 @@ import {
 } from '@infrastructure/database/tests/mocks/prisma.mock';
 import { FirebaseService } from '@modules/firebase/firebase.service';
 import { IDENTITY_ADDED_EVENT } from '@modules/identities/events';
+import { LegalService } from '@modules/legal/legal.service';
 import { USER_DELETED_EVENT } from '@modules/profiles/events';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { AUDIT_LOG_EVENT } from '@modules/audit/constants/audit.constants';
@@ -248,6 +249,12 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: FirebaseService, useValue: firebaseService },
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
+          {
+            provide: LegalService,
+            useValue: {
+              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+            },
+          },
           { provide: AuthTokenService, useValue: authTokenService },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -729,6 +736,12 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: FirebaseService, useValue: firebaseService },
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
+          {
+            provide: LegalService,
+            useValue: {
+              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+            },
+          },
           { provide: AuthTokenService, useValue: authTokenService },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -896,6 +909,12 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: FirebaseService, useValue: firebaseService },
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
+          {
+            provide: LegalService,
+            useValue: {
+              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+            },
+          },
           { provide: AuthTokenService, useValue: authTokenService },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -1082,6 +1101,12 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           { provide: FirebaseService, useValue: firebaseService },
           { provide: IdentityCryptoService, useValue: encryptionService },
           { provide: PubSubPublisherService, useValue: pubSubPublisher },
+          {
+            provide: LegalService,
+            useValue: {
+              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+            },
+          },
           { provide: AuthTokenService, useValue: authTokenService },
           { provide: LoggerService, useValue: loggerMock },
           { provide: EventEmitter2, useValue: { emit: jest.fn() } },
