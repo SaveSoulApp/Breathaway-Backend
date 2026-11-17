@@ -201,7 +201,7 @@ export class IdentityWorkflowsService extends BaseService {
           .dispatch({
             userIds: [userId],
             channels: [NotificationChannel.PUSH],
-            title: 'Identity Claimed',
+            title: 'Instagram Connected',
             body: `Your Instagram identity (${username}) has been successfully linked to your account.`,
             type: NotificationType.SYSTEM_ALERT,
             category: NotificationCategory.SECURITY,
