@@ -8,6 +8,7 @@ import {
   DevicePlatform,
   LegalConsentContext,
   LegalDocumentType,
+  LegalDocumentVersion,
   Prisma,
 } from '@prisma/client';
 
@@ -69,7 +70,7 @@ export class LegalService extends BaseService {
         isActive: true,
         effectiveAt: { lte: now },
       },
-      orderBy: { effectiveAt: 'desc' },
+      orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
       distinct: ['type'],
     });
 
@@ -98,14 +99,14 @@ export class LegalService extends BaseService {
         isActive: true,
         effectiveAt: { lte: now },
       },
-      orderBy: { effectiveAt: 'desc' },
+      orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
       distinct: ['type'],
     });
 
     // 2. Fetch the user's latest consent for each document type
     const userConsents = await this.prisma.userLegalConsent.findMany({
       where: { userId },
-      orderBy: { acceptedAt: 'desc' },
+      orderBy: [{ documentType: 'asc' }, { acceptedAt: 'desc' }],
       distinct: ['documentType'],
     });
 
@@ -188,10 +189,19 @@ export class LegalService extends BaseService {
       this.cls.get<string | undefined>('userAgent');
     const platform = clientMetadata?.platform ?? DevicePlatform.WEB;
 
+    // Deduplicate consents by documentType, retaining the last specified version
+    const uniqueConsentsMap = new Map<LegalDocumentType, string>();
+    for (const item of dto.consents) {
+      uniqueConsentsMap.set(item.documentType, item.version);
+    }
+    const deduplicatedConsents = Array.from(uniqueConsentsMap.entries()).map(
+      ([documentType, version]) => ({ documentType, version }),
+    );
+
     const createdRecords: UserLegalConsentResponseDto[] = [];
 
     await this.prisma.$transaction(async (tx) => {
-      for (const item of dto.consents) {
+      for (const item of deduplicatedConsents) {
         const docVersion = await tx.legalDocumentVersion.findUnique({
           where: {
             type_version: {
@@ -230,7 +240,7 @@ export class LegalService extends BaseService {
       ipAddress,
       metadata: {
         context,
-        consents: dto.consents.map((c) => ({
+        consents: deduplicatedConsents.map((c) => ({
           type: c.documentType,
           version: c.version,
         })),
@@ -287,17 +297,15 @@ export class LegalService extends BaseService {
       );
     }
 
-    let docsToRecord: Array<{
-      documentType: LegalDocumentType;
-      version: string;
-    }> = [];
+    const resolvedDocVersions: LegalDocumentVersion[] = [];
 
     if (hasExplicitDocs && options.acceptedLegalDocs) {
-      const providedTypes = new Set(
-        options.acceptedLegalDocs.map((d) => d.documentType),
-      );
+      const explicitMap = new Map<LegalDocumentType, string>();
+      for (const doc of options.acceptedLegalDocs) {
+        explicitMap.set(doc.documentType, doc.version);
+      }
       const missingTypes = MANDATORY_SIGNUP_DOCUMENTS.filter(
-        (requiredType) => !providedTypes.has(requiredType),
+        (requiredType) => !explicitMap.has(requiredType),
       );
 
       if (missingTypes.length > 0) {
@@ -305,7 +313,41 @@ export class LegalService extends BaseService {
           `Registration is missing mandatory legal agreements: ${missingTypes.join(', ')}`,
         );
       }
-      docsToRecord = options.acceptedLegalDocs;
+
+      for (const [docType, version] of explicitMap.entries()) {
+        let docVersion = await tx.legalDocumentVersion.findUnique({
+          where: {
+            type_version: {
+              type: docType,
+              version,
+            },
+          },
+        });
+
+        if (!docVersion) {
+          if (process.env.NODE_ENV === 'production') {
+            throw new BadRequestException(
+              `Legal document version not found for type ${docType} and version ${version}`,
+            );
+          }
+
+          const now = new Date();
+          docVersion = await tx.legalDocumentVersion.create({
+            data: {
+              type: docType,
+              version,
+              title: this.getDefaultDocumentTitle(docType),
+              documentUrl: `https://breathaway.app/legal/${docType.toLowerCase().replace(/_/g, '-')}`,
+              contentHash:
+                '0000000000000000000000000000000000000000000000000000000000000000',
+              effectiveAt: now,
+              isActive: true,
+            },
+          });
+        }
+
+        resolvedDocVersions.push(docVersion);
+      }
     } else {
       // Auto-resolve currently active versions for all mandatory documents
       const now = new Date();
@@ -316,11 +358,17 @@ export class LegalService extends BaseService {
             isActive: true,
             effectiveAt: { lte: now },
           },
-          orderBy: { effectiveAt: 'desc' },
+          orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
         });
 
         // Resilience for development or unseeded test databases: bootstrap baseline v1.0.0
         if (!activeDoc) {
+          if (process.env.NODE_ENV === 'production') {
+            throw new BadRequestException(
+              `No active legal document found for ${requiredType}. Please contact support.`,
+            );
+          }
+
           activeDoc = await tx.legalDocumentVersion.create({
             data: {
               type: requiredType,
@@ -335,10 +383,7 @@ export class LegalService extends BaseService {
           });
         }
 
-        docsToRecord.push({
-          documentType: requiredType,
-          version: activeDoc.version,
-        });
+        resolvedDocVersions.push(activeDoc);
       }
     }
 
@@ -350,38 +395,13 @@ export class LegalService extends BaseService {
       this.cls.get<string | undefined>('userAgent');
     const platform = clientMetadata?.platform ?? DevicePlatform.WEB;
 
-    for (const doc of docsToRecord) {
-      let docVersion = await tx.legalDocumentVersion.findUnique({
-        where: {
-          type_version: {
-            type: doc.documentType,
-            version: doc.version,
-          },
-        },
-      });
-
-      if (!docVersion) {
-        const now = new Date();
-        docVersion = await tx.legalDocumentVersion.create({
-          data: {
-            type: doc.documentType,
-            version: doc.version,
-            title: this.getDefaultDocumentTitle(doc.documentType),
-            documentUrl: `https://breathaway.app/legal/${doc.documentType.toLowerCase().replace(/_/g, '-')}`,
-            contentHash:
-              '0000000000000000000000000000000000000000000000000000000000000000',
-            effectiveAt: now,
-            isActive: true,
-          },
-        });
-      }
-
+    for (const docVersion of resolvedDocVersions) {
       await tx.userLegalConsent.create({
         data: {
           userId,
           documentVersionId: docVersion.id,
-          documentType: doc.documentType,
-          version: doc.version,
+          documentType: docVersion.type,
+          version: docVersion.version,
           context: LegalConsentContext.SIGNUP,
           platform,
           ipAddress,
@@ -392,7 +412,7 @@ export class LegalService extends BaseService {
 
     this.logger.debug('Mandatory signup legal consents successfully recorded', {
       ...ctx,
-      count: docsToRecord.length,
+      count: resolvedDocVersions.length,
     });
   }
 

@@ -144,6 +144,7 @@ describe('LegalService', () => {
             isActive: true,
             effectiveAt: expect.any(Object),
           },
+          orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
           distinct: ['type'],
         }),
       );
@@ -204,6 +205,19 @@ describe('LegalService', () => {
       expect(status.isCompliant).toBe(true);
       expect(status.pendingDocuments).toHaveLength(0);
       expect(status.upcomingDocuments).toHaveLength(0);
+      expect(prisma.legalDocumentVersion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
+          distinct: ['type'],
+        }),
+      );
+      expect(prisma.userLegalConsent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId },
+          orderBy: [{ documentType: 'asc' }, { acceptedAt: 'desc' }],
+          distinct: ['documentType'],
+        }),
+      );
     });
 
     it('should return compliant: false with pending documents when a version requiring re-acceptance is unaccepted', async () => {
@@ -312,6 +326,50 @@ describe('LegalService', () => {
         NotFoundException,
       );
     });
+
+    it('should deduplicate multiple entries for the same document type', async () => {
+      const dto: AcceptLegalConsentRequestDto = {
+        consents: [
+          {
+            documentType: LegalDocumentType.TERMS_OF_SERVICE,
+            version: '1.0.0',
+          },
+          {
+            documentType: LegalDocumentType.TERMS_OF_SERVICE,
+            version: '1.0.0',
+          },
+        ],
+      };
+
+      const mockCreate = jest.fn().mockResolvedValue({
+        id: 'c-new',
+        userId,
+        documentVersionId: mockTermsDoc.id,
+        documentType: LegalDocumentType.TERMS_OF_SERVICE,
+        version: '1.0.0',
+        context: LegalConsentContext.IN_APP_REACCEPTANCE,
+        platform: DevicePlatform.WEB,
+        ipAddress: '203.0.113.1',
+        userAgent: 'BreathAway-Web/1.0',
+        acceptedAt: new Date(),
+      });
+
+      prisma.$transaction.mockImplementation(async (callback: any) => {
+        return callback({
+          legalDocumentVersion: {
+            findUnique: jest.fn().mockResolvedValue(mockTermsDoc),
+          },
+          userLegalConsent: {
+            create: mockCreate,
+          },
+        });
+      });
+
+      const result = await service.recordConsents(userId, dto);
+
+      expect(result).toHaveLength(1);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resolveAndRecordSignupConsents', () => {
@@ -347,6 +405,43 @@ describe('LegalService', () => {
             .mockResolvedValueOnce(mockTermsDoc)
             .mockResolvedValueOnce(mockPrivacyDoc)
             .mockResolvedValueOnce(mockCancellationDoc),
+        },
+        userLegalConsent: {
+          create: jest.fn().mockResolvedValue({ id: 'c-new' }),
+        },
+      } as any;
+
+      await service.resolveAndRecordSignupConsents(txMock, userId, {
+        acceptedTermsAndPolicies: true,
+      });
+
+      expect(txMock.legalDocumentVersion.findFirst).toHaveBeenCalledTimes(3);
+      expect(txMock.userLegalConsent.create).toHaveBeenCalledTimes(3);
+    });
+
+    it('should throw BadRequestException in production if active legal document is missing', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const txMock = {
+          legalDocumentVersion: {
+            findFirst: jest.fn().mockResolvedValue(null),
+          },
+        } as any;
+
+        await expect(
+          service.resolveAndRecordSignupConsents(txMock, userId, {
+            acceptedTermsAndPolicies: true,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+
+    it('should record explicit acceptedLegalDocs when all mandatory documents are provided', async () => {
+      const txMock = {
+        legalDocumentVersion: {
           findUnique: jest
             .fn()
             .mockResolvedValueOnce(mockTermsDoc)
@@ -359,9 +454,23 @@ describe('LegalService', () => {
       } as any;
 
       await service.resolveAndRecordSignupConsents(txMock, userId, {
-        acceptedTermsAndPolicies: true,
+        acceptedLegalDocs: [
+          {
+            documentType: LegalDocumentType.TERMS_OF_SERVICE,
+            version: '1.0.0',
+          },
+          {
+            documentType: LegalDocumentType.PRIVACY_POLICY,
+            version: '1.0.0',
+          },
+          {
+            documentType: LegalDocumentType.CANCELLATION_POLICY,
+            version: '1.0.0',
+          },
+        ],
       });
 
+      expect(txMock.legalDocumentVersion.findUnique).toHaveBeenCalledTimes(3);
       expect(txMock.userLegalConsent.create).toHaveBeenCalledTimes(3);
     });
   });

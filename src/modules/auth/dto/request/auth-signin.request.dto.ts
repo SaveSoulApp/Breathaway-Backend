@@ -46,7 +46,7 @@ export class AuthSigninRequestDto {
    */
   @ApiPropertyOptional({
     description:
-      'Affirmative consent flag indicating explicit agreement to Terms of Service, Privacy Policy, and Cancellation Policy',
+      'Affirmative consent agreeing cumulatively to all current mandatory legal documents (Terms of Service, Privacy Policy, and Cancellation Policy). Required for successful registration when creating a new account unless explicit acceptedLegalDocs array is provided.',
     example: true,
   })
   @IsOptional()

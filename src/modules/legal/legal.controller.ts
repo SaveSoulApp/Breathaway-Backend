@@ -19,6 +19,7 @@ import {
   ApiStandardErrors,
   ClientIp,
   CurrentUserId,
+  SkipClientIdentity,
   UserAgent,
 } from '@common/decorators';
 import { JwtAuthGuard } from '@common/guards';
@@ -63,6 +64,7 @@ export class LegalController extends BaseController {
    * canonical URLs, version tags, and SHA-256 hashes in registration and policy views.
    */
   @Get('documents')
+  @SkipClientIdentity()
   @ApiOperation({
     summary: 'Get active legal document versions',
     description:
@@ -169,6 +171,7 @@ export class LegalController extends BaseController {
    * Protected by GCP OpenID Connect ID token validation via AdminOidcAuthGuard.
    */
   @Post('admin/versions')
+  @SkipClientIdentity()
   @ApiBearerAuth()
   @UseGuards(AdminOidcAuthGuard)
   @HttpCode(HttpStatus.CREATED)

@@ -67,7 +67,9 @@ describe('AuthCredentialService', () => {
         {
           provide: LegalService,
           useValue: {
-            resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+            resolveAndRecordSignupConsents: jest
+              .fn()
+              .mockResolvedValue(undefined),
           },
         },
         {

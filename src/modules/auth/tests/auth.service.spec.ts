@@ -252,7 +252,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           {
             provide: LegalService,
             useValue: {
-              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+              resolveAndRecordSignupConsents: jest
+                .fn()
+                .mockResolvedValue(undefined),
             },
           },
           { provide: AuthTokenService, useValue: authTokenService },
@@ -739,7 +741,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           {
             provide: LegalService,
             useValue: {
-              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+              resolveAndRecordSignupConsents: jest
+                .fn()
+                .mockResolvedValue(undefined),
             },
           },
           { provide: AuthTokenService, useValue: authTokenService },
@@ -912,7 +916,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           {
             provide: LegalService,
             useValue: {
-              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+              resolveAndRecordSignupConsents: jest
+                .fn()
+                .mockResolvedValue(undefined),
             },
           },
           { provide: AuthTokenService, useValue: authTokenService },
@@ -1104,7 +1110,9 @@ describe('AuthService - Secondary Email Linking & Utils', () => {
           {
             provide: LegalService,
             useValue: {
-              resolveAndRecordSignupConsents: jest.fn().mockResolvedValue(undefined),
+              resolveAndRecordSignupConsents: jest
+                .fn()
+                .mockResolvedValue(undefined),
             },
           },
           { provide: AuthTokenService, useValue: authTokenService },

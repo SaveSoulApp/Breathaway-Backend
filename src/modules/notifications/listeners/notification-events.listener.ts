@@ -954,9 +954,7 @@ export class NotificationEventsListener extends BaseService {
   }
 
   @OnEvent(LEGAL_POLICY_UPDATED_EVENT, { async: true })
-  async handleLegalPolicyUpdated(
-    event: LegalPolicyUpdatedEvent,
-  ): Promise<void> {
+  handleLegalPolicyUpdated(event: LegalPolicyUpdatedEvent): void {
     try {
       this.logger.info(
         'Processing legal policy update event for customer notification broadcast',
