@@ -297,6 +297,10 @@ export class AuthController extends BaseController {
     type: UserAuthResponseDto,
   })
   @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid, expired, or revoked refresh token',
+  })
+  @ApiResponse({
     status: HttpStatus.TOO_MANY_REQUESTS,
     description: 'Too many refresh attempts; rate limit exceeded',
   })

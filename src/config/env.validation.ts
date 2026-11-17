@@ -77,7 +77,7 @@ export const envValidationSchema = Joi.object({
   JWT_ISSUER: Joi.string().default('https://breathaway.app'),
   JWT_CACHE_ENABLED: Joi.boolean().default(true),
   JWT_CACHE_TTL_SECONDS: Joi.number().integer().positive().default(300),
-  OTP_TTL: Joi.number().integer().positive().default(300),
+  OTP_TTL: Joi.number().integer().positive().default(900),
   OTP_RATE_LIMIT_TTL: Joi.number().integer().positive().default(120),
   FIREBASE_PROJECT_ID: Joi.string().default('breathaway-development'),
   FIREBASE_CLIENT_EMAIL: Joi.string().optional(),

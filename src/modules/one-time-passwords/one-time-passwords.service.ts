@@ -36,7 +36,7 @@ export class OneTimePasswordsService extends BaseService {
   ) {
     super(logger);
     this.otpTtl = parseInt(
-      this.configService.get<string>('OTP_TTL') || '300',
+      this.configService.get<string>('OTP_TTL') || '900',
       10,
     );
     this.otpRateLimitTtl = parseInt(
@@ -55,7 +55,7 @@ export class OneTimePasswordsService extends BaseService {
    * record the issuance against the user's activity log.
    *
    * @param userId - ID of the authenticated user requesting the OTP.
-   * @returns The plain-text OTP and its TTL in seconds (`OTP_TTL`, default 300).
+   * @returns The plain-text OTP and its TTL in seconds (`OTP_TTL`, default 900).
    * @throws {HttpException(429)} When a rate-limit key for this user already
    *   exists in Redis (i.e., another OTP was generated within `OTP_RATE_LIMIT_TTL`).
    */

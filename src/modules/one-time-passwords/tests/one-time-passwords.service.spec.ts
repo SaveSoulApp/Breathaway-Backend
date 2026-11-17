@@ -31,7 +31,7 @@ describe('OneTimePasswordsService', () => {
   const userId = 'user-id-123';
   const plainOtp = 'abc-def-ghi';
   const hashedOtpMock = 'hashed-abc-def-ghi';
-  const otpTtl = 300;
+  const otpTtl = 900;
   const otpRateLimitTtl = 60;
 
   beforeEach(async () => {

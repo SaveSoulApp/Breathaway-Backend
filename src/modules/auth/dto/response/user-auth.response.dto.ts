@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
 
 /**
@@ -11,7 +11,7 @@ export class UserAuthResponseDto {
   /**
    * The unique user identifier.
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'The unique user identifier',
     example: '01M43375E5QSSD3139BGTV9VQW',
   })
@@ -54,7 +54,7 @@ export class UserAuthResponseDto {
    * JSON Web Token (JWT) used for authorizing subsequent HTTP requests.
    * Should be attached to the Authorization header as a Bearer token.
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'JWT Access token for authentication',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
@@ -64,7 +64,7 @@ export class UserAuthResponseDto {
   /**
    * Token authorization type (e.g., 'Bearer').
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Type of the access token',
     example: 'Bearer',
   })
@@ -74,7 +74,7 @@ export class UserAuthResponseDto {
   /**
    * Access token validity in seconds.
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Access token expiration time in seconds',
     example: 900,
   })
@@ -84,7 +84,7 @@ export class UserAuthResponseDto {
   /**
    * Cryptographically signed JWT used for rotating access credentials.
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Signed JWT refresh token used to rotate credentials',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
@@ -94,7 +94,7 @@ export class UserAuthResponseDto {
   /**
    * ISO 8601 timestamp representing the exact expiration time of the refresh token.
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'ISO-8601 timestamp when the refresh token expires',
     example: '2026-10-18T09:30:55.328Z',
   })

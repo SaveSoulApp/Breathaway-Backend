@@ -45,7 +45,7 @@ export FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-${PROJECT_ID:-breathaway-deve
 export JWT_EXPIRES_IN="${JWT_EXPIRES_IN:-15m}"
 export JWT_REFRESH_EXPIRES_IN="${JWT_REFRESH_EXPIRES_IN:-14d}"
 export JWT_AUDIENCE="${JWT_AUDIENCE:-breathaway-mobile-app}"
-export OTP_TTL="${OTP_TTL:-300}"
+export OTP_TTL="${OTP_TTL:-900}"
 export OTP_RATE_LIMIT_TTL="${OTP_RATE_LIMIT_TTL:-120}"
 
 # Mail Provider Configuration

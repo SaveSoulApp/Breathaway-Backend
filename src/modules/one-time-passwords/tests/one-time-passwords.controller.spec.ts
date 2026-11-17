@@ -139,7 +139,7 @@ describe('OneTimePasswordsController', () => {
       const resultData = {
         otp: 'abc-def-ghi',
         message: 'Hey Breathaway! My code is abc-def-ghi. Thanks!',
-        expiresIn: 300,
+        expiresIn: 900,
       };
       service.generateAndStoreOtp.mockResolvedValue(resultData);
 
