@@ -648,6 +648,7 @@ describe('ChatsService', () => {
           userTwoId: 'user-2',
           wrappedRoomKey: 'mock-wrapped-key',
           roomKeyId: 'chat-v1',
+          updatedAt: expect.any(String),
         }),
       );
     });

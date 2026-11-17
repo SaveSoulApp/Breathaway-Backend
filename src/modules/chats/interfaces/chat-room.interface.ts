@@ -4,4 +4,6 @@ export interface ChatRoomRecord {
   userTwoId: string;
   wrappedRoomKey: string;
   roomKeyId: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

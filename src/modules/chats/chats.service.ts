@@ -561,6 +561,7 @@ export class ChatsService extends BaseService {
         const { wrappedRoomKey, roomKeyId } =
           this.chatCryptoService.wrapRoomKey(rawKey);
 
+        const now = new Date().toISOString();
         const response = await this.supabase
           .from('ChatRoom')
           .insert({
@@ -568,6 +569,7 @@ export class ChatsService extends BaseService {
             userTwoId,
             wrappedRoomKey,
             roomKeyId,
+            updatedAt: now,
           })
           .select('id, userOneId, userTwoId, wrappedRoomKey, roomKeyId')
           .single();
