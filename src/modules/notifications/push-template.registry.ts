@@ -106,4 +106,10 @@ export const PUSH_TEMPLATE_MAP: Partial<
       'Your requested personal data archive is ready for download in settings.',
     ),
   },
+  [NotificationType.LEGAL_POLICY_UPDATE]: {
+    title: Handlebars.compile('Policy Update: {{documentTitle}} 📜'),
+    body: Handlebars.compile(
+      'Our {{documentTitle}} has been updated (v{{version}}). Please review the updated terms.',
+    ),
+  },
 };

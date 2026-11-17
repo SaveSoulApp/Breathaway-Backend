@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { AuthCredentialType, IdentityType, User } from '@prisma/client';
+import {
+  AuthCredentialType,
+  IdentityType,
+  LegalDocumentType,
+  User,
+} from '@prisma/client';
 
 import { buildInitialConsentRecords } from '@common/utils/consent.utils';
 import { DateUtil } from '@common/utils/date.utils';
@@ -8,6 +13,7 @@ import { BaseService } from '@core/base';
 import { IdentityCryptoService } from '@core/identity-crypto/identity-crypto.service';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { LegalService } from '@modules/legal/legal.service';
 import { PubSubEvent, PubSubTopic } from '@modules/pubsub/enums';
 import { PubSubPublisherService } from '@modules/pubsub/pubsub-publisher.service';
 import { DomainException } from '@shared/domain/exceptions/domain.exception';
@@ -34,6 +40,7 @@ export class AuthCredentialService extends BaseService {
     private readonly prisma: PrismaService,
     private readonly encryptionService: IdentityCryptoService,
     private readonly pubSubPublisher: PubSubPublisherService,
+    private readonly legalService: LegalService,
   ) {
     super(logger);
   }
@@ -49,6 +56,8 @@ export class AuthCredentialService extends BaseService {
    * @param value - Raw credential string (e.g. email address or phone number).
    * @param authMethod - Method used to register/authenticate the user (PHONE or EMAIL).
    * @param isVerified - Sets verification status flags and timestamps (defaults to false).
+   * @param countryCode - Optional ISO 3166-1 alpha-2 country code.
+   * @param legalConsentOptions - Affirmative consent or document version breakdown for mandatory legal policies.
    * @returns A promise that resolves to the newly created User entity and the processed identity hash.
    * @throws {ConflictException} When the identity is already claimed by a fully registered user.
    */
@@ -57,6 +66,13 @@ export class AuthCredentialService extends BaseService {
     authMethod: AuthMethod,
     isVerified = false,
     countryCode?: string | null,
+    legalConsentOptions?: {
+      acceptedTermsAndPolicies?: boolean;
+      acceptedLegalDocs?: Array<{
+        documentType: LegalDocumentType;
+        version: string;
+      }>;
+    },
   ): Promise<CreateUserResult> {
     const ctx: Record<string, unknown> = {
       authMethod,
@@ -100,6 +116,14 @@ export class AuthCredentialService extends BaseService {
             },
           },
         });
+
+        // Record mandatory legal document consent (Terms, Privacy, Cancellation) in the same transaction
+        await this.legalService.resolveAndRecordSignupConsents(
+          tx,
+          newUser.id,
+          legalConsentOptions ?? { acceptedTermsAndPolicies: true },
+          { ipAddress, userAgent },
+        );
 
         const existingIdentity = await tx.identity.findUnique({
           where: {

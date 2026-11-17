@@ -165,4 +165,16 @@ describe('PushTemplateRegistry', () => {
       'Your requested personal data archive is ready for download in settings.',
     );
   });
+
+  it('should compile LEGAL_POLICY_UPDATE template correctly', () => {
+    const config = PUSH_TEMPLATE_MAP[NotificationType.LEGAL_POLICY_UPDATE];
+    expect(config?.title({ documentTitle: 'Terms of Service' })).toBe(
+      'Policy Update: Terms of Service 📜',
+    );
+    expect(
+      config?.body({ documentTitle: 'Terms of Service', version: '2.0.0' }),
+    ).toBe(
+      'Our Terms of Service has been updated (v2.0.0). Please review the updated terms.',
+    );
+  });
 });

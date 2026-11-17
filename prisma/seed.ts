@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   CurrencyCode,
+  LegalDocumentType,
   PaymentGateway,
   PrismaClient,
   SubscriptionPlanStatus,
@@ -262,11 +263,71 @@ async function seedPaymentGatewayRoutes(client: PrismaClient): Promise<void> {
   console.log(`Seeded ${routes.length} payment gateway routes successfully.`);
 }
 
+async function seedLegalDocuments(prisma: PrismaClient): Promise<void> {
+  console.log('Seeding baseline legal document versions...');
+
+  const initialDocs = [
+    {
+      id: '01JHLEGAL00000000000000001',
+      type: LegalDocumentType.TERMS_OF_SERVICE,
+      version: '1.0.0',
+      title: 'Terms and Conditions',
+      documentUrl: 'https://breathaway.app/terms',
+      contentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      snapshotStoragePath: 'gs://breathaway-legal-archive/terms/v1.0.0.html',
+      requiresReacceptance: true,
+      changeSummary: 'Initial launch baseline version.',
+      effectiveAt: new Date(),
+      isActive: true,
+    },
+    {
+      id: '01JHLEGAL00000000000000002',
+      type: LegalDocumentType.PRIVACY_POLICY,
+      version: '1.0.0',
+      title: 'Privacy Policy',
+      documentUrl: 'https://breathaway.app/privacy',
+      contentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      snapshotStoragePath: 'gs://breathaway-legal-archive/privacy/v1.0.0.html',
+      requiresReacceptance: true,
+      changeSummary: 'Initial launch baseline version.',
+      effectiveAt: new Date(),
+      isActive: true,
+    },
+    {
+      id: '01JHLEGAL00000000000000003',
+      type: LegalDocumentType.CANCELLATION_POLICY,
+      version: '1.0.0',
+      title: 'Cancellation and Refund Policy',
+      documentUrl: 'https://breathaway.app/cancellation-and-refund',
+      contentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      snapshotStoragePath: 'gs://breathaway-legal-archive/cancellation-and-refund/v1.0.0.html',
+      requiresReacceptance: true,
+      changeSummary: 'Initial launch baseline version.',
+      effectiveAt: new Date(),
+      isActive: true,
+    },
+  ];
+
+  for (const doc of initialDocs) {
+    await prisma.legalDocumentVersion.upsert({
+      where: {
+        type_version: {
+          type: doc.type,
+          version: doc.version,
+        },
+      },
+      update: {},
+      create: doc,
+    });
+  }
+}
+
 async function main(): Promise<void> {
   console.log('Starting database seeding...');
   await seedSubscriptionPlans(prisma);
   await seedSubscriptionPlanPrices(prisma);
   await seedPaymentGatewayRoutes(prisma);
+  await seedLegalDocuments(prisma);
   console.log('Database seeding completed successfully.');
 }
 

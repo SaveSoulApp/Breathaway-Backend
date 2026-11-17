@@ -221,79 +221,100 @@ export class DsarExportWorkerService extends BaseService {
         ]);
 
       // Chunk 3: Notifications, Consents, Preferences & Social Interactions
-      const [notifications, consents, preferences, likes, matches, blocks] =
-        await Promise.all([
-          this.prisma.notification.findMany({
-            where: { userId },
-            select: {
-              id: true,
-              type: true,
-              category: true,
-              priority: true,
-              title: true,
-              body: true,
-              action: true,
-              link: true,
-              isRead: true,
-              readAt: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-          this.prisma.consentLedger.findMany({
-            where: { userId },
-            select: {
-              id: true,
-              channel: true,
-              consentGranted: true,
-              source: true,
-              ipAddress: true,
-              userAgent: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-          this.prisma.notificationPreference.findUnique({
-            where: { userId },
-            select: {
-              pushEnabled: true,
-              whatsappEnabled: true,
-              smsEnabled: true,
-              emailEnabled: true,
-              updatedAt: true,
-            },
-          }),
-          this.prisma.like.findMany({
-            where: { senderUserId: userId },
-            select: {
-              id: true,
-              intent: true,
-              status: true,
-              label: true,
-              createdAt: true,
-              expiresAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-          this.prisma.match.findMany({
-            where: { OR: [{ userOneId: userId }, { userTwoId: userId }] },
-            select: {
-              id: true,
-              status: true,
-              matchedAt: true,
-              updatedAt: true,
-            },
-            orderBy: { matchedAt: 'desc' },
-          }),
-          this.prisma.block.findMany({
-            where: { blockerUserId: userId },
-            select: {
-              id: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-        ]);
+      const [
+        notifications,
+        consents,
+        preferences,
+        likes,
+        matches,
+        blocks,
+        legalConsents,
+      ] = await Promise.all([
+        this.prisma.notification.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            type: true,
+            category: true,
+            priority: true,
+            title: true,
+            body: true,
+            action: true,
+            link: true,
+            isRead: true,
+            readAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.consentLedger.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            channel: true,
+            consentGranted: true,
+            source: true,
+            ipAddress: true,
+            userAgent: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.notificationPreference.findUnique({
+          where: { userId },
+          select: {
+            pushEnabled: true,
+            whatsappEnabled: true,
+            smsEnabled: true,
+            emailEnabled: true,
+            updatedAt: true,
+          },
+        }),
+        this.prisma.like.findMany({
+          where: { senderUserId: userId },
+          select: {
+            id: true,
+            intent: true,
+            status: true,
+            label: true,
+            createdAt: true,
+            expiresAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.match.findMany({
+          where: { OR: [{ userOneId: userId }, { userTwoId: userId }] },
+          select: {
+            id: true,
+            status: true,
+            matchedAt: true,
+            updatedAt: true,
+          },
+          orderBy: { matchedAt: 'desc' },
+        }),
+        this.prisma.block.findMany({
+          where: { blockerUserId: userId },
+          select: {
+            id: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.userLegalConsent.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            documentType: true,
+            version: true,
+            context: true,
+            platform: true,
+            ipAddress: true,
+            userAgent: true,
+            acceptedAt: true,
+          },
+          orderBy: { acceptedAt: 'desc' },
+        }),
+      ]);
 
       // Chunk 4: External Datastores (Supabase Chat History & BigQuery Audit Logs)
       const [chatRooms, auditLogs] = await Promise.all([
@@ -390,6 +411,10 @@ export class DsarExportWorkerService extends BaseService {
         name: 'consents_and_preferences.json',
       });
 
+      archive.append(JSON.stringify(legalConsents, null, 2), {
+        name: 'legal_agreements_history.json',
+      });
+
       archive.append(
         JSON.stringify(
           {
@@ -451,6 +476,7 @@ export class DsarExportWorkerService extends BaseService {
           'credits_ledger.json',
           'notifications.json',
           'consents_and_preferences.json',
+          'legal_agreements_history.json',
           'interactions.json',
           'audit_logs.json',
           'README.txt',
@@ -494,6 +520,7 @@ File Descriptions:
 - credits_ledger.json: Historical ledger of all credit additions, uses, and expirations.
 - notifications.json: In-app notifications history, read receipts, and categories.
 - consents_and_preferences.json: Marketing/communication consents and notification settings.
+- legal_agreements_history.json: Terms of Service, Privacy Policy, and Cancellation Policy consent audit trail.
 - interactions.json: Sent likes, matches, and blocks (counterpart PII redacted).
 - chats/: Decrypted transcripts of chat conversations you participated in.
 - audit_logs.json: Security, authentication, and compliance audit trail.

@@ -51,6 +51,10 @@ import {
   MATCH_CREATED_EVENT,
   MatchCreatedEvent,
 } from '@modules/match-resolver/events';
+import {
+  LEGAL_POLICY_UPDATED_EVENT,
+  LegalPolicyUpdatedEvent,
+} from '@modules/legal/events';
 import { PreferencesService } from '@modules/preferences/preferences.service';
 import {
   DSAR_EXPORT_COMPLETED_EVENT,
@@ -944,6 +948,43 @@ export class NotificationEventsListener extends BaseService {
         userId: event.userId,
         exportId: event.exportId,
         step: 'handle_dsar_export_completed',
+        err: serializeError(err),
+      });
+    }
+  }
+
+  @OnEvent(LEGAL_POLICY_UPDATED_EVENT, { async: true })
+  handleLegalPolicyUpdated(event: LegalPolicyUpdatedEvent): void {
+    try {
+      this.logger.info(
+        'Processing legal policy update event for customer notification broadcast',
+        {
+          documentType: event.documentType,
+          version: event.version,
+          effectiveAt: event.effectiveAt.toISOString(),
+          requiresReacceptance: event.requiresReacceptance,
+          step: 'handle_legal_policy_updated_event',
+        },
+      );
+
+      // In stateless GCP Cloud Run environments, broadcast notifications to all registered users
+      // are orchestrated asynchronously via GCP Cloud Pub/Sub worker fanout to avoid request timeouts.
+      if (event.requiresReacceptance) {
+        this.logger.log(
+          'Material legal policy update requiring user re-acceptance broadcast queued',
+          {
+            documentType: event.documentType,
+            version: event.version,
+            documentUrl: event.documentUrl,
+            step: 'queue_legal_update_broadcast',
+          },
+        );
+      }
+    } catch (err: unknown) {
+      this.logger.error('Failed to handle legal policy updated event', {
+        documentType: event.documentType,
+        version: event.version,
+        step: 'handle_legal_policy_updated_event',
         err: serializeError(err),
       });
     }

@@ -168,6 +168,10 @@ export class AuthService extends BaseService {
       isPhoneAuthMethod(authMethod.method)
         ? extractCountryCodeFromPhone(value)
         : null,
+      {
+        acceptedTermsAndPolicies: dto.acceptedTermsAndPolicies,
+        acceptedLegalDocs: dto.acceptedLegalDocs,
+      },
     );
     this.logger.debug('User provisioned', {
       ...ctx,
@@ -386,6 +390,10 @@ export class AuthService extends BaseService {
           isPhoneAuthMethod(authMethod.method)
             ? extractCountryCodeFromPhone(value)
             : null,
+          {
+            acceptedTermsAndPolicies: dto.acceptedTermsAndPolicies,
+            acceptedLegalDocs: dto.acceptedLegalDocs,
+          },
         );
 
       this.logger.debug('New user provisioned', {

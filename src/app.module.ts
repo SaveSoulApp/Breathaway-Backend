@@ -48,6 +48,7 @@ import { HealthModule } from './modules/health/health.module';
 import { IdentitiesModule } from './modules/identities/identities.module';
 import { IdentityWorkflowsModule } from './modules/identity-workflows/identity-workflows.module';
 import { InstagramModule } from './modules/instagram/instagram.module';
+import { LegalModule } from './modules/legal/legal.module';
 import { LikesModule } from './modules/likes/likes.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { MatchResolverModule } from './modules/match-resolver/match-resolver.module';
@@ -163,6 +164,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     ProfilesModule,
     DevicesModule,
     IdentitiesModule,
+    LegalModule,
     LikesModule,
     BlocksModule,
     MatchesModule,

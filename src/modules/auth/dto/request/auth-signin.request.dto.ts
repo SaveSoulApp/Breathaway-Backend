@@ -1,5 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+import { AcceptedLegalDocumentRequestDto } from '@modules/legal/dto';
 
 /**
  * Payload for signing in an existing user using their authentication credentials.
@@ -29,4 +39,31 @@ export class AuthSigninRequestDto {
   @IsString()
   @IsNotEmpty()
   uid: string;
+
+  /**
+   * Affirmative consent flag indicating explicit agreement to the Terms of Service,
+   * Privacy Policy, and Cancellation Policy (used when signin-or-signup creates a new user).
+   */
+  @ApiPropertyOptional({
+    description:
+      'Affirmative consent agreeing cumulatively to all current mandatory legal documents (Terms of Service, Privacy Policy, and Cancellation Policy). Required for successful registration when creating a new account unless explicit acceptedLegalDocs array is provided.',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  acceptedTermsAndPolicies?: boolean;
+
+  /**
+   * Optional explicit breakdown of accepted legal document versions.
+   */
+  @ApiPropertyOptional({
+    type: [AcceptedLegalDocumentRequestDto],
+    description:
+      'Explicit breakdown of accepted legal document versions. If omitted and acceptedTermsAndPolicies is true, active versions are bound automatically.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AcceptedLegalDocumentRequestDto)
+  acceptedLegalDocs?: AcceptedLegalDocumentRequestDto[];
 }

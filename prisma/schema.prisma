@@ -93,6 +93,7 @@ model User {
   notifications Notification[]
   sessions      UserSession[]
   consentLedger ConsentLedger[]
+  legalConsents UserLegalConsent[]
   dsarExports   DsarExport[]
 
   /// ISO 3166-1 alpha-2 country code derived from the user's phone number at account creation.
@@ -396,6 +397,79 @@ model ConsentLedger {
 
   @@index([userId, createdAt])
   @@index([userId, channel, createdAt(sort: Desc)])
+}
+
+// ──────────────────────────────────────────────
+// Legal Documents & Consent Ledger (Contractual Audit Trail)
+// ──────────────────────────────────────────────
+
+enum LegalDocumentType {
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  CANCELLATION_POLICY
+}
+
+enum LegalConsentContext {
+  SIGNUP
+  SIGNIN_REACCEPTANCE
+  IN_APP_REACCEPTANCE
+}
+
+model LegalDocumentVersion {
+  id String @id @default(ulid())
+
+  type        LegalDocumentType
+  version     String            @db.VarChar(32)
+  title       String            @db.VarChar(128)
+  documentUrl String            @db.VarChar(512)
+
+  /// SHA-256 hexadecimal digest of the canonical document content at time of release
+  contentHash String            @db.VarChar(64)
+
+  /// Optional storage path (e.g. GCS archive) to the immutable snapshot
+  snapshotStoragePath String?   @db.VarChar(512)
+
+  requiresReacceptance Boolean  @default(false)
+  changeSummary        String?  @db.Text
+
+  publishedAt  DateTime  @default(now()) @db.Timestamptz
+  effectiveAt  DateTime  @db.Timestamptz
+  supersededAt DateTime? @db.Timestamptz
+
+  isActive Boolean @default(true)
+
+  userConsents UserLegalConsent[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([type, version])
+  @@index([type, isActive, effectiveAt])
+}
+
+model UserLegalConsent {
+  id String @id @default(ulid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentVersionId String
+  documentVersion   LegalDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+
+  documentType LegalDocumentType
+  version      String            @db.VarChar(32)
+
+  context  LegalConsentContext @default(SIGNUP)
+  platform DevicePlatform      @default(WEB)
+
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+
+  acceptedAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([userId, acceptedAt(sort: Desc)])
+  @@index([userId, documentType, acceptedAt(sort: Desc)])
+  @@index([documentVersionId])
 }
 
 // ──────────────────────────────────────────────
