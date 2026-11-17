@@ -10,13 +10,14 @@ import { BaseService } from '@core/base';
 import { LOG_EVENT, LoggerService } from '@core/logger';
 import { EmailType } from '@modules/notifications/enums/email-type.enum';
 
+import { registerNotificationHandlebarsHelpers } from '../handlebars.helpers';
+import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
 import {
   EMAIL_ADAPTER_TOKEN,
   EmailPayload,
   type IEmailAdapter,
 } from './adapters/email-adapter.interface';
 import { EMAIL_TEMPLATE_MAP } from './email-template.registry';
-import { NotificationRecipientResolverService } from '../recipient/notification-recipient-resolver.service';
 
 export interface SendEmailOptions {
   /** The type of email — drives template and subject selection */
@@ -312,23 +313,7 @@ export class EmailService extends BaseService implements OnModuleInit {
   }
 
   private registerHelpers(): void {
-    Handlebars.registerHelper(
-      'gt',
-      (a: unknown, b: unknown) => Number(a) > Number(b),
-    );
-    Handlebars.registerHelper(
-      'gte',
-      (a: unknown, b: unknown) => Number(a) >= Number(b),
-    );
-    Handlebars.registerHelper(
-      'lt',
-      (a: unknown, b: unknown) => Number(a) < Number(b),
-    );
-    Handlebars.registerHelper(
-      'lte',
-      (a: unknown, b: unknown) => Number(a) <= Number(b),
-    );
-    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
+    registerNotificationHandlebarsHelpers();
   }
 
   private registerPartials(): void {

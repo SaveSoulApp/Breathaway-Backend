@@ -675,6 +675,18 @@ describe('EmailService', () => {
       expect(Handlebars.helpers.lte(5, 4)).toBe(false);
       expect(Handlebars.helpers.eq('same', 'same')).toBe(true);
       expect(Handlebars.helpers.eq('a', 'b')).toBe(false);
+      expect(Handlebars.helpers.eq(1, 1)).toBe(true);
+      expect(Handlebars.helpers.eq('1', 1)).toBe(true);
+      expect(Handlebars.helpers.eq(2, 1)).toBe(false);
+      expect(Handlebars.helpers.pluralize(1, 'credit', 'credits')).toBe(
+        'credit',
+      );
+      expect(Handlebars.helpers.pluralize(2, 'credit', 'credits')).toBe(
+        'credits',
+      );
+      expect(Handlebars.helpers.pluralize(0, 'credit', 'credits')).toBe(
+        'credits',
+      );
     });
 
     it('should warn when partials directory does not exist and continue', () => {

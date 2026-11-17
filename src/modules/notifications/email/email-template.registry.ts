@@ -50,7 +50,7 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   [EmailType.BUNDLE_EXPIRY_WARNING]: {
     templateFile: 'bundle-expiry-warning',
     subject:
-      '{{#if isUrgent}}Urgent: {{count}} credits expiring soon! ⏳{{else}}Reminder: {{count}} credits expiring on {{expiryDate}} ⏳{{/if}}',
+      '{{#if isUrgent}}Urgent: {{count}} {{#if (eq count 1)}}credit{{else}}credits{{/if}} expiring soon! ⏳{{else}}Reminder: {{count}} {{#if (eq count 1)}}credit{{else}}credits{{/if}} expiring on {{expiryDate}} ⏳{{/if}}',
   },
   [EmailType.LIKES_EXPIRED]: {
     templateFile: 'likes-expired',
@@ -67,7 +67,7 @@ export const EMAIL_TEMPLATE_MAP: Record<EmailType, EmailTemplateConfig> = {
   [EmailType.CREDITS_USED]: {
     templateFile: 'credits-used',
     subject:
-      'You used {{creditsUsed}} {{#if (gt creditsUsed 1)}}credits{{else}}credit{{/if}} on BreathAway ✨',
+      'You used {{creditsUsed}} {{#if (eq creditsUsed 1)}}credit{{else}}credits{{/if}} on BreathAway ✨',
   },
   [EmailType.DEVICE_ADDED]: {
     templateFile: 'device-added',

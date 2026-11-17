@@ -1,5 +1,7 @@
 import * as Handlebars from 'handlebars';
+
 import { NotificationType } from './enums/notification-type.enum';
+import './handlebars.helpers';
 
 /**
  * Configuration entry for each push notification template type.
@@ -43,7 +45,7 @@ export const PUSH_TEMPLATE_MAP: Partial<
   [NotificationType.CREDITS_PURCHASED]: {
     title: Handlebars.compile('Credits Purchased! 💳'),
     body: Handlebars.compile(
-      '{{creditsAdded}} credits added. Your new balance is {{creditBalance}}.',
+      '{{creditsAdded}} {{#if (eq creditsAdded 1)}}credit{{else}}credits{{/if}} added. Your new balance is {{creditBalance}}.',
     ),
   },
   [NotificationType.SYSTEM_ALERT]: {
@@ -52,10 +54,10 @@ export const PUSH_TEMPLATE_MAP: Partial<
   },
   [NotificationType.BUNDLE_EXPIRY_WARNING]: {
     title: Handlebars.compile(
-      '{{#if isUrgent}}Urgent: Credits Expiring! ⏳{{else}}Credits Expiring Soon ⏳{{/if}}',
+      '{{#if isUrgent}}Urgent: {{#if (eq count 1)}}Credit{{else}}Credits{{/if}} Expiring! ⏳{{else}}{{#if (eq count 1)}}Credit{{else}}Credits{{/if}} Expiring Soon ⏳{{/if}}',
     ),
     body: Handlebars.compile(
-      '{{count}} credits will expire on {{expiryDate}}. Use them before they are gone!',
+      '{{count}} {{#if (eq count 1)}}credit will expire{{else}}credits will expire{{/if}} on {{expiryDate}}. Use {{#if (eq count 1)}}it before it is{{else}}them before they are{{/if}} gone!',
     ),
   },
   [NotificationType.LIKES_EXPIRED]: {
@@ -79,7 +81,7 @@ export const PUSH_TEMPLATE_MAP: Partial<
   [NotificationType.CREDITS_USED]: {
     title: Handlebars.compile('Credits Used ✨'),
     body: Handlebars.compile(
-      'You used {{creditsUsed}} credits. Remaining balance: {{creditBalance}}.',
+      'You used {{creditsUsed}} {{#if (eq creditsUsed 1)}}credit{{else}}credits{{/if}}. Remaining balance: {{creditBalance}}.',
     ),
   },
   [NotificationType.DEVICE_ADDED]: {
@@ -97,7 +99,7 @@ export const PUSH_TEMPLATE_MAP: Partial<
   [NotificationType.PAYMENT_COMPLETED]: {
     title: Handlebars.compile('Payment Successful! 💳'),
     body: Handlebars.compile(
-      'Payment of {{currency}} {{amount}} was successful. {{creditsAdded}} credits added to your account.',
+      'Payment of {{currency}} {{amount}} was successful. {{creditsAdded}} {{#if (eq creditsAdded 1)}}credit{{else}}credits{{/if}} added to your account.',
     ),
   },
   [NotificationType.DSAR_EXPORT_READY]: {

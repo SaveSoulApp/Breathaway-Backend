@@ -18,28 +18,33 @@
     <strong>⚠️ Urgent Notice:</strong>
     You have
     <strong>{{count}}</strong>
-    unused credits that will expire on
+    unused
+    {{#if (eq count 1)}}credit that will expire{{else}}credits that will expire{{/if}}
+    on
     <strong>{{expiryDate}}</strong>
     (in
     {{daysRemaining}}
-    days).
+    {{#if (eq daysRemaining 1)}}day{{else}}days{{/if}}).
   </div>
 {{else}}
   <div class='email-alert email-alert--info'>
     <strong>ℹ️ Heads up:</strong>
     You have
     <strong>{{count}}</strong>
-    unused credits that will expire on
+    unused
+    {{#if (eq count 1)}}credit that will expire{{else}}credits that will expire{{/if}}
+    on
     <strong>{{expiryDate}}</strong>
     (in
     {{daysRemaining}}
-    days).
+    {{#if (eq daysRemaining 1)}}day{{else}}days{{/if}}).
   </div>
 {{/if}}
 
 <div class='email-stat-card'>
   <p class='email-stat-card__value'>{{count}}</p>
-  <p class='email-stat-card__label'>Expiring Credits</p>
+  <p class='email-stat-card__label'>Expiring
+    {{#if (eq count 1)}}Credit{{else}}Credits{{/if}}</p>
 </div>
 
 <p>

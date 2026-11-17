@@ -48,12 +48,21 @@ describe('PushTemplateRegistry', () => {
     expect(config?.body({ balance: 50 })).toBe('Your balance is now 50.');
   });
 
-  it('should compile CREDITS_PURCHASED template correctly', () => {
+  describe('CREDITS_PURCHASED template', () => {
     const config = PUSH_TEMPLATE_MAP[NotificationType.CREDITS_PURCHASED];
-    expect(config?.title({})).toBe('Credits Purchased! 💳');
-    expect(config?.body({ creditsAdded: 20, creditBalance: 35 })).toBe(
-      '20 credits added. Your new balance is 35.',
-    );
+
+    it('should compile plural form correctly', () => {
+      expect(config?.title({})).toBe('Credits Purchased! 💳');
+      expect(config?.body({ creditsAdded: 20, creditBalance: 35 })).toBe(
+        '20 credits added. Your new balance is 35.',
+      );
+    });
+
+    it('should compile singular form when creditsAdded is 1', () => {
+      expect(config?.body({ creditsAdded: 1, creditBalance: 35 })).toBe(
+        '1 credit added. Your new balance is 35.',
+      );
+    });
   });
 
   it('should compile SYSTEM_ALERT template correctly', () => {
@@ -81,9 +90,24 @@ describe('PushTemplateRegistry', () => {
       );
     });
 
-    it('should render expiry body with count and date', () => {
+    it('should render singular expiry title when count is 1', () => {
+      expect(config?.title({ count: 1, isUrgent: false })).toBe(
+        'Credit Expiring Soon ⏳',
+      );
+      expect(config?.title({ count: 1, isUrgent: true })).toBe(
+        'Urgent: Credit Expiring! ⏳',
+      );
+    });
+
+    it('should render expiry body with count and date (plural)', () => {
       expect(config?.body({ count: 10, expiryDate: 'October 25, 2026' })).toBe(
         '10 credits will expire on October 25, 2026. Use them before they are gone!',
+      );
+    });
+
+    it('should render expiry body with count and date (singular)', () => {
+      expect(config?.body({ count: 1, expiryDate: 'October 25, 2026' })).toBe(
+        '1 credit will expire on October 25, 2026. Use it before it is gone!',
       );
     });
   });
@@ -112,12 +136,21 @@ describe('PushTemplateRegistry', () => {
     ).toBe('A PHONE (+91•••••1234) was removed from your account.');
   });
 
-  it('should compile CREDITS_USED template correctly', () => {
+  describe('CREDITS_USED template', () => {
     const config = PUSH_TEMPLATE_MAP[NotificationType.CREDITS_USED];
-    expect(config?.title({})).toBe('Credits Used ✨');
-    expect(config?.body({ creditsUsed: 2, creditBalance: 8 })).toBe(
-      'You used 2 credits. Remaining balance: 8.',
-    );
+
+    it('should compile plural form correctly', () => {
+      expect(config?.title({})).toBe('Credits Used ✨');
+      expect(config?.body({ creditsUsed: 2, creditBalance: 8 })).toBe(
+        'You used 2 credits. Remaining balance: 8.',
+      );
+    });
+
+    it('should compile singular form when creditsUsed is 1', () => {
+      expect(config?.body({ creditsUsed: 1, creditBalance: 4 })).toBe(
+        'You used 1 credit. Remaining balance: 4.',
+      );
+    });
   });
 
   it('should compile DEVICE_ADDED template correctly', () => {
@@ -148,14 +181,25 @@ describe('PushTemplateRegistry', () => {
     });
   });
 
-  it('should compile PAYMENT_COMPLETED template correctly', () => {
+  describe('PAYMENT_COMPLETED template', () => {
     const config = PUSH_TEMPLATE_MAP[NotificationType.PAYMENT_COMPLETED];
-    expect(config?.title({})).toBe('Payment Successful! 💳');
-    expect(
-      config?.body({ currency: 'INR', amount: '399.00', creditsAdded: 10 }),
-    ).toBe(
-      'Payment of INR 399.00 was successful. 10 credits added to your account.',
-    );
+
+    it('should compile plural form correctly', () => {
+      expect(config?.title({})).toBe('Payment Successful! 💳');
+      expect(
+        config?.body({ currency: 'INR', amount: '399.00', creditsAdded: 10 }),
+      ).toBe(
+        'Payment of INR 399.00 was successful. 10 credits added to your account.',
+      );
+    });
+
+    it('should compile singular form when creditsAdded is 1', () => {
+      expect(
+        config?.body({ currency: 'INR', amount: '49.00', creditsAdded: 1 }),
+      ).toBe(
+        'Payment of INR 49.00 was successful. 1 credit added to your account.',
+      );
+    });
   });
 
   it('should compile DSAR_EXPORT_READY template correctly', () => {
