@@ -32,7 +32,9 @@ export const PUSH_TEMPLATE_MAP: Partial<
   },
   [NotificationType.NEW_MATCH]: {
     title: Handlebars.compile("It's a Match! 💫"),
-    body: Handlebars.compile('You and {{matchName}} liked each other.'),
+    body: Handlebars.compile(
+      'You and {{#if matchName}}{{matchName}}{{else}}your match{{/if}} liked each other.',
+    ),
   },
   [NotificationType.NEW_MESSAGE]: {
     title: Handlebars.compile('New Message 💬'),

@@ -642,6 +642,51 @@ describe('EmailService', () => {
         "We'll anonymously let them know someone likes them",
       );
     });
+
+    it('should render new-match template cleanly with and without recipient name and with liked identity', () => {
+      const realFs = jest.requireActual('fs');
+      const realPath = jest.requireActual('path');
+      const HandlebarsActual = jest.requireActual('handlebars');
+      const templatesDir = realPath.resolve(__dirname, '../templates');
+      const templatePath = realPath.join(templatesDir, 'new-match.hbs');
+      const templateSource = realFs.readFileSync(templatePath, 'utf-8');
+      const compiled = HandlebarsActual.compile(templateSource);
+
+      const subjectTemplate = HandlebarsActual.compile(
+        EMAIL_TEMPLATE_MAP[EmailType.NEW_MATCH].subject,
+      );
+
+      // Case 1: Recipient has name, match is an Instagram handle
+      const htmlWithName = compiled({
+        name: 'Alice',
+        matchName: '@rahul.dravid',
+        chatUrl: '/matches/123',
+      });
+      const subjectWithName = subjectTemplate({ name: 'Alice' });
+
+      expect(subjectWithName).toBe("It's a Match, Alice! 💫");
+      expect(htmlWithName).toContain("You've got a match,\n    Alice! 💫");
+      expect(htmlWithName).toContain(
+        'The stars aligned — you and\n  <strong>@rahul.dravid</strong>\n  have both liked each other.',
+      );
+      expect(htmlWithName).not.toContain('someone');
+
+      // Case 2: Recipient has NO name, match is a Phone number
+      const htmlWithoutName = compiled({
+        name: '',
+        matchName: '+918765432345',
+        chatUrl: '/matches/123',
+      });
+      const subjectWithoutName = subjectTemplate({ name: '' });
+
+      expect(subjectWithoutName).toBe("It's a Match! 💫");
+      expect(htmlWithoutName).toContain("You've got a match! 💫");
+      expect(htmlWithoutName).not.toContain("You've got a match,");
+      expect(htmlWithoutName).toContain(
+        'The stars aligned — you and\n  <strong>+918765432345</strong>\n  have both liked each other.',
+      );
+      expect(htmlWithoutName).not.toContain('someone');
+    });
   });
 
   describe('Handlebars helpers & template compilation', () => {

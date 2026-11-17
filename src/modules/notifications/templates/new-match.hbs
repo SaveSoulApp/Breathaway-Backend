@@ -14,7 +14,7 @@
 
 <p>
   The stars aligned — you and
-  <strong>{{matchName}}</strong>
+  <strong>{{#if matchName}}{{matchName}}{{else}}your match{{/if}}</strong>
   have both liked each other. It's officially a match! Now all it takes is a
   single great opening line.
 </p>
@@ -44,7 +44,10 @@
 </div>
 
 <div style='text-align: center;'>
-  <a href='{{chatUrl}}' class='email-btn'>Say Hello to {{matchName}} →</a>
+  <a href='{{chatUrl}}' class='email-btn'>Say Hello{{#if matchName}}
+      to
+      {{matchName}}{{/if}}
+    →</a>
 </div>
 
 <hr class='email-divider' />

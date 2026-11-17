@@ -541,34 +541,88 @@ export class NotificationEventsListener extends BaseService {
   @OnEvent(MATCH_CREATED_EVENT, { async: true })
   async handleMatchCreated(event: MatchCreatedEvent): Promise<void> {
     try {
-      const profiles = await this.prisma.userProfile.findMany({
-        where: { userId: { in: [event.userOneId, event.userTwoId] } },
-        select: { userId: true, firstName: true },
-      });
+      const [profiles, match] = await Promise.all([
+        this.prisma.userProfile.findMany({
+          where: { userId: { in: [event.userOneId, event.userTwoId] } },
+          select: { userId: true, firstName: true },
+        }),
+        this.prisma.match
+          .findUnique({
+            where: { id: event.matchId },
+            select: {
+              likeOne: {
+                select: {
+                  targetIdentity: {
+                    select: {
+                      type: true,
+                      publicValueCiphertext: true,
+                      publicValueIv: true,
+                      publicValueTag: true,
+                      publicValueWrappedKey: true,
+                      publicValueKeyId: true,
+                    },
+                  },
+                },
+              },
+              likeTwo: {
+                select: {
+                  targetIdentity: {
+                    select: {
+                      type: true,
+                      publicValueCiphertext: true,
+                      publicValueIv: true,
+                      publicValueTag: true,
+                      publicValueWrappedKey: true,
+                      publicValueKeyId: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+          .catch((matchErr) => {
+            this.logger.warn(
+              'Failed to fetch match target identities for notification',
+              {
+                matchId: event.matchId,
+                step: 'fetch_match_identities_failed',
+                err: serializeError(matchErr),
+              },
+            );
+            return null;
+          }),
+      ]);
 
       const profileOne = profiles.find((p) => p.userId === event.userOneId);
       const profileTwo = profiles.find((p) => p.userId === event.userTwoId);
 
-      const [decryptedOne, decryptedTwo] = await Promise.all([
-        profileOne?.firstName
-          ? this.identityCryptoService.decryptText(profileOne.firstName)
-          : Promise.resolve(null),
-        profileTwo?.firstName
-          ? this.identityCryptoService.decryptText(profileTwo.firstName)
-          : Promise.resolve(null),
-      ]);
+      const [decryptedOne, decryptedTwo, targetOneIdentity, targetTwoIdentity] =
+        await Promise.all([
+          profileOne?.firstName
+            ? this.identityCryptoService.decryptText(profileOne.firstName)
+            : Promise.resolve(null),
+          profileTwo?.firstName
+            ? this.identityCryptoService.decryptText(profileTwo.firstName)
+            : Promise.resolve(null),
+          match?.likeOne?.targetIdentity
+            ? this.decryptAndFormatIdentity(match.likeOne.targetIdentity)
+            : Promise.resolve(null),
+          match?.likeTwo?.targetIdentity
+            ? this.decryptAndFormatIdentity(match.likeTwo.targetIdentity)
+            : Promise.resolve(null),
+        ]);
 
-      const userOneName = decryptedOne ?? 'someone';
-      const userTwoName = decryptedTwo ?? 'someone';
+      const userOneName = decryptedOne?.trim() || '';
+      const userTwoName = decryptedTwo?.trim() || '';
 
       const userOneDisplayName =
         event.likeOneLabel && event.likeOneLabel.trim() !== ''
-          ? event.likeOneLabel
-          : userTwoName;
+          ? event.likeOneLabel.trim()
+          : targetOneIdentity || userTwoName;
       const userTwoDisplayName =
         event.likeTwoLabel && event.likeTwoLabel.trim() !== ''
-          ? event.likeTwoLabel
-          : userOneName;
+          ? event.likeTwoLabel.trim()
+          : targetTwoIdentity || userOneName;
 
       const matchRoute = `/matches/${event.matchId}`;
 
@@ -621,6 +675,45 @@ export class NotificationEventsListener extends BaseService {
         step: 'handle_match_created_event',
         err: serializeError(err),
       });
+    }
+  }
+
+  private async decryptAndFormatIdentity(identity: {
+    type: IdentityType;
+    publicValueCiphertext: Uint8Array;
+    publicValueIv: Uint8Array;
+    publicValueTag: Uint8Array;
+    publicValueWrappedKey: Uint8Array;
+    publicValueKeyId: string;
+  }): Promise<string | null> {
+    try {
+      const rawValue = await this.identityCryptoService.decryptPublicValue({
+        publicValueCiphertext: Buffer.from(identity.publicValueCiphertext),
+        publicValueIv: Buffer.from(identity.publicValueIv),
+        publicValueTag: Buffer.from(identity.publicValueTag),
+        publicValueWrappedKey: Buffer.from(identity.publicValueWrappedKey),
+        publicValueKeyId: identity.publicValueKeyId,
+      });
+
+      if (!rawValue) return null;
+
+      const trimmed = rawValue.trim();
+      switch (identity.type) {
+        case IdentityType.INSTAGRAM:
+        case IdentityType.TWITTER:
+          return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+        case IdentityType.PHONE:
+          return trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+        default:
+          return trimmed;
+      }
+    } catch (err) {
+      this.logger.warn('Failed to decrypt match target identity', {
+        step: 'decrypt_target_identity_failed',
+        identityType: identity.type,
+        err: serializeError(err),
+      });
+      return null;
     }
   }
 

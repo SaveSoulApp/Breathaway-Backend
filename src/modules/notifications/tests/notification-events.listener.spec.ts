@@ -145,6 +145,7 @@ describe('NotificationEventsListener', () => {
     );
     prisma = module.get(PrismaService);
     notificationsService = module.get(NotificationsService);
+    prisma.match.findUnique.mockResolvedValue(null as never);
   });
 
   afterEach(() => {
@@ -734,6 +735,75 @@ describe('NotificationEventsListener', () => {
             name: 'Bob',
             matchName: 'Alice',
             matchId: 'match-100',
+          }),
+        }),
+      );
+    });
+
+    it('should resolve and format target identities (Instagram @handle and Phone +E.164) and omit "someone" when names are absent', async () => {
+      // Both users have no profile firstName
+      prisma.userProfile.findMany.mockResolvedValue([]);
+
+      prisma.match.findUnique.mockResolvedValue({
+        id: 'match-200',
+        likeOne: {
+          targetIdentity: {
+            type: IdentityType.INSTAGRAM,
+            publicValueCiphertext: Buffer.from('cipher-ig'),
+            publicValueIv: Buffer.from('iv-ig'),
+            publicValueTag: Buffer.from('tag-ig'),
+            publicValueWrappedKey: Buffer.from('wrapped-ig'),
+            publicValueKeyId: 'key-ig',
+          },
+        },
+        likeTwo: {
+          targetIdentity: {
+            type: IdentityType.PHONE,
+            publicValueCiphertext: Buffer.from('cipher-ph'),
+            publicValueIv: Buffer.from('iv-ph'),
+            publicValueTag: Buffer.from('tag-ph'),
+            publicValueWrappedKey: Buffer.from('wrapped-ph'),
+            publicValueKeyId: 'key-ph',
+          },
+        },
+      } as never);
+
+      identityCryptoService.decryptPublicValue
+        .mockResolvedValueOnce('rahul.dravid') // Instagram without @
+        .mockResolvedValueOnce('918765432345'); // Phone without +
+
+      const event = new MatchCreatedEvent(
+        'match-200',
+        'user-1',
+        'user-2',
+        null,
+        null,
+      );
+
+      await listener.handleMatchCreated(event);
+
+      // User 1 liked User 2's Instagram -> matchName should be @rahul.dravid, name should be empty
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.NEW_MATCH,
+          userIds: ['user-1'],
+          payload: expect.objectContaining({
+            name: '',
+            matchName: '@rahul.dravid',
+            matchId: 'match-200',
+          }),
+        }),
+      );
+
+      // User 2 liked User 1's Phone -> matchName should be +918765432345, name should be empty
+      expect(notificationsService.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: NotificationType.NEW_MATCH,
+          userIds: ['user-2'],
+          payload: expect.objectContaining({
+            name: '',
+            matchName: '+918765432345',
+            matchId: 'match-200',
           }),
         }),
       );

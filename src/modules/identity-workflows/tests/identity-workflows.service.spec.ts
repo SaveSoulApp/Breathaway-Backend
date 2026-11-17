@@ -180,7 +180,7 @@ describe('IdentityWorkflowsService', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           userIds: ['user_123'],
-          title: 'Identity Claimed',
+          title: 'Instagram Connected',
         }),
       );
     });
@@ -216,7 +216,7 @@ describe('IdentityWorkflowsService', () => {
       expect(notificationsService.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           userIds: ['user_123'],
-          title: 'Identity Claimed',
+          title: 'Instagram Connected',
         }),
       );
     });

@@ -26,12 +26,22 @@ describe('PushTemplateRegistry', () => {
     });
   });
 
-  it('should compile NEW_MATCH template correctly', () => {
+  describe('NEW_MATCH template', () => {
     const config = PUSH_TEMPLATE_MAP[NotificationType.NEW_MATCH];
-    expect(config?.title({})).toBe("It's a Match! 💫");
-    expect(config?.body({ matchName: 'Priya' })).toBe(
-      'You and Priya liked each other.',
-    );
+
+    it('should compile title and body correctly with matchName', () => {
+      expect(config?.title({})).toBe("It's a Match! 💫");
+      expect(config?.body({ matchName: '@rahul.dravid' })).toBe(
+        'You and @rahul.dravid liked each other.',
+      );
+      expect(config?.body({ matchName: '+918765432345' })).toBe(
+        'You and +918765432345 liked each other.',
+      );
+    });
+
+    it('should fallback cleanly when matchName is absent', () => {
+      expect(config?.body({})).toBe('You and your match liked each other.');
+    });
   });
 
   it('should compile NEW_MESSAGE template correctly', () => {
