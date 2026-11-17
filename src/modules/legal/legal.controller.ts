@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import {
   ApiStandardErrors,
@@ -28,6 +29,7 @@ import { BaseController } from '@core/base';
 import { LoggerService } from '@core/logger';
 import { AdminOidcAuthGuard } from '@modules/admin/guards/admin-oidc-auth.guard';
 
+import { LEGAL_CONSENT_THROTTLE } from './constants';
 import {
   AcceptLegalConsentRequestDto,
   CreateLegalDocumentVersionRequestDto,
@@ -113,6 +115,7 @@ export class LegalController extends BaseController {
    * to the exact document version records for audit defensibility.
    */
   @Post('consents')
+  @Throttle(LEGAL_CONSENT_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
 } from 'class-validator';
 
 /**
@@ -63,11 +64,15 @@ export class CreateLegalDocumentVersionRequestDto {
    */
   @ApiProperty({
     description:
-      'SHA-256 hexadecimal checksum of the document content for audit verification',
+      'SHA-256 hexadecimal checksum of the document content for audit verification (exact 64-character hex)',
     example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-fA-F0-9]{64}$/, {
+    message:
+      'contentHash must be a valid 64-character SHA-256 hexadecimal digest',
+  })
   contentHash: string;
 
   /**

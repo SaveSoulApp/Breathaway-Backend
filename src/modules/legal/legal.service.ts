@@ -17,6 +17,7 @@ import { LOG_EVENT, LoggerService } from '@core/logger';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { AuditActionType } from '@modules/audit/dto';
 
+import { MANDATORY_SIGNUP_DOCUMENTS } from './constants';
 import {
   AcceptLegalConsentRequestDto,
   CreateLegalDocumentVersionRequestDto,
@@ -32,11 +33,7 @@ import {
 } from './events/legal-policy-updated.event';
 
 /** Mandatory legal document types required for every customer account registration. */
-export const MANDATORY_SIGNUP_DOCUMENTS: readonly LegalDocumentType[] = [
-  LegalDocumentType.TERMS_OF_SERVICE,
-  LegalDocumentType.PRIVACY_POLICY,
-  LegalDocumentType.CANCELLATION_POLICY,
-] as const;
+export { MANDATORY_SIGNUP_DOCUMENTS } from './constants';
 
 /**
  * Service orchestrating legal document versioning, user consent capture, compliance checking,
@@ -315,7 +312,7 @@ export class LegalService extends BaseService {
       }
 
       for (const [docType, version] of explicitMap.entries()) {
-        let docVersion = await tx.legalDocumentVersion.findUnique({
+        const docVersion = await tx.legalDocumentVersion.findUnique({
           where: {
             type_version: {
               type: docType,
@@ -325,25 +322,9 @@ export class LegalService extends BaseService {
         });
 
         if (!docVersion) {
-          if (process.env.NODE_ENV === 'production') {
-            throw new BadRequestException(
-              `Legal document version not found for type ${docType} and version ${version}`,
-            );
-          }
-
-          const now = new Date();
-          docVersion = await tx.legalDocumentVersion.create({
-            data: {
-              type: docType,
-              version,
-              title: this.getDefaultDocumentTitle(docType),
-              documentUrl: `https://breathaway.app/legal/${docType.toLowerCase().replace(/_/g, '-')}`,
-              contentHash:
-                '0000000000000000000000000000000000000000000000000000000000000000',
-              effectiveAt: now,
-              isActive: true,
-            },
-          });
+          throw new NotFoundException(
+            `Legal document version not found for type ${docType} and version ${version}`,
+          );
         }
 
         resolvedDocVersions.push(docVersion);
@@ -352,7 +333,7 @@ export class LegalService extends BaseService {
       // Auto-resolve currently active versions for all mandatory documents
       const now = new Date();
       for (const requiredType of MANDATORY_SIGNUP_DOCUMENTS) {
-        let activeDoc = await tx.legalDocumentVersion.findFirst({
+        const activeDoc = await tx.legalDocumentVersion.findFirst({
           where: {
             type: requiredType,
             isActive: true,
@@ -361,26 +342,10 @@ export class LegalService extends BaseService {
           orderBy: [{ type: 'asc' }, { effectiveAt: 'desc' }],
         });
 
-        // Resilience for development or unseeded test databases: bootstrap baseline v1.0.0
         if (!activeDoc) {
-          if (process.env.NODE_ENV === 'production') {
-            throw new BadRequestException(
-              `No active legal document found for ${requiredType}. Please contact support.`,
-            );
-          }
-
-          activeDoc = await tx.legalDocumentVersion.create({
-            data: {
-              type: requiredType,
-              version: '1.0.0',
-              title: this.getDefaultDocumentTitle(requiredType),
-              documentUrl: `https://breathaway.app/legal/${requiredType.toLowerCase().replace(/_/g, '-')}`,
-              contentHash:
-                '0000000000000000000000000000000000000000000000000000000000000000',
-              effectiveAt: now,
-              isActive: true,
-            },
-          });
+          throw new NotFoundException(
+            `No active legal document found for ${requiredType}. Please ensure active legal documents are seeded in the database.`,
+          );
         }
 
         resolvedDocVersions.push(activeDoc);
@@ -414,20 +379,6 @@ export class LegalService extends BaseService {
       ...ctx,
       count: resolvedDocVersions.length,
     });
-  }
-
-  /**
-   * Helper returning readable default document titles for auto-bootstrapping.
-   */
-  private getDefaultDocumentTitle(type: LegalDocumentType): string {
-    switch (type) {
-      case LegalDocumentType.TERMS_OF_SERVICE:
-        return 'Terms and Conditions';
-      case LegalDocumentType.PRIVACY_POLICY:
-        return 'Privacy Policy';
-      case LegalDocumentType.CANCELLATION_POLICY:
-        return 'Cancellation and Refund Policy';
-    }
   }
 
   /**

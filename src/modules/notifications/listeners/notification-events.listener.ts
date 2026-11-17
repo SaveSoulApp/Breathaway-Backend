@@ -966,6 +966,20 @@ export class NotificationEventsListener extends BaseService {
           step: 'handle_legal_policy_updated_event',
         },
       );
+
+      // In stateless GCP Cloud Run environments, broadcast notifications to all registered users
+      // are orchestrated asynchronously via GCP Cloud Pub/Sub worker fanout to avoid request timeouts.
+      if (event.requiresReacceptance) {
+        this.logger.log(
+          'Material legal policy update requiring user re-acceptance broadcast queued',
+          {
+            documentType: event.documentType,
+            version: event.version,
+            documentUrl: event.documentUrl,
+            step: 'queue_legal_update_broadcast',
+          },
+        );
+      }
     } catch (err: unknown) {
       this.logger.error('Failed to handle legal policy updated event', {
         documentType: event.documentType,

@@ -419,24 +419,45 @@ describe('LegalService', () => {
       expect(txMock.userLegalConsent.create).toHaveBeenCalledTimes(3);
     });
 
-    it('should throw BadRequestException in production if active legal document is missing', async () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
-      try {
-        const txMock = {
-          legalDocumentVersion: {
-            findFirst: jest.fn().mockResolvedValue(null),
-          },
-        } as any;
+    it('should throw NotFoundException if active legal document is missing from the database', async () => {
+      const txMock = {
+        legalDocumentVersion: {
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+      } as any;
 
-        await expect(
-          service.resolveAndRecordSignupConsents(txMock, userId, {
-            acceptedTermsAndPolicies: true,
-          }),
-        ).rejects.toThrow(BadRequestException);
-      } finally {
-        process.env.NODE_ENV = originalEnv;
-      }
+      await expect(
+        service.resolveAndRecordSignupConsents(txMock, userId, {
+          acceptedTermsAndPolicies: true,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if explicit acceptedLegalDocs specifies non-existent version', async () => {
+      const txMock = {
+        legalDocumentVersion: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+      } as any;
+
+      await expect(
+        service.resolveAndRecordSignupConsents(txMock, userId, {
+          acceptedLegalDocs: [
+            {
+              documentType: LegalDocumentType.TERMS_OF_SERVICE,
+              version: '99.9.9',
+            },
+            {
+              documentType: LegalDocumentType.PRIVACY_POLICY,
+              version: '1.0.0',
+            },
+            {
+              documentType: LegalDocumentType.CANCELLATION_POLICY,
+              version: '1.0.0',
+            },
+          ],
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should record explicit acceptedLegalDocs when all mandatory documents are provided', async () => {
