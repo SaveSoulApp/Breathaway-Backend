@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "IdentityType" AS ENUM ('PHONE', 'EMAIL', 'INSTAGRAM', 'LINKEDIN', 'TWITTER', 'OTHER');
 
@@ -30,6 +33,12 @@ CREATE TYPE "ConsentChannel" AS ENUM ('PUSH', 'EMAIL', 'SMS', 'WHATSAPP');
 
 -- CreateEnum
 CREATE TYPE "ConsentSource" AS ENUM ('SIGNUP', 'USER_TOGGLE', 'UNSUBSCRIBE_LINK', 'ADMIN_OVERRIDE');
+
+-- CreateEnum
+CREATE TYPE "LegalDocumentType" AS ENUM ('TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'CANCELLATION_POLICY');
+
+-- CreateEnum
+CREATE TYPE "LegalConsentContext" AS ENUM ('SIGNUP', 'SIGNIN_REACCEPTANCE', 'IN_APP_REACCEPTANCE');
 
 -- CreateEnum
 CREATE TYPE "PaymentGateway" AS ENUM ('REVENUECAT', 'RAZORPAY', 'CASHFREE', 'EASEBUZZ', 'DECENTRO');
@@ -99,7 +108,7 @@ CREATE TABLE "AuthCredential" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "type" "AuthCredentialType" NOT NULL,
-    "valueHash" CHAR(64) NOT NULL,
+    "valueHash" BYTEA NOT NULL,
     "valueMasked" TEXT,
     "isPrimary" BOOLEAN NOT NULL DEFAULT false,
     "identityId" TEXT NOT NULL,
@@ -113,18 +122,18 @@ CREATE TABLE "AuthCredential" (
 CREATE TABLE "Identity" (
     "id" TEXT NOT NULL,
     "type" "IdentityType" NOT NULL,
-    "publicValueHash" CHAR(64) NOT NULL,
-    "publicValueCiphertext" TEXT NOT NULL,
-    "publicValueIv" CHAR(24) NOT NULL,
-    "publicValueTag" CHAR(24) NOT NULL,
-    "publicValueWrappedKey" TEXT NOT NULL,
+    "publicValueHash" BYTEA NOT NULL,
+    "publicValueCiphertext" BYTEA NOT NULL,
+    "publicValueIv" BYTEA NOT NULL,
+    "publicValueTag" BYTEA NOT NULL,
+    "publicValueWrappedKey" BYTEA NOT NULL,
     "publicValueKeyId" TEXT NOT NULL,
     "publicValueMasked" TEXT,
-    "platformIdHash" CHAR(64),
-    "platformIdCiphertext" TEXT,
-    "platformIdIv" CHAR(24),
-    "platformIdTag" CHAR(24),
-    "platformIdWrappedKey" TEXT,
+    "platformIdHash" BYTEA,
+    "platformIdCiphertext" BYTEA,
+    "platformIdIv" BYTEA,
+    "platformIdTag" BYTEA,
+    "platformIdWrappedKey" BYTEA,
     "platformIdKeyId" TEXT,
     "userId" TEXT,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
@@ -172,7 +181,7 @@ CREATE TABLE "Block" (
     "id" TEXT NOT NULL,
     "blockerUserId" TEXT NOT NULL,
     "blockedUserId" TEXT,
-    "blockedPhoneHash" CHAR(64),
+    "blockedPhoneHash" BYTEA,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMPTZ,
 
@@ -199,7 +208,7 @@ CREATE TABLE "UserSession" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "jti" TEXT NOT NULL,
-    "tokenHash" CHAR(64) NOT NULL,
+    "tokenHash" BYTEA NOT NULL,
     "familyId" TEXT NOT NULL,
     "deviceId" TEXT,
     "userAgent" TEXT,
@@ -255,10 +264,47 @@ CREATE TABLE "ConsentLedger" (
 );
 
 -- CreateTable
+CREATE TABLE "LegalDocumentVersion" (
+    "id" TEXT NOT NULL,
+    "type" "LegalDocumentType" NOT NULL,
+    "version" VARCHAR(32) NOT NULL,
+    "title" VARCHAR(128) NOT NULL,
+    "documentUrl" VARCHAR(512) NOT NULL,
+    "contentHash" VARCHAR(64) NOT NULL,
+    "snapshotStoragePath" VARCHAR(512),
+    "requiresReacceptance" BOOLEAN NOT NULL DEFAULT false,
+    "changeSummary" TEXT,
+    "publishedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "effectiveAt" TIMESTAMPTZ NOT NULL,
+    "supersededAt" TIMESTAMPTZ,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "LegalDocumentVersion_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserLegalConsent" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "documentVersionId" TEXT NOT NULL,
+    "documentType" "LegalDocumentType" NOT NULL,
+    "version" VARCHAR(32) NOT NULL,
+    "context" "LegalConsentContext" NOT NULL DEFAULT 'SIGNUP',
+    "platform" "DevicePlatform" NOT NULL DEFAULT 'WEB',
+    "ipAddress" VARCHAR(45),
+    "userAgent" TEXT,
+    "acceptedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "UserLegalConsent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Transaction" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
-    "userPhoneHash" CHAR(64),
+    "userPhoneHash" BYTEA,
     "gateway" "PaymentGateway" NOT NULL,
     "gatewayTransactionId" TEXT NOT NULL,
     "gatewayEventId" TEXT,
@@ -583,6 +629,12 @@ CREATE INDEX "CreditLedger_userId_idx" ON "CreditLedger"("userId");
 CREATE INDEX "CreditLedger_userId_createdAt_idx" ON "CreditLedger"("userId", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "CreditLedger_userId_transactionType_expiresAt_idx" ON "CreditLedger"("userId", "transactionType", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "CreditLedger_transactionType_expiresAt_userId_idx" ON "CreditLedger"("transactionType", "expiresAt", "userId");
+
+-- CreateIndex
 CREATE INDEX "CreditLedger_expiresAt_idx" ON "CreditLedger"("expiresAt");
 
 -- CreateIndex
@@ -593,6 +645,21 @@ CREATE INDEX "ConsentLedger_userId_createdAt_idx" ON "ConsentLedger"("userId", "
 
 -- CreateIndex
 CREATE INDEX "ConsentLedger_userId_channel_createdAt_idx" ON "ConsentLedger"("userId", "channel", "createdAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "LegalDocumentVersion_type_isActive_effectiveAt_idx" ON "LegalDocumentVersion"("type", "isActive", "effectiveAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "LegalDocumentVersion_type_version_key" ON "LegalDocumentVersion"("type", "version");
+
+-- CreateIndex
+CREATE INDEX "UserLegalConsent_userId_acceptedAt_idx" ON "UserLegalConsent"("userId", "acceptedAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "UserLegalConsent_userId_documentType_acceptedAt_idx" ON "UserLegalConsent"("userId", "documentType", "acceptedAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "UserLegalConsent_documentVersionId_idx" ON "UserLegalConsent"("documentVersionId");
 
 -- CreateIndex
 CREATE INDEX "Transaction_userId_idx" ON "Transaction"("userId");
@@ -700,6 +767,12 @@ CREATE INDEX "ChatRoom_userTwoId_idx" ON "ChatRoom"("userTwoId");
 CREATE UNIQUE INDEX "ChatRoom_userOneId_userTwoId_key" ON "ChatRoom"("userOneId", "userTwoId");
 
 -- CreateIndex
+CREATE INDEX "Message_roomId_idx" ON "Message"("roomId");
+
+-- CreateIndex
+CREATE INDEX "Message_roomId_createdAt_idx" ON "Message"("roomId", "createdAt" DESC);
+
+-- CreateIndex
 CREATE INDEX "Notification_userId_createdAt_idx" ON "Notification"("userId", "createdAt" DESC);
 
 -- CreateIndex
@@ -766,6 +839,12 @@ ALTER TABLE "NotificationPreference" ADD CONSTRAINT "NotificationPreference_user
 ALTER TABLE "ConsentLedger" ADD CONSTRAINT "ConsentLedger_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "UserLegalConsent" ADD CONSTRAINT "UserLegalConsent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserLegalConsent" ADD CONSTRAINT "UserLegalConsent_documentVersionId_fkey" FOREIGN KEY ("documentVersionId") REFERENCES "LegalDocumentVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -803,3 +882,4 @@ ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "DsarExport" ADD CONSTRAINT "DsarExport_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
